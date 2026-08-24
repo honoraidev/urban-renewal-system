@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>都更管理系統</title>
+<script>
+  (function () {
+    var saved = localStorage.getItem("theme");
+    if (saved === "light" || saved === "dark") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  })();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="toast-container"></div>
+<div id="modal-root"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="view-login">
+  <div class="login-card">
+    <div class="login-brand-dot"><img src="data:image/png;base64,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" alt="丞石建築"></div>
+    <h1>都更管理系統</h1>
+    <div class="subtitle">請登入以繼續</div>
+    <form id="login-form">
+      <div class="field">
+        <label>帳號</label>
+        <input type="text" id="login-username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>密碼</label>
+        <input type="password" id="login-password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%">登入</button>
+    </form>
+  </div>
+  <footer class="app-footer login-footer">
+    <div class="app-footer-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="2" width="10" height="20"/>
+        <rect x="14" y="8" width="6" height="14"/>
+        <line x1="7" y1="6" x2="7" y2="6.01"/>
+        <line x1="11" y1="6" x2="11" y2="6.01"/>
+        <line x1="7" y1="10" x2="7" y2="10.01"/>
+        <line x1="11" y1="10" x2="11" y2="10.01"/>
+        <line x1="7" y1="14" x2="7" y2="14.01"/>
+        <line x1="11" y1="14" x2="11" y2="14.01"/>
+        <line x1="17" y1="12" x2="17" y2="12.01"/>
+        <line x1="17" y1="16" x2="17" y2="16.01"/>
+      </svg>
+      <span>丞石建築開發股份有限公司</span>
+    </div>
+    <div>© 2026 丞石建築開發股份有限公司 版權所有</div>
+  </footer>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <div class="app-layout">
+  <nav class="sb">
+  <div class="navbar">
+    <div class="brand">
+      <div class="brand-dot"><img src="data:image/png;base64,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" alt="丞石建築"></div>
+      <span class="brand-text">都更管理系統</span>
+    </div>
+  </div>
+    <div class="nav-links">
+      <button class="nav-link" data-nav="dashboard">案件總覽</button>
+    </div>
+    <div class="sb-sec">案件</div>
+    <div id="sb-cases"></div>
+    <div class="nav-user">
+      <div class="avatar-menu">
+        <button class="avatar-btn" id="avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="帳號選單"></button>
+        <div class="avatar-dropdown hidden" id="avatar-dropdown">
+          <div class="avatar-dropdown-header">
+            <div class="avatar-dropdown-name" id="dropdown-user-name"></div>
+            <span class="role-badge" id="nav-user-role"></span>
+          </div>
+          <div class="avatar-dropdown-divider"></div>
+          <button class="avatar-dropdown-item nav-link hidden" data-nav="users" id="nav-users-btn">使用者管理</button>
+          <button class="avatar-dropdown-item nav-link hidden" data-nav="loginlogs" id="nav-loginlogs-btn">登入紀錄</button>
+          <div class="avatar-dropdown-divider"></div>
+          <button class="avatar-dropdown-item danger" id="logout-btn">登出</button>
+        </div>
+      </div>
+      <button class="btn-secondary btn-sm" id="theme-toggle-btn" type="button" title="切換深色/淺色模式" aria-label="切換深色/淺色模式"></button>
+    </div>
+  </nav>
+
+  <div class="main">
+  <main>
+    <!-- Dashboard -->
+    <div id="view-dashboard">
+      <div class="page-header">
+        <h2>案件事項</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="helper-text hidden" id="batch-select-all-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="batch-select-all" class="project-select-checkbox">
+            全選
+          </label>
+          <span class="helper-text hidden" id="batch-select-count"></span>
+          <button class="btn-danger hidden" id="batch-delete-btn">批量刪除</button>
+          <button class="btn-secondary hidden" id="batch-import-btn">批次匯入(自動分案件)</button>
+          <button class="btn-secondary hidden" id="batch-import-buildings-btn">批次匯入建物謄本(自動比對案件)</button>
+          <button class="btn-primary hidden" id="new-project-btn">+ 新增案件</button>
+        </div>
+      </div>
+      <div id="project-grid" class="project-grid"></div>
+    </div>
+
+    <!-- New project -->
+    <div id="view-new-project" class="hidden">
+      <button class="back-link" id="back-to-dashboard-from-new-project">← 返回</button>
+      <div class="page-header">
+        <h2>建立都更案</h2>
+      </div>
+      <form id="project-form" style="max-width:640px">
+        <div class="field-row">
+          <div class="field">
+            <label>縣市</label>
+            <select name="city" id="np-city"></select>
+          </div>
+          <div class="field"><label>行政區</label><input name="district"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
+          <div class="field"><label>案件名稱</label><input name="name" required></div>
+        </div>
+        <div class="field"><label>地址</label><input name="address"></div>
+        <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
+        <div class="field">
+          <label>謄本掃描檔(選填)</label>
+          <input type="file" id="new-project-deed-files" accept="image/*,application/pdf" multiple autocomplete="off">
+          <div class="helper-text">建立案件後會直接開啟匯入精靈,自動辨識並建立地號/建物/地主資料</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancel-new-project-btn">取消</button>
+          <button type="submit" class="btn-primary">建立</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Project detail -->
+    <div id="view-project-detail" class="hidden">
+      <button class="back-link" id="back-to-dashboard">← 返回</button>
+      <div class="project-header">
+        <div>
+          <h2 id="pd-name"></h2>
+          <div class="sub" id="pd-sub"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="pd-status-badge"></div>
+          <div id="pd-header-actions"></div>
+        </div>
+      </div>
+      <div id="pd-sop-summary" style="margin-bottom:4px"></div>
+      <div class="tab-bar">
+        <button class="tab-btn" data-tab="landowners">土地登記</button>
+        <button class="tab-btn" data-tab="buildings">建物登記</button>
+        <button class="tab-btn" data-tab="relations">關聯</button>
+        <button class="tab-btn" data-tab="contacts">聯絡紀錄</button>
+        <button class="tab-btn" data-tab="documents">文件</button>
+        <button class="tab-btn" data-tab="encumbrances">他項權利部</button>
+        <button class="tab-btn" data-tab="expenses">費用</button>
+      </div>
+      <div id="tab-content"></div>
+    </div>
+
+    <!-- OCR import batch detail -->
+    <div id="view-ocr-batch" class="hidden">
+      <button class="back-link" id="back-to-project-from-batch">← 返回案件</button>
+      <div class="project-header">
+        <div>
+          <h2 id="batch-name"></h2>
+          <div class="sub" id="batch-sub"></div>
+        </div>
+        <div id="batch-status-badge"></div>
+      </div>
+      <div class="batch-pipeline" id="batch-pipeline"></div>
+      <div class="tab-bar">
+        <button class="tab-btn" data-batch-tab="overview">📊 案件總覽</button>
+        <button class="tab-btn" data-batch-tab="parcels">🗺 地號</button>
+        <button class="tab-btn" data-batch-tab="buildings">🏢 建號</button>
+        <button class="tab-btn" data-batch-tab="relations">🔗 關聯</button>
+        <button class="tab-btn" data-batch-tab="ocrai">🤖 OCR‧AI</button>
+        <button class="tab-btn" data-batch-tab="documents">📄 文件</button>
+        <button class="tab-btn" data-batch-tab="timeline">📝 紀錄</button>
+      </div>
+      <div id="batch-tab-content"></div>
+    </div>
+
+    <!-- Users -->
+    <div id="view-users" class="hidden">
+      <div class="page-header">
+        <h2>使用者管理</h2>
+        <button class="btn-primary" id="new-user-btn">+ 新增使用者</button>
+      </div>
+      <div id="users-table-wrap" class="table-wrap"></div>
+    </div>
+
+    <!-- Login logs -->
+    <div id="view-loginlogs" class="hidden">
+      <div class="page-header">
+        <h2>登入紀錄</h2>
+      </div>
+      <div id="loginlogs-table-wrap" class="table-wrap"></div>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="app-footer-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="2" width="10" height="20"/>
+        <rect x="14" y="8" width="6" height="14"/>
+        <line x1="7" y1="6" x2="7" y2="6.01"/>
+        <line x1="11" y1="6" x2="11" y2="6.01"/>
+        <line x1="7" y1="10" x2="7" y2="10.01"/>
+        <line x1="11" y1="10" x2="11" y2="10.01"/>
+        <line x1="7" y1="14" x2="7" y2="14.01"/>
+        <line x1="11" y1="14" x2="11" y2="14.01"/>
+        <line x1="17" y1="12" x2="17" y2="12.01"/>
+        <line x1="17" y1="16" x2="17" y2="16.01"/>
+      </svg>
+      <span>丞石建築開發股份有限公司</span>
+    </div>
+    <div>© 2026 丞石建築開發股份有限公司 版權所有 </div>
+  </footer>
+  </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -17,6 +17,7 @@ class BuildingRecord(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     landowner_id: Mapped[int | None] = mapped_column(ForeignKey("landowners.id", ondelete="SET NULL"), nullable=True)
     land_record_id: Mapped[int | None] = mapped_column(ForeignKey("land_records.id", ondelete="SET NULL"), nullable=True)
+    source_ocr_job_id: Mapped[int | None] = mapped_column(ForeignKey("ocr_jobs.id", ondelete="SET NULL"), nullable=True)
     building_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     floor: Mapped[str | None] = mapped_column(String(20), nullable=True)

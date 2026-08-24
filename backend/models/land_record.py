@@ -16,6 +16,7 @@ class LandRecord(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     landowner_id: Mapped[int | None] = mapped_column(ForeignKey("landowners.id", ondelete="SET NULL"), nullable=True)
+    source_ocr_job_id: Mapped[int | None] = mapped_column(ForeignKey("ocr_jobs.id", ondelete="SET NULL"), nullable=True)
     parcel_number: Mapped[str] = mapped_column(String(100), nullable=False)
     township: Mapped[str | None] = mapped_column(String(50), nullable=True)
     section: Mapped[str | None] = mapped_column(String(100), nullable=True)

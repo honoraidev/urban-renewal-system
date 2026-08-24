@@ -16,7 +16,7 @@ from utils.ocr import merge_pages_to_pdf
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
-VALID_DOC_TYPES = {"property_register", "consent_form", "briefing_material", "contract", "photo", "other"}
+VALID_DOC_TYPES = {"property_register", "building_register", "consent_form", "briefing_material", "contract", "photo", "other"}
 
 
 @router.get("", response_model=list[DocumentRead])

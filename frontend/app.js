@@ -1,788 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>都更管理系統</title>
-<script>
-  (function () {
-    var saved = localStorage.getItem("theme");
-    if (saved === "light" || saved === "dark") {
-      document.documentElement.setAttribute("data-theme", saved);
-    }
-  })();
-</script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&display=swap');
-
-  :root {
-    color-scheme: light;
-    --brand: #42cbd0;
-    --brand-dark: #37b0b5;
-    --brand-light: #f0fbfb;
-    --bg: #f2f6f7;
-    --surface: #ffffff;
-    --surface-2: #f5f8f9;
-    --border: #e4ebec;
-    --text: #172527;
-    --text-muted: #71838a;
-    --danger: #e6584f;
-    --danger-light: #fdecea;
-    --warning: #e2a13c;
-    --warning-light: #fdf3e0;
-    --success: #2fae72;
-    --success-light: #e5f8ee;
-    --info: #4d5fb0;
-    --info-light: #eef1fb;
-    --nav-bg: rgba(255, 255, 255, .85);
-    --card-rim: rgba(255, 255, 255, .6);
-    --login-glow: #eafcfc;
-    --overlay: rgba(12, 22, 24, .5);
-    --toast-bg: #1c2b2d;
-    --scrollbar-thumb: #cbd7d9;
-    --scrollbar-thumb-hover: #b3c2c4;
-    --radius: 12px;
-    --radius-sm: 8px;
-    --shadow: 0 1px 2px rgba(15, 35, 38, .04), 0 6px 20px -6px rgba(15, 35, 38, .10);
-    --shadow-hover: 0 4px 10px rgba(15, 35, 38, .06), 0 16px 32px -12px rgba(15, 35, 38, .18);
-    --shadow-modal: 0 20px 60px -12px rgba(10, 25, 28, .35);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --brand: #42cbd0;
-      --brand-dark: #6fd9dd;
-      --brand-light: rgba(66, 203, 208, .16);
-      --bg: #0e1618;
-      --surface: #172224;
-      --surface-2: #1f2c2e;
-      --border: #2a3a3c;
-      --text: #e7f1f2;
-      --text-muted: #93a7aa;
-      --danger: #ff7a70;
-      --danger-light: rgba(255, 122, 112, .16);
-      --warning: #f0b45c;
-      --warning-light: rgba(240, 180, 92, .14);
-      --success: #4ecb8d;
-      --success-light: rgba(78, 203, 141, .14);
-      --info: #98a5e6;
-      --info-light: rgba(152, 165, 230, .16);
-      --nav-bg: rgba(23, 34, 36, .85);
-      --card-rim: rgba(255, 255, 255, .06);
-      --login-glow: #0f2224;
-      --overlay: rgba(0, 0, 0, .6);
-      --scrollbar-thumb: #38494b;
-      --scrollbar-thumb-hover: #4a5f61;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px -6px rgba(0, 0, 0, .45);
-      --shadow-hover: 0 4px 10px rgba(0, 0, 0, .35), 0 16px 32px -12px rgba(0, 0, 0, .55);
-      --shadow-modal: 0 20px 60px -12px rgba(0, 0, 0, .6);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --brand: #2dd4dd;
-    --brand-dark: #55c9d1;
-    --brand-light: rgba(45, 212, 221, .16);
-    --bg: #0e1618;
-    --surface: #172224;
-    --surface-2: #1f2c2e;
-    --border: #2a3a3c;
-    --text: #e7f1f2;
-    --text-muted: #93a7aa;
-    --danger: #ff7a70;
-    --danger-light: rgba(255, 122, 112, .16);
-    --warning: #f0b45c;
-    --warning-light: rgba(240, 180, 92, .14);
-    --success: #4ecb8d;
-    --success-light: rgba(78, 203, 141, .14);
-    --info: #98a5e6;
-    --info-light: rgba(152, 165, 230, .16);
-    --nav-bg: rgba(23, 34, 36, .85);
-    --card-rim: rgba(255, 255, 255, .06);
-    --login-glow: #0f2224;
-    --overlay: rgba(0, 0, 0, .6);
-    --scrollbar-thumb: #38494b;
-    --scrollbar-thumb-hover: #4a5f61;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px -6px rgba(0, 0, 0, .45);
-    --shadow-hover: 0 4px 10px rgba(0, 0, 0, .35), 0 16px 32px -12px rgba(0, 0, 0, .55);
-    --shadow-modal: 0 20px 60px -12px rgba(0, 0, 0, .6);
-  }
-  * { box-sizing: border-box; }
-  html { scrollbar-color: var(--scrollbar-thumb) transparent; }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 100px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-  body {
-    margin: 0;
-    font-family: "Noto Sans TC", -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    -webkit-font-smoothing: antialiased;
-    letter-spacing: .1px;
-    transition: background .2s ease, color .2s ease;
-  }
-  .hidden { display: none !important; }
-  button {
-    font-family: inherit;
-    cursor: pointer;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 8px 16px;
-    font-size: 15.5px;
-    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease, background .15s ease, border-color .15s ease;
-  }
-  button:hover { opacity: 0.94; }
-  button:active { transform: translateY(1px); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .btn-primary {
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-    color: #fff; font-weight: 700;
-    box-shadow: 0 2px 6px -1px rgba(15, 155, 163, .45);
-  }
-  .btn-primary:hover { box-shadow: 0 4px 12px -1px rgba(15, 155, 163, .55); transform: translateY(-1px); opacity: 1; }
-  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); font-weight: 600; }
-  .btn-secondary:hover { border-color: var(--text-muted); background: var(--surface-2); opacity: 1; }
-  .btn-danger { background: var(--danger); color: #fff; font-weight: 600; box-shadow: 0 2px 6px -1px rgba(230, 88, 79, .4); }
-  .btn-warning { background: var(--warning); color: #fff; font-weight: 600; box-shadow: 0 2px 6px -1px rgba(226, 161, 60, .4); }
-  .btn-sm { padding: 5px 10px; font-size: 14px; }
-  .btn-link { background: none; color: var(--brand-dark); padding: 2px 4px; text-decoration: underline; font-weight: 600; box-shadow: none; }
-  .btn-link:hover { opacity: 1; color: var(--brand); }
-  input, select, textarea {
-    font-family: inherit;
-    font-size: 15.5px;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    width: 100%;
-    background: var(--surface-2);
-    color: var(--text);
-    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-  }
-  input:hover, select:hover, textarea:hover { border-color: var(--text-muted); }
-  input:focus, select:focus, textarea:focus {
-    outline: none; border-color: var(--brand); background: var(--surface);
-    box-shadow: 0 0 0 3px rgba(45, 212, 221, .18);
-  }
-  label { display: block; font-size: 14px; color: var(--text-muted); margin-bottom: 5px; font-weight: 700; letter-spacing: .02em; }
-  .field { margin-bottom: 14px; }
-  .field-row { display: flex; gap: 12px; }
-  .field-row > .field { flex: 1; }
-
-  /* ---------- Login ---------- */
-  #view-login {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
-  }
-  .login-card {
-    background: #ffffff;
-    border-radius: 20px;
-    box-shadow: var(--shadow-modal);
-    border: 1px solid var(--card-rim);
-    padding: 40px 36px;
-    width: 100%;
-    max-width: 420px;
-    position: relative;
-    z-index: 1;
-    animation: login-in .5s cubic-bezier(.22,1,.36,1);
-  }
-  @keyframes login-in {
-    from { opacity: 0; transform: translateY(14px) scale(.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .login-card h1 {
-    font-size: 28px;
-    text-align: center;
-    margin: 0 0 6px;
-    font-weight: 900;
-    letter-spacing: .01em;
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .login-card .subtitle {
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 14.5px;
-    margin-bottom: 26px;
-  }
-  .login-brand-dot {
-    margin: 0 auto 14px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .login-brand-dot img { height: 116px; width: auto; display: block; }
-  #login-form .btn-primary { padding: 10px 16px; font-size: 16px; margin-top: 4px; }
-
-  /* ---------- App shell (sidebar layout) ---------- */
-  #app { min-height: 100vh; }
-  .app-layout { display: flex; min-height: 100vh; }
-  .sb {
-    width: 264px; flex-shrink: 0;
-    background: var(--nav-bg);
-    backdrop-filter: blur(10px) saturate(1.4);
-    -webkit-backdrop-filter: blur(10px) saturate(1.4);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    z-index: 20;
-  }
-  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
-  .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
-  .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
-  .navbar .brand .brand-text {
-    font-size: 19px; font-weight: 900; letter-spacing: .01em;
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .navbar .brand-dot {
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .navbar .brand-dot img { height: 40px; width: auto; display: block; }
-  .nav-links { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; flex-shrink: 0; }
-  .nav-link {
-    background: none; color: var(--text-muted); font-weight: 600; padding: 8px 14px; border-radius: var(--radius-sm);
-    text-align: left; width: 100%;
-  }
-  .nav-link:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
-  .nav-link.active { background: var(--brand-light); color: var(--brand-dark); }
-  .nav-link.active:hover { background: var(--brand-light); }
-  .sb-sec { padding: 18px 20px 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); flex-shrink: 0; }
-  #sb-cases { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; overflow-y: auto; flex: 1; min-height: 0; }
-  .sb-cg { margin-bottom: 1px; }
-  .sb-cg-head {
-    display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--radius-sm);
-    cursor: pointer; color: var(--text-muted); font-size: 12.5px; font-weight: 700; user-select: none;
-  }
-  .sb-cg-head:hover { background: var(--surface-2); color: var(--text); }
-  .sb-cg-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-cg-count {
-    font-size: 11px; padding: 1px 6px; border-radius: 5px;
-    background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);
-  }
-  .sb-cg-arrow { font-size: 10px; color: var(--text-muted); transition: transform .2s; }
-  .sb-cg-arrow.open { transform: rotate(90deg); }
-  .sb-cg-items { overflow: hidden; max-height: 0; transition: max-height .25s ease; }
-  .sb-cg-items.open { max-height: 800px; }
-  .sb-case-item {
-    display: block; padding: 7px 14px 7px 22px; border-radius: var(--radius-sm);
-    color: var(--text-muted); font-weight: 600; font-size: 13.5px; cursor: pointer;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .sb-case-item:hover { background: var(--surface-2); color: var(--text); }
-  .sb-case-item.active { background: var(--brand-light); color: var(--brand-dark); }
-  .nav-user {
-    display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--text-muted);
-    padding: 14px 20px; border-top: 1px solid var(--border); margin-top: auto; flex-shrink: 0;
-  }
-  #theme-toggle-btn { display: flex; align-items: center; justify-content: center; padding: 6px; width: 30px; height: 30px; }
-  #theme-toggle-btn svg { width: 15px; height: 15px; }
-  .avatar-menu { position: relative; flex: 1; }
-  .avatar-btn {
-    width: 36px; height: 36px; border-radius: 50%; padding: 0; border: none; flex-shrink: 0;
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-    color: #fff; font-weight: 700; font-size: 14px;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 6px -1px rgba(15, 155, 163, .5);
-  }
-  .avatar-btn:hover { opacity: .92; transform: translateY(-1px); }
-  .avatar-dropdown {
-    position: absolute; bottom: calc(100% + 10px); top: auto; left: 0; width: 220px; z-index: 30;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-modal); padding: 6px; display: flex; flex-direction: column; gap: 2px;
-    animation: modal-in .16s cubic-bezier(.22,1,.36,1);
-  }
-  .avatar-dropdown-header { padding: 10px 10px 8px; }
-  .avatar-dropdown-name { font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 6px; }
-  .avatar-dropdown-divider { border-top: 1px solid var(--border); margin: 4px 2px; }
-  .avatar-dropdown-item {
-    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-    background: none; color: var(--text); font-weight: 600; font-size: 13.5px;
-    padding: 9px 10px; border-radius: var(--radius-sm);
-  }
-  .avatar-dropdown-item:hover { background: var(--surface-2); opacity: 1; }
-  .avatar-dropdown-item.active { background: var(--brand-light); color: var(--brand-dark); }
-  .avatar-dropdown-item.danger { color: var(--danger); }
-  .avatar-dropdown-item.danger:hover { background: var(--danger-light); }
-  .avatar-dropdown-item svg { width: 15px; height: 15px; flex-shrink: 0; }
-  .role-badge {
-    font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 100px;
-    background: var(--surface-2); color: var(--text-muted); letter-spacing: .02em;
-  }
-  .role-badge.admin { background: var(--warning-light); color: var(--warning); }
-  .role-badge.staff { background: var(--brand-light); color: var(--brand-dark); }
-  .role-badge.public { background: var(--info-light); color: var(--info); }
-
-  main { flex: 1; padding: 28px 24px 60px; max-width: 1200px; margin: 0 auto; width: 100%; }
-  .app-footer {
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
-    padding: 18px 24px; font-size: 13px; color: var(--text-muted);
-    border-top: 1px solid var(--border);
-  }
-  .app-footer-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); }
-  .app-footer-brand svg { width: 19px; height: 19px; color: var(--brand); flex-shrink: 0; }
-  .login-footer {
-    position: absolute; left: 0; right: 0; bottom: 18px; border-top: none; z-index: 1;
-    color: rgba(255, 255, 255, .55);
-  }
-  .login-footer .app-footer-brand { color: rgba(255, 255, 255, .85); }
-  .login-footer .app-footer-brand svg { color: var(--brand); }
-
-  /* ---------- Dashboard ---------- */
-  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .page-header h2 { margin: 0; font-size: 22.5px; font-weight: 800; letter-spacing: .01em; }
-  .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-  .card {
-    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
-    padding: 18px; border: 1px solid var(--border);
-  }
-  .project-card { cursor: pointer; display: flex; flex-direction: column; gap: 12px; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
-  .project-card:hover { border-color: var(--brand); box-shadow: var(--shadow-hover); transform: translateY(-3px); }
-  .project-card-top { display: flex; align-items: flex-start; gap: 10px; }
-  .project-card-add {
-    align-items: center; justify-content: center; flex-direction: row; gap: 8px;
-    border: 1.5px dashed var(--border); background: transparent; color: var(--text-muted);
-    min-height: 100px; font-weight: 600;
-  }
-  .project-card-add:hover { border-color: var(--brand); color: var(--brand); background: var(--bg); }
-  .project-card-add-icon { font-size: 20px; line-height: 1; }
-  .project-card h3 { margin: 0; font-size: 16.5px; font-weight: 700; line-height: 1.35; }
-  .project-select-checkbox {
-    width: 19px; height: 19px; flex-shrink: 0; margin-top: 2px;
-    accent-color: var(--brand); cursor: pointer;
-  }
-  .project-code { font-size: 13.5px; color: var(--text-muted); }
-  .status-badge { font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 100px; letter-spacing: .02em; white-space: nowrap; }
-  .status-active { background: var(--success-light); color: var(--success); }
-  .status-closed { background: var(--surface-2); color: var(--text-muted); }
-  .status-suspended { background: var(--warning-light); color: var(--warning); }
-  .progress-bar-track { background: var(--surface-2); border-radius: 100px; height: 8px; overflow: hidden; }
-  .progress-bar-fill { background: linear-gradient(90deg, var(--brand), var(--brand-dark)); height: 100%; border-radius: 100px; transition: width .4s ease; }
-  .card-meta-row { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--text-muted); }
-  .badge-row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .mini-badge { font-size: 12.5px; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
-  .mini-badge.alert { background: var(--danger-light); color: var(--danger); font-weight: 700; }
-  .mini-badge.gate-ok { background: var(--success-light); color: var(--success); font-weight: 700; }
-  .empty-state { text-align: center; color: var(--text-muted); padding: 70px 20px; font-size: 15px; }
-  .stg-dots { display: flex; gap: 3px; flex: 1; }
-  .stg-dots .sd { height: 5px; flex: 1; border-radius: 3px; background: var(--surface-2); }
-  .stg-dots .sd.done { background: var(--brand); }
-  .stg-dots .sd.cur { background: var(--brand-dark); }
-  .donut-row { display: flex; justify-content: space-around; gap: 6px; }
-  .donut-item { text-align: center; }
-  .donut-wrap { position: relative; width: 62px; height: 62px; margin: 0 auto 4px; }
-  .donut-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 800; letter-spacing: -.02em; }
-  .donut-lbl { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
-  .alert-tier-row { display: flex; gap: 5px; flex-wrap: wrap; }
-  .alert-tier { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
-    padding: 4px 6px; border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-  .alert-tier-warn { background: var(--warning-light); color: var(--warning); }
-  .alert-tier-alert { background: #fff2e6; color: #c2650f; }
-  .alert-tier-urgent { background: var(--danger-light); color: var(--danger); }
-
-  /* ---------- Project detail ---------- */
-  .back-link { background: none; color: var(--text-muted); font-weight: 600; padding: 4px 0; margin-bottom: 12px; }
-  .back-link:hover { color: var(--brand-dark); opacity: 1; }
-  .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .project-header h2 { margin: 0 0 4px; font-size: 21.5px; font-weight: 800; }
-  .project-header .sub { color: var(--text-muted); font-size: 14.5px; }
-  .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
-  .tab-btn {
-    background: none; color: var(--text-muted); font-weight: 600; padding: 10px 16px;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 2px solid transparent;
-    position: relative; top: 1px;
-  }
-  .tab-btn:hover { color: var(--text); background: var(--surface-2); opacity: 1; }
-  .tab-btn.active { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 700; }
-  .tab-btn.active:hover { background: none; }
-
-  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
-  thead th {
-    text-align: left; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
-    padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2);
-  }
-  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 15px; vertical-align: top; }
-  tbody tr { transition: background .12s ease; }
-  tbody tr:hover { background: var(--surface-2); }
-  tbody tr:last-child td { border-bottom: none; }
-  .table-wrap { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); overflow-x: auto; }
-  .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
-  .contact-status-badge, .consent-status-badge {
-    font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 100px; display: inline-block; letter-spacing: .01em;
-  }
-  .cs-not_contacted { background: var(--surface-2); color: var(--text-muted); }
-  .cs-contacted { background: var(--info-light); color: var(--info); }
-  .cs-declined { background: var(--danger-light); color: var(--danger); }
-  .cs-agreed, .cs-completed { background: var(--success-light); color: var(--success); }
-  .cs-pending { background: var(--surface-2); color: var(--text-muted); }
-  .cs-opposed { background: var(--danger-light); color: var(--danger); }
-  .sub-detail { background: var(--surface-2); padding: 12px 14px; border-radius: var(--radius-sm); margin-top: 6px; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
-  .sub-detail table { box-shadow: none; }
-
-  .wizard-confirm-section-title {
-    font-weight: 700; font-size: 13px; letter-spacing: .02em; margin-top: 22px; margin-bottom: 10px;
-    color: var(--text-muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px;
-  }
-  .wizard-confirm-section-title::before { content: ""; width: 3px; height: 13px; background: var(--brand); border-radius: 2px; }
-  .wizard-confirm-section-title:first-of-type { margin-top: 0; }
-  .wizard-confirm-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius, 10px);
-    padding: 14px 16px; margin-top: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .15s ease;
-  }
-  .wizard-confirm-card:hover { border-color: var(--brand); }
-  .wizard-confirm-card-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; color: var(--text); }
-  .wizard-confirm-card-row { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.9; align-items: flex-start; }
-  .wizard-confirm-card-row + .wizard-confirm-card-row { margin-top: 4px; }
-  .wizard-confirm-card-label {
-    flex-shrink: 0; width: 62px; color: var(--text-muted); font-weight: 600; font-size: 12.5px;
-    padding-top: 3px;
-  }
-  .wizard-confirm-chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
-  .wizard-confirm-chip {
-    display: inline-flex; align-items: center; background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: 100px; padding: 3px 10px; font-size: 12.5px; color: var(--text); white-space: nowrap;
-  }
-  .wizard-confirm-chip.encumbrance { background: var(--warning-light, #fff4e0); border-color: var(--warning, #e0a020); color: var(--warning-dark, #8a5a00); }
-
-  .wizard-review-split { display: flex; gap: 16px; align-items: flex-start; }
-  .wizard-review-thumbs {
-    width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;
-    max-height: 480px; overflow-y: auto;
-  }
-  .wizard-review-thumbs img {
-    width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: zoom-in;
-    transition: border-color .15s ease;
-  }
-  .wizard-review-thumbs img:hover { border-color: var(--brand); }
-  .wizard-review-form { flex: 1; min-width: 0; }
-  .wizard-reviewed-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 12px;
-    background: var(--surface-2); border-radius: var(--radius-sm); font-size: 13.5px; font-weight: 600;
-    color: var(--text-muted); cursor: pointer;
-  }
-  .wizard-reviewed-row input { accent-color: var(--brand); cursor: pointer; }
-
-  .wizard-relation-row { display: grid; grid-template-columns: 1fr 34px 1fr; gap: 10px; align-items: stretch; margin-top: 10px; }
-  .wizard-relation-card {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
-  }
-  .wizard-relation-card-title { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
-  .wizard-relation-card-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
-  .wizard-relation-arrow { display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--brand); }
-
-  .section-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
-  .section-toolbar h3 { margin: 0; font-size: 16.5px; font-weight: 700; }
-
-  /* ---------- SOP stepper ---------- */
-  .sop-stepper { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0; margin-bottom: 4px; overflow-x: auto; }
-  .sop-node { display: flex; flex-direction: column; align-items: center; width: 114px; position: relative; }
-  .sop-node .circle {
-    width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2); color: var(--text-muted);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;
-    border: 2px solid var(--surface-2); z-index: 1; transition: all .25s ease;
-  }
-  .sop-node .line {
-    position: absolute; top: 20px; left: -57px; width: 114px; height: 2px; background: var(--surface-2); z-index: 0; transition: background .25s ease;
-  }
-  .sop-node:first-child .line { display: none; }
-  .sop-node .label { font-size: 12.5px; text-align: center; margin-top: 7px; color: var(--text-muted); line-height: 1.35; }
-  .sop-node.completed .circle { background: linear-gradient(135deg, var(--brand), var(--brand-dark)); border-color: var(--brand); color: #fff; }
-  .sop-node.completed .line { background: var(--brand); }
-  .sop-node.force_closed .circle { background: var(--warning); border-color: var(--warning); color: #fff; }
-  .sop-node.force_closed .line { background: var(--warning); }
-  .sop-node.current .circle { border-color: var(--brand); color: var(--brand-dark); box-shadow: 0 0 0 5px var(--brand-light); }
-  .sop-node.current .label { color: var(--text); font-weight: 700; }
-
-  .gate-bars { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
-  .gate-bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
-  .final-banner {
-    padding: 15px 18px; border-radius: var(--radius); background: var(--success-light); color: var(--success);
-    font-weight: 700; margin-bottom: 16px; border: 1px solid rgba(47, 174, 114, .18);
-  }
-  .final-banner.warning { background: var(--warning-light); color: var(--warning); border-color: rgba(226, 161, 60, .2); }
-
-  /* ---------- Modal ---------- */
-  .modal-overlay {
-    position: fixed; inset: 0; background: var(--overlay);
-    backdrop-filter: blur(2px);
-    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
-    animation: fade-in .18s ease;
-  }
-  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-  .modal-dialog {
-    background: var(--surface); border-radius: 16px; width: 100%; max-height: 88vh; overflow-y: auto;
-    box-shadow: var(--shadow-modal);
-    animation: modal-in .22s cubic-bezier(.22,1,.36,1);
-  }
-  @keyframes modal-in {
-    from { opacity: 0; transform: translateY(10px) scale(.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .modal-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 22px; border-bottom: 1px solid var(--border);
-  }
-  .modal-header h3 { margin: 0; font-size: 17.5px; font-weight: 800; }
-  .modal-close { background: none; color: var(--text-muted); font-size: 21.5px; padding: 2px 6px; border-radius: var(--radius-sm); line-height: 1; }
-  .modal-close:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
-  .modal-body { padding: 22px; }
-  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-
-  /* ---------- Toast ---------- */
-  #toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 200; }
-  .toast {
-    background: var(--toast-bg); color: #fff; padding: 11px 18px; border-radius: var(--radius-sm); font-size: 15px;
-    opacity: 0; transform: translateY(8px); transition: all .25s; max-width: 320px; box-shadow: var(--shadow-hover);
-    font-weight: 500;
-  }
-  .toast.show { opacity: 1; transform: translateY(0); }
-  .toast-error { background: var(--danger); }
-  .toast-success { background: var(--success); }
-
-  .helper-text { font-size: 13.5px; color: var(--text-muted); margin-top: 4px; }
-  .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
-  fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin: 0 0 14px; }
-  legend { font-size: 14px; font-weight: 700; color: var(--text-muted); padding: 0 6px; }
-
-  @media (max-width: 640px) {
-    main { padding: 18px 14px 40px; }
-    /* Fixed-width sidebar doesn't fit on a phone screen - stack it above the
-       content as a horizontal bar instead. */
-    .app-layout { flex-direction: column; }
-    .sb {
-      width: 100%; height: auto; max-height: 60vh; position: static;
-      flex-direction: column; border-right: none; border-bottom: 1px solid var(--border);
-    }
-    .navbar { padding: 12px; gap: 10px; }
-    .navbar .brand-dot img { height: 34px; }
-    .navbar .brand .brand-text { font-size: 15.5px; }
-    .nav-link { padding: 6px 10px; font-size: 13px; }
-    #sb-cases { flex: 0 0 auto; max-height: 30vh; }
-    .login-card { width: 100%; padding: 34px 24px; }
-    /* Narrow screens: stack the page title above its action buttons instead of
-       squeezing them onto one row (which forced button text to wrap mid-word). */
-    .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
-    .page-header > div { flex-wrap: wrap; }
-    .page-header > div > button { flex: 1 1 auto; white-space: nowrap; }
-    /* The login footer is absolutely pinned to the bottom of a 100vh container on
-       desktop, which looks fine there - but on mobile, when the on-screen keyboard
-       opens and shrinks the visible viewport, the vertically-centered login card ends
-       up overlapping this pinned footer. Let it flow normally below the card instead,
-       and let the page scroll if needed, so there's no fixed element for anything to
-       collide with. */
-    #view-login {
-      min-height: 100vh; height: auto; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding: 40px 16px 24px; overflow-y: auto;
-    }
-    .login-footer { position: static; margin-top: 24px; text-align: center; }
-  }
-</style>
-</head>
-<body>
-
-<div id="toast-container"></div>
-<div id="modal-root"></div>
-
-<!-- ============ LOGIN ============ -->
-<div id="view-login">
-  <div class="login-card">
-    <div class="login-brand-dot"><img src="data:image/png;base64,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" alt="丞石建築"></div>
-    <h1>都更管理系統</h1>
-    <div class="subtitle">請登入以繼續</div>
-    <form id="login-form">
-      <div class="field">
-        <label>帳號</label>
-        <input type="text" id="login-username" autocomplete="username" required>
-      </div>
-      <div class="field">
-        <label>密碼</label>
-        <input type="password" id="login-password" autocomplete="current-password" required>
-      </div>
-      <button type="submit" class="btn-primary" style="width:100%">登入</button>
-    </form>
-  </div>
-  <footer class="app-footer login-footer">
-    <div class="app-footer-brand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="2" width="10" height="20"/>
-        <rect x="14" y="8" width="6" height="14"/>
-        <line x1="7" y1="6" x2="7" y2="6.01"/>
-        <line x1="11" y1="6" x2="11" y2="6.01"/>
-        <line x1="7" y1="10" x2="7" y2="10.01"/>
-        <line x1="11" y1="10" x2="11" y2="10.01"/>
-        <line x1="7" y1="14" x2="7" y2="14.01"/>
-        <line x1="11" y1="14" x2="11" y2="14.01"/>
-        <line x1="17" y1="12" x2="17" y2="12.01"/>
-        <line x1="17" y1="16" x2="17" y2="16.01"/>
-      </svg>
-      <span>丞石建築開發股份有限公司</span>
-    </div>
-    <div>© 2026 丞石建築開發股份有限公司 版權所有</div>
-  </footer>
-</div>
-
-<!-- ============ APP ============ -->
-<div id="app" class="hidden">
-  <div class="app-layout">
-  <nav class="sb">
-  <div class="navbar">
-    <div class="brand">
-      <div class="brand-dot"><img src="data:image/png;base64,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" alt="丞石建築"></div>
-      <span class="brand-text">都更管理系統</span>
-    </div>
-  </div>
-    <div class="nav-links">
-      <button class="nav-link" data-nav="dashboard">案件總覽</button>
-    </div>
-    <div class="sb-sec">案件</div>
-    <div id="sb-cases"></div>
-    <div class="nav-user">
-      <div class="avatar-menu">
-        <button class="avatar-btn" id="avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="帳號選單"></button>
-        <div class="avatar-dropdown hidden" id="avatar-dropdown">
-          <div class="avatar-dropdown-header">
-            <div class="avatar-dropdown-name" id="dropdown-user-name"></div>
-            <span class="role-badge" id="nav-user-role"></span>
-          </div>
-          <div class="avatar-dropdown-divider"></div>
-          <button class="avatar-dropdown-item nav-link hidden" data-nav="users" id="nav-users-btn">使用者管理</button>
-          <button class="avatar-dropdown-item nav-link hidden" data-nav="loginlogs" id="nav-loginlogs-btn">登入紀錄</button>
-          <div class="avatar-dropdown-divider"></div>
-          <button class="avatar-dropdown-item danger" id="logout-btn">登出</button>
-        </div>
-      </div>
-      <button class="btn-secondary btn-sm" id="theme-toggle-btn" type="button" title="切換深色/淺色模式" aria-label="切換深色/淺色模式"></button>
-    </div>
-  </nav>
-
-  <div class="main">
-  <main>
-    <!-- Dashboard -->
-    <div id="view-dashboard">
-      <div class="page-header">
-        <h2>案件事項</h2>
-        <div style="display:flex;gap:8px;align-items:center">
-          <label class="helper-text hidden" id="batch-select-all-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" id="batch-select-all" class="project-select-checkbox">
-            全選
-          </label>
-          <span class="helper-text hidden" id="batch-select-count"></span>
-          <button class="btn-danger hidden" id="batch-delete-btn">批量刪除</button>
-          <button class="btn-secondary hidden" id="batch-import-btn">批次匯入(自動分案件)</button>
-          <button class="btn-secondary hidden" id="batch-import-buildings-btn">批次匯入建物謄本(自動比對案件)</button>
-          <button class="btn-primary hidden" id="new-project-btn">+ 新增案件</button>
-        </div>
-      </div>
-      <div id="project-grid" class="project-grid"></div>
-    </div>
-
-    <!-- New project -->
-    <div id="view-new-project" class="hidden">
-      <button class="back-link" id="back-to-dashboard-from-new-project">← 返回</button>
-      <div class="page-header">
-        <h2>建立都更案</h2>
-      </div>
-      <form id="project-form" style="max-width:640px">
-        <div class="field-row">
-          <div class="field">
-            <label>縣市</label>
-            <select name="city" id="np-city"></select>
-          </div>
-          <div class="field"><label>行政區</label><input name="district"></div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
-          <div class="field"><label>案件名稱</label><input name="name" required></div>
-        </div>
-        <div class="field"><label>地址</label><input name="address"></div>
-        <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
-        <div class="field">
-          <label>謄本掃描檔(選填)</label>
-          <input type="file" id="new-project-deed-files" accept="image/*,application/pdf" multiple autocomplete="off">
-          <div class="helper-text">建立案件後會直接開啟匯入精靈,自動辨識並建立地號/建物/地主資料</div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="cancel-new-project-btn">取消</button>
-          <button type="submit" class="btn-primary">建立</button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Project detail -->
-    <div id="view-project-detail" class="hidden">
-      <button class="back-link" id="back-to-dashboard">← 返回</button>
-      <div class="project-header">
-        <div>
-          <h2 id="pd-name"></h2>
-          <div class="sub" id="pd-sub"></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div id="pd-status-badge"></div>
-          <div id="pd-header-actions"></div>
-        </div>
-      </div>
-      <div id="pd-sop-summary" style="margin-bottom:4px"></div>
-      <div class="tab-bar">
-        <button class="tab-btn" data-tab="landowners">土地登記</button>
-        <button class="tab-btn" data-tab="buildings">建物登記</button>
-        <button class="tab-btn" data-tab="contacts">聯絡紀錄</button>
-        <button class="tab-btn" data-tab="documents">文件</button>
-        <button class="tab-btn" data-tab="encumbrances">他項權利部</button>
-        <button class="tab-btn" data-tab="expenses">費用</button>
-      </div>
-      <div id="tab-content"></div>
-    </div>
-
-    <!-- Users -->
-    <div id="view-users" class="hidden">
-      <div class="page-header">
-        <h2>使用者管理</h2>
-        <button class="btn-primary" id="new-user-btn">+ 新增使用者</button>
-      </div>
-      <div id="users-table-wrap" class="table-wrap"></div>
-    </div>
-
-    <!-- Login logs -->
-    <div id="view-loginlogs" class="hidden">
-      <div class="page-header">
-        <h2>登入紀錄</h2>
-      </div>
-      <div id="loginlogs-table-wrap" class="table-wrap"></div>
-    </div>
-  </main>
-
-  <footer class="app-footer">
-    <div class="app-footer-brand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="2" width="10" height="20"/>
-        <rect x="14" y="8" width="6" height="14"/>
-        <line x1="7" y1="6" x2="7" y2="6.01"/>
-        <line x1="11" y1="6" x2="11" y2="6.01"/>
-        <line x1="7" y1="10" x2="7" y2="10.01"/>
-        <line x1="11" y1="10" x2="11" y2="10.01"/>
-        <line x1="7" y1="14" x2="7" y2="14.01"/>
-        <line x1="11" y1="14" x2="11" y2="14.01"/>
-        <line x1="17" y1="12" x2="17" y2="12.01"/>
-        <line x1="17" y1="16" x2="17" y2="16.01"/>
-      </svg>
-      <span>丞石建築開發股份有限公司</span>
-    </div>
-    <div>© 2026 丞石建築開發股份有限公司 版權所有 </div>
-  </footer>
-  </div>
-  </div>
-</div>
-
-<script>
 "use strict";
 
 const API_BASE = "/api";
@@ -926,7 +141,7 @@ const TAIWAN_CITIES = [
   "臺東縣", "澎湖縣", "金門縣", "連江縣",
 ];
 const DOC_TYPE_LABEL = {
-  property_register: "土地登記謄本", consent_form: "同意書", briefing_material: "說明會資料",
+  property_register: "土地登記謄本", building_register: "建物登記謄本", consent_form: "同意書", briefing_material: "說明會資料",
   contract: "合約", photo: "照片", other: "其他",
 };
 const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
@@ -1145,7 +360,7 @@ function setActiveSidebarCase(projectId) {
 }
 
 function showView(id) {
-  ["view-dashboard", "view-new-project", "view-project-detail", "view-users", "view-loginlogs"].forEach((v) => {
+  ["view-dashboard", "view-new-project", "view-project-detail", "view-ocr-batch", "view-users", "view-loginlogs"].forEach((v) => {
     document.getElementById(v).classList.toggle("hidden", v !== id);
   });
 }
@@ -2073,6 +1288,7 @@ async function renderTab(tab) {
   const renderers = {
     landowners: (el) => renderLandownersTypeTab(el, "land"),
     buildings: (el) => renderLandownersTypeTab(el, "building"),
+    relations: renderRelationsTab,
     contacts: renderContactsTab,
     documents: renderDocumentsTab,
     encumbrances: renderEncumbrancesTab,
@@ -2811,6 +2027,23 @@ function normalizeTitleDeedData(raw) {
   return { parcels, buildings, encumbrances };
 }
 
+// Jumps straight from the confirm screen's summary card back into a specific
+// parcel/building's owners sub-step, instead of making the user click "上一步"
+// repeatedly through every record to reach the one the 100% ownership-share warning
+// flagged.
+function jumpToWizardRecordOwners(type, idx) {
+  titleDeedWizard.activeType = type;
+  titleDeedWizard.activeIndex = idx;
+  if (type === "parcel") {
+    titleDeedWizard.parcelSubStep = 1;
+    titleDeedWizard.step = 2;
+  } else {
+    titleDeedWizard.buildingSubStep = 1;
+    titleDeedWizard.step = 3;
+  }
+  renderWizardStep();
+}
+
 function renderWizardStep() {
   const steps = {
     2: renderWizardStepParcelEditor,
@@ -2867,12 +2100,6 @@ function renderWizardStep0() {
     `
     ${recordTypeField}
     <div class="field">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="wizard-high-accuracy" style="width:auto" ${titleDeedWizard.highAccuracy !== false ? "checked" : ""}>
-        使用高準確度辨識(較慢,每頁約多花 1~2 分鐘,但明顯較少漏字/認錯字)
-      </label>
-    </div>
-    <div class="field">
       <label>選擇謄本圖片或 PDF(可多選;拍照多張時請依謄本頁面順序選取)</label>
       <input type="file" id="wizard-file-input" accept="image/*,application/pdf" multiple>
     </div>
@@ -2906,9 +2133,6 @@ function renderWizardStep0() {
       titleDeedWizard.recordType = e.target.value;
     });
   }
-  document.getElementById("wizard-high-accuracy").addEventListener("change", (e) => {
-    titleDeedWizard.highAccuracy = e.target.checked;
-  });
   document.getElementById("wizard-pick-document-btn").addEventListener("click", openWizardDocumentPicker);
   document.getElementById("wizard-start-ocr-btn").addEventListener("click", runTitleDeedOcr);
   document.getElementById("wizard-manual-group-btn").addEventListener("click", runTitleDeedSplitAndGroup);
@@ -3039,8 +2263,7 @@ async function runTitleDeedOcr() {
   // captured in the first place (missing 鄰, missing 里 characters, whole records
   // dropped entirely), so accuracy-sensitive imports need the better engine from the
   // start, not patched after the fact.
-  const highAccuracy = titleDeedWizard.highAccuracy !== false;
-  btn.textContent = highAccuracy ? "辨識中...(使用較慢但較準確的引擎,請稍候，勿關閉視窗)" : "辨識中...(請稍候，勿關閉視窗)";
+  btn.textContent = "辨識中...(請稍候，勿關閉視窗)";
   const progress = startFakeProgress("wizard-ocr-progress-wrap", "wizard-ocr-progress-fill", "wizard-ocr-progress-label");
   try {
     const fd = new FormData();
@@ -3048,7 +2271,6 @@ async function runTitleDeedOcr() {
       fd.append("files", f);
       fd.append("source_document_ids", f.sourceDocumentId ? String(f.sourceDocumentId) : "");
     });
-    if (highAccuracy) fd.append("high_accuracy", "true");
     fd.append("record_type", titleDeedWizard.recordType);
     const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
 
@@ -3062,6 +2284,14 @@ async function runTitleDeedOcr() {
       titleDeedWizard.data = normalizeTitleDeedData(result.data);
     } else {
       titleDeedWizard.data = normalizeTitleDeedData(result.data);
+      titleDeedWizard.data.parcels.forEach((p) => {
+        p.reviewed = false;
+        p._sourceOcrJobId = result.job.id;
+      });
+      titleDeedWizard.data.buildings.forEach((b) => {
+        b.reviewed = false;
+        b._sourceOcrJobId = result.job.id;
+      });
       toast("辨識完成,請逐步核對每個區塊", "success");
     }
     progress.finish();
@@ -3132,8 +2362,13 @@ function wireWizardSourceThumbs(record) {
 // real OCR confidence score to show (the backend extraction doesn't return one), so
 // this tracks the one thing that's actually true: whether a human has looked at this
 // record against the original scan yet. Read by the unreviewed-count reminder on the
-// final confirm screen (see renderWizardStepConfirm).
+// final confirm screen (see renderWizardStepConfirm). Only shown when there's an actual
+// scanned-page thumbnail to check against (see wizardSourceThumbsHtml) - the
+// single-batch (non-manual-grouping) OCR flow has no source pages to compare, so a
+// "matches the original scan" checkbox would be asking the user to confirm against
+// nothing.
 function wizardReviewedRowHtml(record) {
+  if (!record._sourcePages || !record._sourcePages.length) return "";
   return `
     <label class="wizard-reviewed-row">
       <input type="checkbox" id="wizard-reviewed-checkbox" ${record.reviewed ? "checked" : ""}>
@@ -3236,7 +2471,6 @@ async function runGroupedTitleDeedOcr() {
       const fd = new FormData();
       groupPages.forEach((p, i) => fd.append("files", base64ToBlob(p.image_base64, p.mime_type), `page-${p.page_number}.png`));
       fd.append("record_type", titleDeedWizard.recordType);
-      if (titleDeedWizard.highAccuracy !== false) fd.append("high_accuracy", "true");
 
       try {
         const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
@@ -3249,10 +2483,12 @@ async function runGroupedTitleDeedOcr() {
         const sourcePages = groupPages.map((p) => ({ image_base64: p.image_base64, mime_type: p.mime_type }));
         normalized.parcels.forEach((p) => {
           p._sourcePages = sourcePages;
+          p._sourceOcrJobId = result.job.id;
           p.reviewed = false;
         });
         normalized.buildings.forEach((b) => {
           b._sourcePages = sourcePages;
+          b._sourceOcrJobId = result.job.id;
           b.reviewed = false;
         });
         combined.parcels.push(...normalized.parcels);
@@ -3300,11 +2536,11 @@ function ownerRowHtml(prefix, o, areaSqm) {
       <div class="field-row">
         <div class="field">
           <label>持分面積(m²)</label>
-          <div style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedSqm.toFixed(2)}</div>
+          <div class="${prefix}-area-sqm" style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedSqm.toFixed(2)}</div>
         </div>
         <div class="field">
           <label>持分面積(坪)</label>
-          <div style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedPing.toFixed(3)}</div>
+          <div class="${prefix}-area-ping" style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedPing.toFixed(3)}</div>
         </div>
       </div>`;
   }
@@ -3318,9 +2554,13 @@ function ownerRowHtml(prefix, o, areaSqm) {
         ? `<div class="field"><label>統一編號</label><input class="${prefix}-idnum" value="${escapeHtml(o.id_number)}" autocomplete="off"></div>`
         : ""
     }
-    <div class="field-row">
-      <div class="field"><label>權利範圍(分子)</label><input class="${prefix}-num" type="number" value="${numerator}" autocomplete="off"></div>
-      <div class="field"><label>權利範圍(分母)</label><input class="${prefix}-den" type="number" value="${denominator}" autocomplete="off"></div>
+    <div class="field">
+      <label>權利範圍</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="${prefix}-num" type="number" value="${numerator}" placeholder="分子" style="width:90px" autocomplete="off">
+        <span style="color:var(--text-muted)">分之</span>
+        <input class="${prefix}-den" type="number" value="${denominator}" placeholder="分母" style="width:90px" autocomplete="off">
+      </div>
     </div>
     ${areaHelper}
     <div class="field"><label>戶籍地址</label><input class="${prefix}-address" value="${escapeHtml(o.address)}" autocomplete="off"></div>
@@ -3333,6 +2573,21 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
   wrap.querySelectorAll(".remove-wizard-row-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => e.target.closest(".wizard-row").remove());
   });
+  // 持分面積 is derived from 權利範圍 - recompute it live as the user edits the
+  // numerator/denominator, instead of only showing the stale OCR-time value until the
+  // next full re-render (which only happens on step navigation).
+  if (areaSqm) {
+    wrap.querySelectorAll(`.${prefix}-num, .${prefix}-den`).forEach((input) => {
+      input.addEventListener("input", () => {
+        const row = input.closest(".wizard-row");
+        const numerator = Number(row.querySelector(`.${prefix}-num`).value) || 0;
+        const denominator = Number(row.querySelector(`.${prefix}-den`).value) || 1;
+        const ownedSqm = (areaSqm * numerator) / denominator;
+        row.querySelector(`.${prefix}-area-sqm`).textContent = ownedSqm.toFixed(2);
+        row.querySelector(`.${prefix}-area-ping`).textContent = (ownedSqm * PING_PER_SQM).toFixed(3);
+      });
+    });
+  }
 }
 
 function readOwnerRowsContainer(containerId, prefix) {
@@ -3368,18 +2623,29 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
     const btn = document.getElementById("wizard-rescan-btn");
     if (btn) {
       btn.disabled = true;
-      // This one call uses a much slower but more accurate OCR engine (see
-      // high_accuracy on the backend's /ocr/title-deed) - single-record re-scans are
-      // rare enough, and the whole point is catching a misread the fast default engine
-      // already got wrong, that the extra wait is worth it here specifically. Real
-      // measurement: roughly 1-2 minutes for a short record, not seconds.
-      btn.textContent = "辨識中(這次用較慢但較準確的引擎,可能要 1~2 分鐘)...";
+      // Uses the same smart-hybrid default engine as the main wizard flow (fast OCR on
+      // the page, auto re-scanned with the slower high-accuracy engine only if this
+      // page's own confidence comes back low) - no separate "high accuracy" mode to opt
+      // into here any more.
+      btn.textContent = "辨識中...(請稍候，勿關閉視窗)";
+      // Same fake-but-honest progress bar as the main wizard OCR step (see
+      // startFakeProgress) - asymptotically creeps toward ~92% and jumps to 100% on
+      // finish, with an elapsed-seconds label. No real per-page signal exists for a
+      // single blocking call either way, so this at least looks and reads consistently
+      // with the rest of the wizard instead of a different indeterminate-bar style here.
+      const wrap = document.createElement("div");
+      wrap.id = "wizard-rescan-progress-wrap";
+      wrap.style.marginTop = "8px";
+      wrap.innerHTML = `
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="wizard-rescan-progress-fill" style="width:0%"></div></div>
+        <div class="helper-text" id="wizard-rescan-progress-label" style="margin-top:4px;text-align:center"></div>`;
+      btn.insertAdjacentElement("afterend", wrap);
     }
+    var progress = btn ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label") : null;
     try {
       const fd = new FormData();
       Array.from(input.files).forEach((f) => fd.append("files", f));
       fd.append("record_type", recordType === "parcel" ? "land" : "building");
-      fd.append("high_accuracy", "true");
       const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
       const normalized = normalizeTitleDeedData(result.data);
       const list = recordType === "parcel" ? normalized.parcels : normalized.buildings;
@@ -3389,7 +2655,9 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       } else {
         toast(`這份檔案沒有偵測到${recordType === "parcel" ? "地號" : "建物"}資料`, "error");
       }
+      if (progress) progress.finish();
     } catch (e) {
+      if (progress) progress.stop();
     } finally {
       rerender();
     }
@@ -3899,9 +3167,12 @@ function renderWizardStepConfirm() {
     `<div class="wizard-confirm-chip-list">${owners
       .map((o) => `<span class="wizard-confirm-chip">${escapeHtml(o.owner_name) || "-"}(${o.ownership_numerator}/${o.ownership_denominator})</span>`)
       .join("")}</div>`;
-  const parcelCardHtml = (p) => `
+  const parcelCardHtml = (p, idx) => `
     <div class="wizard-confirm-card">
-      <div class="wizard-confirm-card-title">${escapeHtml(parcelSummaryLabel(p))}</div>
+      <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
+        <div class="wizard-confirm-card-title">${escapeHtml(parcelSummaryLabel(p))}</div>
+        <button type="button" class="btn-link btn-sm" data-jump-parcel="${idx}">編輯</button>
+      </div>
       <div class="wizard-confirm-card-row">
         <span class="wizard-confirm-card-label">所有權人</span>
         ${ownerChipsHtml(p.owners)}
@@ -3923,9 +3194,12 @@ function renderWizardStepConfirm() {
     ? `<div class="wizard-confirm-section-title">建物建號(${d.buildings.length})</div>
       ${d.buildings
         .map(
-          (b) => `
+          (b, idx) => `
         <div class="wizard-confirm-card">
-          <div class="wizard-confirm-card-title">${escapeHtml(buildingSummaryLabel(b))}</div>
+          <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
+            <div class="wizard-confirm-card-title">${escapeHtml(buildingSummaryLabel(b))}</div>
+            <button type="button" class="btn-link btn-sm" data-jump-building="${idx}">編輯</button>
+          </div>
           <div class="wizard-confirm-card-row">
             <span class="wizard-confirm-card-label">所有權人</span>
             ${ownerChipsHtml(b.owners)}
@@ -3939,7 +3213,11 @@ function renderWizardStepConfirm() {
   // Real signal (did a human check this record's checkbox?), not a fabricated AI
   // confidence score - see wizardReviewedRowHtml. Only counts records that actually
   // went through a review sub-step with the checkbox rendered.
-  const unreviewedCount = [...d.parcels, ...d.buildings].filter((r) => !r.reviewed).length;
+  // Only records that actually had a source-page thumbnail to check against show the
+  // 已核對 checkbox at all (see wizardReviewedRowHtml) - records from the single-batch
+  // OCR flow have no thumbnail and no checkbox, so they'd never be "reviewed" and would
+  // permanently inflate this count otherwise.
+  const unreviewedCount = [...d.parcels, ...d.buildings].filter((r) => r._sourcePages?.length && !r.reviewed).length;
   const unreviewedBannerHtml = unreviewedCount
     ? `<div class="final-banner warning" style="margin-bottom:10px">⚠ 還有 ${unreviewedCount} 筆尚未勾選「已核對」,建議返回逐筆確認後再建立</div>`
     : "";
@@ -4019,6 +3297,12 @@ function renderWizardStepConfirm() {
     renderWizardStep();
   });
   document.getElementById("wizard-confirm-btn").addEventListener("click", submitTitleDeedWizard);
+  document.querySelectorAll("[data-jump-parcel]").forEach((btn) => {
+    btn.addEventListener("click", () => jumpToWizardRecordOwners("parcel", Number(btn.dataset.jumpParcel)));
+  });
+  document.querySelectorAll("[data-jump-building]").forEach((btn) => {
+    btn.addEventListener("click", () => jumpToWizardRecordOwners("building", Number(btn.dataset.jumpBuilding)));
+  });
 }
 
 // matchRecordType ("land" | "building") restricts which existing landowners this is
@@ -4091,7 +3375,20 @@ async function submitTitleDeedWizard() {
   // 地號 (building.parcel_number), so 建物標示部's "地號" field isn't just descriptive
   // text - it actually connects the two records in the data model.
   const landRecordIdByParcelOwner = new Map();
-  const parcelOwnerKey = (parcelNumber, landownerId) => `${(parcelNumber || "").trim()}::${landownerId}`;
+  // Keyed by the real person's identity (id_number, falling back to name), NOT
+  // landowner_id - a land-only import and a building-only import intentionally create
+  // SEPARATE landowner rows for the same real person (see findOrCreateLandownerByOwner's
+  // matchRecordType, to avoid surprise auto-merging), so keying on landowner_id here
+  // would never match across the two imports even though it's the same person on the
+  // same 地號. Keying on identity instead lets a building-only import correctly link
+  // against land records an earlier land-only import already created.
+  const ownerIdentityKey = (owner) => (owner.id_number || "").trim() || `name:${(owner.owner_name || owner.name || "").trim()}`;
+  const parcelOwnerKey = (parcelNumber, identityKey) => `${(parcelNumber || "").trim()}::${identityKey}`;
+  // Every distinct OcrJob (one per OCR call - see runGroupedTitleDeedOcr/runTitleDeedOcr)
+  // that actually contributed a created land/building record, so the user can be sent to
+  // that batch's detail page after submit (see view-ocr-batch). A manually-grouped
+  // import can span several jobs; a plain single-shot import is just the one.
+  const sourceOcrJobIds = new Set();
 
   try {
     if (!state.projectCache[pid]) state.projectCache[pid] = {};
@@ -4105,7 +3402,7 @@ async function submitTitleDeedWizard() {
     // same submission.
     for (const owner of state.projectCache[pid].landowners) {
       for (const lr of owner.land_records || []) {
-        landRecordIdByParcelOwner.set(parcelOwnerKey(lr.parcel_number, owner.id), lr.id);
+        landRecordIdByParcelOwner.set(parcelOwnerKey(lr.parcel_number, ownerIdentityKey(owner)), lr.id);
       }
     }
 
@@ -4124,9 +3421,11 @@ async function submitTitleDeedWizard() {
             total_area_sqm: Number(p.area_sqm) || 0,
             ownership_numerator: owner.ownership_numerator || 1,
             ownership_denominator: owner.ownership_denominator || 1,
+            source_ocr_job_id: p._sourceOcrJobId || null,
           },
         });
-        landRecordIdByParcelOwner.set(parcelOwnerKey(p.parcel_number, landownerId), created.id);
+        if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);
+        landRecordIdByParcelOwner.set(parcelOwnerKey(p.parcel_number, ownerIdentityKey(owner)), created.id);
       }
       // This 地號's own 他項權利部, reviewed alongside it in the wizard - submitted the
       // same way as the cross-parcel ones below (encumbrances are project-level, not
@@ -4150,7 +3449,7 @@ async function submitTitleDeedWizard() {
         await api(`/projects/${pid}/landowners/${landownerId}/building-records`, {
           method: "POST",
           body: {
-            land_record_id: landRecordIdByParcelOwner.get(parcelOwnerKey(b.parcel_number, landownerId)) || null,
+            land_record_id: landRecordIdByParcelOwner.get(parcelOwnerKey(b.parcel_number, ownerIdentityKey(owner))) || null,
             building_number: b.building_number || null,
             address: b.building_address || null,
             floor: b.floor || null,
@@ -4161,8 +3460,10 @@ async function submitTitleDeedWizard() {
             common_area_sqm: 0,
             ownership_numerator: owner.ownership_numerator || 1,
             ownership_denominator: owner.ownership_denominator || 1,
+            source_ocr_job_id: b._sourceOcrJobId || null,
           },
         });
+        if (b._sourceOcrJobId) sourceOcrJobIds.add(b._sourceOcrJobId);
       }
     }
 
@@ -4171,6 +3472,14 @@ async function submitTitleDeedWizard() {
     toast("謄本資料已匯入", "success");
     titleDeedWizard = null;
     await renderTab(state.activeTab);
+    // A manually-grouped import can span several OcrJobs (one per group) - there's no
+    // single batch page to land on in that case, so fall back to just staying on the
+    // project tab. The common case (single-shot upload, or one manual group) has exactly
+    // one job, which is what actually has something to show on view-ocr-batch.
+    if (sourceOcrJobIds.size === 1) {
+      await goToOcrBatch([...sourceOcrJobIds][0]);
+      return;
+    }
     // Building records link back to a land record by matching parcel_number (see
     // landRecordIdByParcelOwner above) - offering to continue straight into a
     // building-deed upload right after land data lands makes that linking "just work"
@@ -4202,6 +3511,324 @@ function offerBuildingImportFollowUp() {
     await renderTab("buildings");
     openBuildingTitleDeedWizard();
   });
+}
+
+/* ================= OCR import batch detail (view-ocr-batch) ================= */
+
+// One 謄本匯入批次 = one OcrJob (see backend/models/ocr.py docstring: "one job = one
+// 謄本, which may span several scanned pages/files"). Fetched fresh every visit rather
+// than cached, since land_records/building_records created against it can keep changing
+// after the fact (edited/deleted from the normal 土地登記/建物登記 tabs).
+let currentOcrBatch = null;
+let activeBatchTab = "overview";
+
+async function goToOcrBatch(jobId) {
+  setActiveSidebarCase(state.currentProjectId);
+  showView("view-ocr-batch");
+  document.getElementById("batch-name").textContent = "載入中...";
+  document.getElementById("batch-sub").textContent = "";
+  document.getElementById("batch-status-badge").innerHTML = "";
+  document.getElementById("batch-pipeline").innerHTML = "";
+  document.getElementById("batch-tab-content").innerHTML = "";
+
+  try {
+    currentOcrBatch = await api(`/projects/${state.currentProjectId}/ocr-jobs/${jobId}`);
+  } catch (err) {
+    goToDashboard();
+    return;
+  }
+
+  const project = state.currentProject;
+  document.getElementById("batch-name").textContent = `${project ? project.name + " · " : ""}謄本匯入批次 #${jobId}`;
+  document.getElementById("batch-sub").textContent = `建立於 ${fmtDateTime(currentOcrBatch.job.created_at)}`;
+  renderBatchStatusBadge();
+  renderBatchPipeline();
+
+  activeBatchTab = "overview";
+  document.querySelectorAll("#view-ocr-batch .tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.batchTab === activeBatchTab);
+    btn.onclick = () => {
+      activeBatchTab = btn.dataset.batchTab;
+      document.querySelectorAll("#view-ocr-batch .tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderBatchTab();
+    };
+  });
+  renderBatchTab();
+}
+
+document.getElementById("back-to-project-from-batch").addEventListener("click", () => {
+  if (state.currentProjectId) openProject(state.currentProjectId);
+  else goToDashboard();
+});
+
+const OCR_JOB_STATUS_LABEL = { pending: "等待中", processing: "辨識中", completed: "已完成", failed: "失敗" };
+
+function renderBatchStatusBadge() {
+  const { status } = currentOcrBatch.job;
+  const cls = status === "completed" ? "status-active" : status === "failed" ? "status-suspended" : "status-closed";
+  document.getElementById("batch-status-badge").innerHTML =
+    `<span class="status-badge ${cls}">${OCR_JOB_STATUS_LABEL[status] || status}</span>`;
+}
+
+// Derives the 5-step pipeline shown on the reference design purely from signals the
+// backend already exposes (job.status, whether an OcrMatchResult/extracted_data exists,
+// and whether any land/building records have actually been linked back to this job) -
+// deliberately not adding a new "pipeline_stage" column, since these three existing
+// signals are already enough to place the job on one of the 5 steps honestly.
+function renderBatchPipeline() {
+  const { job, extracted_data, land_records, building_records, documents } = currentOcrBatch;
+  const hasExtraction = !!extracted_data;
+  const hasLinkedRecords = land_records.length > 0 || building_records.length > 0;
+  const steps = [
+    {
+      label: "上傳原始謄本",
+      sub: `${documents.length} 個檔案/頁面`,
+      state: documents.length ? "done" : "active",
+    },
+    {
+      label: "OCR 辨識",
+      sub: job.status === "failed" ? job.error_message || "辨識失敗" : hasExtraction ? "已完成擷取" : "辨識中",
+      state: job.status === "failed" ? "failed" : hasExtraction ? "done" : "active",
+    },
+    {
+      label: "地號 / 建號抽取",
+      sub: hasExtraction
+        ? `候選 ${(extracted_data.land_parcels || []).length} 筆地號、${(extracted_data.buildings || []).length} 筆建號`
+        : "尚未擷取",
+      state: hasExtraction ? "done" : job.status === "failed" ? "failed" : "",
+    },
+    {
+      label: "人工核對",
+      sub: hasLinkedRecords ? "已核對並建立資料" : hasExtraction ? "待逐筆核對(於匯入精靈中勾選「已核對」)" : "尚未開始",
+      state: hasLinkedRecords ? "done" : hasExtraction ? "active" : "",
+    },
+    {
+      label: "建立地號 ↔ 建號關聯",
+      sub: hasLinkedRecords
+        ? `已建立 ${land_records.length} 筆地號、${building_records.length} 筆建號`
+        : "完成核對後自動寫入資料庫",
+      state: hasLinkedRecords ? "done" : "",
+    },
+  ];
+  document.getElementById("batch-pipeline").innerHTML = steps
+    .map((s, i) => {
+      const icon = s.state === "done" ? "✓" : s.state === "failed" ? "✕" : i + 1;
+      return `
+        <div class="batch-step ${s.state}">
+          <div class="dot">${icon}</div>
+          <div>
+            <div class="batch-step-label">${escapeHtml(s.label)}</div>
+            <div class="batch-step-sub">${escapeHtml(s.sub)}</div>
+          </div>
+        </div>`;
+    })
+    .join("");
+}
+
+function renderBatchTab() {
+  const el = document.getElementById("batch-tab-content");
+  const renderers = {
+    overview: renderBatchOverviewTab,
+    parcels: renderBatchParcelsTab,
+    buildings: renderBatchBuildingsTab,
+    relations: renderBatchRelationsTab,
+    ocrai: renderBatchOcrAiTab,
+    documents: renderBatchDocumentsTab,
+    timeline: renderBatchTimelineTab,
+  };
+  el.innerHTML = (renderers[activeBatchTab] || renderBatchOverviewTab)();
+  el.querySelectorAll("[data-batch-doc-index]").forEach((row) => {
+    row.addEventListener("click", () => {
+      const doc = currentOcrBatch.documents[Number(row.dataset.batchDocIndex)];
+      downloadDocument(doc.document.id, doc.document.file_name);
+    });
+  });
+}
+
+function renderBatchOverviewTab() {
+  const { job, documents, extracted_data, land_records, building_records } = currentOcrBatch;
+  return `
+    <div class="card">
+      <div class="batch-kv"><label>批次編號</label><span>#${job.id}</span></div>
+      <div class="batch-kv"><label>狀態</label><span>${OCR_JOB_STATUS_LABEL[job.status] || job.status}</span></div>
+      <div class="batch-kv"><label>來源檔案數</label><span>${documents.length}</span></div>
+      <div class="batch-kv"><label>地號候選</label><span>${(extracted_data?.land_parcels || []).length} 筆(已建立 ${land_records.length} 筆)</span></div>
+      <div class="batch-kv"><label>建號候選</label><span>${(extracted_data?.buildings || []).length} 筆(已建立 ${building_records.length} 筆)</span></div>
+      <div class="batch-kv"><label>建立時間</label><span>${fmtDateTime(job.created_at)}</span></div>
+      <div class="batch-kv"><label>開始時間</label><span>${job.started_at ? fmtDateTime(job.started_at) : "-"}</span></div>
+      <div class="batch-kv"><label>完成時間</label><span>${job.completed_at ? fmtDateTime(job.completed_at) : "-"}</span></div>
+      ${job.error_message ? `<div class="batch-kv"><label>訊息</label><span style="color:var(--danger)">${escapeHtml(job.error_message)}</span></div>` : ""}
+    </div>`;
+}
+
+function renderBatchParcelsTab() {
+  const { land_records } = currentOcrBatch;
+  if (!land_records.length) return `<div class="empty-state">這個批次還沒有已建立的地號資料</div>`;
+  return `
+    <div class="table-wrap"><table><thead><tr>
+      <th>地號</th><th>地段/小段</th><th>面積(㎡)</th><th>持分</th><th>持分面積(㎡)</th>
+    </tr></thead><tbody>
+      ${land_records
+        .map(
+          (r) => `
+        <tr>
+          <td>${escapeHtml(r.parcel_number)}</td>
+          <td>${escapeHtml([r.township, r.section, r.subsection].filter(Boolean).join(""))}</td>
+          <td>${r.total_area_sqm}</td>
+          <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
+          <td>${r.owned_area_sqm ?? "-"}</td>
+        </tr>`
+        )
+        .join("")}
+    </tbody></table></div>`;
+}
+
+function renderBatchBuildingsTab() {
+  const { building_records } = currentOcrBatch;
+  if (!building_records.length) return `<div class="empty-state">這個批次還沒有已建立的建號資料</div>`;
+  return `
+    <div class="table-wrap"><table><thead><tr>
+      <th>建號</th><th>門牌</th><th>層次</th><th>總面積(㎡)</th><th>持分</th>
+    </tr></thead><tbody>
+      ${building_records
+        .map(
+          (r) => `
+        <tr>
+          <td>${escapeHtml(r.building_number) || "-"}</td>
+          <td>${escapeHtml(r.address) || "-"}</td>
+          <td>${escapeHtml(r.floor) || "-"}</td>
+          <td>${r.total_area_sqm}</td>
+          <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
+        </tr>`
+        )
+        .join("")}
+    </tbody></table></div>`;
+}
+
+// Shared between the OCR batch page's 「關聯」分頁 (scoped to one import batch's
+// land_records/building_records) and the project detail page's 「關聯」分頁 (scoped to
+// every land_record/building_record the case has, regardless of which batch - or manual
+// entry - created them).
+function relationBlocksHtml(land_records, building_records, emptyMessage) {
+  const rows = land_records
+    .map((lr) => {
+      const linked = building_records.filter((br) => br.land_record_id === lr.id);
+      if (!linked.length) return "";
+      const avgArea = linked.reduce((sum, b) => sum + (Number(b.total_area_sqm) || 0), 0) / linked.length;
+      return `
+        <div class="batch-relation-block">
+          <div>
+            <span class="batch-relation-pill land">土地</span>
+            <div class="batch-relation-title land-title">${escapeHtml(lr.parcel_number)}</div>
+            <div class="batch-relation-sub">面積 ${lr.total_area_sqm}㎡</div>
+            <div class="batch-relation-list">
+              ${linked.map((b) => `<div class="batch-relation-list-item tree">└ ${escapeHtml(b.building_number) || "-"}</div>`).join("")}
+            </div>
+          </div>
+          <div class="batch-relation-connector">↔</div>
+          <div>
+            <span class="batch-relation-pill building">建物</span>
+            <div class="batch-relation-title">${linked.length} 筆</div>
+            <div class="batch-relation-sub">每筆總面積 ${avgArea.toFixed(2)}㎡</div>
+            <div class="batch-relation-list">
+              ${linked.map((b) => `<div class="batch-relation-list-item">${escapeHtml(b.building_number) || "-"}${b.floor ? ` · ${escapeHtml(b.floor)}` : ""}</div>`).join("")}
+            </div>
+          </div>
+        </div>`;
+    })
+    .join("");
+  const unlinkedBuildings = building_records.filter((br) => !br.land_record_id);
+  return (
+    (rows || `<div class="empty-state">${emptyMessage}</div>`) +
+    (unlinkedBuildings.length
+      ? `<div class="helper-text" style="margin-top:12px">⚠ ${unlinkedBuildings.length} 筆建號尚未連結任何地號:${unlinkedBuildings.map((b) => escapeHtml(b.building_number) || "-").join("、")}</div>`
+      : "")
+  );
+}
+
+function renderBatchRelationsTab() {
+  const { land_records, building_records } = currentOcrBatch;
+  return relationBlocksHtml(land_records, building_records, "這個批次還沒有已建立的地號↔建號關聯");
+}
+
+// Project detail page's 「關聯」分頁 - pulls every landowner's land/building records
+// (not scoped to one OCR batch, since a case's records can come from several import
+// batches or manual entry over time) and shows the same 地號↔建號關聯圖 as the batch
+// page, just case-wide.
+async function renderRelationsTab(el) {
+  const pid = state.currentProjectId;
+  const allLandowners = await api(`/projects/${pid}/landowners`);
+  state.projectCache[pid].landowners = allLandowners;
+  const land_records = allLandowners.flatMap((o) => o.land_records || []);
+  const building_records = allLandowners.flatMap((o) => o.building_records || []);
+  el.innerHTML = `
+    <div class="section-toolbar">
+      <h3>地號 ↔ 建號關聯圖</h3>
+    </div>
+    ${relationBlocksHtml(land_records, building_records, "這個案件還沒有已建立的地號↔建號關聯")}
+  `;
+}
+
+function renderBatchOcrAiTab() {
+  const { extracted_data } = currentOcrBatch;
+  if (!extracted_data) return `<div class="empty-state">尚無 OCR 擷取結果</div>`;
+  // Raw extracted fields only - no fabricated confidence scores (see the wizard's
+  // "已核對" checkbox for the real human-verification signal, which is per land_record/
+  // building_record, not surfaced here since this tab only has the raw OCR JSON).
+  return `
+    <div class="helper-text" style="margin-bottom:10px">以下為這次 OCR 擷取的原始結果(送出匯入精靈前的候選資料,非最終已建立的資料)</div>
+    <pre style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow-x:auto;font-size:12px;line-height:1.6">${escapeHtml(JSON.stringify(extracted_data, null, 2))}</pre>`;
+}
+
+function renderBatchDocumentsTab() {
+  const { documents } = currentOcrBatch;
+  if (!documents.length) return `<div class="empty-state">這個批次沒有來源檔案</div>`;
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+      ${documents
+        .map(
+          (jd, i) => `
+        <div class="record-row" data-batch-doc-index="${i}" style="padding:8px;text-align:center;cursor:pointer">
+          ${
+            (jd.document.mime_type || "").startsWith("image/")
+              ? `<div style="height:110px;overflow:hidden;border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;background:var(--surface-2)">
+                  <span style="font-size:24px">📄</span>
+                </div>`
+              : `<div style="height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border)"><span style="font-size:24px">📄</span></div>`
+          }
+          <div class="helper-text" style="margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(jd.document.file_name)}">${escapeHtml(jd.document.file_name)}</div>
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+// Real timeline built from actual timestamps this job has (created/started/completed),
+// not a fabricated activity log - see plan notes: no general audit-log table exists yet,
+// so this deliberately doesn't invent per-field "AI 校正"/"人工確認" events that aren't
+// tracked anywhere.
+function renderBatchTimelineTab() {
+  const { job, documents } = currentOcrBatch;
+  const events = [];
+  if (job.created_at) events.push({ at: job.created_at, text: `建立匯入批次,含 ${documents.length} 個來源檔案` });
+  if (job.started_at) events.push({ at: job.started_at, text: "開始 OCR 辨識" });
+  if (job.completed_at) {
+    events.push({
+      at: job.completed_at,
+      text: job.status === "failed" ? `辨識失敗:${job.error_message || ""}` : "OCR 辨識完成",
+    });
+  }
+  events.sort((a, b) => new Date(a.at) - new Date(b.at));
+  if (!events.length) return `<div class="empty-state">尚無紀錄</div>`;
+  return `
+    <div class="card">
+      ${events
+        .map(
+          (e) => `
+        <div class="batch-kv"><label>${fmtDateTime(e.at)}</label><span>${escapeHtml(e.text)}</span></div>`
+        )
+        .join("")}
+    </div>`;
 }
 
 /* ================= Tab: SOP ================= */
@@ -4530,7 +4157,10 @@ async function renderDocumentsTab(el) {
   el.innerHTML = `
     <div class="section-toolbar">
       <h3>文件清單 (${docs.length})</h3>
-      ${isEditor() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary btn-sm" id="view-ocr-batches-btn">謄本匯入批次紀錄</button>
+        ${isEditor() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
+      </div>
     </div>
     ${
       docs.length
@@ -4575,6 +4205,43 @@ async function renderDocumentsTab(el) {
   });
   const uploadBtn = document.getElementById("upload-doc-btn");
   if (uploadBtn) uploadBtn.addEventListener("click", openUploadDocumentModal);
+  document.getElementById("view-ocr-batches-btn").addEventListener("click", openOcrBatchListModal);
+}
+
+async function openOcrBatchListModal() {
+  const pid = state.currentProjectId;
+  let jobs;
+  try {
+    jobs = await api(`/projects/${pid}/ocr-jobs`);
+  } catch (err) {
+    return;
+  }
+  openModal(
+    "謄本匯入批次紀錄",
+    jobs.length
+      ? jobs
+          .map(
+            (j) => `
+        <div class="record-row" data-open-batch="${j.id}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 12px">
+          <div>
+            <div style="font-weight:700">批次 #${j.id}</div>
+            <div class="helper-text">${fmtDateTime(j.created_at)}</div>
+          </div>
+          <span class="status-badge ${j.status === "completed" ? "status-active" : j.status === "failed" ? "status-suspended" : "status-closed"}">${OCR_JOB_STATUS_LABEL[j.status] || j.status}</span>
+        </div>`
+          )
+          .join("")
+      : `<div class="empty-state">尚無匯入批次紀錄</div>`,
+    { width: "480px" }
+  );
+  document.getElementById("modal-root")
+    .querySelectorAll("[data-open-batch]")
+    .forEach((row) => {
+      row.addEventListener("click", () => {
+        closeModal();
+        goToOcrBatch(Number(row.dataset.openBatch));
+      });
+    });
 }
 
 async function downloadDocument(docId, fileName) {
@@ -5143,6 +4810,3 @@ function openEditUserModal(user) {
   }
   document.getElementById("view-login").classList.remove("hidden");
 })();
-</script>
-</body>
-</html>

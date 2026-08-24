@@ -2,6 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from schemas.document import DocumentRead
+from schemas.landowner import BuildingRecordRead, LandRecordRead
+
 
 class OcrJobRead(BaseModel):
     id: int
@@ -14,6 +17,27 @@ class OcrJobRead(BaseModel):
     completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class OcrJobDocumentRead(BaseModel):
+    page_order: int
+    document: DocumentRead
+
+    model_config = {"from_attributes": True}
+
+
+class OcrJobDetail(BaseModel):
+    """Everything the 謄本匯入批次 detail page (frontend view-ocr-batch) needs for one
+    job: the job itself, its source pages/files (for the 文件 tab), the raw extraction
+    result (for the OCR‧AI tab), and whichever land/building records ended up created
+    from it (for the 地號/建號/關聯 tabs) - see land_records.source_ocr_job_id /
+    building_records.source_ocr_job_id, set by the wizard's submit step."""
+
+    job: OcrJobRead
+    documents: list[OcrJobDocumentRead] = []
+    extracted_data: dict | None = None
+    land_records: list[LandRecordRead] = []
+    building_records: list[BuildingRecordRead] = []
 
 
 class LandOwnershipEntry(BaseModel):

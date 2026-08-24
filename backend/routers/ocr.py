@@ -1,5 +1,4 @@
 import base64
-import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -8,12 +7,22 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from deps import require_staff_or_admin
+from models.building_record import BuildingRecord
 from models.document import Document
+from models.land_record import LandRecord
 from models.ocr import OcrJob, OcrMatchResult
 from models.ocr_job_document import OcrJobDocument
 from models.user import User
 from routers.projects import get_project_or_404
-from schemas.ocr import OcrExtractionResult, OcrJobRead, PagePreview, PageSplitResult, TitleDeedExtraction
+from schemas.ocr import (
+    OcrExtractionResult,
+    OcrJobDetail,
+    OcrJobDocumentRead,
+    OcrJobRead,
+    PagePreview,
+    PageSplitResult,
+    TitleDeedExtraction,
+)
 from utils.file_storage import build_upload_path
 from utils.ocr import OcrError, _flatten_to_pages, detect_page_groups, extract_title_deed
 
@@ -28,6 +37,54 @@ def list_ocr_jobs(
 ):
     get_project_or_404(db, project_id)
     return db.scalars(select(OcrJob).where(OcrJob.project_id == project_id).order_by(OcrJob.created_at.desc())).all()
+
+
+def get_ocr_job_or_404(db: Session, project_id: int, job_id: int) -> OcrJob:
+    job = db.get(OcrJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR job not found")
+    return job
+
+
+@router.get("/ocr-jobs/{job_id}", response_model=OcrJobDetail)
+def get_ocr_job(
+    project_id: int,
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_staff_or_admin),
+):
+    """Backs the 謄本匯入批次 detail page (frontend view-ocr-batch): the job itself, its
+    source pages (via ocr_job_documents, ordered), the raw OCR extraction, and whichever
+    land/building records this job ended up producing (via source_ocr_job_id, set when
+    the wizard's confirm step actually creates them - see submitTitleDeedWizard)."""
+    get_project_or_404(db, project_id)
+    job = get_ocr_job_or_404(db, project_id, job_id)
+
+    job_documents = db.scalars(
+        select(OcrJobDocument).where(OcrJobDocument.ocr_job_id == job_id).order_by(OcrJobDocument.page_order)
+    ).all()
+    documents_by_id = {
+        d.id: d for d in db.scalars(select(Document).where(Document.id.in_([jd.document_id for jd in job_documents]))).all()
+    }
+
+    match = db.scalars(
+        select(OcrMatchResult).where(OcrMatchResult.ocr_job_id == job_id).order_by(OcrMatchResult.created_at.desc())
+    ).first()
+
+    land_records = db.scalars(select(LandRecord).where(LandRecord.source_ocr_job_id == job_id)).all()
+    building_records = db.scalars(select(BuildingRecord).where(BuildingRecord.source_ocr_job_id == job_id)).all()
+
+    return OcrJobDetail(
+        job=OcrJobRead.model_validate(job),
+        documents=[
+            OcrJobDocumentRead(page_order=jd.page_order, document=documents_by_id[jd.document_id])
+            for jd in job_documents
+            if jd.document_id in documents_by_id
+        ],
+        extracted_data=match.extracted_data if match else None,
+        land_records=land_records,
+        building_records=building_records,
+    )
 
 
 @router.post("/ocr/split-pages", response_model=PageSplitResult)
@@ -130,7 +187,7 @@ def extract_title_deed_job(
             out.write(content)
         document = Document(
             project_id=project_id,
-            doc_type="property_register",
+            doc_type="building_register" if record_type == "building" else "property_register",
             file_name=upload.filename or stored_name,
             file_path=disk_path,
             file_size_bytes=len(content),
@@ -161,22 +218,22 @@ def extract_title_deed_job(
     match = OcrMatchResult(ocr_job_id=job.id, extracted_data=parsed)
     db.add(match)
 
-    # Rename/relabel the documents this call just saved to reflect what was actually
-    # found on them (地號/建號), instead of leaving them as generic "謄本掃描匯入" -
-    # this only produces one clean label per call because the wizard's manual-grouping
-    # flow sends one 地號/建號's pages per call; a single ungrouped batch covering
-    # several parcels/buildings still gets labeled, just with all of them joined.
+    # Relabel the *description* of documents this call just saved to reflect what was
+    # actually found on them (地號/建號), instead of leaving it as generic "謄本掃描匯入"
+    # - file_name is deliberately left as whatever the user actually uploaded it as, not
+    # rewritten to a generated label (users want to recognize their own file names in the
+    # 文件 list). description stays a short summary even for a big ungrouped batch
+    # covering dozens of parcels/buildings - the full per-item list already lives in the
+    # structured land_records/building_records this job produces, this is just a label.
     labels = [f"地號{p['parcel_number']}" for p in parsed["land_parcels"] if p.get("parcel_number")]
     labels += [f"建號{b['building_number']}" for b in parsed["buildings"] if b.get("building_number")]
     labels = list(dict.fromkeys(labels))  # de-dupe while preserving order, in case extraction ever repeats a parcel/building
     if labels:
-        archive_label = "、".join(labels)
-        for i, doc in enumerate(documents):
+        summary_label = "、".join(labels) if len(labels) <= 5 else f"{'、'.join(labels[:5])} 等 {len(labels)} 筆"
+        for doc in documents:
             if doc.id not in newly_created_document_ids:
                 continue  # picked from an existing document - leave its name/description as the user already has it
-            ext = os.path.splitext(doc.file_name or "")[1] or ".png"
-            doc.description = f"謄本掃描匯入 - {archive_label}"
-            doc.file_name = f"{archive_label}_第{i + 1}頁{ext}" if len(documents) > 1 else f"{archive_label}{ext}"
+            doc.description = f"謄本掃描匯入 - {summary_label}"
 
     # Still "completed" - some pages were successfully extracted - but error_message
     # carries a non-fatal warning when part of a multi-chunk batch failed, so the

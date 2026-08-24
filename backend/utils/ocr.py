@@ -5,6 +5,7 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 import fitz
 import httpx
@@ -150,6 +151,22 @@ ownership_numerator/ownership_denominator。
 - 他項權利的 right_type(權利種類)最常見的就是「最高限額抵押權」跟「抵押權」這兩種標準用語,如果 OCR 文字\
 看起來是這兩種其中一種、只是漏字或錯字(例如「最高限抵押權」少了「額」字),請直接還原成正確的標準用語,不要\
 照 OCR 錯字原樣填入;只有真的是其他種類的權利(例如「地上權」「典權」)才依原文填寫。
+- 【他項權利部的人名絕對不可以填進 owners】他項權利部(抵押權等)裡出現的人名——「權利人」(通常是銀行等\
+債權人)、「義務人」「債務人」(欠錢的人,常標示為「設定義務人:」或「債務人及債務額比例:」)——都是這筆\
+他項權利/抵押權自己的欄位,跟「這筆地號/建號的所有權人」是完全不同的兩件事,絕對不可以把這些人名放進\
+land_parcels[].owners 或 buildings[].owners 陣列裡,即使他項權利部緊接在所有權部後面印出、版面上看起來很\
+靠近也一樣。owners 陣列只能收錄「所有權部」區塊裡登記次序底下明確標示「所有權人:」的人名;「權利人:」\
+「義務人:」「債務人:」開頭的人名一律只能收在對應那筆他項權利/encumbrance 項目自己的 right_holder(權利人)\
+欄位,不能出現在任何一筆 owners 裡,即使這份文件裡看起來所有權人湊不滿 100% 持分,也不可以把他項權利部的\
+人名拿來湊數。
+- 【同統一編號、姓名或地址寫法不一致時互相校正】人名不像地址開頭的縣市/里名有固定的標準寫法可以比對,OCR\
+較容易把姓名中間某個字讀錯,又沒有字典可以判斷哪個版本才對——但同一份文件裡,如果同一位所有權人(統一編號\
+完全相同)在好幾筆地號都有登記、其中一兩筆的姓名或戶籍地址寫法卻跟其他筆有一兩個字不一樣,這代表同一個統一\
+編號被拆成好幾種姓名/地址寫法印出,實際上是同一個人,應該以同一份文件裡出現次數較多、或看起來較完整清晰的\
+那個寫法為準,把其他筆的 owner_name/address 校正成一致的版本,不要讓同一個統一編號底下出現好幾種不同的姓名\
+或地址寫法。這條只在統一編號確實相同時才適用,沒有統一編號可以比對、或統一編號本身就不同,就照各自實際讀到\
+的內容填寫,不要臆測。地址欄位仍優先套用前面【address 整段每個地名都要交叉比對】等既有規則,這條是額外補充,\
+不是取代。
 
 1. land_parcels(土地標示部+所有權部+屬於這筆地號自己的他項權利部,陣列,一筆地號一個項目;若整份文件完全沒有\
 土地部分則回傳空陣列 []):
@@ -315,8 +332,16 @@ class OcrError(Exception):
 # Asking a vision model to read a whole large batch (dozens of pages) in a single
 # request risks degenerate/truncated output - splitting into small chunks and merging
 # the results client-side keeps each individual call comfortably sized.
-PAGES_PER_CHUNK = 8
+# Four image-only registry pages already contain a large amount of dense OCR text.
+# Keeping chunks small prevents a single structured-AI request from stalling for
+# several minutes on 27–41 page deeds.
+PAGES_PER_CHUNK = 4
+OCR_OPENAI_TIMEOUT_SECONDS = 90.0
 PDF_RENDER_DPI = 200
+# Fast OCR remains the default. Only the weakest pages in each chunk are re-scanned
+# with the slower engine, preserving batch speed while recovering likely misreads.
+SMART_RESCAN_CONFIDENCE = 0.72
+SMART_RESCAN_MAX_PAGES_PER_DOCUMENT = 2
 
 
 # Used when extract_title_deed() is called with high_accuracy=True (the single-record
@@ -445,9 +470,16 @@ def extract_title_deed(
 
     results = []
     failed_chunks = []
+    # A large scanned deed can contain dozens of pages. Cap expensive smart re-scans
+    # across the whole document, not once per chunk.
+    smart_rescan_budget = SMART_RESCAN_MAX_PAGES_PER_DOCUMENT if not high_accuracy else 0
     for i, chunk in enumerate(chunks):
         try:
-            results.append(_extract_title_deed_chunk(chunk, record_type, high_accuracy))
+            extracted, rescanned_count = _extract_title_deed_chunk(
+                chunk, record_type, high_accuracy, smart_rescan_limit=smart_rescan_budget
+            )
+            results.append(extracted)
+            smart_rescan_budget = max(0, smart_rescan_budget - rescanned_count)
         except OcrError as exc:
             failed_chunks.append((i, exc))
 
@@ -574,40 +606,50 @@ def _get_ocr_engine() -> RapidOCR:
 # different execution backend - see LD_LIBRARY_PATH in the Dockerfile, needed for
 # onnxruntime to find the pip-installed CUDA/cuDNN .so files at runtime.
 _HIGH_ACCURACY_OCR_ENGINE = None
+# Prevent duplicate model loading and GPU contention when OCR runs concurrently.
+_HIGH_ACCURACY_ENGINE_LOCK = Lock()
+_HIGH_ACCURACY_RUN_LOCK = Lock()
 
 
 def _get_high_accuracy_ocr_engine():
     global _HIGH_ACCURACY_OCR_ENGINE
     if _HIGH_ACCURACY_OCR_ENGINE is None:
-        from rapidocr import RapidOCR as HighAccuracyRapidOCR
-        from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
+        with _HIGH_ACCURACY_ENGINE_LOCK:
+            if _HIGH_ACCURACY_OCR_ENGINE is None:
+                from rapidocr import RapidOCR as HighAccuracyRapidOCR
+                from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
 
-        _HIGH_ACCURACY_OCR_ENGINE = HighAccuracyRapidOCR(
-            params={
-                "Rec.lang_type": LangRec.CH,
-                "Rec.ocr_version": OCRVersion.PPOCRV5,
-                "Rec.model_type": ModelType.SERVER,
-                "Global.use_cls": False,
-                "EngineConfig.onnxruntime.use_cuda": True,
-            }
-        )
+                _HIGH_ACCURACY_OCR_ENGINE = HighAccuracyRapidOCR(
+                    params={
+                        "Rec.lang_type": LangRec.CH,
+                        "Rec.ocr_version": OCRVersion.PPOCRV5,
+                        "Rec.model_type": ModelType.SERVER,
+                        "Global.use_cls": False,
+                        "EngineConfig.onnxruntime.use_cuda": True,
+                        "Det.limit_side_len": 640,
+                    }
+                )
     return _HIGH_ACCURACY_OCR_ENGINE
 
 
-def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> str:
-    """Runs local OCR on one page image and returns its recognized text lines, one per
-    line, in the reading order the engine detects them in. Garbled noise from these
-    scans' background security watermark sometimes gets picked up as spurious text
-    lines - that's left as-is for the downstream OpenAI call to recognize and ignore,
-    rather than trying to filter it heuristically here and risking real text getting
-    dropped. high_accuracy swaps in the much slower but more accurate engine - see
-    _get_high_accuracy_ocr_engine()."""
+def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, float | None]:
+    """Returns OCR text plus the fast engine's mean recognition confidence.
+
+    The confidence is used only to select a small number of weak pages for a targeted
+    high-accuracy re-scan. It is not shown to users as an accuracy guarantee.
+    """
     img = Image.open(io.BytesIO(content)).convert("RGB")
     if high_accuracy:
-        result = _get_high_accuracy_ocr_engine()(np.array(img)).txts
-        return _normalize_ocr_text("\n".join(result)) if result else ""
+        # A single server-model inference keeps the shared GPU responsive.
+        with _HIGH_ACCURACY_RUN_LOCK:
+            result = _get_high_accuracy_ocr_engine()(np.array(img)).txts
+        return (_normalize_ocr_text("\n".join(result)) if result else "", None)
     result, _ = _get_ocr_engine()(np.array(img))
-    return _normalize_ocr_text("\n".join(line[1] for line in result)) if result else ""
+    if not result:
+        return "", 0.0
+    scores = [float(line[2]) for line in result if len(line) > 2 and isinstance(line[2], (int, float, np.floating))]
+    confidence = sum(scores) / len(scores) if scores else None
+    return _normalize_ocr_text("\n".join(line[1] for line in result)), confidence
 
 
 # A separate, more aggressively-tuned engine used only for the small header-strip crop
@@ -653,6 +695,14 @@ def _normalize_ocr_text(text: str) -> str:
     text = text.translate(_FULLWIDTH_DIGIT_MAP)
     for ch in _DASH_VARIANTS:
         text = text.replace(ch, "-")
+    # This OCR engine frequently drops 「範」 out of 「權利範圍」, printing 「權利圍」
+    # instead - the extraction prompt looks for the literal "權利範圍:" label to find each
+    # owner's ownership_numerator/denominator, so a page full of "權利圍:" matches never
+    # gets recognized as that field at all and silently falls back to a fabricated-looking
+    # 1分之1 default instead of the real fraction. "權利圍" never legitimately appears in
+    # these documents on its own, so it's safe to deterministically restore it here rather
+    # than relying on the model to notice the dropped character on its own.
+    text = text.replace("權利圍", "權利範圍")
     return text
 
 
@@ -677,7 +727,9 @@ _RECORD_TYPE_INSTRUCTIONS = {
 }
 
 
-def _extract_title_deed_chunk(files: list[tuple[bytes, str | None]], record_type: str = "both", high_accuracy: bool = False) -> dict:
+def _extract_title_deed_chunk(
+    files: list[tuple[bytes, str | None]], record_type: str = "both", high_accuracy: bool = False, smart_rescan_limit: int = 0
+) -> tuple[dict, int]:
     # Pages are OCR'd locally first (see _ocr_page_text) instead of sending the raw
     # images to a vision model - a dedicated OCR engine reads dense small print (parcel
     # numbers, ID numbers, ownership fractions) far more reliably than a vision LLM
@@ -698,15 +750,37 @@ def _extract_title_deed_chunk(files: list[tuple[bytes, str | None]], record_type
     # the returns flatten out. On a GPU (see use_cuda on the engine) a single page drops
     # to ~2s, so this cap matters much less either way now, but is left at 4 rather than
     # re-tuned for GPU concurrency (untested) since it's not causing any known problem.
-    workers = 4 if high_accuracy else _HEADER_OCR_WORKERS
+    workers = 1 if high_accuracy else _HEADER_OCR_WORKERS
     if files:
         with ThreadPoolExecutor(max_workers=min(workers, len(files))) as pool:
-            page_texts = list(pool.map(lambda args: _ocr_page_text(args[0], high_accuracy), files))
+            page_results = list(pool.map(lambda args: _ocr_page_text(args[0], high_accuracy), files))
+        page_texts = [text for text, _confidence in page_results]
+
+        # Smart mode: fast OCR handles every page. Re-scan at most the two lowest-
+        # confidence pages, so one poor photo does not turn an entire batch into the
+        # slow all-pages high-accuracy path. Users can still explicitly opt into that
+        # full path with high_accuracy=True.
+        if not high_accuracy:
+            weak_pages = sorted(
+                ((confidence, i) for i, (_text, confidence) in enumerate(page_results) if confidence is not None and confidence < SMART_RESCAN_CONFIDENCE),
+                key=lambda item: item[0],
+            )[:smart_rescan_limit]
+            if weak_pages:
+                def _rescan_weak_page(index: int) -> tuple[int, str]:
+                    try:
+                        return index, _ocr_page_text(files[index][0], high_accuracy=True)[0]
+                    except Exception as exc:
+                        print(f"[_extract_title_deed_chunk] smart re-scan skipped for page {index + 1}: {exc}", flush=True)
+                        return index, page_texts[index]
+
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    for index, rescanned_text in pool.map(lambda item: _rescan_weak_page(item[1]), weak_pages):
+                        if rescanned_text:
+                            page_texts[index] = rescanned_text
+                print(f"[_extract_title_deed_chunk] smart re-scanned {len(weak_pages)} low-confidence page(s)", flush=True)
     else:
         page_texts = []
-    # TEMP DEBUG - remove once the missing-encumbrances extraction issue is diagnosed.
-    for i, t in enumerate(page_texts):
-        print(f"[_extract_title_deed_chunk] page {i + 1} OCR text:\n{t}\n", flush=True)
+    # Full OCR text contains personal data and is intentionally not logged.
     pages_block = "\n\n".join(
         f"----- 第 {i + 1} 頁 OCR 文字 -----\n{text or '(本頁 OCR 沒有讀到文字)'}"
         for i, text in enumerate(page_texts)
@@ -736,7 +810,7 @@ def _extract_title_deed_chunk(files: list[tuple[bytes, str | None]], record_type
     last_error: OcrError | None = None
     for attempt in (1, 2):
         try:
-            resp = httpx.post(OPENAI_ENDPOINT, headers=headers, json=payload, timeout=240.0)
+            resp = httpx.post(OPENAI_ENDPOINT, headers=headers, json=payload, timeout=OCR_OPENAI_TIMEOUT_SECONDS)
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text
@@ -779,15 +853,23 @@ def _extract_title_deed_chunk(files: list[tuple[bytes, str | None]], record_type
             "encumbrances": parsed.get("encumbrances") or [],
             "buildings": parsed.get("buildings") or [],
         })))
-        # TEMP DEBUG - remove once the missing-encumbrances extraction issue is diagnosed.
-        print(
-            "[_extract_title_deed_chunk] model result: "
-            f"land_parcels={[(p.get('parcel_number'), len(p.get('encumbrances') or [])) for p in result['land_parcels']]} "
-            f"top_level_encumbrances={len(result['encumbrances'])} "
-            f"buildings={[b.get('building_number') for b in result['buildings']]}",
-            flush=True,
-        )
-        return result
+        # Person names are deliberately exempted from the s2twp traditional-conversion
+        # backstop above - it's meant for addresses/place names/legal terms, where the
+        # mapping is unambiguous. A rare/uncommon character actually printed in someone's
+        # real name can coincide with s2twp's simplified->traditional dictionary and get
+        # silently "corrected" into a different (wrong) character, which is worse than
+        # leaving whatever the model itself already read. Restore each owner_name from
+        # the pre-conversion model output after every other field has gone through the
+        # normal cleanup passes.
+        for parcel, raw_parcel in zip(result["land_parcels"], parsed.get("land_parcels") or []):
+            for owner, raw_owner in zip(parcel.get("owners", []), raw_parcel.get("owners", []) or []):
+                if raw_owner.get("owner_name"):
+                    owner["owner_name"] = raw_owner["owner_name"]
+        for building, raw_building in zip(result["buildings"], parsed.get("buildings") or []):
+            for owner, raw_owner in zip(building.get("owners", []), raw_building.get("owners", []) or []):
+                if raw_owner.get("owner_name"):
+                    owner["owner_name"] = raw_owner["owner_name"]
+        return result, len(weak_pages) if not high_accuracy else 0
 
     raise last_error
 

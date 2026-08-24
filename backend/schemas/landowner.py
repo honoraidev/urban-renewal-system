@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class LandRecordCreate(BaseModel):
+    source_ocr_job_id: int | None = None
     parcel_number: str = Field(min_length=1, max_length=100)
     township: str | None = None
     section: str | None = None
@@ -28,6 +29,7 @@ class LandRecordUpdate(BaseModel):
 class LandRecordRead(BaseModel):
     id: int
     landowner_id: int | None = None
+    source_ocr_job_id: int | None = None
     parcel_number: str
     township: str | None = None
     section: str | None = None
@@ -44,6 +46,7 @@ class LandRecordRead(BaseModel):
 
 class BuildingRecordCreate(BaseModel):
     land_record_id: int | None = None
+    source_ocr_job_id: int | None = None
     building_number: str | None = None
     address: str | None = None
     floor: str | None = None
@@ -74,6 +77,7 @@ class BuildingRecordRead(BaseModel):
     id: int
     landowner_id: int | None = None
     land_record_id: int | None = None
+    source_ocr_job_id: int | None = None
     building_number: str | None = None
     address: str | None = None
     floor: str | None = None

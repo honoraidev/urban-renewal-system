@@ -98,6 +98,7 @@ CREATE TABLE land_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     landowner_id INT NULL,
+    source_ocr_job_id INT NULL,
     parcel_number VARCHAR(100) NOT NULL,
     township VARCHAR(50),
     section VARCHAR(100),
@@ -114,7 +115,8 @@ CREATE TABLE land_records (
     CONSTRAINT fk_land_records_landowner FOREIGN KEY (landowner_id) REFERENCES landowners(id) ON DELETE SET NULL,
     CONSTRAINT chk_land_records_denominator CHECK (ownership_denominator > 0),
     INDEX idx_land_records_project (project_id),
-    INDEX idx_land_records_landowner (landowner_id)
+    INDEX idx_land_records_landowner (landowner_id),
+    INDEX idx_land_records_ocr_job (source_ocr_job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. building_records (ownership share computed by application layer, not SQL-generated)
@@ -123,6 +125,7 @@ CREATE TABLE building_records (
     project_id INT NOT NULL,
     landowner_id INT NULL,
     land_record_id INT NULL,
+    source_ocr_job_id INT NULL,
     building_number VARCHAR(100),
     address VARCHAR(255),
     floor VARCHAR(20),
@@ -141,7 +144,8 @@ CREATE TABLE building_records (
     CONSTRAINT fk_building_records_landowner FOREIGN KEY (landowner_id) REFERENCES landowners(id) ON DELETE SET NULL,
     CONSTRAINT fk_building_records_land FOREIGN KEY (land_record_id) REFERENCES land_records(id) ON DELETE SET NULL,
     INDEX idx_building_records_project (project_id),
-    INDEX idx_building_records_landowner (landowner_id)
+    INDEX idx_building_records_landowner (landowner_id),
+    INDEX idx_building_records_ocr_job (source_ocr_job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7b. encumbrances (他項權利部 - mortgages/liens etc; informational, not tied to a
@@ -201,7 +205,7 @@ CREATE TABLE documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     landowner_id INT NULL,
-    doc_type ENUM('property_register','consent_form','briefing_material','contract','photo','other') NOT NULL DEFAULT 'other',
+    doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other') NOT NULL DEFAULT 'other',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size_bytes BIGINT NOT NULL DEFAULT 0,
@@ -278,3 +282,9 @@ CREATE TABLE ocr_match_results (
     CONSTRAINT fk_ocr_match_job FOREIGN KEY (ocr_job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE,
     INDEX idx_ocr_match_job (ocr_job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- land_records/building_records reference ocr_jobs (for the 謄本匯入批次 detail page's
+-- provenance tracking), but ocr_jobs is only defined here, after both tables - added via
+-- ALTER instead of an inline CONSTRAINT to keep table creation order as-is above.
+ALTER TABLE land_records ADD CONSTRAINT fk_land_records_ocr_job FOREIGN KEY (source_ocr_job_id) REFERENCES ocr_jobs(id) ON DELETE SET NULL;
+ALTER TABLE building_records ADD CONSTRAINT fk_building_records_ocr_job FOREIGN KEY (source_ocr_job_id) REFERENCES ocr_jobs(id) ON DELETE SET NULL;
