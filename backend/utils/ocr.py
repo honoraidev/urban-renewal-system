@@ -6,6 +6,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import Callable
 
 import fitz
 import httpx
@@ -171,8 +172,12 @@ land_parcels[].owners 或 buildings[].owners 陣列裡,即使他項權利部緊�
 1. land_parcels(土地標示部+所有權部+屬於這筆地號自己的他項權利部,陣列,一筆地號一個項目;若整份文件完全沒有\
 土地部分則回傳空陣列 []):
    - township:鄉鎮市區(例如「板橋區」)
-   - section:地段名稱,不含行政區前綴(例如「民族段」而非「板橋區民族段」)
-   - subsection:小段名稱(若有才填,很多謄本沒有小段)
+   - section:地段名稱,不含行政區前綴(例如「民族段」而非「板橋區民族段」),也不含小段名稱
+   - subsection:小段名稱(若有才填,很多謄本沒有小段)。【重要】地段跟小段在原文常常連在一起印刷、中間沒有\
+空格或標點,例如「祥和段三小段」,這是**兩個獨立欄位**:section 只填到第一個「段」字為止(「祥和段」),\
+subsection 填後面剩下、同樣以「段」結尾的部分(「三小段」)——不要把整串「祥和段三小段」都塞進 section、\
+更不可以把 subsection 填成地號或其他不相關的數字。判斷依據就是「段」這個字出現兩次,第一次結束的地方是\
+section,第二次(通常較短、常見「一小段」「二小段」「三小段」這類數字+小段的格式)是 subsection。
    - parcel_number:地號(例如「1099-0000」)
    - area_sqm:土地標示部登載的面積(平方公尺),純數字
    - owners(陣列,**列出這筆地號底下所有登記次序/所有權人,不要只列第一位**):
@@ -336,12 +341,29 @@ class OcrError(Exception):
 # Keeping chunks small prevents a single structured-AI request from stalling for
 # several minutes on 27–41 page deeds.
 PAGES_PER_CHUNK = 4
+# How many chunks' OpenAI structuring calls run concurrently in extract_title_deed. Each
+# chunk's call is independent (different pages, no shared state), so this just overlaps
+# their network wait time instead of serializing every chunk's full round-trip one after
+# another - kept modest to stay within OpenAI's per-minute rate limits and avoid piling
+# every chunk's own local-OCR thread pool on top of each other at once.
+CHUNK_CONCURRENCY = 3
 OCR_OPENAI_TIMEOUT_SECONDS = 90.0
 PDF_RENDER_DPI = 200
 # Fast OCR remains the default. Only the weakest pages in each chunk are re-scanned
 # with the slower engine, preserving batch speed while recovering likely misreads.
 SMART_RESCAN_CONFIDENCE = 0.72
 SMART_RESCAN_MAX_PAGES_PER_DOCUMENT = 2
+# Confidence-based smart re-scan (above) only catches text the fast engine detected but
+# read uncertainly - it can't catch a field the fast engine's detector missed outright
+# (no detected text = no confidence score to flag it), which is what was actually
+# happening to area_sqm on some pages: the high-accuracy engine caught it on the same
+# page the fast engine skipped entirely. This is a second, separate backstop for that:
+# after AI structuring, if a chunk's result is missing area_sqm/total_area_sqm on any
+# parcel/building, retry that whole chunk once with the high-accuracy engine. Capped at
+# a small number of chunks per document (chunk-level, not page-level, since by the time
+# a field is known missing the AI has already merged multiple pages' text into one
+# response - there's no cheap way to know which single page within the chunk needs it).
+MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT = 1
 
 
 # Used when extract_title_deed() is called with high_accuracy=True (the single-record
@@ -442,6 +464,21 @@ def downscale_for_preview(content: bytes, max_dimension: int = 1000, quality: in
     return buf.getvalue()
 
 
+def _chunk_missing_area(result: dict) -> bool:
+    """True if any land parcel/building in this chunk's AI result came back with no
+    area at all - the fast OCR engine occasionally misses that field's text region
+    outright (not a misread, an outright detection miss), which the confidence-based
+    smart re-scan can't catch since there's no detected text to score as low-confidence
+    in the first place. See MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT."""
+    for parcel in result.get("land_parcels", []):
+        if parcel.get("area_sqm") is None:
+            return True
+    for building in result.get("buildings", []):
+        if building.get("total_area_sqm") is None and building.get("floor_area_sqm") is None:
+            return True
+    return False
+
+
 def extract_title_deed(
     files: list[tuple[bytes, str | None]], record_type: str = "both", high_accuracy: bool = False
 ) -> tuple[dict, str | None]:
@@ -465,24 +502,94 @@ def extract_title_deed(
     if not files:
         raise OcrError("沒有可供辨識的檔案")
 
+    document_started_at = time.time()
     pages = _flatten_to_pages(files, dpi=HIGH_ACCURACY_PDF_RENDER_DPI if high_accuracy else PDF_RENDER_DPI)
+    flatten_seconds = time.time() - document_started_at
     chunks = [pages[i : i + PAGES_PER_CHUNK] for i in range(0, len(pages), PAGES_PER_CHUNK)]
 
-    results = []
-    failed_chunks = []
+    results: list[dict | None] = [None] * len(chunks)
+    failed_chunks: list[tuple[int, OcrError]] = []
     # A large scanned deed can contain dozens of pages. Cap expensive smart re-scans
     # across the whole document, not once per chunk.
-    smart_rescan_budget = SMART_RESCAN_MAX_PAGES_PER_DOCUMENT if not high_accuracy else 0
-    for i, chunk in enumerate(chunks):
+    rescan_budget_lock = Lock()
+    rescan_budget_remaining = [SMART_RESCAN_MAX_PAGES_PER_DOCUMENT if not high_accuracy else 0]
+
+    def claim_rescan_budget(requested: int) -> int:
+        with rescan_budget_lock:
+            claimed = min(requested, rescan_budget_remaining[0])
+            rescan_budget_remaining[0] -= claimed
+            return claimed
+
+    # Phase 1: OCR every chunk's pages, one chunk at a time (see _ocr_chunk_pages - the
+    # local GPU OCR engine isn't safe to hit from several chunks' worth of concurrent
+    # page-level thread pools at once, that crashed onnxruntime in testing). Each chunk
+    # still OCRs its own pages in parallel internally, unchanged.
+    ocr_seconds_total = 0.0
+    page_texts_by_chunk: list[list[str]] = []
+    for chunk in chunks:
+        page_texts, ocr_seconds, _rescanned = _ocr_chunk_pages(chunk, high_accuracy, claim_rescan_budget=claim_rescan_budget)
+        page_texts_by_chunk.append(page_texts)
+        ocr_seconds_total += ocr_seconds
+
+    # Phase 2: once every chunk's text is in hand, fire the (network-bound, GPU-free)
+    # OpenAI structuring calls concurrently - these have no shared resource to contend
+    # over, so overlapping their wait time is safe and cuts a multi-chunk batch's total
+    # wall time significantly. Capped at CHUNK_CONCURRENCY to stay within OpenAI's
+    # per-minute rate limits.
+    openai_seconds_total = [0.0]
+    openai_seconds_lock = Lock()
+
+    def _run_chunk_openai(i: int) -> None:
         try:
-            extracted, rescanned_count = _extract_title_deed_chunk(
-                chunk, record_type, high_accuracy, smart_rescan_limit=smart_rescan_budget
-            )
-            results.append(extracted)
-            smart_rescan_budget = max(0, smart_rescan_budget - rescanned_count)
+            extracted, openai_seconds = _call_openai_for_chunk(page_texts_by_chunk[i], record_type)
+            results[i] = extracted
+            with openai_seconds_lock:
+                openai_seconds_total[0] += openai_seconds
         except OcrError as exc:
             failed_chunks.append((i, exc))
 
+    with ThreadPoolExecutor(max_workers=min(CHUNK_CONCURRENCY, len(chunks))) as pool:
+        list(pool.map(_run_chunk_openai, range(len(chunks))))
+
+    # Phase 3: a chunk whose result is missing area_sqm/total_area_sqm on some
+    # parcel/building most likely had that field's text region missed outright by the
+    # fast engine's detector (see _chunk_missing_area) - retry that whole chunk once
+    # with the high-accuracy engine, capped to a small number of chunks per document so
+    # one bad page doesn't silently turn every large batch into a slow all-high-accuracy
+    # run. Skipped entirely when already running high_accuracy, since that's already the
+    # best detector available - a repeat miss there is an AI reading issue, not a
+    # detection gap this retry can fix.
+    if not high_accuracy:
+        missing_area_budget = MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT
+        for i, result in enumerate(results):
+            if missing_area_budget <= 0:
+                break
+            if result is None or not _chunk_missing_area(result):
+                continue
+            missing_area_budget -= 1
+            try:
+                retry_page_texts, retry_ocr_seconds, _ = _ocr_chunk_pages(chunks[i], high_accuracy=True)
+                retried_result, retry_openai_seconds = _call_openai_for_chunk(retry_page_texts, record_type)
+                ocr_seconds_total += retry_ocr_seconds
+                openai_seconds_total[0] += retry_openai_seconds
+                print(
+                    f"[extract_title_deed] chunk {i}: missing area_sqm, retried with high_accuracy "
+                    f"(still_missing={_chunk_missing_area(retried_result)})",
+                    flush=True,
+                )
+                results[i] = retried_result
+            except OcrError as exc:
+                print(f"[extract_title_deed] chunk {i}: missing-area retry failed, keeping original result: {exc}", flush=True)
+
+    results = [r for r in results if r is not None]
+    print(
+        f"[extract_title_deed] timing: {len(pages)} page(s) in {len(chunks)} chunk(s), "
+        f"flatten={flatten_seconds:.1f}s ocr_total={ocr_seconds_total:.1f}s openai_total={openai_seconds_total[0]:.1f}s "
+        f"wall_total={time.time() - document_started_at:.1f}s "
+        f"(high_accuracy={high_accuracy}, openai_concurrency={min(CHUNK_CONCURRENCY, len(chunks)) if chunks else 0}, "
+        f"failed_chunks={len(failed_chunks)})",
+        flush=True,
+    )
     if not results:
         raise failed_chunks[0][1]
 
@@ -574,6 +681,20 @@ def _merge_extractions(chunk_results: list[dict]) -> dict:
 # scale unbounded with core count on a many-core machine.
 _HEADER_OCR_WORKERS = min(os.cpu_count() or 2, 8)
 
+# Serializes every actual GPU inference call across all three OCR engines in this file
+# (default, high-accuracy, header-crop) - concurrent Run() calls into onnxruntime's CUDA
+# execution provider on this GPU/driver measured out to a real crash ("CUDNN_FE failure
+# 11: CUDNN_BACKEND_API_FAILED" / CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER) under normal
+# multi-page batch load, not just under unusually heavy concurrency. The high-accuracy
+# engine already had its own lock for this (_HIGH_ACCURACY_RUN_LOCK); the default
+# engine's page-level thread pool (up to _HEADER_OCR_WORKERS wide) had no equivalent
+# protection at all, which is what was actually crashing. A single shared lock covering
+# every engine is simplest and safest - the GPU is one physical resource either way, so
+# "parallel" GPU calls from separate engines were never real parallelism, just an
+# unguarded race. Image decode/preprocessing before each call still happens off-lock, so
+# only the actual inference is serialized, not the whole per-page pipeline.
+_GPU_OCR_LOCK = Lock()
+
 # Loading RapidOCR's models takes a couple seconds - doing that once per process and
 # reusing the engine avoids paying that cost on every single page.
 _OCR_ENGINE: RapidOCR | None = None
@@ -640,11 +761,11 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
     """
     img = Image.open(io.BytesIO(content)).convert("RGB")
     if high_accuracy:
-        # A single server-model inference keeps the shared GPU responsive.
-        with _HIGH_ACCURACY_RUN_LOCK:
+        with _GPU_OCR_LOCK, _HIGH_ACCURACY_RUN_LOCK:
             result = _get_high_accuracy_ocr_engine()(np.array(img)).txts
         return (_normalize_ocr_text("\n".join(result)) if result else "", None)
-    result, _ = _get_ocr_engine()(np.array(img))
+    with _GPU_OCR_LOCK:
+        result, _ = _get_ocr_engine()(np.array(img))
     if not result:
         return "", 0.0
     scores = [float(line[2]) for line in result if len(line) > 2 and isinstance(line[2], (int, float, np.floating))]
@@ -710,7 +831,8 @@ def _ocr_header_text(content: bytes) -> str:
     """Like _ocr_page_text, but for a _crop_top_strip() header crop specifically - see
     _get_header_ocr_engine() for why this uses a separate, faster-tuned engine."""
     img = Image.open(io.BytesIO(content)).convert("RGB")
-    result, _ = _get_header_ocr_engine()(np.array(img))
+    with _GPU_OCR_LOCK:
+        result, _ = _get_header_ocr_engine()(np.array(img))
     return _normalize_ocr_text("\n".join(line[1] for line in result)) if result else ""
 
 
@@ -727,21 +849,26 @@ _RECORD_TYPE_INSTRUCTIONS = {
 }
 
 
-def _extract_title_deed_chunk(
-    files: list[tuple[bytes, str | None]], record_type: str = "both", high_accuracy: bool = False, smart_rescan_limit: int = 0
-) -> tuple[dict, int]:
+def _ocr_chunk_pages(
+    files: list[tuple[bytes, str | None]],
+    high_accuracy: bool = False,
+    claim_rescan_budget: Callable[[int], int] | None = None,
+) -> tuple[list[str], float, int]:
     # Pages are OCR'd locally first (see _ocr_page_text) instead of sending the raw
     # images to a vision model - a dedicated OCR engine reads dense small print (parcel
     # numbers, ID numbers, ownership fractions) far more reliably than a vision LLM
     # skimming a downsized page image. The model's job here is purely to organize and
     # sanity-check already-recognized text, not to also read characters off pixels.
     #
-    # This full-page OCR pass (dense small print, so it can't use the cheap downsized
-    # header-crop engine detect_case_groups() uses) was still a plain sequential list
-    # comprehension - the batch building-import confirm step calls this once per group
-    # (see extract_building_group), and a multi-page group was paying for each page's
-    # OCR one at a time instead of using the same thread-pool treatment already applied
-    # everywhere else in this file.
+    # Kept as its own function, called sequentially per chunk from extract_title_deed
+    # (unlike the OpenAI call below, which is safe to fan out across chunks) - the
+    # underlying onnxruntime CUDA session isn't safe to hit from many chunks' worth of
+    # concurrent page-level thread pools at once. Running 3 chunks' OCR passes at the
+    # same time (each already spinning up its own up-to-8-way page thread pool) measured
+    # out to a real crash: "CUDNN_BACKEND_API_FAILED" from onnxruntime, most likely GPU
+    # resource exhaustion from too many concurrent CUDA calls on one session. The
+    # existing per-chunk page-level parallelism below was already safe on its own and is
+    # untouched; only chunk-vs-chunk concurrency for this GPU-bound phase was the problem.
     #
     # high_accuracy's engine (see _get_high_accuracy_ocr_engine) is capped independently
     # of _HEADER_OCR_WORKERS. On CPU it was measured at 1 worker ~57s/page, 2 ~52s/page,
@@ -750,7 +877,9 @@ def _extract_title_deed_chunk(
     # the returns flatten out. On a GPU (see use_cuda on the engine) a single page drops
     # to ~2s, so this cap matters much less either way now, but is left at 4 rather than
     # re-tuned for GPU concurrency (untested) since it's not causing any known problem.
+    started_at = time.time()
     workers = 1 if high_accuracy else _HEADER_OCR_WORKERS
+    weak_pages: list[tuple[float, int]] = []
     if files:
         with ThreadPoolExecutor(max_workers=min(workers, len(files))) as pool:
             page_results = list(pool.map(lambda args: _ocr_page_text(args[0], high_accuracy), files))
@@ -760,26 +889,35 @@ def _extract_title_deed_chunk(
         # confidence pages, so one poor photo does not turn an entire batch into the
         # slow all-pages high-accuracy path. Users can still explicitly opt into that
         # full path with high_accuracy=True.
-        if not high_accuracy:
-            weak_pages = sorted(
+        if not high_accuracy and claim_rescan_budget:
+            candidate_weak_pages = sorted(
                 ((confidence, i) for i, (_text, confidence) in enumerate(page_results) if confidence is not None and confidence < SMART_RESCAN_CONFIDENCE),
                 key=lambda item: item[0],
-            )[:smart_rescan_limit]
+            )
+            # Chunks run sequentially through this OCR phase (see above), but the budget
+            # is still claimed atomically since a future caller could parallelize this
+            # again - cheap correctness insurance, not needed for today's sequential use.
+            claimed = claim_rescan_budget(len(candidate_weak_pages))
+            weak_pages = candidate_weak_pages[:claimed]
             if weak_pages:
                 def _rescan_weak_page(index: int) -> tuple[int, str]:
                     try:
                         return index, _ocr_page_text(files[index][0], high_accuracy=True)[0]
                     except Exception as exc:
-                        print(f"[_extract_title_deed_chunk] smart re-scan skipped for page {index + 1}: {exc}", flush=True)
+                        print(f"[_ocr_chunk_pages] smart re-scan skipped for page {index + 1}: {exc}", flush=True)
                         return index, page_texts[index]
 
                 with ThreadPoolExecutor(max_workers=1) as pool:
                     for index, rescanned_text in pool.map(lambda item: _rescan_weak_page(item[1]), weak_pages):
                         if rescanned_text:
                             page_texts[index] = rescanned_text
-                print(f"[_extract_title_deed_chunk] smart re-scanned {len(weak_pages)} low-confidence page(s)", flush=True)
+                print(f"[_ocr_chunk_pages] smart re-scanned {len(weak_pages)} low-confidence page(s)", flush=True)
     else:
         page_texts = []
+    return page_texts, time.time() - started_at, len(weak_pages)
+
+
+def _call_openai_for_chunk(page_texts: list[str], record_type: str = "both") -> tuple[dict, float]:
     # Full OCR text contains personal data and is intentionally not logged.
     pages_block = "\n\n".join(
         f"----- 第 {i + 1} 頁 OCR 文字 -----\n{text or '(本頁 OCR 沒有讀到文字)'}"
@@ -807,6 +945,7 @@ def _extract_title_deed_chunk(
     # failing the whole (possibly multi-chunk) job over one bad call. A 429 (rate
     # limit) gets a longer backoff since OpenAI's per-minute token windows take real
     # time to free up - a same-instant retry just hits the same wall.
+    openai_started_at = time.time()
     last_error: OcrError | None = None
     for attempt in (1, 2):
         try:
@@ -869,7 +1008,7 @@ def _extract_title_deed_chunk(
             for owner, raw_owner in zip(building.get("owners", []), raw_building.get("owners", []) or []):
                 if raw_owner.get("owner_name"):
                     owner["owner_name"] = raw_owner["owner_name"]
-        return result, len(weak_pages) if not high_accuracy else 0
+        return result, time.time() - openai_started_at
 
     raise last_error
 
@@ -912,7 +1051,7 @@ def _call_openai_structured(payload: dict) -> dict:
     once on a 429 (rate limit) after a real pause - OpenAI's per-minute token budget
     needs actual time to free up, so an instant retry just hits the same wall. Used by
     the lightweight per-page detection helpers below; the main extraction path
-    (_extract_title_deed_chunk) has its own copy of this same pattern inline."""
+    (_call_openai_for_chunk) has its own copy of this same pattern inline."""
     headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
     last_error: OcrError | None = None
     for attempt in (1, 2):

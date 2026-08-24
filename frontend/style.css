@@ -438,24 +438,6 @@
   }
   .wizard-confirm-chip.encumbrance { background: var(--warning-light, #fff4e0); border-color: var(--warning, #e0a020); color: var(--warning-dark, #8a5a00); }
 
-  .wizard-review-split { display: flex; gap: 16px; align-items: flex-start; }
-  .wizard-review-thumbs {
-    width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;
-    max-height: 480px; overflow-y: auto;
-  }
-  .wizard-review-thumbs img {
-    width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: zoom-in;
-    transition: border-color .15s ease;
-  }
-  .wizard-review-thumbs img:hover { border-color: var(--brand); }
-  .wizard-review-form { flex: 1; min-width: 0; }
-  .wizard-reviewed-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 12px;
-    background: var(--surface-2); border-radius: var(--radius-sm); font-size: 13.5px; font-weight: 600;
-    color: var(--text-muted); cursor: pointer;
-  }
-  .wizard-reviewed-row input { accent-color: var(--brand); cursor: pointer; }
-
   .wizard-relation-row { display: grid; grid-template-columns: 1fr 34px 1fr; gap: 10px; align-items: stretch; margin-top: 10px; }
   .wizard-relation-card {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;

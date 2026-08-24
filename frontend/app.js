@@ -113,7 +113,13 @@ function escapeHtml(str) {
 
 function fmtDateTime(iso) {
   if (!iso) return "-";
-  const d = new Date(iso);
+  // The backend stores/serializes timestamps as naive UTC (no "Z"/offset suffix) - JS's
+  // Date parser treats a timezone-less ISO string as already being in the browser's
+  // local time, so without this it silently skipped the UTC->local conversion entirely
+  // and displayed the raw UTC value as if it were local (e.g. an upload at 12:21 local
+  // Taipei time showed as "04:21" - off by exactly the UTC+8 offset).
+  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(isoWithZone);
   if (isNaN(d)) return iso;
   return d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
@@ -232,8 +238,6 @@ function showApp() {
   document.getElementById("nav-users-btn").classList.toggle("hidden", !isAdmin());
   document.getElementById("nav-loginlogs-btn").classList.toggle("hidden", !isAdmin());
   document.getElementById("new-project-btn").classList.toggle("hidden", !isEditor());
-  document.getElementById("batch-import-btn").classList.toggle("hidden", !isEditor());
-  document.getElementById("batch-import-buildings-btn").classList.toggle("hidden", !isEditor());
 }
 
 function renderNavUser() {
@@ -420,7 +424,7 @@ async function loadDashboard() {
   const addProjectTileHtml = isEditor()
     ? `<div class="card project-card project-card-add" id="add-project-tile">
         <span class="project-card-add-icon">+</span>
-        <span>新增專案</span>
+        <span>新增案件</span>
       </div>`
     : "";
 
@@ -697,11 +701,6 @@ document.getElementById("project-form").addEventListener("submit", async (e) => 
 /* ================= Batch import: split a mixed batch into 都更案件 first ================= */
 
 let caseSplitWizard = null;
-
-document.getElementById("batch-import-btn").addEventListener("click", () => {
-  caseSplitWizard = { files: [], pages: [], groupMeta: {} };
-  renderCaseSplitStep0();
-});
 
 function renderCaseSplitStep0() {
   openModal(
@@ -1035,11 +1034,6 @@ async function runConfirmCaseSplit() {
 /* ================= Batch import: building deeds, auto-matched to existing 地號 cases ================= */
 
 let buildingBatchWizard = null;
-
-document.getElementById("batch-import-buildings-btn").addEventListener("click", () => {
-  buildingBatchWizard = { files: [], groups: [] };
-  renderBuildingBatchStep0();
-});
 
 function renderBuildingBatchStep0() {
   openModal(
@@ -2114,7 +2108,6 @@ function renderWizardStep0() {
     </div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-      <button type="button" class="btn-secondary" id="wizard-manual-group-btn">手動分組後再辨識</button>
       <button type="button" class="btn-primary" id="wizard-start-ocr-btn">開始辨識</button>
     </div>`,
     { width: "560px" }
@@ -2135,7 +2128,6 @@ function renderWizardStep0() {
   }
   document.getElementById("wizard-pick-document-btn").addEventListener("click", openWizardDocumentPicker);
   document.getElementById("wizard-start-ocr-btn").addEventListener("click", runTitleDeedOcr);
-  document.getElementById("wizard-manual-group-btn").addEventListener("click", runTitleDeedSplitAndGroup);
 }
 
 async function openWizardDocumentPicker() {
@@ -2285,11 +2277,9 @@ async function runTitleDeedOcr() {
     } else {
       titleDeedWizard.data = normalizeTitleDeedData(result.data);
       titleDeedWizard.data.parcels.forEach((p) => {
-        p.reviewed = false;
         p._sourceOcrJobId = result.job.id;
       });
       titleDeedWizard.data.buildings.forEach((b) => {
-        b.reviewed = false;
         b._sourceOcrJobId = result.job.id;
       });
       toast("辨識完成,請逐步核對每個區塊", "success");
@@ -2303,9 +2293,8 @@ async function runTitleDeedOcr() {
   }
 }
 
-/* ---- Manual grouping: split every page first, let the user mark which pages belong
-   together (one 地號/建號's pages), then OCR each group separately instead of letting
-   the model guess where the boundaries are across a mixed batch. ---- */
+/* ---- Shared: scanned-page lightbox preview, used by the batch case-split and
+   building-batch import flows' page thumbnail grids. ---- */
 
 function base64ToBlob(base64, mime) {
   const binary = atob(base64);
@@ -2326,64 +2315,6 @@ function showImageLightbox(base64, mime) {
   document.body.appendChild(overlay);
 }
 
-// Renders the left-hand column of scanned-page thumbnails for a single 地號/建號
-// record during review (see runGroupedTitleDeedOcr, which stamps `_sourcePages` onto
-// each record from the page group its OCR result came from), so the user can check the
-// extracted fields against the original scan without leaving the edit form. Records
-// from the single-batch (non-manual-grouping) OCR flow have no `_sourcePages` and
-// render nothing here - there's no real source image to show, and showing a "recover a
-// page" panel implies data that doesn't exist.
-function wizardSourceThumbsHtml(record) {
-  const pages = record._sourcePages;
-  if (!pages || !pages.length) return "";
-  return `
-    <div class="wizard-review-thumbs" id="wizard-review-thumbs">
-      ${pages
-        .map(
-          (p, i) =>
-            `<img src="data:${p.mime_type};base64,${p.image_base64}" data-thumb-index="${i}" title="點擊放大原始掃描頁">`
-        )
-        .join("")}
-    </div>`;
-}
-
-function wireWizardSourceThumbs(record) {
-  const wrap = document.getElementById("wizard-review-thumbs");
-  if (!wrap) return;
-  wrap.querySelectorAll("img[data-thumb-index]").forEach((img) => {
-    img.addEventListener("click", () => {
-      const p = record._sourcePages[Number(img.dataset.thumbIndex)];
-      showImageLightbox(p.image_base64, p.mime_type);
-    });
-  });
-}
-
-// Shared "☑ 已核對此筆資料" toggle shown under a record's edit form. The wizard has no
-// real OCR confidence score to show (the backend extraction doesn't return one), so
-// this tracks the one thing that's actually true: whether a human has looked at this
-// record against the original scan yet. Read by the unreviewed-count reminder on the
-// final confirm screen (see renderWizardStepConfirm). Only shown when there's an actual
-// scanned-page thumbnail to check against (see wizardSourceThumbsHtml) - the
-// single-batch (non-manual-grouping) OCR flow has no source pages to compare, so a
-// "matches the original scan" checkbox would be asking the user to confirm against
-// nothing.
-function wizardReviewedRowHtml(record) {
-  if (!record._sourcePages || !record._sourcePages.length) return "";
-  return `
-    <label class="wizard-reviewed-row">
-      <input type="checkbox" id="wizard-reviewed-checkbox" ${record.reviewed ? "checked" : ""}>
-      已核對此筆資料與原始掃描件相符
-    </label>`;
-}
-
-function wireWizardReviewedCheckbox(record) {
-  const cb = document.getElementById("wizard-reviewed-checkbox");
-  if (!cb) return;
-  cb.addEventListener("change", () => {
-    record.reviewed = cb.checked;
-  });
-}
-
 function wireThumbnailLightbox(container, pages) {
   container.querySelectorAll("img[data-page-index]").forEach((img) => {
     img.style.cursor = "zoom-in";
@@ -2393,125 +2324,6 @@ function wireThumbnailLightbox(container, pages) {
     });
   });
 }
-
-async function runTitleDeedSplitAndGroup() {
-  if (!titleDeedWizard.files.length) {
-    toast("請先選擇至少一個檔案", "error");
-    return;
-  }
-  const btn = document.getElementById("wizard-manual-group-btn");
-  btn.disabled = true;
-  btn.textContent = "拆解頁面中...";
-  try {
-    const fd = new FormData();
-    titleDeedWizard.files.forEach((f) => fd.append("files", f));
-    const result = await api(`/projects/${state.currentProjectId}/ocr/split-pages`, { method: "POST", body: fd, isForm: true });
-    if (result.warning) toast(result.warning, "error");
-    titleDeedWizard.pages = result.pages.map((p) => ({ ...p, group: p.suggested_group || 1 }));
-    renderWizardStepGrouping();
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "手動分組後再辨識";
-  }
-}
-
-function renderWizardStepGrouping() {
-  const pages = titleDeedWizard.pages;
-  openModal(
-    "掃描謄本匯入 · 手動分組",
-    `
-    <div class="helper-text" style="margin-bottom:10px">
-      每張縮圖下方填「分組編號」,同一編號的頁面會合成一組一起送出辨識,不同組會分開各自辨識,避免不同地號/建號的內容被混在一起。系統已依「續次頁」標記自動建議分組(⚠ AI 判斷不一定準確,請務必逐頁核對、有錯直接修改編號)。
-    </div>
-    <div id="wizard-page-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding:4px"></div>
-    <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="renderWizardStep0()">上一步</button>
-      <button type="button" class="btn-primary" id="wizard-grouped-ocr-btn">開始辨識</button>
-    </div>`,
-    { width: "700px" }
-  );
-
-  const grid = document.getElementById("wizard-page-grid");
-  grid.innerHTML = pages
-    .map(
-      (p, i) => `
-      <div class="record-row" style="padding:6px;text-align:center">
-        <img src="data:${p.mime_type};base64,${p.image_base64}" data-page-index="${i}" style="width:100%;height:110px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">
-        <div class="helper-text" style="margin:4px 0 2px">第 ${p.page_number} 頁</div>
-        <input type="number" min="1" value="${p.group}" data-page-group="${i}" style="width:100%;text-align:center" autocomplete="off">
-      </div>`
-    )
-    .join("");
-  wireThumbnailLightbox(grid, pages);
-
-  grid.querySelectorAll("[data-page-group]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const i = Number(input.dataset.pageGroup);
-      titleDeedWizard.pages[i].group = Math.max(1, Number(input.value) || 1);
-      input.value = titleDeedWizard.pages[i].group;
-    });
-  });
-
-  document.getElementById("wizard-grouped-ocr-btn").addEventListener("click", runGroupedTitleDeedOcr);
-}
-
-async function runGroupedTitleDeedOcr() {
-  const btn = document.getElementById("wizard-grouped-ocr-btn");
-  btn.disabled = true;
-
-  const groupNumbers = [...new Set(titleDeedWizard.pages.map((p) => p.group))].sort((a, b) => a - b);
-  const combined = { parcels: [], buildings: [], encumbrances: [] };
-  const failedGroups = [];
-
-  try {
-    for (let g = 0; g < groupNumbers.length; g++) {
-      const groupNumber = groupNumbers[g];
-      btn.textContent = `辨識中(第 ${g + 1}/${groupNumbers.length} 組)...`;
-      const groupPages = titleDeedWizard.pages.filter((p) => p.group === groupNumber);
-      const fd = new FormData();
-      groupPages.forEach((p, i) => fd.append("files", base64ToBlob(p.image_base64, p.mime_type), `page-${p.page_number}.png`));
-      fd.append("record_type", titleDeedWizard.recordType);
-
-      try {
-        const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
-        if (result.job.status !== "completed") {
-          failedGroups.push(groupNumber);
-          continue;
-        }
-        if (result.job.error_message) failedGroups.push(groupNumber);
-        const normalized = normalizeTitleDeedData(result.data);
-        const sourcePages = groupPages.map((p) => ({ image_base64: p.image_base64, mime_type: p.mime_type }));
-        normalized.parcels.forEach((p) => {
-          p._sourcePages = sourcePages;
-          p._sourceOcrJobId = result.job.id;
-          p.reviewed = false;
-        });
-        normalized.buildings.forEach((b) => {
-          b._sourcePages = sourcePages;
-          b._sourceOcrJobId = result.job.id;
-          b.reviewed = false;
-        });
-        combined.parcels.push(...normalized.parcels);
-        combined.buildings.push(...normalized.buildings);
-        combined.encumbrances.push(...normalized.encumbrances);
-      } catch (err) {
-        failedGroups.push(groupNumber);
-      }
-    }
-
-    titleDeedWizard.data = combined;
-    if (failedGroups.length) {
-      toast(`第 ${failedGroups.join("、")} 組辨識失敗或不完整,請手動核對補充`, "error");
-    } else {
-      toast("分組辨識完成,請逐步核對每個區塊", "success");
-    }
-    startWizardReview();
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "開始辨識";
-  }
-}
-
 
 function parcelSummaryLabel(p) {
   const place = `${p.township || ""}${p.section || ""}${p.subsection || ""}`;
@@ -2701,7 +2513,6 @@ function renderWizardStepParcelEditor() {
 function renderParcelDescriptionSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
-  const thumbsHtml = wizardSourceThumbsHtml(p);
   openModal(
     "掃描謄本匯入",
     `
@@ -2709,34 +2520,25 @@ function renderParcelDescriptionSubStep(idx) {
     <div style="margin-bottom:10px">
       <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的謄本檔案並辨識</button>
     </div>
-    <div class="wizard-review-split">
-      ${thumbsHtml}
-      <div class="wizard-review-form">
-        <form id="wizard-step-form" autocomplete="off">
-          <div class="field-row">
-            <div class="field"><label>鄉鎮市區</label><input name="township" value="${escapeHtml(p.township)}" autocomplete="off"></div>
-            <div class="field"><label>地段</label><input name="section" value="${escapeHtml(p.section)}" autocomplete="off"></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>小段</label><input name="subsection" value="${escapeHtml(p.subsection)}" autocomplete="off"></div>
-            <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(p.parcel_number)}" autocomplete="off"></div>
-          </div>
-          <div class="field"><label>土地面積(㎡)</label><input name="area_sqm" type="number" step="0.01" value="${escapeHtml(p.area_sqm)}" autocomplete="off"></div>
-        </form>
-        ${wizardReviewedRowHtml(p)}
+    <form id="wizard-step-form" autocomplete="off">
+      <div class="field-row">
+        <div class="field"><label>鄉鎮市區</label><input name="township" value="${escapeHtml(p.township)}" autocomplete="off"></div>
+        <div class="field"><label>地段</label><input name="section" value="${escapeHtml(p.section)}" autocomplete="off"></div>
       </div>
-    </div>
+      <div class="field-row">
+        <div class="field"><label>小段</label><input name="subsection" value="${escapeHtml(p.subsection)}" autocomplete="off"></div>
+        <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(p.parcel_number)}" autocomplete="off"></div>
+      </div>
+      <div class="field"><label>土地面積(㎡)</label><input name="area_sqm" type="number" step="0.01" value="${escapeHtml(p.area_sqm)}" autocomplete="off"></div>
+    </form>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
     </div>`,
-    { width: thumbsHtml ? "860px" : "620px" }
+    { width: "620px" }
   );
-
-  wireWizardSourceThumbs(p);
-  wireWizardReviewedCheckbox(p);
 
   document.getElementById("wizard-rescan-btn").addEventListener("click", () => {
     openWizardSingleRecordRescan("parcel", p, () => renderParcelDescriptionSubStep(idx));
@@ -2776,30 +2578,20 @@ function renderParcelDescriptionSubStep(idx) {
 function renderParcelOwnersSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
-  const thumbsHtml = wizardSourceThumbsHtml(p);
   openModal(
     "掃描謄本匯入",
     `
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 2/3 土地所有權部`)}
-    <div class="wizard-review-split">
-      ${thumbsHtml}
-      <div class="wizard-review-form">
-        <div class="helper-text" style="margin-bottom:10px">${escapeHtml(parcelSummaryLabel(p))}</div>
-        <div id="wizard-land-owners" style="margin:6px 0"></div>
-        <button type="button" class="btn-secondary btn-sm" id="wizard-add-land-owner-btn">+ 新增共有人</button>
-        ${wizardReviewedRowHtml(p)}
-      </div>
-    </div>
+    <div class="helper-text" style="margin-bottom:10px">${escapeHtml(parcelSummaryLabel(p))}</div>
+    <div id="wizard-land-owners" style="margin:6px 0"></div>
+    <button type="button" class="btn-secondary btn-sm" id="wizard-add-land-owner-btn">+ 新增共有人</button>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地他項權利部</button>
     </div>`,
-    { width: thumbsHtml ? "860px" : "620px" }
+    { width: "620px" }
   );
-
-  wireWizardSourceThumbs(p);
-  wireWizardReviewedCheckbox(p);
 
   const areaSqm = Number(p.area_sqm) || null;
   renderOwnerRowsContainer("wizard-land-owners", p.owners, "lo", areaSqm);
@@ -2833,31 +2625,21 @@ function renderParcelEncumbrancesSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
   const isLast = idx === parcels.length - 1;
-  const thumbsHtml = wizardSourceThumbsHtml(p);
   openModal(
     "掃描謄本匯入",
     `
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 3/3 土地他項權利部`)}
-    <div class="wizard-review-split">
-      ${thumbsHtml}
-      <div class="wizard-review-form">
-        <div class="helper-text" style="margin-bottom:10px">${escapeHtml(parcelSummaryLabel(p))}</div>
-        <div id="wizard-parcel-encumbrances" style="margin:6px 0"></div>
-        <button type="button" class="btn-secondary btn-sm" id="wizard-add-parcel-encumbrance-btn">+ 新增他項權利</button>
-        <div class="helper-text" style="margin-top:6px">若這筆地號沒有他項權利部,可直接略過。跨好幾筆地號的他項權利,留到最後「他項權利部」步驟處理即可</div>
-        ${wizardReviewedRowHtml(p)}
-      </div>
-    </div>
+    <div class="helper-text" style="margin-bottom:10px">${escapeHtml(parcelSummaryLabel(p))}</div>
+    <div id="wizard-parcel-encumbrances" style="margin:6px 0"></div>
+    <button type="button" class="btn-secondary btn-sm" id="wizard-add-parcel-encumbrance-btn">+ 新增他項權利</button>
+    <div class="helper-text" style="margin-top:6px">若這筆地號沒有他項權利部,可直接略過。跨好幾筆地號的他項權利,留到最後「他項權利部」步驟處理即可</div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆地號"}</button>
     </div>`,
-    { width: thumbsHtml ? "860px" : "620px" }
+    { width: "620px" }
   );
-
-  wireWizardSourceThumbs(p);
-  wireWizardReviewedCheckbox(p);
 
   renderEncumbranceRows("wizard-parcel-encumbrances", p.encumbrances);
 
@@ -3018,7 +2800,6 @@ function renderWizardStepBuildingEditor() {
 function renderBuildingDescriptionSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
-  const thumbsHtml = wizardSourceThumbsHtml(b);
   openModal(
     "掃描謄本匯入",
     `
@@ -3026,38 +2807,29 @@ function renderBuildingDescriptionSubStep(idx) {
     <div style="margin-bottom:10px">
       <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的建物謄本檔案並辨識</button>
     </div>
-    <div class="wizard-review-split">
-      ${thumbsHtml}
-      <div class="wizard-review-form">
-        <form id="wizard-step-form" autocomplete="off">
-          <div class="field-row">
-            <div class="field"><label>建號</label><input name="building_number" value="${escapeHtml(b.building_number)}" autocomplete="off"></div>
-            <div class="field"><label>建號門牌</label><input name="building_address" value="${escapeHtml(b.building_address)}" autocomplete="off"></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(b.parcel_number)}" autocomplete="off"></div>
-            <div class="field"><label>層數</label><input name="total_floors" value="${escapeHtml(b.total_floors)}" autocomplete="off"></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>層次</label><input name="floor" value="${escapeHtml(b.floor)}" autocomplete="off"></div>
-            <div class="field"><label>建物總面積(㎡)</label><input name="total_area_sqm" value="${escapeHtml(b.total_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
-          </div>
-          <div class="field"><label>層次面積(㎡)</label><input name="floor_area_sqm" value="${escapeHtml(b.floor_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
-        </form>
-        ${wizardReviewedRowHtml(b)}
+    <form id="wizard-step-form" autocomplete="off">
+      <div class="field-row">
+        <div class="field"><label>建號</label><input name="building_number" value="${escapeHtml(b.building_number)}" autocomplete="off"></div>
+        <div class="field"><label>建號門牌</label><input name="building_address" value="${escapeHtml(b.building_address)}" autocomplete="off"></div>
       </div>
-    </div>
+      <div class="field-row">
+        <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(b.parcel_number)}" autocomplete="off"></div>
+        <div class="field"><label>層數</label><input name="total_floors" value="${escapeHtml(b.total_floors)}" autocomplete="off"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>層次</label><input name="floor" value="${escapeHtml(b.floor)}" autocomplete="off"></div>
+        <div class="field"><label>建物總面積(㎡)</label><input name="total_area_sqm" value="${escapeHtml(b.total_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
+      </div>
+      <div class="field"><label>層次面積(㎡)</label><input name="floor_area_sqm" value="${escapeHtml(b.floor_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
+    </form>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
     </div>`,
-    { width: thumbsHtml ? "860px" : "620px" }
+    { width: "620px" }
   );
-
-  wireWizardSourceThumbs(b);
-  wireWizardReviewedCheckbox(b);
 
   document.getElementById("wizard-rescan-btn").addEventListener("click", () => {
     openWizardSingleRecordRescan("building", b, () => renderBuildingDescriptionSubStep(idx));
@@ -3100,30 +2872,20 @@ function renderBuildingOwnersSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
   const isLast = idx === buildings.length - 1;
-  const thumbsHtml = wizardSourceThumbsHtml(b);
   openModal(
     "掃描謄本匯入",
     `
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 2/2 建物所有權部`)}
-    <div class="wizard-review-split">
-      ${thumbsHtml}
-      <div class="wizard-review-form">
-        <div class="helper-text" style="margin-bottom:10px">${escapeHtml(buildingSummaryLabel(b))}</div>
-        <div id="wizard-building-owners" style="margin:6px 0"></div>
-        <button type="button" class="btn-secondary btn-sm" id="wizard-add-building-owner-btn">+ 新增共有人</button>
-        ${wizardReviewedRowHtml(b)}
-      </div>
-    </div>
+    <div class="helper-text" style="margin-bottom:10px">${escapeHtml(buildingSummaryLabel(b))}</div>
+    <div id="wizard-building-owners" style="margin:6px 0"></div>
+    <button type="button" class="btn-secondary btn-sm" id="wizard-add-building-owner-btn">+ 新增共有人</button>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆建號"}</button>
     </div>`,
-    { width: thumbsHtml ? "860px" : "620px" }
+    { width: "620px" }
   );
-
-  wireWizardSourceThumbs(b);
-  wireWizardReviewedCheckbox(b);
 
   const areaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || null;
   renderOwnerRowsContainer("wizard-building-owners", b.owners, "bo", areaSqm);
@@ -3210,18 +2972,6 @@ function renderWizardStepConfirm() {
         .join("")}`
     : "";
 
-  // Real signal (did a human check this record's checkbox?), not a fabricated AI
-  // confidence score - see wizardReviewedRowHtml. Only counts records that actually
-  // went through a review sub-step with the checkbox rendered.
-  // Only records that actually had a source-page thumbnail to check against show the
-  // 已核對 checkbox at all (see wizardReviewedRowHtml) - records from the single-batch
-  // OCR flow have no thumbnail and no checkbox, so they'd never be "reviewed" and would
-  // permanently inflate this count otherwise.
-  const unreviewedCount = [...d.parcels, ...d.buildings].filter((r) => r._sourcePages?.length && !r.reviewed).length;
-  const unreviewedBannerHtml = unreviewedCount
-    ? `<div class="final-banner warning" style="margin-bottom:10px">⚠ 還有 ${unreviewedCount} 筆尚未勾選「已核對」,建議返回逐筆確認後再建立</div>`
-    : "";
-
   // Land↔building relation preview: same matching rule the actual submit step uses
   // (parcel_number match, see submitTitleDeedWizard) but computed here purely for
   // display before anything is created, so the user can see which buildings will link
@@ -3253,7 +3003,6 @@ function renderWizardStepConfirm() {
     `
     ${wizardProgressHtml("確認建立")}
     <div class="final-banner warning" style="margin-bottom:16px">⚠️ 建立前最後確認：以下姓名、地址、面積等內容為 AI 辨識結果，可能有誤或臆測，請務必逐筆對照原始掃描件</div>
-    ${unreviewedBannerHtml}
     ${relationSectionHtml}
     <div class="wizard-confirm-section-title">土地地號(${d.parcels.length})</div>
     ${parcelsHtml}
@@ -3384,10 +3133,9 @@ async function submitTitleDeedWizard() {
   // against land records an earlier land-only import already created.
   const ownerIdentityKey = (owner) => (owner.id_number || "").trim() || `name:${(owner.owner_name || owner.name || "").trim()}`;
   const parcelOwnerKey = (parcelNumber, identityKey) => `${(parcelNumber || "").trim()}::${identityKey}`;
-  // Every distinct OcrJob (one per OCR call - see runGroupedTitleDeedOcr/runTitleDeedOcr)
-  // that actually contributed a created land/building record, so the user can be sent to
-  // that batch's detail page after submit (see view-ocr-batch). A manually-grouped
-  // import can span several jobs; a plain single-shot import is just the one.
+  // The OcrJob (see runTitleDeedOcr) that contributed the created land/building
+  // records, so the user can be sent to that batch's detail page after submit (see
+  // view-ocr-batch).
   const sourceOcrJobIds = new Set();
 
   try {
