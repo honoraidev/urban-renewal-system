@@ -1,21 +1,59 @@
 "use strict";
 
+// 建物登記分頁把「地主」顯示成「屋主」比較符合語感 - 地主/屋主背後是同一張 landowners
+// 資料表,只是名稱用哪個字依目前分頁而定,所以用一個模組層級變數記住目前該用哪個字,而不是
+// 把 isLand 一路傳進每個共用的 modal 函式。
+let currentLandownerLabel = "地主";
+
 async function renderLandownersTypeTab(el, type) {
   const pid = state.currentProjectId;
-  const allLandowners = await api(`/projects/${pid}/landowners`);
-  state.projectCache[pid].landowners = allLandowners;
-
   const isLand = type === "land";
+  currentLandownerLabel = isLand ? "地主" : "屋主";
+  const [allLandowners, documents, alerts, contactSummary] = await Promise.all([
+    api(`/projects/${pid}/landowners`),
+    api(`/projects/${pid}/documents`),
+    api(`/projects/${pid}/alerts`),
+    api(`/projects/${pid}/contact-summary`),
+  ]);
+  state.projectCache[pid].landowners = allLandowners;
+  const contactByOwner = new Map(contactSummary.map((c) => [c.landowner_id, c]));
+
   const landowners = allLandowners.filter((o) => (isLand ? o.land_records : o.building_records).length > 0);
+  const landownerIds = new Set(landowners.map((o) => o.id));
+
+  const signedIds = new Set(
+    documents.filter((d) => d.doc_type === "contract" && landownerIds.has(d.landowner_id)).map((d) => d.landowner_id)
+  );
+  const willingIds = new Set(
+    documents.filter((d) => d.doc_type === "willingness_form_template" && landownerIds.has(d.landowner_id)).map((d) => d.landowner_id)
+  );
+  const alertIds = new Set(alerts.filter((a) => landownerIds.has(a.landowner_id)).map((a) => a.landowner_id));
 
   el.innerHTML = `
+    <div class="dashboard-stat-row" style="margin-bottom:20px">
+      <div class="dashboard-stat-item accent-brand" data-stat-filter="all" role="button" tabindex="0">
+        <div class="dashboard-stat-icon">👥</div>
+        <div><div class="dashboard-stat-num">${landowners.length}</div><div class="dashboard-stat-lbl">總${currentLandownerLabel}人數</div></div>
+      </div>
+      <div class="dashboard-stat-item accent-success" data-stat-filter="signed" role="button" tabindex="0">
+        <div class="dashboard-stat-icon">✅</div>
+        <div><div class="dashboard-stat-num">${signedIds.size}</div><div class="dashboard-stat-lbl">已簽約人數</div></div>
+      </div>
+      <div class="dashboard-stat-item accent-info" data-stat-filter="willing" role="button" tabindex="0">
+        <div class="dashboard-stat-icon">📋</div>
+        <div><div class="dashboard-stat-num">${willingIds.size}</div><div class="dashboard-stat-lbl">已意願書人數</div></div>
+      </div>
+      <div class="dashboard-stat-item accent-danger" data-stat-filter="alert" role="button" tabindex="0">
+        <div class="dashboard-stat-icon">🔔</div>
+        <div><div class="dashboard-stat-num">${alertIds.size}</div><div class="dashboard-stat-lbl">待聯繫提醒</div></div>
+      </div>
+    </div>
     <div class="section-toolbar">
       <h3>${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})</h3>
       ${isEditor() || canOcr()
       ? `<div style="display:flex;gap:8px">
-              ${isEditor() ? `<button class="btn-secondary btn-sm" id="merge-landowners-btn" disabled>合併選取的地主</button>` : ""}
               ${canOcr() ? `<button class="btn-secondary btn-sm" id="scan-title-deed-btn">${isLand ? "土地登記匯入" : "建物登記匯入"}</button>` : ""}
-              ${isEditor() ? `<button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增地主</button>` : ""}
+              ${isEditor() ? `<button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>` : ""}
             </div>`
       : ""
     }
@@ -23,24 +61,32 @@ async function renderLandownersTypeTab(el, type) {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          ${isEditor() ? "<th></th>" : ""}
-          <th>姓名</th><th>身分證字號</th><th>電話</th><th>聯絡狀態</th><th>代表人</th><th>${isLand ? "土地" : "建物"}</th>
+          <th>編號</th><th>姓名</th><th>門牌地址</th><th>${isLand ? "土地" : "建物"}持分</th>
+          <th>意願狀態</th><th>聯繫狀態</th><th>最近聯繫</th>
           ${isEditor() ? "<th>操作</th>" : ""}
         </tr></thead>
         <tbody>
           ${landowners
-      .map(
-        (o) => `
-            <tr>
-              ${isEditor() ? `<td><input type="checkbox" class="merge-select-cb" value="${o.id}"></td>` : ""}
+      .map((o) => {
+        const records = isLand ? o.land_records : o.building_records;
+        const shareLabel = records.length
+          ? `${records[0].ownership_numerator}/${records[0].ownership_denominator}${records.length > 1 ? ` 等${records.length}筆` : ""}`
+          : "-";
+        const contact = contactByOwner.get(o.id);
+        return `
+            <tr data-row-owner="${o.id}">
+              <td>${escapeHtml(o.roster_code) || "-"}</td>
               <td>${escapeHtml(o.name)}</td>
-              <td>${escapeHtml(o.id_number) || "-"}</td>
-              <td>${escapeHtml(o.phone) || "-"}</td>
-              <td><span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span></td>
-              <td>${o.is_representative ? "是" : "-"}</td>
-              <td>${(isLand ? o.land_records : o.building_records).length} 筆
+              <td>${escapeHtml(o.address) || "-"}</td>
+              <td>${shareLabel}
                 <div><button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button></div>
               </td>
+              <td><span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span></td>
+              <td>${contact && contact.is_overdue
+            ? `<span class="contact-overdue-flag">⚠ 提醒</span>`
+            : `<span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span>`
+          }</td>
+              <td>${contact && contact.last_contact_date ? fmtDate(contact.last_contact_date) : "-"}</td>
               ${isEditor()
             ? `<td class="actions-cell">
                       <button class="btn-secondary btn-sm" data-edit="${o.id}">編輯</button>
@@ -113,8 +159,8 @@ async function renderLandownersTypeTab(el, type) {
           }
               </div>
             </td></tr>
-          `
-      )
+          `;
+      })
       .join("")}
         </tbody>
       </table>
@@ -123,6 +169,33 @@ async function renderLandownersTypeTab(el, type) {
 
   if (!landowners.length) {
     el.querySelector(".table-wrap").outerHTML = `<div class="empty-state">${isLand ? "尚無土地登記資料" : "尚無建物登記資料"}</div>`;
+  }
+
+  {
+    const statFilterSets = { signed: signedIds, willing: willingIds, alert: alertIds };
+    const statCards = el.querySelectorAll("[data-stat-filter]");
+    const applyStatFilter = (filter) => {
+      statCards.forEach((card) => card.classList.toggle("active", card.dataset.statFilter === filter));
+      const matchSet = filter === "all" ? null : statFilterSets[filter];
+      el.querySelectorAll("[data-row-owner]").forEach((row) => {
+        const ownerId = Number(row.dataset.rowOwner);
+        const visible = !matchSet || matchSet.has(ownerId);
+        row.classList.toggle("hidden", !visible);
+        if (!visible) {
+          const detailRow = document.getElementById(`detail-row-${ownerId}`);
+          if (detailRow) detailRow.classList.add("hidden");
+        }
+      });
+    };
+    statCards.forEach((card) => {
+      card.addEventListener("click", () => applyStatFilter(card.dataset.statFilter));
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          applyStatFilter(card.dataset.statFilter);
+        }
+      });
+    });
   }
 
   el.querySelectorAll("[data-detail]").forEach((btn) => {
@@ -140,22 +213,6 @@ async function renderLandownersTypeTab(el, type) {
   if (addBtn) addBtn.addEventListener("click", openAddLandownerModal);
   const scanBtn = document.getElementById("scan-title-deed-btn");
   if (scanBtn) scanBtn.addEventListener("click", isLand ? openTitleDeedWizard : openBuildingTitleDeedWizard);
-
-  const mergeBtn = document.getElementById("merge-landowners-btn");
-  const mergeCheckboxes = el.querySelectorAll(".merge-select-cb");
-  const updateMergeBtnState = () => {
-    if (!mergeBtn) return;
-    const checkedCount = el.querySelectorAll(".merge-select-cb:checked").length;
-    mergeBtn.disabled = checkedCount < 2;
-  };
-  mergeCheckboxes.forEach((cb) => cb.addEventListener("change", updateMergeBtnState));
-  if (mergeBtn) {
-    mergeBtn.addEventListener("click", () => {
-      const selectedIds = Array.from(el.querySelectorAll(".merge-select-cb:checked")).map((cb) => Number(cb.value));
-      const selectedOwners = landowners.filter((o) => selectedIds.includes(o.id));
-      openMergeLandownersModal(selectedOwners);
-    });
-  }
 
   el.querySelectorAll("[data-add-land]").forEach((btn) => {
     btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
@@ -290,17 +347,14 @@ function readBuildingRecordRows(container) {
 
 function openAddLandownerModal() {
   openModal(
-    "新增地主",
+    `新增${currentLandownerLabel}`,
     `
     <form id="landowner-form">
       <div class="field-row">
         <div class="field"><label>姓名</label><input name="name" required></div>
-        <div class="field"><label>身分證字號</label><input name="id_number"></div>
-      </div>
-      <div class="field-row">
         <div class="field"><label>電話</label><input name="phone"></div>
-        <div class="field"><label>地址</label><input name="address"></div>
       </div>
+      <div class="field"><label>地址</label><input name="address"></div>
       <label><input type="checkbox" name="is_representative" style="width:auto;display:inline-block;margin-right:6px"> 為土地/建物代表人</label>
       <div class="field" style="margin-top:10px"><label>備註</label><textarea name="notes" rows="2"></textarea></div>
       <fieldset>
@@ -344,7 +398,7 @@ function openAddLandownerModal() {
     try {
       await api(`/projects/${state.currentProjectId}/landowners`, { method: "POST", body: payload });
       closeModal();
-      toast("地主已新增", "success");
+      toast(`${currentLandownerLabel}已新增`, "success");
       renderTab(state.activeTab);
     } catch (err) { }
   });
@@ -354,15 +408,14 @@ function openEditLandownerModal(landownerId) {
   const owner = state.projectCache[state.currentProjectId].landowners.find((o) => o.id === landownerId);
   if (!owner) return;
   openModal(
-    "編輯地主",
+    `編輯${currentLandownerLabel}`,
     `
     <form id="landowner-edit-form">
       <div class="field-row">
         <div class="field"><label>姓名</label><input name="name" value="${escapeHtml(owner.name)}" required></div>
-        <div class="field"><label>身分證字號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}"></div>
+        <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
         <div class="field"><label>聯絡狀態</label>
           <select name="contact_status">
             ${Object.entries(CONTACT_STATUS_LABEL)
@@ -370,8 +423,15 @@ function openEditLandownerModal(landownerId) {
               .join("")}
           </select>
         </div>
+        <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
       </div>
-      <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
+      <div class="field"><label>意願狀態</label>
+        <select name="agreement_status">
+          ${Object.entries(AGREEMENT_STATUS_LABEL)
+      .map(([k, v]) => `<option value="${k}" ${owner.agreement_status === k ? "selected" : ""}>${v}</option>`)
+      .join("")}
+        </select>
+      </div>
       <div class="field"><label>備註</label><textarea name="notes" rows="2">${escapeHtml(owner.notes) || ""}</textarea></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -393,47 +453,12 @@ function openEditLandownerModal(landownerId) {
 }
 
 async function deleteLandowner(id) {
-  if (!confirm("確定要刪除此地主嗎?")) return;
+  if (!confirm(`確定要刪除此${currentLandownerLabel}嗎?`)) return;
   try {
     await api(`/projects/${state.currentProjectId}/landowners/${id}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
   } catch (err) { }
-}
-
-function openMergeLandownersModal(owners) {
-  openModal(
-    "合併地主",
-    `<p class="helper-text">選擇要保留的地主,其他被選取的地主的土地/建物/聯絡紀錄會全部併入保留的這筆,其餘資料則會被刪除。</p>
-    <form id="merge-landowner-form">
-      ${owners
-      .map(
-        (o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <input type="radio" name="survivor" value="${o.id}" ${i === 0 ? "checked" : ""}>
-            <span>${escapeHtml(o.name)}${o.id_number ? ` (${escapeHtml(o.id_number)})` : ""} - 土地 ${o.land_records.length} 筆 / 建物 ${o.building_records.length} 筆</span>
-          </label>`
-      )
-      .join("")}
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">確認合併</button>
-      </div>
-    </form>`
-  );
-  document.getElementById("merge-landowner-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const survivorId = Number(new FormData(e.target).get("survivor"));
-    const sourceIds = owners.map((o) => o.id).filter((id) => id !== survivorId);
-    try {
-      await api(`/projects/${state.currentProjectId}/landowners/${survivorId}/merge`, {
-        method: "POST",
-        body: { source_ids: sourceIds },
-      });
-      closeModal();
-      toast("已合併地主", "success");
-      renderTab(state.activeTab);
-    } catch (err) { }
-  });
 }
 
 function landRecordFormFields(record) {
@@ -620,6 +645,10 @@ async function deleteBuildingRecord(landownerId, recordId) {
   } catch (err) { }
 }
 
+function relationsShareSum(owners) {
+  return owners.reduce((sum, ow) => sum + (Number(ow.numerator) || 0) / (Number(ow.denominator) || 1), 0);
+}
+
 async function renderRelationsTab(el) {
   const pid = state.currentProjectId;
   const landowners = await api(`/projects/${pid}/landowners`);
@@ -634,28 +663,58 @@ async function renderRelationsTab(el) {
       if (!landMap.has(key)) {
         landMap.set(key, { section: lr.section, parcel: lr.parcel_number, area: lr.total_area_sqm, owners: [] });
       }
-      landMap.get(key).owners.push({ name: o.name, share: `${lr.ownership_numerator}/${lr.ownership_denominator}` });
+      landMap.get(key).owners.push({
+        name: o.name,
+        numerator: lr.ownership_numerator,
+        denominator: lr.ownership_denominator,
+      });
     });
   });
+  const items = Array.from(landMap.values()).sort((a, b) => (a.parcel || "").localeCompare(b.parcel || ""));
+
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3>土地/地主對照關係表 (${landMap.size} 筆地號)</h3>
+      <h3>土地/地主對照關係表 (${items.length} 筆地號)</h3>
+      <input type="search" id="relations-search" style="width:220px" placeholder="搜尋地號 / 地主姓名">
     </div>
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>所有權人名單</th></tr></thead>
-        <tbody>
-          ${Array.from(landMap.values())
-      .map(
-        (item) => `<tr>
-              <td>${escapeHtml(item.parcel)}</td>
-              <td>${escapeHtml(item.section) || "-"}</td>
-              <td>${item.area} m²</td>
-              <td>${item.owners.map((ow) => `${escapeHtml(ow.name)}(${ow.share})`).join("、 ")}</td>
-            </tr>`
-      )
-      .join("")}
+      <table class="relations-table">
+        <colgroup>
+          <col style="width:110px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col>
+        </colgroup>
+        <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>共有人</th><th>所有權人名單</th></tr></thead>
+        <tbody id="relations-tbody">
+          ${items.map(relationsRowHtml).join("")}
         </tbody>
       </table>
     </div>`;
+
+  const searchInput = document.getElementById("relations-search");
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    const filtered = q
+      ? items.filter((item) => item.parcel?.toLowerCase().includes(q) || item.owners.some((ow) => ow.name.toLowerCase().includes(q)))
+      : items;
+    document.getElementById("relations-tbody").innerHTML = filtered.length
+      ? filtered.map(relationsRowHtml).join("")
+      : `<tr><td colspan="5" class="empty-state" style="border:none">查無符合的地號或地主</td></tr>`;
+  });
 }
+
+function relationsRowHtml(item) {
+  const shareSum = relationsShareSum(item.owners);
+  const shareOff = Math.abs(shareSum - 1) > 0.02;
+  return `<tr>
+    <td class="relations-parcel-cell">${escapeHtml(item.parcel)}</td>
+    <td>${escapeHtml(item.section) || "-"}</td>
+    <td>${Number(item.area).toLocaleString()} m²</td>
+    <td><span class="mini-badge">${item.owners.length} 人</span></td>
+    <td>
+      <div class="wizard-confirm-chip-list">
+        ${item.owners.map((ow) => `<span class="wizard-confirm-chip">${escapeHtml(ow.name)}<span class="relations-chip-share">${ow.numerator}/${ow.denominator}</span></span>`).join("")}
+      </div>
+      ${shareOff ? `<div class="relations-share-warning">⚠ 權利範圍加總為 ${(shareSum * 100).toFixed(1)}%,請核對</div>` : ""}
+    </td>
+  </tr>`;
+}
+

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import SessionLocal, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
-from routers import auth, contacts, documents, encumbrances, expenses, landowners, ocr, ocr_intake, projects, resources, sop, users
+from routers import auth, building_view, contacts, documents, encumbrances, expenses, landowners, ocr, ocr_intake, projects, resources, sop, users
 from seed import ensure_admin_account
 
 
@@ -52,6 +52,7 @@ app.include_router(ocr.router)
 app.include_router(ocr_intake.router)
 app.include_router(encumbrances.router)
 app.include_router(resources.router)
+app.include_router(building_view.router)
 
 
 @app.get("/health")

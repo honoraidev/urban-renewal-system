@@ -28,6 +28,7 @@ class ExpenseCreate(BaseModel):
     expense_date: date
     description: str | None = None
     vendor: str | None = None
+    receipt_number: str | None = None
     receipt_document_id: int | None = None
 
 
@@ -37,6 +38,7 @@ class ExpenseUpdate(BaseModel):
     expense_date: date | None = None
     description: str | None = None
     vendor: str | None = None
+    receipt_number: str | None = None
     receipt_document_id: int | None = None
 
 
@@ -48,6 +50,7 @@ class ExpenseRead(BaseModel):
     expense_date: date
     description: str | None = None
     vendor: str | None = None
+    receipt_number: str | None = None
     receipt_document_id: int | None = None
     created_by: int | None = None
     created_at: datetime

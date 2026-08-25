@@ -184,6 +184,10 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
    - area_sqm:土地標示部登載的面積(平方公尺),純數字。真的在文件裡找不到這個數字時,填 null,\
 【絕對不可以填 0】——0 平方公尺不是任何一筆真實地號合理的面積,填 0 等於謊報「這筆地號沒有面積」,\
 比留空(null)更誤導,寧可留 null 讓使用者知道需要人工補值。
+   - declared_value_per_sqm:土地標示部「申報地價」欄位的金額(元/平方公尺),純數字,不含「元/平方公尺」\
+等單位文字。找不到就填 null,不可以填 0。
+   - declared_value_period:「申報地價」欄位旁邊標註的年月(通常是民國年,例如「113年01月」),依原文格式\
+填寫成文字,找不到清楚的年月就填 null,不要自己推算或臆測。
    - owners(陣列,**列出這筆地號底下所有登記次序/所有權人,不要只列第一位**):
      - registration_order:登記次序(例如「0157」)
      - owner_name:所有權人姓名
@@ -291,10 +295,22 @@ RESPONSE_SCHEMA = {
                     "subsection": _n("string"),
                     "parcel_number": _n("string"),
                     "area_sqm": _n("number"),
+                    "declared_value_per_sqm": _n("number"),
+                    "declared_value_period": _n("string"),
                     "owners": {"type": "array", "items": _LAND_OWNER_ITEM_SCHEMA},
                     "encumbrances": {"type": "array", "items": _ENCUMBRANCE_ITEM_SCHEMA},
                 },
-                "required": ["township", "section", "subsection", "parcel_number", "area_sqm", "owners", "encumbrances"],
+                "required": [
+                    "township",
+                    "section",
+                    "subsection",
+                    "parcel_number",
+                    "area_sqm",
+                    "declared_value_per_sqm",
+                    "declared_value_period",
+                    "owners",
+                    "encumbrances",
+                ],
                 "additionalProperties": False,
             },
         },
@@ -531,22 +547,18 @@ def extract_title_deed(
             rescan_budget_remaining[0] -= claimed
             return claimed
 
-    # Phase 1: OCR every chunk's pages, one chunk at a time (see _ocr_chunk_pages - the
-    # local GPU OCR engine isn't safe to hit from several chunks' worth of concurrent
-    # page-level thread pools at once, that crashed onnxruntime in testing). Each chunk
-    # still OCRs its own pages in parallel internally, unchanged.
+    # Phase 1+2, pipelined: OCR each chunk's pages one chunk at a time (see
+    # _ocr_chunk_pages - the local GPU OCR engine isn't safe to hit from several chunks'
+    # worth of concurrent page-level thread pools at once, that crashed onnxruntime in
+    # testing), but fire that chunk's (network-bound, GPU-free) OpenAI structuring call
+    # as soon as its OCR finishes instead of waiting for every chunk's OCR to finish
+    # first. The next chunk's GPU-bound OCR and the previous chunk's network-bound
+    # OpenAI call don't contend for anything, so this lets them genuinely overlap
+    # instead of running as two fully separate serial phases - cuts a multi-chunk
+    # batch's total wall time significantly without changing what either step does.
+    # Capped at CHUNK_CONCURRENCY to stay within OpenAI's per-minute rate limits.
     ocr_seconds_total = 0.0
-    page_texts_by_chunk: list[list[str]] = []
-    for chunk in chunks:
-        page_texts, ocr_seconds, _rescanned = _ocr_chunk_pages(chunk, high_accuracy, claim_rescan_budget=claim_rescan_budget)
-        page_texts_by_chunk.append(page_texts)
-        ocr_seconds_total += ocr_seconds
-
-    # Phase 2: once every chunk's text is in hand, fire the (network-bound, GPU-free)
-    # OpenAI structuring calls concurrently - these have no shared resource to contend
-    # over, so overlapping their wait time is safe and cuts a multi-chunk batch's total
-    # wall time significantly. Capped at CHUNK_CONCURRENCY to stay within OpenAI's
-    # per-minute rate limits.
+    page_texts_by_chunk: list[list[str] | None] = [None] * len(chunks)
     openai_seconds_total = [0.0]
     openai_seconds_lock = Lock()
 
@@ -560,7 +572,14 @@ def extract_title_deed(
             failed_chunks.append((i, exc))
 
     with ThreadPoolExecutor(max_workers=min(CHUNK_CONCURRENCY, len(chunks))) as pool:
-        list(pool.map(_run_chunk_openai, range(len(chunks))))
+        futures = []
+        for i, chunk in enumerate(chunks):
+            page_texts, ocr_seconds, _rescanned = _ocr_chunk_pages(chunk, high_accuracy, claim_rescan_budget=claim_rescan_budget)
+            page_texts_by_chunk[i] = page_texts
+            ocr_seconds_total += ocr_seconds
+            futures.append(pool.submit(_run_chunk_openai, i))
+        for future in futures:
+            future.result()
 
     # Phase 3: a chunk whose result is missing area_sqm/total_area_sqm on some
     # parcel/building most likely had that field's text region missed outright by the
@@ -656,7 +675,7 @@ def _merge_extractions(chunk_results: list[dict]) -> dict:
     land_parcels = merge_group(
         "land_parcels",
         "parcel_number",
-        ("township", "section", "subsection", "area_sqm"),
+        ("township", "section", "subsection", "area_sqm", "declared_value_per_sqm", "declared_value_period"),
         list_fields=("owners", "encumbrances"),
     )
     buildings = merge_group(
@@ -800,6 +819,7 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
         result, _ = _get_ocr_engine()(np.array(img))
     if not result:
         return "", 0.0
+    confidence = sum(line[2] for line in result) / len(result)
     return _normalize_ocr_text("\n".join(line[1] for line in result)), confidence
 
 

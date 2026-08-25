@@ -8,14 +8,19 @@ async function renderContactsTab(el) {
   ]);
   state.projectCache[pid].landowners = landowners;
 
-  if (!landowners.length) {
+  // Contacting someone is about following up on their consent as an actual owner -
+  // exclude Landowner rows that only exist as an encumbrance's right_holder (a bank on
+  // a mortgage, etc.), same as the alerts list above.
+  const contactableLandowners = landowners.filter((o) => o.land_records.length || o.building_records.length);
+
+  if (!contactableLandowners.length) {
     el.innerHTML = `<div class="empty-state">請先建立地主資料</div>`;
     return;
   }
 
-  const selectedId = state.selectedContactLandownerId && landowners.some((o) => o.id === state.selectedContactLandownerId)
+  const selectedId = state.selectedContactLandownerId && contactableLandowners.some((o) => o.id === state.selectedContactLandownerId)
     ? state.selectedContactLandownerId
-    : landowners[0].id;
+    : contactableLandowners[0].id;
   state.selectedContactLandownerId = selectedId;
 
   el.innerHTML = `
@@ -46,7 +51,7 @@ async function renderContactsTab(el) {
       <h3>聯絡紀錄</h3>
       <div style="display:flex;gap:10px;align-items:center">
         <select id="contact-landowner-select" style="width:auto">
-          ${landowners.map((o) => `<option value="${o.id}" ${o.id === selectedId ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
+          ${contactableLandowners.map((o) => `<option value="${o.id}" ${o.id === selectedId ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
         </select>
         ${isEditor() ? `<button class="btn-primary btn-sm" id="add-contact-btn">+ 新增紀錄</button>` : ""}
       </div>

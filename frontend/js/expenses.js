@@ -33,7 +33,7 @@ async function renderExpensesTab(el) {
     ${expenses.length
       ? `<div class="table-wrap">
             <table>
-              <thead><tr><th>日期</th><th>類別</th><th>金額</th><th>廠商</th><th>說明</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+              <thead><tr><th>日期</th><th>類別</th><th>金額</th><th>說明</th><th>收據/發票號碼</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${expenses
         .map(
@@ -41,8 +41,8 @@ async function renderExpensesTab(el) {
                       <td>${fmtDate(ex.expense_date)}</td>
                       <td>${escapeHtml(catById[ex.category_id]) || "-"}</td>
                       <td>NT$ ${fmtMoney(ex.amount)}</td>
-                      <td>${escapeHtml(ex.vendor) || "-"}</td>
                       <td>${escapeHtml(ex.description) || "-"}</td>
+                      <td>${escapeHtml(ex.receipt_number) || "-"}</td>
                       ${isEditor()
               ? `<td class="actions-cell">
                               <button class="btn-danger btn-sm" data-delete-expense="${ex.id}">刪除</button>
@@ -77,26 +77,24 @@ async function renderExpensesTab(el) {
 
 function openAddExpenseModal(categories) {
   openModal(
-    "新增支出",
+    "記錄支出",
     `
     <form id="expense-form">
       <div class="field-row">
         <div class="field"><label>日期</label><input type="date" name="expense_date" value="${new Date().toISOString().slice(0, 10)}" required></div>
-        <div class="field"><label>金額</label><input type="number" name="amount" step="0.01" required></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>類別</label>
+        <div class="field"><label>費用類別</label>
           <select name="category_id">
             <option value="">— 未分類 —</option>
             ${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
           </select>
         </div>
-        <div class="field"><label>廠商</label><input name="vendor"></div>
       </div>
-      <div class="field"><label>說明</label><textarea name="description" rows="2"></textarea></div>
+      <div class="field"><label>金額(新臺幣)</label><input type="number" name="amount" step="0.01" placeholder="例:85000" required></div>
+      <div class="field"><label>說明</label><input name="description" placeholder="例:第一次說明會場地費"></div>
+      <div class="field"><label>收據/發票號碼(選填)</label><input name="receipt_number" placeholder="例:AX-00123"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">新增</button>
+        <button type="submit" class="btn-primary">儲存</button>
       </div>
     </form>`
   );
@@ -108,8 +106,8 @@ function openAddExpenseModal(categories) {
       category_id: data.category_id ? Number(data.category_id) : null,
       amount: Number(data.amount),
       expense_date: data.expense_date,
-      vendor: data.vendor || null,
       description: data.description || null,
+      receipt_number: data.receipt_number || null,
     };
     try {
       await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload });

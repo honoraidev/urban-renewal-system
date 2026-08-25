@@ -21,6 +21,14 @@ class Landowner(Base):
     phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_status: Mapped[str] = mapped_column(String(20), nullable=False, default="not_contacted")
+    # Independent from contact_status (聯絡狀態 tracks "did we reach them", this tracks
+    # "did they actually sign") - a landowner can be contacted/agreed verbally long before
+    # a contract is signed, or vice versa in an edge case, so these shouldn't be the same field.
+    agreement_status: Mapped[str] = mapped_column(String(20), nullable=False, default="not_signed")
+    # Human-facing display code (e.g. "2026-001-003") - assigned once at creation from a
+    # per-project counter, stored rather than computed on the fly so it stays stable even
+    # if earlier landowners in the project are later deleted (no renumbering).
+    roster_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_representative: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

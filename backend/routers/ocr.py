@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_project_ocr_editor
+from deps import get_current_user, require_project_ocr_editor, require_project_viewer
 from models.building_record import BuildingRecord
 from models.document import Document
 from models.land_record import LandRecord
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["ocr"])
 @router.get("/ocr-jobs", response_model=list[OcrJobRead])
 def list_ocr_jobs(
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_ocr_editor),
+    project: Project = Depends(require_project_viewer),
 ):
     return db.scalars(select(OcrJob).where(OcrJob.project_id == project.id).order_by(OcrJob.created_at.desc())).all()
 
@@ -48,7 +48,7 @@ def get_ocr_job_or_404(db: Session, project_id: int, job_id: int) -> OcrJob:
 def get_ocr_job(
     job_id: int,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_ocr_editor),
+    project: Project = Depends(require_project_viewer),
 ):
     """Backs the 謄本匯入批次 detail page (frontend view-ocr-batch): the job itself, its
     source pages (via ocr_job_documents, ordered), the raw OCR extraction, and whichever

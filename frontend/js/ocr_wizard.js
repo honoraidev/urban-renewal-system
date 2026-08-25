@@ -58,6 +58,8 @@ function normalizeTitleDeedData(raw) {
     subsection: p.subsection || "",
     parcel_number: p.parcel_number || "",
     area_sqm: p.area_sqm ?? "",
+    declared_value_per_sqm: p.declared_value_per_sqm ?? "",
+    declared_value_period: p.declared_value_period || "",
     owners: (p.owners || []).map(toLandOwnerRow),
     encumbrances: (p.encumbrances || []).map(toEncumbranceRow),
   }));
@@ -81,6 +83,7 @@ function normalizeTitleDeedData(raw) {
 function jumpToWizardRecordOwners(type, idx) {
   titleDeedWizard.activeType = type;
   titleDeedWizard.activeIndex = idx;
+  titleDeedWizard.returnToConfirm = true;
   if (type === "parcel") {
     titleDeedWizard.parcelSubStep = 1;
     titleDeedWizard.step = 2;
@@ -106,6 +109,7 @@ function startWizardReview() {
   const d = titleDeedWizard.data;
   titleDeedWizard.parcelSubStep = 0;
   titleDeedWizard.buildingSubStep = 0;
+  titleDeedWizard.returnToConfirm = false;
   if (d.parcels.length) {
     titleDeedWizard.activeType = "parcel";
     titleDeedWizard.activeIndex = 0;
@@ -525,6 +529,12 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
 function advanceFromParcel(idx) {
   const d = titleDeedWizard.data;
   titleDeedWizard.parcelSubStep = 0;
+  if (titleDeedWizard.returnToConfirm) {
+    titleDeedWizard.returnToConfirm = false;
+    titleDeedWizard.step = 4;
+    renderWizardStep();
+    return;
+  }
   if (idx < d.parcels.length) {
     titleDeedWizard.activeIndex = idx;
     renderWizardStep();
@@ -565,11 +575,16 @@ function renderParcelDescriptionSubStep(idx) {
         <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(p.parcel_number)}" autocomplete="off"></div>
       </div>
       <div class="field"><label>土地面積(㎡)</label><input name="area_sqm" type="number" step="0.01" value="${escapeHtml(p.area_sqm)}" autocomplete="off"></div>
+      <div class="field-row">
+        <div class="field"><label>申報地價(元/㎡)</label><input name="declared_value_per_sqm" type="number" step="1" value="${escapeHtml(p.declared_value_per_sqm)}" autocomplete="off"></div>
+        <div class="field"><label>地價年月</label><input name="declared_value_period" placeholder="例:113年01月" value="${escapeHtml(p.declared_value_period)}" autocomplete="off"></div>
+      </div>
+      <div class="helper-text">申報地價會依各共有人持分自動換算成「土增稅」頁籤的原地價,可在該頁籤再核對修改</div>
     </form>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
-      ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
+      ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
     </div>`,
     { width: "620px" }
@@ -587,6 +602,8 @@ function renderParcelDescriptionSubStep(idx) {
       subsection: (fd.get("subsection") || "").trim(),
       parcel_number: (fd.get("parcel_number") || "").trim(),
       area_sqm: fd.get("area_sqm") || "",
+      declared_value_per_sqm: fd.get("declared_value_per_sqm") || "",
+      declared_value_period: (fd.get("declared_value_period") || "").trim(),
     });
   };
 
@@ -659,7 +676,7 @@ function renderParcelOwnersSubStep(idx) {
 function renderParcelEncumbrancesSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
-  const isLast = idx === parcels.length - 1;
+  const isLast = idx === parcels.length - 1 || titleDeedWizard.returnToConfirm;
   openModal(
     "掃描謄本匯入",
     `
@@ -795,6 +812,12 @@ function readEncumbranceRows(containerId) {
 function advanceFromBuilding(idx) {
   const d = titleDeedWizard.data;
   titleDeedWizard.buildingSubStep = 0;
+  if (titleDeedWizard.returnToConfirm) {
+    titleDeedWizard.returnToConfirm = false;
+    titleDeedWizard.step = 4;
+    renderWizardStep();
+    return;
+  }
   if (idx < d.buildings.length) {
     titleDeedWizard.activeIndex = idx;
     renderWizardStep();
@@ -837,7 +860,7 @@ function renderBuildingDescriptionSubStep(idx) {
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
-      ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
+      ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
     </div>`,
     { width: "620px" }
@@ -883,7 +906,7 @@ function renderBuildingDescriptionSubStep(idx) {
 function renderBuildingOwnersSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
-  const isLast = idx === buildings.length - 1;
+  const isLast = idx === buildings.length - 1 || titleDeedWizard.returnToConfirm;
   openModal(
     "掃描謄本匯入",
     `
@@ -1050,20 +1073,26 @@ function renderWizardStepConfirm() {
   });
 }
 
-async function findOrCreateLandownerByOwner(owner, createdCache, matchRecordType) {
+async function findOrCreateLandownerByOwner(owner, createdCache) {
   const pid = state.currentProjectId;
   const idKey = (owner.id_number || "").trim();
   const nameKey = owner.owner_name.trim();
   const cacheKey = idKey || `name:${nameKey}`;
   if (createdCache.has(cacheKey)) return createdCache.get(cacheKey);
 
+  // Match against every existing landowner, not just ones that already have this
+  // import's record type (land/building) - landowners is one shared person table, so
+  // someone who already owns land and is now being matched while importing a building
+  // registry must still be found and reused, not treated as a new person just because
+  // their existing record happens to be the other type. Filtering by matchRecordType
+  // here used to do exactly that, silently creating a second landowner row for the same
+  // real person on every land+building mixed case (confirmed against production data:
+  // 27 duplicate names in one project, each split into a land-only row and a
+  // building-only row with no shared landowner_id).
   const existingList = state.projectCache[pid].landowners;
-  const candidates = matchRecordType
-    ? existingList.filter((o) => (matchRecordType === "land" ? o.land_records : o.building_records || []).length > 0)
-    : existingList;
   let existing = null;
-  if (idKey) existing = candidates.find((o) => o.id_number && o.id_number === idKey);
-  if (!existing) existing = candidates.find((o) => o.name === nameKey);
+  if (idKey) existing = existingList.find((o) => o.id_number && o.id_number === idKey);
+  if (!existing) existing = existingList.find((o) => o.name === nameKey);
 
   let landownerId;
   if (existing) {
@@ -1086,7 +1115,25 @@ async function findOrCreateLandownerByOwner(owner, createdCache, matchRecordType
   return landownerId;
 }
 
+// Guards against the whole batch getting submitted twice (confirmed happening in
+// production: an entire ~34-record building batch was created twice, 21s apart, same
+// source_ocr_job_id - almost certainly a double click landing before the "建立中..."
+// disabled state visually registered). btn.disabled alone should already prevent a
+// second click's handler from firing, but evidently didn't in practice, so this adds a
+// second, unconditional guard that doesn't depend on DOM/button state at all.
+let wizardSubmitInFlight = false;
+
 async function submitTitleDeedWizard() {
+  if (wizardSubmitInFlight) return;
+  wizardSubmitInFlight = true;
+  try {
+    await submitTitleDeedWizardInner();
+  } finally {
+    wizardSubmitInFlight = false;
+  }
+}
+
+async function submitTitleDeedWizardInner() {
   const d = titleDeedWizard.data;
 
   const badParcelIndex = d.parcels.findIndex((p) => p.owners.some((o) => o.owner_name) && !p.parcel_number);
@@ -1124,7 +1171,16 @@ async function submitTitleDeedWizard() {
     for (const p of d.parcels) {
       for (const owner of p.owners) {
         if (!owner.owner_name) continue;
-        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, "land");
+        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache);
+        // 申報地價(declared_value_per_sqm) on the deed applies to the whole parcel, not
+        // this one owner's share - multiply by their owned area (same total_area_sqm ×
+        // numerator/denominator formula the DB itself uses for owned_area_sqm) so the
+        // 土增稅 estimate starts pre-filled with this owner's own original-value total,
+        // matching what the calculator expects (see land_value_tax.js).
+        const numerator = owner.ownership_numerator || 1;
+        const denominator = owner.ownership_denominator || 1;
+        const ownedAreaSqm = ((Number(p.area_sqm) || 0) * numerator) / denominator;
+        const declaredValuePerSqm = Number(p.declared_value_per_sqm) || 0;
         const created = await api(`/projects/${pid}/landowners/${landownerId}/land-records`, {
           method: "POST",
           body: {
@@ -1134,9 +1190,11 @@ async function submitTitleDeedWizard() {
             subsection: p.subsection || null,
             registration_order: owner.registration_order || null,
             total_area_sqm: Number(p.area_sqm) || 0,
-            ownership_numerator: owner.ownership_numerator || 1,
-            ownership_denominator: owner.ownership_denominator || 1,
+            ownership_numerator: numerator,
+            ownership_denominator: denominator,
             source_ocr_job_id: p._sourceOcrJobId || null,
+            ltt_original_value: declaredValuePerSqm ? Math.round(declaredValuePerSqm * ownedAreaSqm) : null,
+            ltt_original_value_period: p.declared_value_period || null,
           },
         });
         if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);
@@ -1157,7 +1215,7 @@ async function submitTitleDeedWizard() {
       const floorAreaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0;
       for (const owner of b.owners) {
         if (!owner.owner_name) continue;
-        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, "building");
+        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache);
         await api(`/projects/${pid}/landowners/${landownerId}/building-records`, {
           method: "POST",
           body: {
@@ -1315,7 +1373,6 @@ function renderBatchTab() {
     overview: renderBatchOverviewTab,
     parcels: renderBatchParcelsTab,
     buildings: renderBatchBuildingsTab,
-    relations: renderBatchRelationsTab,
     ocrai: renderBatchOcrAiTab,
     documents: renderBatchDocumentsTab,
     timeline: renderBatchTimelineTab,
@@ -1387,48 +1444,6 @@ function renderBatchBuildingsTab() {
       )
       .join("")}
     </tbody></table></div>`;
-}
-
-function relationBlocksHtml(land_records, building_records, emptyMessage) {
-  const rows = land_records
-    .map((lr) => {
-      const linked = building_records.filter((br) => br.land_record_id === lr.id);
-      if (!linked.length) return "";
-      const avgArea = linked.reduce((sum, b) => sum + (Number(b.total_area_sqm) || 0), 0) / linked.length;
-      return `
-        <div class="batch-relation-block">
-          <div>
-            <span class="batch-relation-pill land">土地</span>
-            <div class="batch-relation-title land-title">${escapeHtml(lr.parcel_number)}</div>
-            <div class="batch-relation-sub">面積 ${lr.total_area_sqm}㎡</div>
-            <div class="batch-relation-list">
-              ${linked.map((b) => `<div class="batch-relation-list-item tree">└ ${escapeHtml(b.building_number) || "-"}</div>`).join("")}
-            </div>
-          </div>
-          <div class="batch-relation-connector">↔</div>
-          <div>
-            <span class="batch-relation-pill building">建物</span>
-            <div class="batch-relation-title">${linked.length} 筆</div>
-            <div class="batch-relation-sub">每筆總面積 ${avgArea.toFixed(2)}㎡</div>
-            <div class="batch-relation-list">
-              ${linked.map((b) => `<div class="batch-relation-list-item">${escapeHtml(b.building_number) || "-"}${b.floor ? ` · ${escapeHtml(b.floor)}` : ""}</div>`).join("")}
-            </div>
-          </div>
-        </div>`;
-    })
-    .join("");
-  const unlinkedBuildings = building_records.filter((br) => !br.land_record_id);
-  return (
-    (rows || `<div class="empty-state">${emptyMessage}</div>`) +
-    (unlinkedBuildings.length
-      ? `<div class="helper-text" style="margin-top:12px">⚠ ${unlinkedBuildings.length} 筆建號尚未連結任何地號:${unlinkedBuildings.map((b) => escapeHtml(b.building_number) || "-").join("、")}</div>`
-      : "")
-  );
-}
-
-function renderBatchRelationsTab() {
-  const { land_records, building_records } = currentOcrBatch;
-  return relationBlocksHtml(land_records, building_records, "這個批次還沒有已建立的地號↔建號關聯");
 }
 
 function renderBatchOcrAiTab() {

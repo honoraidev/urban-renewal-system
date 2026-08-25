@@ -25,6 +25,9 @@ class Expense(Base):
     expense_date: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     vendor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Free-text receipt/invoice number as printed on the paper receipt - distinct from
+    # receipt_document_id below, which is an uploaded scan of that same receipt.
+    receipt_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     receipt_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

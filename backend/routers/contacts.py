@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from config import settings
 from database import get_db
@@ -11,7 +11,7 @@ from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project
 from models.user import User
-from schemas.contact import AlertItem, ContactLogCreate, ContactLogRead
+from schemas.contact import AlertItem, ContactLogCreate, ContactLogRead, ContactSummaryItem
 
 router = APIRouter(tags=["contacts"])
 
@@ -65,13 +65,16 @@ def create_contact(
     return contact
 
 
-@router.get("/projects/{project_id}/alerts", response_model=list[AlertItem])
-def list_alerts(
-    db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
-):
-    project_id = project.id
-    landowners = db.scalars(select(Landowner).where(Landowner.project_id == project_id)).all()
+def _contactable_landowners_with_last_contact(db: Session, project_id: int):
+    """Shared by /alerts and /contact-summary: landowners who actually own a stake in
+    the case (land or building - a Landowner row that only exists as an encumbrance's
+    right_holder isn't someone to contact), paired with their last contact_logs date."""
+    all_landowners = db.scalars(
+        select(Landowner)
+        .options(selectinload(Landowner.land_records), selectinload(Landowner.building_records))
+        .where(Landowner.project_id == project_id)
+    ).all()
+    landowners = [o for o in all_landowners if o.land_records or o.building_records]
 
     last_contact_stmt = (
         select(ContactLog.landowner_id, func.max(ContactLog.contact_date).label("last_contact"))
@@ -79,6 +82,24 @@ def list_alerts(
         .group_by(ContactLog.landowner_id)
     )
     last_contact_by_landowner = {row.landowner_id: row.last_contact for row in db.execute(last_contact_stmt)}
+    return landowners, last_contact_by_landowner
+
+
+def _is_overdue(owner: Landowner, last_contact: datetime | None) -> bool:
+    if owner.contact_status == "not_contacted":
+        return True
+    if last_contact is None:
+        return False
+    days_since = (datetime.now(timezone.utc) - last_contact.replace(tzinfo=timezone.utc)).days
+    return days_since >= settings.ALERT_UNCONTACTED_DAYS
+
+
+@router.get("/projects/{project_id}/alerts", response_model=list[AlertItem])
+def list_alerts(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
+    landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project.id)
 
     now = datetime.now(timezone.utc)
     alerts: list[AlertItem] = []
@@ -88,10 +109,7 @@ def list_alerts(
         if last_contact is not None:
             days_since = (now - last_contact.replace(tzinfo=timezone.utc)).days
 
-        is_overdue = owner.contact_status == "not_contacted" or (
-            days_since is not None and days_since >= settings.ALERT_UNCONTACTED_DAYS
-        )
-        if is_overdue:
+        if _is_overdue(owner, last_contact):
             alerts.append(
                 AlertItem(
                     landowner_id=owner.id,
@@ -103,3 +121,21 @@ def list_alerts(
             )
 
     return alerts
+
+
+@router.get("/projects/{project_id}/contact-summary", response_model=list[ContactSummaryItem])
+def list_contact_summary(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
+    """Every contactable landowner's last contact date + overdue flag (unlike /alerts,
+    which only returns the overdue ones) - backs the roster table's 最近聯繫/聯繫狀態 columns."""
+    landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project.id)
+    return [
+        ContactSummaryItem(
+            landowner_id=owner.id,
+            last_contact_date=last_contact_by_landowner.get(owner.id),
+            is_overdue=_is_overdue(owner, last_contact_by_landowner.get(owner.id)),
+        )
+        for owner in landowners
+    ]

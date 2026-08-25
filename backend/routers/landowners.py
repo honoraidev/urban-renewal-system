@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
@@ -70,6 +70,12 @@ def create_landowner(
 ):
     project_id = project.id
     data = payload.model_dump(exclude={"land_records", "building_records"})
+    # Display code only (not a uniqueness constraint) - a straight count-based sequence
+    # is good enough here, scoped to the project (the project itself is already shown on
+    # the roster page, so repeating project_code in every row's code just wrapped the
+    # cell onto two lines for no added information).
+    existing_count = db.scalar(select(func.count()).select_from(Landowner).where(Landowner.project_id == project_id)) or 0
+    data["roster_code"] = f"{existing_count + 1:03d}"
     landowner = Landowner(project_id=project_id, **data)
     db.add(landowner)
     db.flush()

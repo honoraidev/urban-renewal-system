@@ -163,10 +163,6 @@ async function loadDashboard() {
         <div class="dashboard-stat-icon">🏢</div>
         <div><div class="dashboard-stat-num">${summary.building_record_count}</div><div class="dashboard-stat-lbl">建號</div></div>
       </div>
-      <div class="dashboard-stat-item accent-danger">
-        <div class="dashboard-stat-icon">⚠</div>
-        <div><div class="dashboard-stat-num">${summary.pending_ai_review_count}</div><div class="dashboard-stat-lbl">待 AI 校正</div></div>
-      </div>
     `;
   }
 
@@ -427,11 +423,13 @@ async function renderTab(tab) {
     sop: renderSopTab,
     landowners: (el) => renderLandownersTypeTab(el, "land"),
     buildings: (el) => renderLandownersTypeTab(el, "building"),
+    buildingview: renderBuildingViewTab,
     relations: renderRelationsTab,
     contacts: renderContactsTab,
     documents: renderDocumentsTab,
     encumbrances: renderEncumbrancesTab,
     expenses: renderExpensesTab,
+    landvaluetax: renderLandValueTaxTab,
     members: renderMembersTab,
   };
   try {

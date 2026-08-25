@@ -29,6 +29,17 @@ class LandRecord(Base):
     # application code - MariaDB rejects any explicit value (including NULL) for such columns.
     owned_area_sqm: Mapped[float] = mapped_column(Numeric(14, 4), nullable=True)
     ownership_share_pct: Mapped[float] = mapped_column(Numeric(12, 6), nullable=True)
+    # Inputs for the 土增稅(land value increment tax) general-rate estimate - both are
+    # total NT$ amounts (not per-sqm unit prices), matching how they're written on an
+    # official tax notice, so staff can copy them in directly without doing their own
+    # area math first. See utils/land_value_tax.py for the calculation itself.
+    ltt_original_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Free text as printed on the deed (usually Minguo calendar, e.g. "113年01月") -
+    # not parsed into a real date, since OCR only ever has the printed string to go on
+    # and a wrong calendar-conversion guess would be worse than just keeping the text.
+    ltt_original_value_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ltt_current_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    ltt_holding_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

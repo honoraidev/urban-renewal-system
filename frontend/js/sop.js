@@ -322,7 +322,7 @@ async function renderSopTab(el) {
         if (item.docType) {
           const doc = latestByType[item.docType];
           done = !!doc;
-          sub = doc ? `已上傳・${fmtDate(doc.uploaded_at)}` : "尚未上傳";
+          sub = doc ? `已上傳・${fmtDateTime(doc.uploaded_at)}` : "尚未上傳";
         } else if (item.countOf === "landowner_with_phone") {
           done = phoneCount > 0;
           sub = `${phoneCount}/${landowners.length} 位已建立聯絡方式`;

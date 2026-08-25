@@ -14,6 +14,7 @@ const state = {
 };
 
 const CONTACT_STATUS_LABEL = { not_contacted: "未聯絡", contacted: "已聯絡", declined: "婉拒", agreed: "同意" };
+const AGREEMENT_STATUS_LABEL = { not_signed: "未簽約", signed: "已簽約" };
 const CONSENT_STATUS_LABEL = { pending: "待確認", agreed: "同意", opposed: "反對" };
 const PROJECT_STATUS_LABEL = { active: "進行中", closed: "已結案", suspended: "暫停" };
 
@@ -48,6 +49,8 @@ const DOC_TYPE_KEYWORDS = {
 
 const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
 const CONTACT_RESULT_LABEL = { no_answer: "未接聽", agreed: "同意", opposed: "反對", undecided: "未決定", callback_needed: "需回電" };
+
+const OCR_JOB_STATUS_LABEL = { pending: "等待中", processing: "辨識中", completed: "已完成", failed: "失敗" };
 
 const ROLE_LABEL = {
   sys_admin: "L1 系統管理員",

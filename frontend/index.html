@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260825">
+  <link rel="stylesheet" href="style.css?v=20260825_15">
 </head>
 
 <body>
@@ -183,11 +183,13 @@
               <button class="tab-btn active" data-tab="sop">SOP 進度</button>
               <button class="tab-btn" data-tab="landowners">土地登記</button>
               <button class="tab-btn" data-tab="buildings">建物登記</button>
+              <button class="tab-btn" data-tab="buildingview">樓棟視圖</button>
               <button class="tab-btn" data-tab="relations">關聯</button>
               <button class="tab-btn" data-tab="contacts">聯絡紀錄</button>
               <button class="tab-btn" data-tab="documents">文件</button>
               <button class="tab-btn" data-tab="encumbrances">他項權利部</button>
               <button class="tab-btn" data-tab="expenses">費用</button>
+              <button class="tab-btn" data-tab="landvaluetax">土增稅</button>
               <button class="tab-btn hidden" data-tab="members" id="tab-btn-members">人員</button>
             </div>
             <div id="tab-content"></div>
@@ -208,7 +210,6 @@
               <button class="tab-btn" data-batch-tab="overview">📊 案件總覽</button>
               <button class="tab-btn" data-batch-tab="parcels">🗺 地號</button>
               <button class="tab-btn" data-batch-tab="buildings">🏢 建號</button>
-              <button class="tab-btn" data-batch-tab="relations">🔗 關聯</button>
               <button class="tab-btn" data-batch-tab="ocrai">🤖 OCR‧AI</button>
               <button class="tab-btn" data-batch-tab="documents">📄 文件</button>
               <button class="tab-btn" data-batch-tab="timeline">📝 紀錄</button>
@@ -309,7 +310,24 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260825_7"></script>
+  <script src="js/state.js?v=20260825_7"></script>
+  <script src="js/utils.js?v=20260825_7"></script>
+  <script src="js/api.js?v=20260825_7"></script>
+  <script src="js/modals.js?v=20260825_7"></script>
+  <script src="js/auth.js?v=20260825_7"></script>
+  <script src="js/dashboard.js?v=20260825_7"></script>
+  <script src="js/sop.js?v=20260825_7"></script>
+  <script src="js/landowners.js?v=20260825_7"></script>
+  <script src="js/ocr_wizard.js?v=20260825_7"></script>
+  <script src="js/documents.js?v=20260825_7"></script>
+  <script src="js/contacts.js?v=20260825_7"></script>
+  <script src="js/encumbrances.js?v=20260825_7"></script>
+  <script src="js/expenses.js?v=20260825_7"></script>
+  <script src="js/members.js?v=20260825_7"></script>
+  <script src="js/resources.js?v=20260825_7"></script>
+  <script src="js/buildingview.js?v=20260825_7"></script>
+  <script src="js/land_value_tax.js?v=20260825_7"></script>
+  <script src="js/main.js?v=20260825_7"></script>
 </body>
 
 </html>

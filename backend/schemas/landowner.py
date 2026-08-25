@@ -13,6 +13,8 @@ class LandRecordCreate(BaseModel):
     total_area_sqm: float = 0
     ownership_numerator: int = Field(default=1, gt=0)
     ownership_denominator: int = Field(default=1, gt=0)
+    ltt_original_value: float | None = None
+    ltt_original_value_period: str | None = None
 
 
 class LandRecordUpdate(BaseModel):
@@ -24,6 +26,10 @@ class LandRecordUpdate(BaseModel):
     total_area_sqm: float | None = None
     ownership_numerator: int | None = Field(default=None, gt=0)
     ownership_denominator: int | None = Field(default=None, gt=0)
+    ltt_original_value: float | None = None
+    ltt_original_value_period: str | None = None
+    ltt_current_value: float | None = None
+    ltt_holding_years: int | None = None
 
 
 class LandRecordRead(BaseModel):
@@ -40,6 +46,10 @@ class LandRecordRead(BaseModel):
     ownership_denominator: int
     owned_area_sqm: float | None = None
     ownership_share_pct: float | None = None
+    ltt_original_value: float | None = None
+    ltt_original_value_period: str | None = None
+    ltt_current_value: float | None = None
+    ltt_holding_years: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -111,6 +121,7 @@ class LandownerUpdate(BaseModel):
     phone: str | None = None
     address: str | None = None
     contact_status: str | None = Field(default=None, pattern="^(not_contacted|contacted|declined|agreed)$")
+    agreement_status: str | None = Field(default=None, pattern="^(not_signed|signed)$")
     is_representative: bool | None = None
     notes: str | None = None
 
@@ -127,6 +138,8 @@ class LandownerRead(BaseModel):
     phone: str | None = None
     address: str | None = None
     contact_status: str
+    agreement_status: str
+    roster_code: str | None = None
     is_representative: bool
     notes: str | None = None
     created_at: datetime
