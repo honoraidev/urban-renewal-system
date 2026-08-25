@@ -4360,14 +4360,39 @@ async function renderDocumentsTab(el) {
   const pid = state.currentProjectId;
   const docs = await api(`/projects/${pid}/documents`);
 
+  // Detect duplicate files (same doc_type and file_name)
+  const seenKeys = new Set();
+  let duplicateCount = 0;
+  docs.forEach((d) => {
+    const key = `${d.doc_type}:${d.file_name}`;
+    if (seenKeys.has(key)) {
+      duplicateCount++;
+    } else {
+      seenKeys.add(key);
+    }
+  });
+
   el.innerHTML = `
     <div class="section-toolbar">
       <h3>文件清單 (${docs.length})</h3>
       <div style="display:flex;gap:8px">
+        ${
+          duplicateCount > 0 && canOcr()
+            ? `<button class="btn-secondary btn-sm" id="cleanup-duplicates-btn" style="color:var(--danger);border-color:rgba(239,68,68,0.3)">🧹 一鍵清理重複檔案 (${duplicateCount})</button>`
+            : ""
+        }
         <button class="btn-secondary btn-sm" id="view-ocr-batches-btn">謄本匯入批次紀錄</button>
         ${canOcr() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
       </div>
     </div>
+    ${
+      duplicateCount > 0
+        ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--warning);padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;color:var(--text-secondary)">⚡ 檢測到列表中有 <strong>${duplicateCount} 筆重複上傳的歷史舊檔</strong>，點擊可一鍵自動清理並保留每項文件的最新版本。</span>
+            <button class="btn-secondary btn-sm" id="cleanup-duplicates-banner-btn">一鍵清理 (${duplicateCount})</button>
+           </div>`
+        : ""
+    }
     ${
       docs.length
         ? `<div class="table-wrap">
@@ -4395,6 +4420,21 @@ async function renderDocumentsTab(el) {
         : `<div class="empty-state">尚無文件</div>`
     }
   `;
+
+  const doCleanup = async () => {
+    if (!confirm(`確定要清理此專案中 ${duplicateCount} 筆重複的歷史舊檔嗎？（將會自動保留每項文件的最新版本）`)) return;
+    try {
+      const res = await api(`/projects/${pid}/documents/cleanup-duplicates`, { method: "POST" });
+      toast(`已成功清理 ${res.deleted_count} 筆重複檔案`, "success");
+      renderTab("documents");
+    } catch (err) {}
+  };
+
+  const cleanupBtn = document.getElementById("cleanup-duplicates-btn");
+  if (cleanupBtn) cleanupBtn.addEventListener("click", doCleanup);
+
+  const cleanupBannerBtn = document.getElementById("cleanup-duplicates-banner-btn");
+  if (cleanupBannerBtn) cleanupBannerBtn.addEventListener("click", doCleanup);
 
   el.querySelectorAll("[data-download]").forEach((btn) => {
     btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.download), btn.dataset.filename));

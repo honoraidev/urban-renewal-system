@@ -227,8 +227,42 @@ def upload_document(
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
 
-    disk_path, stored_name = build_upload_path(project.project_code, file.filename or "upload")
+    upload_filename = file.filename or "upload"
     content = file.file.read()
+
+    # Deduplication check: if a document with exact same doc_type and file_name exists, overwrite/update it
+    existing = db.scalar(
+        select(Document)
+        .where(
+            Document.project_id == project_id,
+            Document.doc_type == doc_type,
+            Document.file_name == upload_filename,
+        )
+        .order_by(Document.uploaded_at.desc())
+    )
+
+    if existing:
+        disk_path = existing.file_path
+        if not os.path.exists(disk_path):
+            disk_path, _ = build_upload_path(project.project_code, upload_filename)
+            existing.file_path = disk_path
+
+        with open(disk_path, "wb") as out:
+            out.write(content)
+
+        existing.file_size_bytes = len(content)
+        existing.mime_type = file.content_type
+        existing.uploaded_by = current_user.id
+        if description:
+            existing.description = description
+        if landowner_id:
+            existing.landowner_id = landowner_id
+
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    disk_path, stored_name = build_upload_path(project.project_code, upload_filename)
     with open(disk_path, "wb") as out:
         out.write(content)
 
@@ -236,7 +270,7 @@ def upload_document(
         project_id=project_id,
         landowner_id=landowner_id,
         doc_type=doc_type,
-        file_name=file.filename or stored_name,
+        file_name=upload_filename,
         file_path=disk_path,
         file_size_bytes=len(content),
         mime_type=file.content_type,
@@ -247,6 +281,46 @@ def upload_document(
     db.commit()
     db.refresh(document)
     return document
+
+
+@router.post("/cleanup-duplicates")
+def cleanup_duplicate_documents(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    all_docs = db.scalars(
+        select(Document)
+        .where(Document.project_id == project.id)
+        .order_by(Document.doc_type, Document.file_name, Document.uploaded_at.desc())
+    ).all()
+
+    seen_keys = set()
+    to_delete = []
+
+    for doc in all_docs:
+        key = (doc.doc_type, doc.file_name)
+        if key in seen_keys:
+            to_delete.append(doc)
+        else:
+            seen_keys.add(key)
+
+    deleted_count = len(to_delete)
+    for doc in to_delete:
+        if doc.file_path and os.path.exists(doc.file_path):
+            other_ref = db.scalar(
+                select(Document.id).where(Document.file_path == doc.file_path, Document.id != doc.id)
+            )
+            if not other_ref:
+                try:
+                    os.remove(doc.file_path)
+                except Exception:
+                    pass
+        db.delete(doc)
+
+    if deleted_count > 0:
+        db.commit()
+
+    return {"deleted_count": deleted_count}
 
 
 @router.post("/from-images", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
