@@ -52,16 +52,16 @@ DOC_TYPE_LABELS_MAP = {
 }
 
 DOC_TYPE_CONTENT_KEYWORDS = {
-    "dev_letter_template": ["開發信", "致住戶", "致住戶信", "說明信", "開發說明", "都更開發"],
-    "willingness_form_template": ["意願書", "參與意願", "意願調查", "都更意願", "意願調查表"],
-    "consent_form_template": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書"],
-    "consent_form": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書"],
+    "dev_letter_template": ["開發信", "致住戶", "致住戶信", "說明信", "開發說明", "都更開發", "開發信函"],
+    "willingness_form_template": ["意願書", "參與意願", "意願調查", "都更意願", "意願調查表", "參與意願書"],
+    "consent_form_template": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
+    "consent_form": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
     "contract_template": ["合約", "契約", "合約書", "契約書", "協議書", "合作意向書", "都更合約"],
     "contract": ["合約", "契約", "合約書", "契約書", "協議書", "合作意向書", "都更合約"],
-    "property_register": ["土地登記謄本", "土地謄本", "土地第一類謄本", "土地第二類謄本", "土地第三類謄本", "土地標示部", "土地所有權部"],
-    "building_register": ["建物登記謄本", "建物謄本", "建物第一類謄本", "建物第二類謄本", "建物第三類謄本", "建物標示部", "建物所有權部", "建號"],
-    "cadastral_map": ["地籍圖", "地籍圖謄本", "地籍圖資", "土地地籍圖"],
-    "consultant_document": ["顧問文件", "估價報告", "建築規劃", "都更評估", "財務試算", "建築師報告"],
+    "property_register": ["土地登記謄本", "土地謄本", "土地第一類謄本", "土地第二類謄本", "土地第三類謄本", "土地標示部", "土地所有權部", "土地標示"],
+    "building_register": ["建物登記謄本", "建物謄本", "建物第一類謄本", "建物第二類謄本", "建物第三類謄本", "建物標示部", "建物所有權部", "主要用途", "建號"],
+    "cadastral_map": ["地籍圖", "地籍圖謄本", "地籍圖資", "土地地籍圖", "地籍圖專用章", "宗地界線", "測量日期"],
+    "consultant_document": ["顧問文件", "估價報告", "建築規劃", "都更評估", "財務試算", "建築師報告", "估價師報告"],
     "briefing_material": ["說明會", "說明會簡報", "說明會資料", "座談會", "簡報"],
 }
 
@@ -87,13 +87,7 @@ def extract_file_content_text(content: bytes, filename: str, content_type: str |
     elif filename_lower.endswith((".png", ".jpg", ".jpeg", ".bmp", ".webp")) or (content_type and "image/" in content_type.lower()):
         try:
             from utils.ocr import run_ocr
-            from PIL import Image
-            img = Image.open(io.BytesIO(content))
-            w, h = img.size
-            header_img = img.crop((0, 0, w, int(h * 0.45)))
-            buf = io.BytesIO()
-            header_img.save(buf, format="JPEG")
-            res = run_ocr(buf.getvalue())
+            res = run_ocr(content)
             if isinstance(res, dict) and "text" in res:
                 extracted = res["text"]
             elif isinstance(res, list):
@@ -113,16 +107,22 @@ async def inspect_document_content(
     filename = file.filename or "file"
     extracted_text = extract_file_content_text(content, filename, file.content_type)
 
-    lines = [line.strip() for line in re.split(r"[\r\n]+", extracted_text) if line.strip()]
+    raw_lines = [line.strip() for line in re.split(r"[\r\n]+", extracted_text) if line.strip()]
+    cleaned_lines = []
+    for line in raw_lines:
+        compressed = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", line)
+        cleaned_lines.append(compressed)
+
     detected_title = ""
-    for line in lines[:5]:
-        if len(line) >= 3:
+    for line in cleaned_lines[:6]:
+        if len(line) >= 2 and not line.startswith("中華民國") and not line.startswith("第") and not line.startswith("頁"):
             detected_title = line
             break
-    if not detected_title and lines:
-        detected_title = lines[0]
+    if not detected_title and cleaned_lines:
+        detected_title = cleaned_lines[0]
 
-    full_search_text = (filename + "\n" + extracted_text).lower()
+    full_raw = (filename + "\n" + extracted_text).lower()
+    full_normalized = re.sub(r"\s+", "", full_raw)
 
     target_keywords = DOC_TYPE_CONTENT_KEYWORDS.get(doc_type, [])
     target_label = DOC_TYPE_LABELS_MAP.get(doc_type, doc_type)
@@ -131,7 +131,10 @@ async def inspect_document_content(
     if not target_keywords:
         matched = True
     else:
-        matched = any(kw.lower() in full_search_text for kw in target_keywords)
+        matched = any(
+            (kw.lower() in full_raw) or (re.sub(r"\s+", "", kw.lower()) in full_normalized)
+            for kw in target_keywords
+        )
 
     detected_other_type = None
     detected_other_label = None
@@ -139,8 +142,9 @@ async def inspect_document_content(
     for type_key, keywords in DOC_TYPE_CONTENT_KEYWORDS.items():
         if type_key == doc_type:
             continue
-        for kw in keywords[:3]:
-            if kw.lower() in full_search_text:
+        for kw in keywords:
+            kw_norm = re.sub(r"\s+", "", kw.lower())
+            if (kw.lower() in full_raw) or (kw_norm in full_normalized):
                 detected_other_type = type_key
                 detected_other_label = DOC_TYPE_LABELS_MAP.get(type_key, type_key)
                 break

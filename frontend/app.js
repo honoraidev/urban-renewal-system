@@ -172,6 +172,7 @@ function verifyDocumentFileType(file, docType) {
   if (!file || !docType) return { matched: true };
 
   const fileName = (file.name || "").toLowerCase();
+  const normalizedFileName = fileName.replace(/\s+/g, "");
   const expectedKeywords = DOC_TYPE_KEYWORDS[docType];
   const targetLabel = DOC_TYPE_LABEL[docType] || docType;
 
@@ -180,7 +181,10 @@ function verifyDocumentFileType(file, docType) {
   }
 
   // Direct keyword match
-  const hasDirectMatch = expectedKeywords.some((kw) => fileName.includes(kw.toLowerCase()));
+  const hasDirectMatch = expectedKeywords.some((kw) => {
+    const kwLower = kw.toLowerCase();
+    return fileName.includes(kwLower) || normalizedFileName.includes(kwLower.replace(/\s+/g, ""));
+  });
   if (hasDirectMatch) {
     return { matched: true, targetLabel };
   }
@@ -189,8 +193,10 @@ function verifyDocumentFileType(file, docType) {
   let detectedOtherLabel = null;
   for (const [typeKey, keywords] of Object.entries(DOC_TYPE_KEYWORDS)) {
     if (typeKey === docType) continue;
-    const mainKeywords = keywords.slice(0, 4);
-    const matchedOtherKw = mainKeywords.find((kw) => fileName.includes(kw.toLowerCase()));
+    const matchedOtherKw = keywords.find((kw) => {
+      const kwLower = kw.toLowerCase();
+      return fileName.includes(kwLower) || normalizedFileName.includes(kwLower.replace(/\s+/g, ""));
+    });
     if (matchedOtherKw) {
       detectedOtherLabel = DOC_TYPE_LABEL[typeKey] || typeKey;
       break;
