@@ -153,6 +153,104 @@ const DOC_TYPE_LABEL = {
   consent_form_template: "同意書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
 };
+
+const DOC_TYPE_KEYWORDS = {
+  dev_letter_template: ["開發信", "致住戶", "說明信", "開發", "letter", "dev"],
+  willingness_form_template: ["意願書", "意願", "參與意願", "意願調查", "willingness", "willing"],
+  consent_form_template: ["同意書", "都更同意", "更新同意", "consent"],
+  consent_form: ["同意書", "都更同意", "更新同意", "consent"],
+  contract_template: ["合約", "契約", "協議書", "合約範本", "contract", "agreement"],
+  contract: ["合約", "契約", "協議書", "contract", "agreement"],
+  property_register: ["土地登記", "土地謄本", "第一類謄本", "第二類謄本", "第三類謄本", "地號", "land", "deed"],
+  building_register: ["建物登記", "建物謄本", "建號謄本", "建號", "building"],
+  cadastral_map: ["地籍圖", "地籍", "圖資", "cadastral", "map"],
+  consultant_document: ["顧問文件", "顧問", "評估", "報告", "規劃", "建築師", "估價", "consultant", "report"],
+  briefing_material: ["說明會", "簡報", "簡報資料", "會議記錄", "briefing", "presentation"],
+};
+
+function verifyDocumentFileType(file, docType) {
+  if (!file || !docType) return { matched: true };
+
+  const fileName = (file.name || "").toLowerCase();
+  const expectedKeywords = DOC_TYPE_KEYWORDS[docType];
+  const targetLabel = DOC_TYPE_LABEL[docType] || docType;
+
+  if (!expectedKeywords || expectedKeywords.length === 0) {
+    return { matched: true, targetLabel };
+  }
+
+  // Direct keyword match
+  const hasDirectMatch = expectedKeywords.some((kw) => fileName.includes(kw.toLowerCase()));
+  if (hasDirectMatch) {
+    return { matched: true, targetLabel };
+  }
+
+  // Check if filename strongly matches a DIFFERENT document type
+  let detectedOtherLabel = null;
+  for (const [typeKey, keywords] of Object.entries(DOC_TYPE_KEYWORDS)) {
+    if (typeKey === docType) continue;
+    const mainKeywords = keywords.slice(0, 4);
+    const matchedOtherKw = mainKeywords.find((kw) => fileName.includes(kw.toLowerCase()));
+    if (matchedOtherKw) {
+      detectedOtherLabel = DOC_TYPE_LABEL[typeKey] || typeKey;
+      break;
+    }
+  }
+
+  if (detectedOtherLabel) {
+    return {
+      matched: false,
+      targetLabel,
+      detectedOtherLabel,
+      fileName: file.name,
+    };
+  }
+
+  return { matched: true, targetLabel };
+}
+
+function confirmDocumentUploadIfMismatch(file, docType) {
+  const result = verifyDocumentFileType(file, docType);
+  if (result.matched) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const modalHtml = `
+      <div style="text-align:center;padding:12px 0">
+        <div style="font-size:42px;margin-bottom:12px">⚠️</div>
+        <h3 style="margin-bottom:12px;color:var(--text-primary)">檔案類型可能不符</h3>
+        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:16px">
+          您目前正要上傳：<strong style="color:var(--primary-color)">【${escapeHtml(result.targetLabel)}】</strong><br>
+          您選擇的檔案名稱為：<br>
+          <code style="background:var(--bg-tertiary);padding:6px 10px;border-radius:4px;color:var(--text-primary);display:inline-block;margin-top:8px;font-weight:600;word-break:break-all">${escapeHtml(result.fileName)}</code>
+        </p>
+        ${
+          result.detectedOtherLabel
+            ? `<div style="background:rgba(239, 68, 68, 0.1);color:#ef4444;border:1px solid rgba(239, 68, 68, 0.2);font-size:13px;padding:8px 12px;border-radius:6px;display:inline-block;margin-bottom:16px">
+                ⚡ 系統檢測檔名較符合：「<strong>${escapeHtml(result.detectedOtherLabel)}</strong>」
+               </div>`
+            : ""
+        }
+        <p style="color:var(--text-tertiary);font-size:13px;margin-bottom:24px">
+          請問您是否選擇了錯誤的檔案？
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center">
+          <button type="button" class="btn-secondary" id="confirm-upload-cancel-btn" style="flex:1">重新選擇檔案</button>
+          <button type="button" class="btn-primary" id="confirm-upload-proceed-btn" style="flex:1">確認仍要上傳</button>
+        </div>
+      </div>`;
+
+    const root = openModal("文件比對提醒", modalHtml, { width: "440px" });
+
+    root.querySelector("#confirm-upload-cancel-btn").onclick = () => {
+      closeModal();
+      resolve(false);
+    };
+    root.querySelector("#confirm-upload-proceed-btn").onclick = () => {
+      closeModal();
+      resolve(true);
+    };
+  });
+}
 const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
 const CONTACT_RESULT_LABEL = { no_answer: "未接聽", agreed: "同意", opposed: "反對", undecided: "未決定", callback_needed: "需回電" };
 
@@ -3955,12 +4053,20 @@ async function renderSopTab(el) {
       const file = input.files[0];
       if (!file) return;
       const docType = input.dataset.checklistUploadInput;
+
+      const confirmed = await confirmDocumentUploadIfMismatch(file, docType);
+      if (!confirmed) {
+        input.value = "";
+        return;
+      }
+
       const fd = new FormData();
       fd.append("file", file);
       fd.append("doc_type", docType);
       try {
         await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
-        toast("文件已上傳", "success");
+        const label = DOC_TYPE_LABEL[docType] || docType;
+        toast(`【${label}】已成功上傳`, "success");
         renderSopTab(el);
       } catch (err) {}
     });
@@ -4347,7 +4453,18 @@ function openUploadDocumentModal() {
   );
   document.getElementById("upload-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fileInput = form.querySelector('input[name="file"]');
+    const file = fileInput ? fileInput.files[0] : null;
+    const docTypeSelect = form.querySelector('select[name="doc_type"]');
+    const docType = docTypeSelect ? docTypeSelect.value : "other";
+
+    if (file) {
+      const confirmed = await confirmDocumentUploadIfMismatch(file, docType);
+      if (!confirmed) return;
+    }
+
+    const fd = new FormData(form);
     if (!fd.get("landowner_id")) fd.delete("landowner_id");
     try {
       await api(`/projects/${state.currentProjectId}/documents`, { method: "POST", body: fd, isForm: true });
