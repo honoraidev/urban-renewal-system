@@ -75,7 +75,22 @@ def extract_file_content_text(content: bytes, filename: str, content_type: str |
             doc = fitz.open(stream=content, filetype="pdf")
             pages_text = []
             for i in range(min(len(doc), 3)):
-                pages_text.append(doc[i].get_text("text"))
+                txt = doc[i].get_text("text").strip()
+                if txt:
+                    pages_text.append(txt)
+                else:
+                    # Page has no vector text (scanned PDF page) -> render to image and run OCR
+                    try:
+                        from utils.ocr import run_ocr
+                        pix = doc[i].get_pixmap(dpi=150)
+                        img_bytes = pix.tobytes("png")
+                        res = run_ocr(img_bytes)
+                        if isinstance(res, dict) and "text" in res:
+                            pages_text.append(res["text"])
+                        elif isinstance(res, list):
+                            pages_text.append("\n".join([item.get("text", "") for item in res if isinstance(item, dict)]))
+                    except Exception:
+                        pass
             extracted = "\n".join(pages_text)
         except Exception:
             pass
@@ -173,19 +188,20 @@ async def inspect_document_content(
         if filename_other_label:
             break
 
-    # DECISION: Content text OCR takes absolute priority over filename
+    # DECISION: Content text / OCR takes absolute priority over filename
     matched = True
     final_other_label = None
 
-    if has_content and detected_content_other_label and (not content_target_match):
-        # Content explicitly shows a different document type and does NOT contain target keywords
-        matched = False
-        final_other_label = detected_content_other_label
-    elif has_content and content_target_match:
-        matched = True
-        final_other_label = None
-    elif not has_content:
-        # Fallback to filename when no text content extracted
+    if has_content:
+        if not content_target_match:
+            # Content extracted, but target keywords (e.g. "意願書") are NOT present inside the content
+            matched = False
+            final_other_label = detected_content_other_label
+        else:
+            matched = True
+            final_other_label = None
+    else:
+        # Fallback to filename ONLY when no text content could be extracted from PDF/image
         if filename_other_label and (not filename_target_match):
             matched = False
             final_other_label = filename_other_label

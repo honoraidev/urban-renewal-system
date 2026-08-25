@@ -48,7 +48,7 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
     try {
       const data = await res.json();
       detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
-    } catch (e) {}
+    } catch (e) { }
     if (!silent) toast(detail, "error");
     throw new Error(detail);
   }
@@ -255,22 +255,20 @@ async function inspectAndConfirmDocumentUpload(file, docType) {
           上傳目標位置：<strong style="color:var(--primary-color)">【${escapeHtml(targetLabel)}】</strong><br>
           選擇的檔案名稱：<code style="background:var(--bg-tertiary);padding:4px 8px;border-radius:4px;color:var(--text-primary);display:inline-block;margin-top:4px;word-break:break-all">${escapeHtml(file.name)}</code>
         </p>
-        ${
-          detectedTitle
-            ? `<div style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:10px 14px;border-radius:6px;text-align:left;font-size:13px;margin-bottom:14px">
+        ${detectedTitle
+        ? `<div style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:10px 14px;border-radius:6px;text-align:left;font-size:13px;margin-bottom:14px">
                 <span style="color:var(--text-tertiary);display:block;font-size:12px;margin-bottom:4px">📄 檔案內文 OCR 辨識到的標題：</span>
                 <strong style="color:var(--text-primary);font-size:15px">「${escapeHtml(detectedTitle)}」</strong>
                </div>`
-            : ""
-        }
-        ${
-          detectedOtherLabel
-            ? `<div style="background:rgba(239, 68, 68, 0.1);color:#ef4444;border:1px solid rgba(239, 68, 68, 0.2);font-size:13px;padding:8px 12px;border-radius:6px;display:inline-block;margin-bottom:16px">
+        : ""
+      }
+        ${detectedOtherLabel
+        ? `<div style="background:rgba(239, 68, 68, 0.1);color:#ef4444;border:1px solid rgba(239, 68, 68, 0.2);font-size:13px;padding:8px 12px;border-radius:6px;display:inline-block;margin-bottom:16px">
                 ⚡ 系統分析檔案內文實際為：<strong>【${escapeHtml(detectedOtherLabel)}】</strong>
                 ${filenameMisleading ? `<div style="font-size:12px;margin-top:4px;color:var(--text-secondary)">（檔名可能命名錯誤，內文實際與【${escapeHtml(targetLabel)}】不符）</div>` : ""}
                </div>`
-            : ""
-        }
+        : ""
+      }
         <p style="color:var(--text-tertiary);font-size:13px;margin-bottom:24px">
           請問您是否選擇了錯誤的檔案？
         </p>
@@ -502,11 +500,11 @@ function renderSidebarProjects(projects) {
           </div>
           <div class="sb-cg-items ${open ? "open" : ""}">
             ${cases
-              .map(
-                (p) =>
-                  `<div class="sb-case-item" data-project-id="${p.id}">${escapeHtml(p.name)}</div>`
-              )
-              .join("")}
+          .map(
+            (p) =>
+              `<div class="sb-case-item" data-project-id="${p.id}">${escapeHtml(p.name)}</div>`
+          )
+          .join("")}
           </div>
         </div>`;
     })
@@ -663,11 +661,10 @@ async function loadDashboard() {
       (p) => `
         <div class="card project-card" data-project-id="${p.id}">
           <div class="project-card-top">
-            ${
-              isManager()
-                ? `<input type="checkbox" class="project-select-checkbox" data-select-project="${p.id}" ${selectedProjectIds.has(p.id) ? "checked" : ""}>`
-                : ""
-            }
+            ${isManager()
+          ? `<input type="checkbox" class="project-select-checkbox" data-select-project="${p.id}" ${selectedProjectIds.has(p.id) ? "checked" : ""}>`
+          : ""
+        }
             <h3 style="flex:1">${escapeHtml(p.name)}</h3>
             ${ocrStatusBadge(p)}
           </div>
@@ -676,11 +673,10 @@ async function loadDashboard() {
             <span>地號 ${p.land_record_count} 筆</span>
             <span>建號 ${p.building_record_count} 筆</span>
           </div>
-          ${
-            isManager()
-              ? `<div style="text-align:right"><button type="button" class="btn-link" style="color:var(--danger)" data-delete-project="${p.id}">刪除案件</button></div>`
-              : ""
-          }
+          ${isManager()
+          ? `<div style="text-align:right"><button type="button" class="btn-link" style="color:var(--danger)" data-delete-project="${p.id}">刪除案件</button></div>`
+          : ""
+        }
         </div>`
     )
     .join("");
@@ -813,7 +809,7 @@ function openDeleteProjectModal(project) {
       closeModal();
       toast("案件已刪除", "success");
       loadDashboard();
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -829,7 +825,7 @@ async function suggestNextProjectCode() {
         if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
       }
     });
-  } catch (e) {}
+  } catch (e) { }
   return `${year}-${String(maxSeq + 1).padStart(3, "0")}`;
 }
 
@@ -861,7 +857,7 @@ document.getElementById("project-form").addEventListener("submit", async (e) => 
     toast("案件已建立", "success");
     await loadDashboard();
     await openProject(project.id);
-  } catch (err) {}
+  } catch (err) { }
 });
 
 /* ================= Batch import: split a mixed batch into 都更案件 first ================= */
@@ -1021,7 +1017,7 @@ async function renderCaseSplitReview() {
   let existingProjects = [];
   try {
     existingProjects = await api("/projects", { silent: true });
-  } catch (e) {}
+  } catch (e) { }
 
   const groupNumbers = [...new Set(caseSplitWizard.pages.map((p) => p.group))].sort((a, b) => a - b);
 
@@ -1106,8 +1102,8 @@ async function renderCaseSplitReview() {
           <select data-group-existing="${g}">
             <option value="">請選擇</option>
             ${existingProjects
-              .map((p) => `<option value="${p.id}" ${String(meta.existingProjectId) === String(p.id) ? "selected" : ""}>${escapeHtml(p.name)}(${escapeHtml(p.project_code)})</option>`)
-              .join("")}
+          .map((p) => `<option value="${p.id}" ${String(meta.existingProjectId) === String(p.id) ? "selected" : ""}>${escapeHtml(p.name)}(${escapeHtml(p.project_code)})</option>`)
+          .join("")}
           </select>
         </div>
       </div>`;
@@ -1185,7 +1181,7 @@ async function runConfirmCaseSplit() {
         fd.append("file_name", `${project.project_code || meta.name || project.name}.pdf`);
         fd.append("description", "批次匯入原始掃描檔");
         await api(`/projects/${project.id}/documents/from-images`, { method: "POST", body: fd, isForm: true });
-      } catch (err) {}
+      } catch (err) { }
     }
 
     closeModal();
@@ -1288,7 +1284,7 @@ async function renderBuildingBatchReview() {
   let existingProjects = [];
   try {
     existingProjects = await api("/projects", { silent: true });
-  } catch (e) {}
+  } catch (e) { }
 
   openModal(
     "批次匯入建物謄本 · 審核比對結果",
@@ -1324,11 +1320,11 @@ async function renderBuildingBatchReview() {
           <select data-group-project="${i}">
             <option value="">請選擇</option>
             ${existingProjects
-              .map(
-                (p) =>
-                  `<option value="${p.id}" ${String(g.selectedProjectId) === String(p.id) ? "selected" : ""}>${escapeHtml(p.name)}(${escapeHtml(p.project_code)})</option>`
-              )
-              .join("")}
+          .map(
+            (p) =>
+              `<option value="${p.id}" ${String(g.selectedProjectId) === String(p.id) ? "selected" : ""}>${escapeHtml(p.name)}(${escapeHtml(p.project_code)})</option>`
+          )
+          .join("")}
           </select>
         </div>
       </div>`;
@@ -1485,15 +1481,14 @@ async function renderLandownersTypeTab(el, type) {
   el.innerHTML = `
     <div class="section-toolbar">
       <h3>${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})</h3>
-      ${
-        isEditor() || canOcr()
-          ? `<div style="display:flex;gap:8px">
+      ${isEditor() || canOcr()
+      ? `<div style="display:flex;gap:8px">
               ${isEditor() ? `<button class="btn-secondary btn-sm" id="merge-landowners-btn" disabled>合併選取的地主</button>` : ""}
               ${canOcr() ? `<button class="btn-secondary btn-sm" id="scan-title-deed-btn">${isLand ? "土地登記匯入" : "建物登記匯入"}</button>` : ""}
               ${isEditor() ? `<button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增地主</button>` : ""}
             </div>`
-          : ""
-      }
+      : ""
+    }
     </div>
     <div class="table-wrap">
       <table>
@@ -1504,8 +1499,8 @@ async function renderLandownersTypeTab(el, type) {
         </tr></thead>
         <tbody>
           ${landowners
-            .map(
-              (o) => `
+      .map(
+        (o) => `
             <tr>
               ${isEditor() ? `<td><input type="checkbox" class="merge-select-cb" value="${o.id}"></td>` : ""}
               <td>${escapeHtml(o.name)}</td>
@@ -1516,14 +1511,13 @@ async function renderLandownersTypeTab(el, type) {
               <td>${(isLand ? o.land_records : o.building_records).length} 筆
                 <div><button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button></div>
               </td>
-              ${
-                isEditor()
-                  ? `<td class="actions-cell">
+              ${isEditor()
+            ? `<td class="actions-cell">
                       <button class="btn-secondary btn-sm" data-edit="${o.id}">編輯</button>
                       <button class="btn-danger btn-sm" data-delete="${o.id}">刪除</button>
                     </td>`
-                  : ""
-              }
+            : ""
+          }
             </tr>
             <tr class="detail-row hidden" id="detail-row-${o.id}"><td colspan="10">
               <div class="sub-detail">
@@ -1531,71 +1525,67 @@ async function renderLandownersTypeTab(el, type) {
                   <strong>土地資料</strong>
                   ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
                 </div>
-                ${
-                  o.land_records.length
-                    ? `<table>
+                ${o.land_records.length
+            ? `<table>
                         <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
                         <tbody>
                           ${o.land_records
-                            .map(
-                              (lr) => `<tr>
+              .map(
+                (lr) => `<tr>
                                 <td>${escapeHtml(lr.parcel_number)}</td>
                                 <td>${escapeHtml(lr.section) || "-"}</td>
                                 <td>${lr.total_area_sqm}m²</td>
                                 <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
                                 <td>${lr.owned_area_sqm ?? "-"}m² (${lr.ownership_share_pct ?? "-"}%)</td>
-                                ${
-                                  isEditor()
-                                    ? `<td class="actions-cell">
+                                ${isEditor()
+                    ? `<td class="actions-cell">
                                         <button class="btn-secondary btn-sm" data-edit-land="${lr.id}" data-owner="${o.id}">編輯</button>
                                         <button class="btn-danger btn-sm" data-delete-land="${lr.id}" data-owner="${o.id}">刪除</button>
                                       </td>`
-                                    : ""
-                                }
+                    : ""
+                  }
                               </tr>`
-                            )
-                            .join("")}
+              )
+              .join("")}
                         </tbody>
                       </table>`
-                    : `<div class="helper-text">尚無土地資料</div>`
-                }
+            : `<div class="helper-text">尚無土地資料</div>`
+          }
                 <div class="section-toolbar" style="margin:16px 0 8px">
                   <strong>建物資料</strong>
                   ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
                 </div>
-                ${
-                  o.building_records.length
-                    ? `<table>
+                ${o.building_records.length
+            ? `<table>
                         <thead><tr><th>建號</th><th>座落地號</th><th>樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
                         <tbody>
                           ${o.building_records
-                            .map(
-                              (br) => `<tr>
+              .map(
+                (br) => `<tr>
                                 <td>${escapeHtml(br.building_number) || "-"}</td>
                                 <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
                                 <td>${escapeHtml(br.floor) || "-"}</td>
                                 <td>${br.total_area_sqm}m²</td>
                                 <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
-                                ${
-                                  isEditor()
-                                    ? `<td class="actions-cell">
+                                ${isEditor()
+                    ? `<td class="actions-cell">
                                         <button class="btn-secondary btn-sm" data-edit-building="${br.id}" data-owner="${o.id}">編輯</button>
                                         <button class="btn-danger btn-sm" data-delete-building="${br.id}" data-owner="${o.id}">刪除</button>
                                       </td>`
-                                    : ""
-                                }
+                    : ""
+                  }
                               </tr>`
-                            )
-                            .join("")}
+              )
+              .join("")}
                         </tbody>
                       </table>`
-                    : `<div class="helper-text">尚無建物資料</div>`
-                }
+            : `<div class="helper-text">尚無建物資料</div>`
+          }
               </div>
             </td></tr>
           `
-            )
-            .join("")}
+      )
+      .join("")}
         </tbody>
       </table>
     </div>
@@ -1826,7 +1816,7 @@ function openAddLandownerModal() {
       closeModal();
       toast("地主已新增", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -1846,8 +1836,8 @@ function openEditLandownerModal(landownerId) {
         <div class="field"><label>聯絡狀態</label>
           <select name="contact_status">
             ${Object.entries(CONTACT_STATUS_LABEL)
-              .map(([k, v]) => `<option value="${k}" ${owner.contact_status === k ? "selected" : ""}>${v}</option>`)
-              .join("")}
+      .map(([k, v]) => `<option value="${k}" ${owner.contact_status === k ? "selected" : ""}>${v}</option>`)
+      .join("")}
           </select>
         </div>
       </div>
@@ -1868,7 +1858,7 @@ function openEditLandownerModal(landownerId) {
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -1878,7 +1868,7 @@ async function deleteLandowner(id) {
     await api(`/projects/${state.currentProjectId}/landowners/${id}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
-  } catch (err) {}
+  } catch (err) { }
 }
 
 function openMergeLandownersModal(owners) {
@@ -1887,13 +1877,13 @@ function openMergeLandownersModal(owners) {
     `<p class="helper-text">選擇要保留的地主,其他被選取的地主的土地/建物/聯絡紀錄會全部併入保留的這筆,其餘資料則會被刪除。</p>
     <form id="merge-landowner-form">
       ${owners
-        .map(
-          (o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      .map(
+        (o, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
             <input type="radio" name="survivor" value="${o.id}" ${i === 0 ? "checked" : ""}>
             <span>${escapeHtml(o.name)}${o.id_number ? ` (${escapeHtml(o.id_number)})` : ""} - 土地 ${o.land_records.length} 筆 / 建物 ${o.building_records.length} 筆</span>
           </label>`
-        )
-        .join("")}
+      )
+      .join("")}
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">確認合併</button>
@@ -1912,7 +1902,7 @@ function openMergeLandownersModal(owners) {
       closeModal();
       toast("已合併地主", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -1968,7 +1958,7 @@ function openAddLandRecordModal(landownerId) {
       closeModal();
       toast("土地資料已新增", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -1993,7 +1983,7 @@ function openEditLandRecordModal(landownerId, record) {
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -2003,7 +1993,7 @@ async function deleteLandRecord(landownerId, recordId) {
     await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/land-records/${recordId}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
-  } catch (err) {}
+  } catch (err) { }
 }
 
 function buildingRecordFormFields(record) {
@@ -2064,7 +2054,7 @@ function openAddBuildingRecordModal(landownerId) {
       closeModal();
       toast("建物資料已新增", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -2089,7 +2079,7 @@ function openEditBuildingRecordModal(landownerId, record) {
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -2099,7 +2089,7 @@ async function deleteBuildingRecord(landownerId, recordId) {
     await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/building-records/${recordId}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
-  } catch (err) {}
+  } catch (err) { }
 }
 
 /* ================= Title deed OCR wizard ================= */
@@ -2314,19 +2304,18 @@ async function openWizardDocumentPicker() {
     `
     ${documents.length ? `<div class="helper-text" style="margin-bottom:10px">可勾選多個文件一次加入</div>` : ""}
     <div id="wizard-document-picker-list">
-      ${
-        documents.length
-          ? documents
-              .map(
-                (d) => `
+      ${documents.length
+      ? documents
+        .map(
+          (d) => `
               <label class="record-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer">
                 <input type="checkbox" class="wizard-document-checkbox" value="${d.id}" style="width:auto;flex-shrink:0">
                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(d.file_name)}${d.description ? ` · ${escapeHtml(d.description)}` : ""}</span>
               </label>`
-              )
-              .join("")
-          : `<div class="helper-text">本案件尚未有可選擇的圖片或 PDF 文件</div>`
-      }
+        )
+        .join("")
+      : `<div class="helper-text">本案件尚未有可選擇的圖片或 PDF 文件</div>`
+    }
     </div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="renderWizardStep0()">返回</button>
@@ -2382,9 +2371,8 @@ function renderWizardFileList() {
       <div class="record-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i + 1}. ${escapeHtml(f.name)}</span>
         <button type="button" class="btn-secondary btn-sm" data-move-up="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
-        <button type="button" class="btn-secondary btn-sm" data-move-down="${i}" ${
-        i === titleDeedWizard.files.length - 1 ? "disabled" : ""
-      }>▼</button>
+        <button type="button" class="btn-secondary btn-sm" data-move-down="${i}" ${i === titleDeedWizard.files.length - 1 ? "disabled" : ""
+        }>▼</button>
         <button type="button" class="btn-danger btn-sm" data-remove-file="${i}">移除</button>
       </div>`
     )
@@ -2895,8 +2883,8 @@ function encumbranceRightTypeOptionsHtml(rawType) {
   return `
     <option value="" ${currentType ? "" : "selected"}>請選擇</option>
     ${ENCUMBRANCE_RIGHT_TYPE_OPTIONS.map(
-      (t) => `<option value="${escapeHtml(t)}" ${currentType === t ? "selected" : ""}>${escapeHtml(t)}</option>`
-    ).join("")}
+    (t) => `<option value="${escapeHtml(t)}" ${currentType === t ? "selected" : ""}>${escapeHtml(t)}</option>`
+  ).join("")}
     ${currentType && !isKnownType ? `<option value="${escapeHtml(currentType)}" selected>${escapeHtml(currentType)}(AI 辨識,非標準選項)</option>` : ""}
   `;
 }
@@ -3118,14 +3106,13 @@ function renderWizardStepConfirm() {
         ${ownerChipsHtml(p.owners)}
       </div>
       ${shareSumWarningHtml(p.owners)}
-      ${
-        (p.encumbrances || []).length
-          ? `<div class="wizard-confirm-card-row">
+      ${(p.encumbrances || []).length
+      ? `<div class="wizard-confirm-card-row">
               <span class="wizard-confirm-card-label">他項權利</span>
               <div class="wizard-confirm-chip-list">${(p.encumbrances || []).map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}</div>
             </div>`
-          : ""
-      }
+      : ""
+    }
     </div>`;
   const parcelsHtml = d.parcels.length
     ? d.parcels.map(parcelCardHtml).join("")
@@ -3133,8 +3120,8 @@ function renderWizardStepConfirm() {
   const buildingsSectionHtml = d.buildings.length
     ? `<div class="wizard-confirm-section-title">建物建號(${d.buildings.length})</div>
       ${d.buildings
-        .map(
-          (b, idx) => `
+      .map(
+        (b, idx) => `
         <div class="wizard-confirm-card">
           <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
             <div class="wizard-confirm-card-title">${escapeHtml(buildingSummaryLabel(b))}</div>
@@ -3146,8 +3133,8 @@ function renderWizardStepConfirm() {
           </div>
           ${shareSumWarningHtml(b.owners)}
         </div>`
-        )
-        .join("")}`
+      )
+      .join("")}`
     : "";
 
   // Land↔building relation preview: same matching rule the actual submit step uses
@@ -3185,15 +3172,14 @@ function renderWizardStepConfirm() {
     <div class="wizard-confirm-section-title">土地地號(${d.parcels.length})</div>
     ${parcelsHtml}
     ${buildingsSectionHtml}
-    ${
-      d.encumbrances.length
-        ? `<div class="wizard-confirm-section-title">跨地號/建號的他項權利(${d.encumbrances.length})</div>
+    ${d.encumbrances.length
+      ? `<div class="wizard-confirm-section-title">跨地號/建號的他項權利(${d.encumbrances.length})</div>
           <div class="wizard-confirm-card">
             <div class="wizard-confirm-chip-list">
               ${d.encumbrances.map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}
             </div>
           </div>`
-        : ""
+      : ""
     }
     <div class="helper-text" style="margin-top:14px;line-height:1.6">確認無誤後點「建立」，系統會自動比對／建立地主，並寫入土地、建物、他項權利資料。同一人若出現在多筆地號／建號，只會建立一筆地主。</div>
     <div class="modal-footer">
@@ -3595,8 +3581,8 @@ function renderBatchParcelsTab() {
       <th>地號</th><th>地段/小段</th><th>面積(㎡)</th><th>持分</th><th>持分面積(㎡)</th>
     </tr></thead><tbody>
       ${land_records
-        .map(
-          (r) => `
+      .map(
+        (r) => `
         <tr>
           <td>${escapeHtml(r.parcel_number)}</td>
           <td>${escapeHtml([r.township, r.section, r.subsection].filter(Boolean).join(""))}</td>
@@ -3604,8 +3590,8 @@ function renderBatchParcelsTab() {
           <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
           <td>${r.owned_area_sqm ?? "-"}</td>
         </tr>`
-        )
-        .join("")}
+      )
+      .join("")}
     </tbody></table></div>`;
 }
 
@@ -3617,8 +3603,8 @@ function renderBatchBuildingsTab() {
       <th>建號</th><th>門牌</th><th>層次</th><th>總面積(㎡)</th><th>持分</th>
     </tr></thead><tbody>
       ${building_records
-        .map(
-          (r) => `
+      .map(
+        (r) => `
         <tr>
           <td>${escapeHtml(r.building_number) || "-"}</td>
           <td>${escapeHtml(r.address) || "-"}</td>
@@ -3626,8 +3612,8 @@ function renderBatchBuildingsTab() {
           <td>${r.total_area_sqm}</td>
           <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
         </tr>`
-        )
-        .join("")}
+      )
+      .join("")}
     </tbody></table></div>`;
 }
 
@@ -3712,20 +3698,19 @@ function renderBatchDocumentsTab() {
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
       ${documents
-        .map(
-          (jd, i) => `
+      .map(
+        (jd, i) => `
         <div class="record-row" data-batch-doc-index="${i}" style="padding:8px;text-align:center;cursor:pointer">
-          ${
-            (jd.document.mime_type || "").startsWith("image/")
-              ? `<div style="height:110px;overflow:hidden;border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;background:var(--surface-2)">
+          ${(jd.document.mime_type || "").startsWith("image/")
+            ? `<div style="height:110px;overflow:hidden;border-radius:4px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;background:var(--surface-2)">
                   <span style="font-size:24px">📄</span>
                 </div>`
-              : `<div style="height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border)"><span style="font-size:24px">📄</span></div>`
+            : `<div style="height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border)"><span style="font-size:24px">📄</span></div>`
           }
           <div class="helper-text" style="margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(jd.document.file_name)}">${escapeHtml(jd.document.file_name)}</div>
         </div>`
-        )
-        .join("")}
+      )
+      .join("")}
     </div>`;
 }
 
@@ -3749,11 +3734,11 @@ function renderBatchTimelineTab() {
   return `
     <div class="card">
       ${events
-        .map(
-          (e) => `
+      .map(
+        (e) => `
         <div class="batch-kv"><label>${fmtDateTime(e.at)}</label><span>${escapeHtml(e.text)}</span></div>`
-        )
-        .join("")}
+      )
+      .join("")}
     </div>`;
 }
 
@@ -3896,7 +3881,7 @@ async function renderSopSummary() {
         await loadDashboard();
         await renderSopSummary();
         if (state.activeTab === "sop") renderTab("sop");
-      } catch (err) {}
+      } catch (err) { }
     });
   }
 }
@@ -4044,17 +4029,16 @@ async function renderSopTab(el) {
         </div>
         ${checklistHtml}
         ${isDualGate ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
-        ${
-          selectedIsCurrent && isEditor()
-            ? `<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
+        ${selectedIsCurrent && isEditor()
+      ? `<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
                 <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本關卡</button>
                 ${!checklistAllDone ? `<span class="helper-text">還有項目未完成,無法進入下一關</span>` : ""}
                 ${isManager() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
               </div>`
-            : !selectedIsCurrent
-              ? `<div class="helper-text" style="margin-top:16px">${selectedIsDone ? "這一關已經完成。" : "這一關還沒開始,要先完成前面的關卡才會解鎖。"}</div>`
-              : ""
-        }
+      : !selectedIsCurrent
+        ? `<div class="helper-text" style="margin-top:16px">${selectedIsDone ? "這一關已經完成。" : "這一關還沒開始,要先完成前面的關卡才會解鎖。"}</div>`
+        : ""
+    }
       </div>
     </div>`;
 
@@ -4080,7 +4064,7 @@ async function renderSopTab(el) {
         });
         toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
         renderSopTab(el);
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 
@@ -4109,7 +4093,7 @@ async function renderSopTab(el) {
         const label = DOC_TYPE_LABEL[docType] || docType;
         toast(`【${label}】已成功上傳`, "success");
         renderSopTab(el);
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 
@@ -4123,7 +4107,7 @@ async function renderSopTab(el) {
         await renderSopSummary();
         state.sopSelectedStage = null;
         renderSopTab(el);
-      } catch (err) {}
+      } catch (err) { }
     });
   }
   const forceBtn = document.getElementById("force-stage-btn");
@@ -4137,7 +4121,7 @@ async function renderSopTab(el) {
         await renderSopSummary();
         state.sopSelectedStage = null;
         renderSopTab(el);
-      } catch (err) {}
+      } catch (err) { }
     });
   }
 }
@@ -4163,17 +4147,16 @@ async function renderConsentPanel(el, stage) {
       </div>
       <div class="helper-text">需人數與面積同意率皆 ≥ 80% 才能通過雙門檻${ratio.dual_gate_passed ? " · <strong style='color:var(--success)'>已達標</strong>" : ""}</div>
     </div>
-    ${
-      isEditor()
-        ? `<div class="table-wrap">
+    ${isEditor()
+      ? `<div class="table-wrap">
             <table>
               <thead><tr><th>地主</th><th>本輪同意狀態</th><th>操作</th></tr></thead>
               <tbody>
                 ${landowners
-                  .map((o) => {
-                    const rec = recordByLandowner[o.id];
-                    const status = rec ? rec.consent_status : "pending";
-                    return `<tr>
+        .map((o) => {
+          const rec = recordByLandowner[o.id];
+          const status = rec ? rec.consent_status : "pending";
+          return `<tr>
                       <td>${escapeHtml(o.name)}</td>
                       <td><span class="consent-status-badge cs-${status}">${CONSENT_STATUS_LABEL[status]}</span></td>
                       <td class="actions-cell">
@@ -4181,12 +4164,12 @@ async function renderConsentPanel(el, stage) {
                         <button class="btn-secondary btn-sm" data-consent="${o.id}" data-status="opposed">反對</button>
                       </td>
                     </tr>`;
-                  })
-                  .join("")}
+        })
+        .join("")}
               </tbody>
             </table>
           </div>`
-        : ""
+      : ""
     }
   `;
 
@@ -4199,7 +4182,7 @@ async function renderConsentPanel(el, stage) {
         });
         toast("已登記同意狀態", "success");
         renderConsentPanel(el, stage);
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -4225,29 +4208,28 @@ async function renderContactsTab(el) {
   state.selectedContactLandownerId = selectedId;
 
   el.innerHTML = `
-    ${
-      alerts.length
-        ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--danger)">
+    ${alerts.length
+      ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--danger)">
             <h3 style="margin-top:0">⚠ 需跟進地主 (${alerts.length})</h3>
             <div class="table-wrap" style="box-shadow:none;border:none">
               <table>
                 <thead><tr><th>姓名</th><th>聯絡狀態</th><th>最後聯絡</th><th>未聯絡天數</th></tr></thead>
                 <tbody>
                   ${alerts
-                    .map(
-                      (a) => `<tr>
+        .map(
+          (a) => `<tr>
                         <td>${escapeHtml(a.landowner_name)}</td>
                         <td><span class="contact-status-badge cs-${a.contact_status}">${CONTACT_STATUS_LABEL[a.contact_status]}</span></td>
                         <td>${a.last_contact_date ? fmtDateTime(a.last_contact_date) : "尚無紀錄"}</td>
                         <td>${a.days_since_last_contact ?? "-"}</td>
                       </tr>`
-                    )
-                    .join("")}
+        )
+        .join("")}
                 </tbody>
               </table>
             </div>
           </div>`
-        : ""
+      : ""
     }
     <div class="section-toolbar">
       <h3>聯絡紀錄</h3>
@@ -4287,16 +4269,16 @@ async function loadContactLogList() {
         <thead><tr><th>日期</th><th>方式</th><th>結果</th><th>備註</th><th>下次跟進</th></tr></thead>
         <tbody>
           ${logs
-            .map(
-              (c) => `<tr>
+      .map(
+        (c) => `<tr>
                 <td>${fmtDateTime(c.contact_date)}</td>
                 <td>${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</td>
                 <td><span class="consent-status-badge cs-${c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending"}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span></td>
                 <td>${escapeHtml(c.notes) || "-"}</td>
                 <td>${fmtDate(c.next_follow_up_date)}</td>
               </tr>`
-            )
-            .join("")}
+      )
+      .join("")}
         </tbody>
       </table>
     </div>`;
@@ -4350,7 +4332,7 @@ function openAddContactModal(landownerId) {
       closeModal();
       toast("聯絡紀錄已新增", "success");
       renderTab("contacts");
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -4376,32 +4358,29 @@ async function renderDocumentsTab(el) {
     <div class="section-toolbar">
       <h3>文件清單 (${docs.length})</h3>
       <div style="display:flex;gap:8px">
-        ${
-          duplicateCount > 0 && canOcr()
-            ? `<button class="btn-secondary btn-sm" id="cleanup-duplicates-btn" style="color:var(--danger);border-color:rgba(239,68,68,0.3)">🧹 一鍵清理重複檔案 (${duplicateCount})</button>`
-            : ""
-        }
+        ${duplicateCount > 0 && canOcr()
+      ? `<button class="btn-secondary btn-sm" id="cleanup-duplicates-btn" style="color:var(--danger);border-color:rgba(239,68,68,0.3)">🧹 一鍵清理重複檔案 (${duplicateCount})</button>`
+      : ""
+    }
         <button class="btn-secondary btn-sm" id="view-ocr-batches-btn">謄本匯入批次紀錄</button>
         ${canOcr() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
       </div>
     </div>
-    ${
-      duplicateCount > 0
-        ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--warning);padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+    ${duplicateCount > 0
+      ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--warning);padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:13px;color:var(--text-secondary)">⚡ 檢測到列表中有 <strong>${duplicateCount} 筆重複上傳的歷史舊檔</strong>，點擊可一鍵自動清理並保留每項文件的最新版本。</span>
             <button class="btn-secondary btn-sm" id="cleanup-duplicates-banner-btn">一鍵清理 (${duplicateCount})</button>
            </div>`
-        : ""
+      : ""
     }
-    ${
-      docs.length
-        ? `<div class="table-wrap">
+    ${docs.length
+      ? `<div class="table-wrap">
             <table>
               <thead><tr><th>檔名</th><th>類型</th><th>大小</th><th>上傳時間</th><th>說明</th><th>操作</th></tr></thead>
               <tbody>
                 ${docs
-                  .map(
-                    (d) => `<tr>
+        .map(
+          (d) => `<tr>
                       <td>${escapeHtml(d.file_name)}</td>
                       <td>${DOC_TYPE_LABEL[d.doc_type] || d.doc_type}</td>
                       <td>${(d.file_size_bytes / 1024).toFixed(1)} KB</td>
@@ -4412,12 +4391,12 @@ async function renderDocumentsTab(el) {
                         ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
                       </td>
                     </tr>`
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </div>`
-        : `<div class="empty-state">尚無文件</div>`
+      : `<div class="empty-state">尚無文件</div>`
     }
   `;
 
@@ -4427,7 +4406,7 @@ async function renderDocumentsTab(el) {
       const res = await api(`/projects/${pid}/documents/cleanup-duplicates`, { method: "POST" });
       toast(`已成功清理 ${res.deleted_count} 筆重複檔案`, "success");
       renderTab("documents");
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const cleanupBtn = document.getElementById("cleanup-duplicates-btn");
@@ -4446,7 +4425,7 @@ async function renderDocumentsTab(el) {
         await api(`/projects/${pid}/documents/${btn.dataset.deleteDoc}`, { method: "DELETE" });
         toast("已刪除", "success");
         renderTab("documents");
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   const uploadBtn = document.getElementById("upload-doc-btn");
@@ -4466,8 +4445,8 @@ async function openOcrBatchListModal() {
     "謄本匯入批次紀錄",
     jobs.length
       ? jobs
-          .map(
-            (j) => `
+        .map(
+          (j) => `
         <div class="record-row" data-open-batch="${j.id}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 12px">
           <div>
             <div style="font-weight:700">批次 #${j.id}</div>
@@ -4475,8 +4454,8 @@ async function openOcrBatchListModal() {
           </div>
           <span class="status-badge ${j.status === "completed" ? "status-active" : j.status === "failed" ? "status-suspended" : "status-closed"}">${OCR_JOB_STATUS_LABEL[j.status] || j.status}</span>
         </div>`
-          )
-          .join("")
+        )
+        .join("")
       : `<div class="empty-state">尚無匯入批次紀錄</div>`,
     { width: "480px" }
   );
@@ -4502,7 +4481,7 @@ async function downloadDocument(docId, fileName) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  } catch (err) {}
+  } catch (err) { }
 }
 
 function openUploadDocumentModal() {
@@ -4552,11 +4531,11 @@ function openUploadDocumentModal() {
       closeModal();
       toast("文件已上傳", "success");
       renderTab("documents");
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
-/* ================= Tab: Members (案件成員) ================= */
+/* ================= Tab: Members (案件人員) ================= */
 
 async function renderMembersTab(el) {
   const pid = state.currentProjectId;
@@ -4564,18 +4543,17 @@ async function renderMembersTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3>案件成員 (${members.length})</h3>
-      <button class="btn-primary btn-sm" id="add-member-btn">+ 新增成員</button>
+      <h3>案件人員 (${members.length})</h3>
+      <button class="btn-primary btn-sm" id="add-member-btn">+ 新增人員</button>
     </div>
-    ${
-      members.length
-        ? `<div class="table-wrap">
+    ${members.length
+      ? `<div class="table-wrap">
             <table>
               <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>加入時間</th><th>操作</th></tr></thead>
               <tbody>
                 ${members
-                  .map(
-                    (m) => `<tr>
+        .map(
+          (m) => `<tr>
                       <td>${escapeHtml(m.username)}</td>
                       <td>${escapeHtml(m.display_name)}</td>
                       <td><span class="role-badge ${m.role_in_project}">${ROLE_LABEL[m.role_in_project] || m.role_in_project}</span></td>
@@ -4584,24 +4562,24 @@ async function renderMembersTab(el) {
                         <button class="btn-danger btn-sm" data-remove-member="${m.user_id}">移除</button>
                       </td>
                     </tr>`
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </div>`
-        : `<div class="empty-state">尚未指派任何成員(L1/L2 可以看到所有案件,不需要被指派)</div>`
+      : `<div class="empty-state">尚未指派任何人員(L1/L2 可以看到所有案件,不需要被指派)</div>`
     }
   `;
 
   document.getElementById("add-member-btn").addEventListener("click", () => openAddMemberModal(members));
   el.querySelectorAll("[data-remove-member]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm("確定要將此成員移出這個案件嗎?")) return;
+      if (!confirm("確定要將此人員移出這個案件嗎?")) return;
       try {
         await api(`/projects/${pid}/members/${btn.dataset.removeMember}`, { method: "DELETE" });
         toast("已移除", "success");
         renderTab("members");
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -4621,20 +4599,20 @@ async function openAddMemberModal(existingMembers) {
   const modalHtml = `
     <form id="add-member-form">
       <div class="field">
-        <label>第一步：選擇權限分層</label>
+        <label>選擇權限分層</label>
         <select id="member-role-select" required>
           <option value="">— 請選擇權限分層 —</option>
           <option value="all">全部分層 (共 ${candidates.length} 人可選)</option>
           ${Object.entries(ROLE_LABEL)
-            .map(([roleKey, roleName]) => {
-              const count = roleCounts[roleKey] || 0;
-              return `<option value="${roleKey}">${roleName} (${count} 人可選)</option>`;
-            })
-            .join("")}
+      .map(([roleKey, roleName]) => {
+        const count = roleCounts[roleKey] || 0;
+        return `<option value="${roleKey}">${roleName} (${count} 人可選)</option>`;
+      })
+      .join("")}
         </select>
       </div>
       <div class="field">
-        <label>第二步：選擇成員</label>
+        <label>選擇人員</label>
         <select id="member-user-select" name="user_id" required disabled>
           <option value="">— 請先選擇權限分層 —</option>
         </select>
@@ -4645,7 +4623,7 @@ async function openAddMemberModal(existingMembers) {
       </div>
     </form>`;
 
-  openModal("新增案件成員", modalHtml, { width: "460px" });
+  openModal("新增案件人員", modalHtml, { width: "460px" });
 
   const roleSelect = document.getElementById("member-role-select");
   const userSelect = document.getElementById("member-user-select");
@@ -4693,9 +4671,9 @@ async function openAddMemberModal(existingMembers) {
     try {
       await api(`/projects/${pid}/members`, { method: "POST", body: { user_id: userId } });
       closeModal();
-      toast("已新增成員", "success");
+      toast("已新增人員", "success");
       renderTab("members");
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -4711,9 +4689,8 @@ async function renderEncumbrancesTab(el) {
       <h3>他項權利部 (${encumbrances.length})</h3>
       ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
     </div>
-    ${
-      encumbrances.length
-        ? `<div class="table-wrap">
+    ${encumbrances.length
+      ? `<div class="table-wrap">
             <table>
               <thead><tr>
                 <th>登記次序</th><th>對應地號/建號</th><th>權利種類</th><th>他項權利人</th><th>債務額比例</th>
@@ -4721,28 +4698,27 @@ async function renderEncumbrancesTab(el) {
               </tr></thead>
               <tbody>
                 ${encumbrances
-                  .map(
-                    (enc) => `<tr>
+        .map(
+          (enc) => `<tr>
                       <td>${escapeHtml(enc.registration_order) || "-"}</td>
                       <td>${escapeHtml(enc.applies_to_parcels) || "-"}</td>
                       <td>${escapeHtml(enc.right_type) || "-"}</td>
                       <td>${escapeHtml(enc.right_holder) || "-"}</td>
                       <td>${escapeHtml(enc.debtor_info) || "-"}</td>
-                      ${
-                        isEditor()
-                          ? `<td class="actions-cell">
+                      ${isEditor()
+              ? `<td class="actions-cell">
                               <button class="btn-secondary btn-sm" data-edit-encumbrance="${enc.id}">編輯</button>
                               <button class="btn-danger btn-sm" data-delete-encumbrance="${enc.id}">刪除</button>
                             </td>`
-                          : ""
-                      }
+              : ""
+            }
                     </tr>`
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </div>`
-        : `<div class="empty-state">尚無他項權利資料</div>`
+      : `<div class="empty-state">尚無他項權利資料</div>`
     }
   `;
 
@@ -4753,7 +4729,7 @@ async function renderEncumbrancesTab(el) {
         await api(`/projects/${pid}/encumbrances/${btn.dataset.deleteEncumbrance}`, { method: "DELETE" });
         toast("已刪除", "success");
         renderTab("encumbrances");
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   el.querySelectorAll("[data-edit-encumbrance]").forEach((btn) => {
@@ -4821,7 +4797,7 @@ function openEncumbranceFormModal(encumbrance) {
       closeModal();
       toast(isEdit ? "已更新" : "已新增", "success");
       renderTab("encumbrances");
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -4842,13 +4818,13 @@ async function renderExpensesTab(el) {
       <h3 style="margin-top:0">支出統計</h3>
       <div style="font-size: 23.5px;font-weight:700;margin-bottom:10px">NT$ ${fmtMoney(summary.total_amount)}</div>
       ${summary.by_category
-        .map(
-          (c) => `
+      .map(
+        (c) => `
         <div class="card-meta-row" style="margin-bottom:4px">
           <span>${escapeHtml(c.category_name) || "未分類"}</span><span>NT$ ${fmtMoney(c.total_amount)}</span>
         </div>`
-        )
-        .join("")}
+      )
+      .join("")}
     </div>
     <div class="section-toolbar">
       <h3>支出明細 (${expenses.length})</h3>
@@ -4857,34 +4833,32 @@ async function renderExpensesTab(el) {
         ${isEditor() ? `<button class="btn-primary btn-sm" id="add-expense-btn">+ 新增支出</button>` : ""}
       </div>
     </div>
-    ${
-      expenses.length
-        ? `<div class="table-wrap">
+    ${expenses.length
+      ? `<div class="table-wrap">
             <table>
               <thead><tr><th>日期</th><th>類別</th><th>金額</th><th>廠商</th><th>說明</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${expenses
-                  .map(
-                    (ex) => `<tr>
+        .map(
+          (ex) => `<tr>
                       <td>${fmtDate(ex.expense_date)}</td>
                       <td>${escapeHtml(catById[ex.category_id]) || "-"}</td>
                       <td>NT$ ${fmtMoney(ex.amount)}</td>
                       <td>${escapeHtml(ex.vendor) || "-"}</td>
                       <td>${escapeHtml(ex.description) || "-"}</td>
-                      ${
-                        isEditor()
-                          ? `<td class="actions-cell">
+                      ${isEditor()
+              ? `<td class="actions-cell">
                               <button class="btn-danger btn-sm" data-delete-expense="${ex.id}">刪除</button>
                             </td>`
-                          : ""
-                      }
+              : ""
+            }
                     </tr>`
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </div>`
-        : `<div class="empty-state">尚無支出紀錄</div>`
+      : `<div class="empty-state">尚無支出紀錄</div>`
     }
   `;
 
@@ -4895,7 +4869,7 @@ async function renderExpensesTab(el) {
         await api(`/projects/${pid}/expenses/${btn.dataset.deleteExpense}`, { method: "DELETE" });
         toast("已刪除", "success");
         renderTab("expenses");
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   const addBtn = document.getElementById("add-expense-btn");
@@ -4945,7 +4919,7 @@ function openAddExpenseModal(categories) {
       closeModal();
       toast("支出已新增", "success");
       renderTab("expenses");
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -4988,7 +4962,7 @@ function openManageCategoriesModal(categories) {
         try {
           await api(`/expense-categories/${btn.dataset.toggleCat}`, { method: "PATCH", body: { is_active: !isActive } });
           await refresh();
-        } catch (err) {}
+        } catch (err) { }
       };
     });
     document.querySelectorAll("[data-delete-cat]").forEach((btn) => {
@@ -4997,7 +4971,7 @@ function openManageCategoriesModal(categories) {
         try {
           await api(`/expense-categories/${btn.dataset.deleteCat}`, { method: "DELETE" });
           await refresh();
-        } catch (err) {}
+        } catch (err) { }
       };
     });
   }
@@ -5010,7 +4984,7 @@ function openManageCategoriesModal(categories) {
       await api(`/expense-categories`, { method: "POST", body: { name: fd.get("name") } });
       e.target.reset();
       await refresh();
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -5033,8 +5007,8 @@ async function loadUsers() {
       <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>Email</th><th>狀態</th><th>操作</th></tr></thead>
       <tbody>
         ${users
-          .map(
-            (u) => `<tr>
+      .map(
+        (u) => `<tr>
               <td>${escapeHtml(u.username)}</td>
               <td>${escapeHtml(u.display_name)}</td>
               <td><span class="role-badge ${u.role}">${roleLabel[u.role] || u.role}</span></td>
@@ -5046,8 +5020,8 @@ async function loadUsers() {
                 <button class="btn-danger btn-sm" data-delete-user="${u.id}">刪除</button>
               </td>
             </tr>`
-          )
-          .join("")}
+      )
+      .join("")}
       </tbody>
     </table>`;
 
@@ -5061,7 +5035,7 @@ async function loadUsers() {
         await api(`/users/${btn.dataset.toggleUser}/active`, { method: "PATCH", body: { is_active: !isActive } });
         toast("已更新狀態", "success");
         loadUsers();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   wrap.querySelectorAll("[data-delete-user]").forEach((btn) => {
@@ -5071,7 +5045,7 @@ async function loadUsers() {
         await api(`/users/${btn.dataset.deleteUser}`, { method: "DELETE" });
         toast("已刪除", "success");
         loadUsers();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -5101,16 +5075,16 @@ async function loadLoginLogs() {
       <thead><tr><th>使用者</th><th>角色</th><th>動作</th><th>時間</th><th>IP 位址</th></tr></thead>
       <tbody>
         ${logs
-          .map(
-            (l) => `<tr>
+      .map(
+        (l) => `<tr>
               <td>${escapeHtml(l.display_name)} <span class="project-code">(${escapeHtml(l.username)})</span></td>
               <td><span class="role-badge ${l.role}">${roleLabel[l.role] || l.role}</span></td>
               <td><span class="consent-status-badge ${l.action === "login" ? "cs-agreed" : "cs-pending"}">${actionLabel[l.action] || l.action}</span></td>
               <td>${fmtDateTime(l.occurred_at)}</td>
               <td>${escapeHtml(l.ip_address) || "-"}</td>
             </tr>`
-          )
-          .join("")}
+      )
+      .join("")}
       </tbody>
     </table>`;
 }
@@ -5143,8 +5117,8 @@ async function loadCompanyDocs() {
   wrap.innerHTML = docs.length
     ? `<div class="card">
         ${docs
-          .map(
-            (d) => `
+      .map(
+        (d) => `
           <div class="doc-row">
             <div class="doc-row-icon">${companyDocIcon(d.mime_type)}</div>
             <div style="flex:1;min-width:0">
@@ -5158,8 +5132,8 @@ async function loadCompanyDocs() {
               ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
             </div>
           </div>`
-          )
-          .join("")}
+      )
+      .join("")}
       </div>`
     : `<div class="empty-state">尚無公版文件</div>`;
 
@@ -5176,7 +5150,7 @@ async function loadCompanyDocs() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   wrap.querySelectorAll("[data-delete-companydoc]").forEach((btn) => {
@@ -5186,7 +5160,7 @@ async function loadCompanyDocs() {
         await api(`/company-documents/${btn.dataset.deleteCompanydoc}`, { method: "DELETE" });
         toast("已刪除", "success");
         loadCompanyDocs();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -5214,7 +5188,7 @@ document.getElementById("upload-companydoc-btn").addEventListener("click", () =>
       closeModal();
       toast("文件已上傳", "success");
       loadCompanyDocs();
-    } catch (err) {}
+    } catch (err) { }
   });
 });
 
@@ -5249,11 +5223,10 @@ function renderLinkListPage(items, listElId, isManagerView) {
             </div>
             <div class="actions-cell">
               <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm">開啟 ↗</a>
-              ${
-                isManagerView
-                  ? `<button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+              ${isManagerView
+                ? `<button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
                      <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>`
-                  : ""
+                : ""
               }
             </div>
           </div>`
@@ -5294,7 +5267,7 @@ function openLinkFormModal(title, endpoint, item, onSaved) {
       closeModal();
       toast("已儲存", "success");
       onSaved();
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -5329,7 +5302,7 @@ async function loadRegulations() {
           await api(`/regulations/${btn.dataset.deleteLink}`, { method: "DELETE" });
           toast("已刪除", "success");
           loadRegulations();
-        } catch (err) {}
+        } catch (err) { }
       });
     });
   }
@@ -5374,7 +5347,7 @@ async function loadWebsites() {
           await api(`/websites/${btn.dataset.deleteLink}`, { method: "DELETE" });
           toast("已刪除", "success");
           loadWebsites();
-        } catch (err) {}
+        } catch (err) { }
       });
     });
   }
@@ -5444,26 +5417,25 @@ function renderFaqList(items) {
 
   listEl.innerHTML = filtered.length
     ? filtered
-        .map(
-          (i) => `
+      .map(
+        (i) => `
       <div class="faq-item">
         <div class="faq-q" data-faq-toggle="${i.id}">
           <span class="faq-cat-tag">${escapeHtml(i.category) || "未分類"}</span>
           <span style="flex:1">${escapeHtml(i.question)}</span>
-          ${
-            isManager() && faqEditMode
-              ? `<span class="actions-cell" onclick="event.stopPropagation()">
+          ${isManager() && faqEditMode
+            ? `<span class="actions-cell" onclick="event.stopPropagation()">
                   <button class="btn-secondary btn-sm" data-edit-faq="${i.id}">編輯</button>
                   <button class="btn-danger btn-sm" data-delete-faq="${i.id}">刪除</button>
                 </span>`
-              : ""
+            : ""
           }
           <span class="faq-arr">▶</span>
         </div>
         <div class="faq-a">${escapeHtml(i.answer)}</div>
       </div>`
-        )
-        .join("")
+      )
+      .join("")
     : `<div class="empty-state">尚無問答</div>`;
 
   listEl.querySelectorAll("[data-faq-toggle]").forEach((hdr) => {
@@ -5487,7 +5459,7 @@ function renderFaqList(items) {
         await api(`/faq/${btn.dataset.deleteFaq}`, { method: "DELETE" });
         toast("已刪除", "success");
         loadFaq();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -5550,7 +5522,7 @@ function openFaqFormModal(title, item) {
       closeModal();
       toast("已儲存", "success");
       loadFaq();
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
@@ -5573,21 +5545,20 @@ function openManageFaqCatsModal() {
     "管理分類",
     `
     <div id="faq-cat-manage-list">
-      ${
-        allCats.length
-          ? allCats
-              .map((c) => {
-                const count = faqItemsCache.filter((i) => i.category === c).length;
-                return `
+      ${allCats.length
+      ? allCats
+        .map((c) => {
+          const count = faqItemsCache.filter((i) => i.category === c).length;
+          return `
               <div class="cat-manage-row" data-cat="${escapeHtml(c)}">
                 <span class="cat-manage-name">${escapeHtml(c)}${count ? ` (${count} 筆問答使用中)` : ""}</span>
                 <button type="button" class="btn-secondary btn-sm" data-rename-cat="${escapeHtml(c)}">編輯</button>
                 <button type="button" class="btn-danger btn-sm" data-delete-cat="${escapeHtml(c)}">刪除</button>
               </div>`;
-              })
-              .join("")
-          : `<div class="empty-state">尚無分類</div>`
-      }
+        })
+        .join("")
+      : `<div class="empty-state">尚無分類</div>`
+    }
     </div>
     <div class="field-row" style="margin-top:12px">
       <div class="field" style="margin-bottom:0"><input id="new-faq-cat-name" placeholder="新分類名稱"></div>
@@ -5630,7 +5601,7 @@ function openManageFaqCatsModal() {
         toast("已更新分類名稱", "success");
         closeModal();
         await loadFaq();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
   document.querySelectorAll("[data-delete-cat]").forEach((btn) => {
@@ -5650,7 +5621,7 @@ function openManageFaqCatsModal() {
         toast("已刪除分類", "success");
         closeModal();
         await loadFaq();
-      } catch (err) {}
+      } catch (err) { }
     });
   });
 }
@@ -5693,7 +5664,7 @@ document.getElementById("new-user-btn").addEventListener("click", () => {
       closeModal();
       toast("使用者已建立", "success");
       loadUsers();
-    } catch (err) {}
+    } catch (err) { }
   });
 });
 
@@ -5731,7 +5702,7 @@ function openEditUserModal(user) {
       closeModal();
       toast("已更新", "success");
       loadUsers();
-    } catch (err) {}
+    } catch (err) { }
   });
 }
 
