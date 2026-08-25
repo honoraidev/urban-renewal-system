@@ -121,46 +121,83 @@ async def inspect_document_content(
     if not detected_title and cleaned_lines:
         detected_title = cleaned_lines[0]
 
-    full_raw = (filename + "\n" + extracted_text).lower()
-    full_normalized = re.sub(r"\s+", "", full_raw)
+    has_content = bool(extracted_text.strip())
+    content_raw = extracted_text.lower()
+    content_normalized = re.sub(r"\s+", "", content_raw)
+
+    filename_raw = filename.lower()
+    filename_normalized = re.sub(r"\s+", "", filename_raw)
 
     target_keywords = DOC_TYPE_CONTENT_KEYWORDS.get(doc_type, [])
     target_label = DOC_TYPE_LABELS_MAP.get(doc_type, doc_type)
 
-    matched = False
-    if not target_keywords:
-        matched = True
-    else:
-        matched = any(
-            (kw.lower() in full_raw) or (re.sub(r"\s+", "", kw.lower()) in full_normalized)
+    # 1. Content-based target match
+    content_target_match = False
+    if has_content and target_keywords:
+        content_target_match = any(
+            (kw.lower() in content_raw) or (re.sub(r"\s+", "", kw.lower()) in content_normalized)
             for kw in target_keywords
         )
 
-    detected_other_type = None
-    detected_other_label = None
+    # 2. Content-based other type detection
+    detected_content_other_label = None
+    if has_content:
+        for type_key, keywords in DOC_TYPE_CONTENT_KEYWORDS.items():
+            if type_key == doc_type:
+                continue
+            for kw in keywords:
+                kw_norm = re.sub(r"\s+", "", kw.lower())
+                if (kw.lower() in content_raw) or (kw_norm in content_normalized):
+                    detected_content_other_label = DOC_TYPE_LABELS_MAP.get(type_key, type_key)
+                    break
+            if detected_content_other_label:
+                break
 
+    # 3. Filename-based matching (fallback)
+    filename_target_match = False
+    if target_keywords:
+        filename_target_match = any(
+            (kw.lower() in filename_raw) or (re.sub(r"\s+", "", kw.lower()) in filename_normalized)
+            for kw in target_keywords
+        )
+
+    filename_other_label = None
     for type_key, keywords in DOC_TYPE_CONTENT_KEYWORDS.items():
         if type_key == doc_type:
             continue
         for kw in keywords:
             kw_norm = re.sub(r"\s+", "", kw.lower())
-            if (kw.lower() in full_raw) or (kw_norm in full_normalized):
-                detected_other_type = type_key
-                detected_other_label = DOC_TYPE_LABELS_MAP.get(type_key, type_key)
+            if (kw.lower() in filename_raw) or (kw_norm in filename_normalized):
+                filename_other_label = DOC_TYPE_LABELS_MAP.get(type_key, type_key)
                 break
-        if detected_other_type:
+        if filename_other_label:
             break
 
-    is_mismatch = (not matched) and (detected_other_label is not None)
+    # DECISION: Content text OCR takes absolute priority over filename
+    matched = True
+    final_other_label = None
+
+    if has_content and detected_content_other_label and (not content_target_match):
+        # Content explicitly shows a different document type and does NOT contain target keywords
+        matched = False
+        final_other_label = detected_content_other_label
+    elif has_content and content_target_match:
+        matched = True
+        final_other_label = None
+    elif not has_content:
+        # Fallback to filename when no text content extracted
+        if filename_other_label and (not filename_target_match):
+            matched = False
+            final_other_label = filename_other_label
 
     return {
         "filename": filename,
         "target_doc_type": doc_type,
         "target_label": target_label,
-        "matched": not is_mismatch,
+        "matched": matched,
         "detected_title": detected_title[:100],
-        "detected_other_label": detected_other_label,
-        "has_content_text": bool(extracted_text),
+        "detected_other_label": final_other_label,
+        "has_content_text": has_content,
         "snippet": extracted_text[:200],
     }
 

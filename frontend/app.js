@@ -244,12 +244,13 @@ async function inspectAndConfirmDocumentUpload(file, docType) {
   const targetLabel = (inspectResult && inspectResult.target_label) || clientCheck.targetLabel || docType;
   const detectedOtherLabel = (inspectResult && inspectResult.detected_other_label) || clientCheck.detectedOtherLabel;
   const detectedTitle = inspectResult && inspectResult.detected_title ? inspectResult.detected_title.trim() : "";
+  const filenameMisleading = inspectResult && !inspectResult.matched && clientCheck.matched;
 
   return new Promise((resolve) => {
     const modalHtml = `
       <div style="text-align:center;padding:8px 0">
         <div style="font-size:42px;margin-bottom:10px">⚠️</div>
-        <h3 style="margin-bottom:12px;color:var(--text-primary)">檔案內容 / 類型可能不符</h3>
+        <h3 style="margin-bottom:12px;color:var(--text-primary)">檔案內容與上傳類別不符</h3>
         <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:12px">
           上傳目標位置：<strong style="color:var(--primary-color)">【${escapeHtml(targetLabel)}】</strong><br>
           選擇的檔案名稱：<code style="background:var(--bg-tertiary);padding:4px 8px;border-radius:4px;color:var(--text-primary);display:inline-block;margin-top:4px;word-break:break-all">${escapeHtml(file.name)}</code>
@@ -257,15 +258,16 @@ async function inspectAndConfirmDocumentUpload(file, docType) {
         ${
           detectedTitle
             ? `<div style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:10px 14px;border-radius:6px;text-align:left;font-size:13px;margin-bottom:14px">
-                <span style="color:var(--text-tertiary);display:block;font-size:12px;margin-bottom:4px">📄 檔案內文檢測到的標題 / 開頭文字：</span>
-                <strong style="color:var(--text-primary);font-size:14px">「${escapeHtml(detectedTitle)}」</strong>
+                <span style="color:var(--text-tertiary);display:block;font-size:12px;margin-bottom:4px">📄 檔案內文 OCR 辨識到的標題：</span>
+                <strong style="color:var(--text-primary);font-size:15px">「${escapeHtml(detectedTitle)}」</strong>
                </div>`
             : ""
         }
         ${
           detectedOtherLabel
             ? `<div style="background:rgba(239, 68, 68, 0.1);color:#ef4444;border:1px solid rgba(239, 68, 68, 0.2);font-size:13px;padding:8px 12px;border-radius:6px;display:inline-block;margin-bottom:16px">
-                ⚡ 系統分析內容檔名較符合：「<strong>${escapeHtml(detectedOtherLabel)}</strong>」
+                ⚡ 系統分析檔案內文實際為：<strong>【${escapeHtml(detectedOtherLabel)}】</strong>
+                ${filenameMisleading ? `<div style="font-size:12px;margin-top:4px;color:var(--text-secondary)">（檔名可能命名錯誤，內文實際與【${escapeHtml(targetLabel)}】不符）</div>` : ""}
                </div>`
             : ""
         }
