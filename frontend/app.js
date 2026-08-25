@@ -7,7 +7,7 @@ const state = {
   user: null,
   currentProjectId: null,
   currentProject: null,
-  activeTab: "landowners",
+  activeTab: "sop",
   projectCache: {},
 };
 
@@ -1282,10 +1282,10 @@ async function openProject(id) {
   }
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === "landowners");
+    btn.classList.toggle("active", btn.dataset.tab === "sop");
   });
   document.getElementById("tab-btn-members").classList.toggle("hidden", !isManager());
-  state.activeTab = "landowners";
+  state.activeTab = "sop";
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
 
