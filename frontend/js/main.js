@@ -1,6 +1,6 @@
 "use strict";
 
-document.addEventListener("DOMContentLoaded", () => {
+function bootstrapApp() {
   initAuth();
   initDashboard();
   initOcrWizard();
@@ -30,6 +30,13 @@ document.addEventListener("DOMContentLoaded", () => {
         /* fall through to login */
       }
     }
-    document.getElementById("view-login").classList.remove("hidden");
+    const loginView = document.getElementById("view-login");
+    if (loginView) loginView.classList.remove("hidden");
   })();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootstrapApp);
+} else {
+  bootstrapApp();
+}

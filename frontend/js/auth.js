@@ -113,13 +113,13 @@ function initAuth() {
       const username = document.getElementById("login-username").value.trim();
       const password = document.getElementById("login-password").value;
       const btn = e.target.querySelector("button");
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
       try {
         await doLogin(username, password);
       } catch (err) {
         /* toast already shown by api() */
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
       }
     });
   }
