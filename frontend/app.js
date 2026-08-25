@@ -4612,27 +4612,86 @@ async function openAddMemberModal(existingMembers) {
   const existingIds = new Set(existingMembers.map((m) => m.user_id));
   const candidates = allUsers.filter((u) => !existingIds.has(u.id));
 
-  openModal(
-    "新增案件成員",
-    `
+  // Count available candidate users per role layer
+  const roleCounts = {};
+  candidates.forEach((u) => {
+    roleCounts[u.role] = (roleCounts[u.role] || 0) + 1;
+  });
+
+  const modalHtml = `
     <form id="add-member-form">
-      <div class="field"><label>使用者</label>
-        <select name="user_id" required>
-          <option value="">— 選擇使用者 —</option>
-          ${candidates.map((u) => `<option value="${u.id}">${escapeHtml(u.display_name)}(${escapeHtml(u.username)}) - ${ROLE_LABEL[u.role] || u.role}</option>`).join("")}
+      <div class="field">
+        <label>第一步：選擇權限分層</label>
+        <select id="member-role-select" required>
+          <option value="">— 請選擇權限分層 —</option>
+          <option value="all">全部分層 (共 ${candidates.length} 人可選)</option>
+          ${Object.entries(ROLE_LABEL)
+            .map(([roleKey, roleName]) => {
+              const count = roleCounts[roleKey] || 0;
+              return `<option value="${roleKey}">${roleName} (${count} 人可選)</option>`;
+            })
+            .join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label>第二步：選擇成員</label>
+        <select id="member-user-select" name="user_id" required disabled>
+          <option value="">— 請先選擇權限分層 —</option>
         </select>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">新增</button>
+        <button type="submit" class="btn-primary" id="add-member-submit-btn" disabled>新增</button>
       </div>
-    </form>`
-  );
+    </form>`;
+
+  openModal("新增案件成員", modalHtml, { width: "460px" });
+
+  const roleSelect = document.getElementById("member-role-select");
+  const userSelect = document.getElementById("member-user-select");
+  const submitBtn = document.getElementById("add-member-submit-btn");
+
+  roleSelect.addEventListener("change", () => {
+    const selectedRole = roleSelect.value;
+    userSelect.innerHTML = "";
+
+    if (!selectedRole) {
+      userSelect.innerHTML = `<option value="">— 請先選擇權限分層 —</option>`;
+      userSelect.disabled = true;
+      submitBtn.disabled = true;
+      return;
+    }
+
+    const filtered = selectedRole === "all"
+      ? candidates
+      : candidates.filter((u) => u.role === selectedRole);
+
+    if (!filtered.length) {
+      userSelect.innerHTML = `<option value="">— 此權限分層尚無可選的使用者 —</option>`;
+      userSelect.disabled = true;
+      submitBtn.disabled = true;
+      return;
+    }
+
+    userSelect.innerHTML = `<option value="">— 請選擇使用者 (${filtered.length} 人) —</option>` +
+      filtered
+        .map((u) => `<option value="${u.id}">${escapeHtml(u.display_name)} (${escapeHtml(u.username)})</option>`)
+        .join("");
+
+    userSelect.disabled = false;
+    submitBtn.disabled = userSelect.value === "";
+  });
+
+  userSelect.addEventListener("change", () => {
+    submitBtn.disabled = !userSelect.value;
+  });
+
   document.getElementById("add-member-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const userId = Number(userSelect.value);
+    if (!userId) return;
     try {
-      await api(`/projects/${pid}/members`, { method: "POST", body: { user_id: Number(fd.get("user_id")) } });
+      await api(`/projects/${pid}/members`, { method: "POST", body: { user_id: userId } });
       closeModal();
       toast("已新增成員", "success");
       renderTab("members");
