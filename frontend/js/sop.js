@@ -67,15 +67,6 @@ function verifyDocumentFileType(file, docType) {
     return { matched: true, targetLabel };
   }
 
-  // Direct keyword match
-  const hasDirectMatch = expectedKeywords.some((kw) => {
-    const kwLower = kw.toLowerCase();
-    return fileName.includes(kwLower) || normalizedFileName.includes(kwLower.replace(/\s+/g, ""));
-  });
-  if (hasDirectMatch) {
-    return { matched: true, targetLabel };
-  }
-
   // Check if filename strongly matches a DIFFERENT document type
   let detectedOtherLabel = null;
   for (const [typeKey, keywords] of Object.entries(DOC_TYPE_KEYWORDS)) {
@@ -90,11 +81,25 @@ function verifyDocumentFileType(file, docType) {
     }
   }
 
+  // Direct keyword match
+  const hasDirectMatch = expectedKeywords.some((kw) => {
+    const kwLower = kw.toLowerCase();
+    return fileName.includes(kwLower) || normalizedFileName.includes(kwLower.replace(/\s+/g, ""));
+  });
+
   if (detectedOtherLabel) {
     return {
       matched: false,
       targetLabel,
       detectedOtherLabel,
+      fileName: file.name,
+    };
+  }
+
+  if (!hasDirectMatch) {
+    return {
+      matched: false,
+      targetLabel,
       fileName: file.name,
     };
   }
@@ -125,7 +130,7 @@ async function inspectAndConfirmDocumentUpload(file, docType) {
     }
   }
 
-  const isMismatch = (inspectResult && !inspectResult.matched) || (!inspectResult && !clientCheck.matched);
+  const isMismatch = (inspectResult && inspectResult.matched === false) || (!inspectResult && !clientCheck.matched) || (!clientCheck.matched);
   if (!isMismatch) return true;
 
   const targetLabel = (inspectResult && inspectResult.target_label) || clientCheck.targetLabel || docType;

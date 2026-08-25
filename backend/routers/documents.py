@@ -197,14 +197,21 @@ async def inspect_document_content(
             # Content extracted, but target keywords (e.g. "意願書") are NOT present inside the content
             matched = False
             final_other_label = detected_content_other_label
+        elif detected_content_other_label and doc_type not in ("consent_form", "consent_form_template", "willingness_form_template"):
+            # Content matches target BUT ALSO strongly contains keywords of a different doc type
+            matched = False
+            final_other_label = detected_content_other_label
         else:
             matched = True
             final_other_label = None
     else:
-        # Fallback to filename ONLY when no text content could be extracted from PDF/image
-        if filename_other_label and (not filename_target_match):
+        # Fallback to filename when no text content could be extracted from PDF/image
+        if filename_other_label:
             matched = False
             final_other_label = filename_other_label
+        elif target_keywords and not filename_target_match:
+            matched = False
+            final_other_label = None
 
     return {
         "filename": filename,
