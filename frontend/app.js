@@ -2400,8 +2400,8 @@ async function runTitleDeedOcr() {
     progress.stop();
     btn.disabled = false;
     btn.textContent = "開始辨識";
-    if (err && err.message !== "unauthorized") {
-      toast(err.message || "辨識過程發生錯誤", "error");
+    if (err && err.message && err.message !== "unauthorized" && !document.querySelector(".toast-error")) {
+      toast(err.message, "error");
     }
   }
 }
