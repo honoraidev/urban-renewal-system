@@ -292,55 +292,6 @@ document.getElementById("avatar-dropdown").addEventListener("click", (e) => e.st
 
 document.addEventListener("click", closeAvatarDropdown);
 
-function setupAlphanumericInputLock(el) {
-  if (!el) return;
-
-  // Intercept beforeinput to block IME text insertion or non-alphanumeric characters
-  el.addEventListener("beforeinput", (e) => {
-    if (e.isComposing || (e.inputType && e.inputType.includes("Composition")) || (e.data && /[^a-zA-Z0-9]/.test(e.data))) {
-      e.preventDefault();
-    }
-  });
-
-  // If IME composition starts (e.g. Chinese input method popup), immediately close composition
-  el.addEventListener("compositionstart", () => {
-    el.blur();
-    setTimeout(() => el.focus(), 10);
-  });
-
-  // Block IME keydown events (Process / keyCode 229) while preserving navigation/editing keys
-  el.addEventListener("keydown", (e) => {
-    if (e.isComposing || e.key === "Process" || e.keyCode === 229) {
-      if (!["Backspace", "Tab", "Enter", "ArrowLeft", "ArrowRight", "Delete", "Escape"].includes(e.key)) {
-        e.preventDefault();
-      }
-    }
-  });
-
-  // Fallback cleanup for paste / drag / compositionend
-  const cleanInput = () => {
-    const original = el.value;
-    const filtered = original.replace(/[^a-zA-Z0-9]/g, "");
-    if (original !== filtered) {
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      el.value = filtered;
-      if (start !== null && end !== null) {
-        const pos = Math.max(0, start - (original.length - filtered.length));
-        el.setSelectionRange(pos, pos);
-      }
-    }
-  };
-
-  el.addEventListener("input", cleanInput);
-  el.addEventListener("compositionend", cleanInput);
-  el.addEventListener("paste", () => setTimeout(cleanInput, 0));
-}
-
-["login-username", "login-password"].forEach((id) => {
-  setupAlphanumericInputLock(document.getElementById(id));
-});
-
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("login-username").value.trim();
