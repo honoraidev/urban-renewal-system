@@ -1,5 +1,8 @@
+import io
 import os
+import re
 
+import fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -24,22 +27,138 @@ VALID_DOC_TYPES = {
     "contract",
     "photo",
     "other",
-    # Project-level master templates (distinct from consent_form/contract, which are
-    # per-landowner signed instances) - the SOP tab's 第0關 checklist checks for these
-    # specifically so uploading one signed 同意書 doesn't get mistaken for "the blank
-    # 同意書範本 was uploaded" (see routers/sop.py's stage-0 checklist).
     "dev_letter_template",
     "willingness_form_template",
     "consent_form_template",
     "contract_template",
-    # 地籍圖 (cadastral map) - distinct from property_register (the title deed itself),
-    # checked by the SOP tab's 第1關 checklist.
     "cadastral_map",
-    # 顧問文件 (consultant/advisor documents - 建築師/估價師/顧問公司 deliverables), checked
-    # by the SOP tab's 第5關 checklist. briefing_material already covers 說明會簡報
-    # (stages 3/6/7) so isn't reused here - a consultant deliverable isn't a briefing.
     "consultant_document",
 }
+
+DOC_TYPE_LABELS_MAP = {
+    "dev_letter_template": "開發信",
+    "willingness_form_template": "意願書",
+    "consent_form_template": "同意書",
+    "consent_form": "同意書",
+    "contract_template": "合約",
+    "contract": "合約",
+    "property_register": "土地登記謄本",
+    "building_register": "建物登記謄本",
+    "cadastral_map": "地籍圖",
+    "consultant_document": "顧問文件",
+    "briefing_material": "說明會資料",
+    "photo": "照片",
+    "other": "其他",
+}
+
+DOC_TYPE_CONTENT_KEYWORDS = {
+    "dev_letter_template": ["開發信", "致住戶", "致住戶信", "說明信", "開發說明", "都更開發"],
+    "willingness_form_template": ["意願書", "參與意願", "意願調查", "都更意願", "意願調查表"],
+    "consent_form_template": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書"],
+    "consent_form": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書"],
+    "contract_template": ["合約", "契約", "合約書", "契約書", "協議書", "合作意向書", "都更合約"],
+    "contract": ["合約", "契約", "合約書", "契約書", "協議書", "合作意向書", "都更合約"],
+    "property_register": ["土地登記謄本", "土地謄本", "土地第一類謄本", "土地第二類謄本", "土地第三類謄本", "土地標示部", "土地所有權部"],
+    "building_register": ["建物登記謄本", "建物謄本", "建物第一類謄本", "建物第二類謄本", "建物第三類謄本", "建物標示部", "建物所有權部", "建號"],
+    "cadastral_map": ["地籍圖", "地籍圖謄本", "地籍圖資", "土地地籍圖"],
+    "consultant_document": ["顧問文件", "估價報告", "建築規劃", "都更評估", "財務試算", "建築師報告"],
+    "briefing_material": ["說明會", "說明會簡報", "說明會資料", "座談會", "簡報"],
+}
+
+
+def extract_file_content_text(content: bytes, filename: str, content_type: str | None) -> str:
+    extracted = ""
+    filename_lower = (filename or "").lower()
+
+    if filename_lower.endswith(".pdf") or (content_type and "pdf" in content_type.lower()):
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+            pages_text = []
+            for i in range(min(len(doc), 3)):
+                pages_text.append(doc[i].get_text("text"))
+            extracted = "\n".join(pages_text)
+        except Exception:
+            pass
+    elif filename_lower.endswith((".txt", ".json", ".csv", ".md", ".html")) or (content_type and "text/" in content_type.lower()):
+        try:
+            extracted = content.decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+    elif filename_lower.endswith((".png", ".jpg", ".jpeg", ".bmp", ".webp")) or (content_type and "image/" in content_type.lower()):
+        try:
+            from utils.ocr import run_ocr
+            from PIL import Image
+            img = Image.open(io.BytesIO(content))
+            w, h = img.size
+            header_img = img.crop((0, 0, w, int(h * 0.45)))
+            buf = io.BytesIO()
+            header_img.save(buf, format="JPEG")
+            res = run_ocr(buf.getvalue())
+            if isinstance(res, dict) and "text" in res:
+                extracted = res["text"]
+            elif isinstance(res, list):
+                extracted = "\n".join([item.get("text", "") for item in res if isinstance(item, dict)])
+        except Exception:
+            pass
+
+    return extracted.strip()
+
+
+@router.post("/inspect")
+async def inspect_document_content(
+    file: UploadFile = File(...),
+    doc_type: str = Form("other"),
+):
+    content = await file.read()
+    filename = file.filename or "file"
+    extracted_text = extract_file_content_text(content, filename, file.content_type)
+
+    lines = [line.strip() for line in re.split(r"[\r\n]+", extracted_text) if line.strip()]
+    detected_title = ""
+    for line in lines[:5]:
+        if len(line) >= 3:
+            detected_title = line
+            break
+    if not detected_title and lines:
+        detected_title = lines[0]
+
+    full_search_text = (filename + "\n" + extracted_text).lower()
+
+    target_keywords = DOC_TYPE_CONTENT_KEYWORDS.get(doc_type, [])
+    target_label = DOC_TYPE_LABELS_MAP.get(doc_type, doc_type)
+
+    matched = False
+    if not target_keywords:
+        matched = True
+    else:
+        matched = any(kw.lower() in full_search_text for kw in target_keywords)
+
+    detected_other_type = None
+    detected_other_label = None
+
+    for type_key, keywords in DOC_TYPE_CONTENT_KEYWORDS.items():
+        if type_key == doc_type:
+            continue
+        for kw in keywords[:3]:
+            if kw.lower() in full_search_text:
+                detected_other_type = type_key
+                detected_other_label = DOC_TYPE_LABELS_MAP.get(type_key, type_key)
+                break
+        if detected_other_type:
+            break
+
+    is_mismatch = (not matched) and (detected_other_label is not None)
+
+    return {
+        "filename": filename,
+        "target_doc_type": doc_type,
+        "target_label": target_label,
+        "matched": not is_mismatch,
+        "detected_title": detected_title[:100],
+        "detected_other_label": detected_other_label,
+        "has_content_text": bool(extracted_text),
+        "snippet": extracted_text[:200],
+    }
 
 
 @router.get("", response_model=list[DocumentRead])

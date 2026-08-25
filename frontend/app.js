@@ -209,24 +209,57 @@ function verifyDocumentFileType(file, docType) {
   return { matched: true, targetLabel };
 }
 
-function confirmDocumentUploadIfMismatch(file, docType) {
-  const result = verifyDocumentFileType(file, docType);
-  if (result.matched) return Promise.resolve(true);
+async function inspectAndConfirmDocumentUpload(file, docType) {
+  if (!file || !docType || docType === "other" || docType === "photo") return true;
+
+  const pid = state.currentProjectId;
+  const clientCheck = verifyDocumentFileType(file, docType);
+
+  let inspectResult = null;
+  if (pid) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("doc_type", docType);
+    try {
+      inspectResult = await api(`/projects/${pid}/documents/inspect`, {
+        method: "POST",
+        body: fd,
+        isForm: true,
+        silent: true,
+      });
+    } catch (err) {
+      inspectResult = null;
+    }
+  }
+
+  const isMismatch = (inspectResult && !inspectResult.matched) || (!inspectResult && !clientCheck.matched);
+  if (!isMismatch) return true;
+
+  const targetLabel = (inspectResult && inspectResult.target_label) || clientCheck.targetLabel || docType;
+  const detectedOtherLabel = (inspectResult && inspectResult.detected_other_label) || clientCheck.detectedOtherLabel;
+  const detectedTitle = inspectResult && inspectResult.detected_title ? inspectResult.detected_title.trim() : "";
 
   return new Promise((resolve) => {
     const modalHtml = `
-      <div style="text-align:center;padding:12px 0">
-        <div style="font-size:42px;margin-bottom:12px">⚠️</div>
-        <h3 style="margin-bottom:12px;color:var(--text-primary)">檔案類型可能不符</h3>
-        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:16px">
-          您目前正要上傳：<strong style="color:var(--primary-color)">【${escapeHtml(result.targetLabel)}】</strong><br>
-          您選擇的檔案名稱為：<br>
-          <code style="background:var(--bg-tertiary);padding:6px 10px;border-radius:4px;color:var(--text-primary);display:inline-block;margin-top:8px;font-weight:600;word-break:break-all">${escapeHtml(result.fileName)}</code>
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:42px;margin-bottom:10px">⚠️</div>
+        <h3 style="margin-bottom:12px;color:var(--text-primary)">檔案內容 / 類型可能不符</h3>
+        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:12px">
+          上傳目標位置：<strong style="color:var(--primary-color)">【${escapeHtml(targetLabel)}】</strong><br>
+          選擇的檔案名稱：<code style="background:var(--bg-tertiary);padding:4px 8px;border-radius:4px;color:var(--text-primary);display:inline-block;margin-top:4px;word-break:break-all">${escapeHtml(file.name)}</code>
         </p>
         ${
-          result.detectedOtherLabel
+          detectedTitle
+            ? `<div style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:10px 14px;border-radius:6px;text-align:left;font-size:13px;margin-bottom:14px">
+                <span style="color:var(--text-tertiary);display:block;font-size:12px;margin-bottom:4px">📄 檔案內文檢測到的標題 / 開頭文字：</span>
+                <strong style="color:var(--text-primary);font-size:14px">「${escapeHtml(detectedTitle)}」</strong>
+               </div>`
+            : ""
+        }
+        ${
+          detectedOtherLabel
             ? `<div style="background:rgba(239, 68, 68, 0.1);color:#ef4444;border:1px solid rgba(239, 68, 68, 0.2);font-size:13px;padding:8px 12px;border-radius:6px;display:inline-block;margin-bottom:16px">
-                ⚡ 系統檢測檔名較符合：「<strong>${escapeHtml(result.detectedOtherLabel)}</strong>」
+                ⚡ 系統分析內容檔名較符合：「<strong>${escapeHtml(detectedOtherLabel)}</strong>」
                </div>`
             : ""
         }
@@ -239,7 +272,7 @@ function confirmDocumentUploadIfMismatch(file, docType) {
         </div>
       </div>`;
 
-    const root = openModal("文件比對提醒", modalHtml, { width: "440px" });
+    const root = openModal("文件比對提醒", modalHtml, { width: "450px" });
 
     root.querySelector("#confirm-upload-cancel-btn").onclick = () => {
       closeModal();
@@ -4054,7 +4087,7 @@ async function renderSopTab(el) {
       if (!file) return;
       const docType = input.dataset.checklistUploadInput;
 
-      const confirmed = await confirmDocumentUploadIfMismatch(file, docType);
+      const confirmed = await inspectAndConfirmDocumentUpload(file, docType);
       if (!confirmed) {
         input.value = "";
         return;
@@ -4460,7 +4493,7 @@ function openUploadDocumentModal() {
     const docType = docTypeSelect ? docTypeSelect.value : "other";
 
     if (file) {
-      const confirmed = await confirmDocumentUploadIfMismatch(file, docType);
+      const confirmed = await inspectAndConfirmDocumentUpload(file, docType);
       if (!confirmed) return;
     }
 
