@@ -27,12 +27,12 @@
     <div class="subtitle">請登入以繼續</div>
     <form id="login-form">
       <div class="field">
-        <label>帳號</label>
-        <input type="text" id="login-username" autocomplete="username" required>
+        <label>帳號 <span style="font-size:12px;color:var(--text-tertiary);font-weight:normal;">(僅限半形英數字)</span></label>
+        <input type="text" id="login-username" autocomplete="username" pattern="[a-zA-Z0-9]+" title="僅限輸入半形英文字母與數字" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="例如：admin" required>
       </div>
       <div class="field">
-        <label>密碼</label>
-        <input type="password" id="login-password" autocomplete="current-password" required>
+        <label>密碼 <span style="font-size:12px;color:var(--text-tertiary);font-weight:normal;">(僅限半形英數字)</span></label>
+        <input type="password" id="login-password" autocomplete="current-password" pattern="[a-zA-Z0-9]+" title="僅限輸入半形英文字母與數字" autocorrect="off" autocapitalize="none" spellcheck="false" required>
       </div>
       <button type="submit" class="btn-primary" style="width:100%">登入</button>
     </form>

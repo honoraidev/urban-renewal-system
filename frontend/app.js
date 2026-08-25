@@ -292,6 +292,29 @@ document.getElementById("avatar-dropdown").addEventListener("click", (e) => e.st
 
 document.addEventListener("click", closeAvatarDropdown);
 
+function filterAlphanumericInput(e) {
+  const target = e.target;
+  const start = target.selectionStart;
+  const end = target.selectionEnd;
+  const original = target.value;
+  const filtered = original.replace(/[^a-zA-Z0-9]/g, "");
+  if (original !== filtered) {
+    target.value = filtered;
+    if (start !== null && end !== null) {
+      const pos = Math.max(0, start - (original.length - filtered.length));
+      target.setSelectionRange(pos, pos);
+    }
+  }
+}
+
+["login-username", "login-password"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener("input", filterAlphanumericInput);
+    el.addEventListener("compositionend", filterAlphanumericInput);
+  }
+});
+
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("login-username").value.trim();
