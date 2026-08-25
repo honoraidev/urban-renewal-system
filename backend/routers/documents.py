@@ -188,29 +188,47 @@ async def inspect_document_content(
         if filename_other_label:
             break
 
-    # DECISION: Content text / OCR takes absolute priority over filename
+    # DECISION: Content text / OCR takes absolute priority over filename.
+    # For required document types, file content MUST contain expected keywords.
+    REQUIRED_KEYWORD_DOC_TYPES = {
+        "willingness_form_template",
+        "willingness_form",
+        "consent_form_template",
+        "consent_form",
+        "contract_template",
+        "contract",
+        "dev_letter_template",
+        "cadastral_map",
+        "property_register",
+        "building_register",
+    }
+
     matched = True
     final_other_label = None
 
     if has_content:
         if not content_target_match:
-            # Content extracted, but target keywords (e.g. "意願書") are NOT present inside the content
-            matched = False
-            final_other_label = detected_content_other_label
-        elif detected_content_other_label and doc_type not in ("consent_form", "consent_form_template", "willingness_form_template"):
-            # Content matches target BUT ALSO strongly contains keywords of a different doc type
+            # Content extracted, but target keywords (e.g. "意願書") are NOT present inside the content.
+            # Even if filename is named "意願書.png", if inner text doesn't contain target keywords, flag mismatch.
             matched = False
             final_other_label = detected_content_other_label
         else:
             matched = True
             final_other_label = None
     else:
-        # Fallback to filename when no text content could be extracted from PDF/image
-        if filename_other_label:
+        # Fallback when no text content could be extracted from PDF/image
+        if doc_type in REQUIRED_KEYWORD_DOC_TYPES:
+            # Cannot verify inner text content for critical document type -> trigger confirmation modal
+            matched = False
+            final_other_label = filename_other_label or "內文無法驗證"
+        elif filename_other_label:
             matched = False
             final_other_label = filename_other_label
         elif target_keywords and not filename_target_match:
             matched = False
+            final_other_label = None
+        else:
+            matched = True
             final_other_label = None
 
     return {
