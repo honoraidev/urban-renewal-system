@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from database import get_db
-from deps import get_current_user, require_staff_or_admin
+from deps import get_current_user, require_project_editor, require_project_viewer
 from models.contact_log import ContactLog
 from models.landowner import Landowner
+from models.project import Project
 from models.user import User
-from routers.projects import assert_project_visible, get_project_or_404
 from schemas.contact import AlertItem, ContactLogCreate, ContactLogRead
 
 router = APIRouter(tags=["contacts"])
@@ -18,13 +18,11 @@ router = APIRouter(tags=["contacts"])
 
 @router.get("/projects/{project_id}/landowners/{landowner_id}/contacts", response_model=list[ContactLogRead])
 def list_contacts(
-    project_id: int,
     landowner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
+    project_id = project.id
     return db.scalars(
         select(ContactLog)
         .where(ContactLog.project_id == project_id, ContactLog.landowner_id == landowner_id)
@@ -38,13 +36,13 @@ def list_contacts(
     status_code=status.HTTP_201_CREATED,
 )
 def create_contact(
-    project_id: int,
     landowner_id: int,
     payload: ContactLogCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    get_project_or_404(db, project_id)
+    project_id = project.id
     landowner = db.get(Landowner, landowner_id)
     if landowner is None or landowner.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Landowner not found in this project")
@@ -69,13 +67,10 @@ def create_contact(
 
 @router.get("/projects/{project_id}/alerts", response_model=list[AlertItem])
 def list_alerts(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-
+    project_id = project.id
     landowners = db.scalars(select(Landowner).where(Landowner.project_id == project_id)).all()
 
     last_contact_stmt = (

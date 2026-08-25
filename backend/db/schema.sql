@@ -15,7 +15,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     display_name VARCHAR(100) NOT NULL,
-    role ENUM('admin','staff','public') NOT NULL DEFAULT 'staff',
+    role ENUM('sys_admin','manager','case_owner','case_staff','ocr_staff','viewer') NOT NULL DEFAULT 'case_staff',
     email VARCHAR(255),
     phone VARCHAR(30),
     is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -59,7 +59,7 @@ CREATE TABLE project_members (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     user_id INT NOT NULL,
-    role_in_project VARCHAR(50) NOT NULL DEFAULT 'staff',
+    role_in_project VARCHAR(50) NOT NULL DEFAULT 'case_staff',
     assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_project_member (project_id, user_id),
     CONSTRAINT fk_pm_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
@@ -205,7 +205,7 @@ CREATE TABLE documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     landowner_id INT NULL,
-    doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other') NOT NULL DEFAULT 'other',
+    doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other','dev_letter_template','willingness_form_template','consent_form_template','contract_template','cadastral_map','consultant_document') NOT NULL DEFAULT 'other',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size_bytes BIGINT NOT NULL DEFAULT 0,
@@ -288,3 +288,47 @@ CREATE TABLE ocr_match_results (
 -- ALTER instead of an inline CONSTRAINT to keep table creation order as-is above.
 ALTER TABLE land_records ADD CONSTRAINT fk_land_records_ocr_job FOREIGN KEY (source_ocr_job_id) REFERENCES ocr_jobs(id) ON DELETE SET NULL;
 ALTER TABLE building_records ADD CONSTRAINT fk_building_records_ocr_job FOREIGN KEY (source_ocr_job_id) REFERENCES ocr_jobs(id) ON DELETE SET NULL;
+
+-- 15. company_documents (公版文件 - company-wide templates, not tied to any project)
+CREATE TABLE company_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
+    mime_type VARCHAR(100),
+    uploaded_by INT NULL,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    description TEXT,
+    CONSTRAINT fk_company_documents_uploaded_by FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. regulations (相關法規 - manageable link list, starts empty)
+CREATE TABLE regulations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    name VARCHAR(255) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. websites (相關網站 - manageable link list, starts empty)
+CREATE TABLE websites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    name VARCHAR(255) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. faq_items (知識庫 - manageable Q&A list, starts empty)
+CREATE TABLE faq_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    question VARCHAR(500) NOT NULL,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

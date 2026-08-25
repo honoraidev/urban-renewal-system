@@ -5,13 +5,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_admin, require_staff_or_admin
+from deps import MANAGE_ROLES, get_current_user, require_project_editor, require_project_manager, require_project_viewer
+from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
+from models.document import Document
+from models.land_record import LandRecord
 from models.landowner import Landowner
+from models.project import Project
 from models.sop import SopStage
 from models.user import User
-from routers.projects import assert_project_visible, get_project_or_404
+from routers.projects import get_project_or_404
 from schemas.sop import (
+    ChecklistConfirmRequest,
     ConsentRecordRead,
     ConsentUpsertRequest,
     SopCompleteRequest,
@@ -39,13 +44,27 @@ CONTACT_RATE_STAGE = 2
 CONTACT_RATE_THRESHOLD = 0.95
 FINAL_STAGE = 9
 
+# Real, checkable completion requirements for stages that aren't already covered by
+# _assert_gate_passed's ratio checks - mirrors the frontend's SOP_STAGE_CHECKLISTS
+# (same doc_type/manual-key names) so "完成本關卡" actually enforces what the checklist
+# UI shows, instead of any editor being able to click past unfinished items.
+# `checklist_keys` entries must have been confirmed via POST /{stage}/checklist first.
+STAGE_CHECKLIST_REQUIREMENTS: dict[int, dict] = {
+    0: {"doc_types": ["dev_letter_template", "willingness_form_template", "consent_form_template", "contract_template"]},
+    1: {"doc_types": ["cadastral_map"], "checklist_keys": ["landowner_roster_confirmed"], "needs_land": True, "needs_building": True},
+    3: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_3"]},
+    5: {"doc_types": ["consultant_document"], "checklist_keys": ["consultant_reviewed"]},
+    6: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_6"]},
+    7: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_7"]},
+}
+
 
 def build_initial_stage_data() -> dict:
     return {
         "stages": {
             str(i): {
                 "name": name,
-                "status": "completed" if i == 0 else "pending",
+                "status": "pending",
                 "data": dict(extra),
             }
             for i, (name, extra) in enumerate(STAGE_DEFINITIONS)
@@ -57,7 +76,7 @@ def build_initial_stage_data() -> dict:
 def get_or_create_sop(db: Session, project_id: int) -> SopStage:
     sop = db.scalar(select(SopStage).where(SopStage.project_id == project_id))
     if sop is None:
-        sop = SopStage(project_id=project_id, stage_data=build_initial_stage_data(), current_stage=1)
+        sop = SopStage(project_id=project_id, stage_data=build_initial_stage_data(), current_stage=0)
         db.add(sop)
         db.commit()
         db.refresh(sop)
@@ -74,7 +93,47 @@ def _status_response(project_id: int, sop: SopStage) -> SopStatusResponse:
     )
 
 
-def _assert_gate_passed(db: Session, project_id: int, stage: int) -> None:
+def _assert_checklist_passed(db: Session, project_id: int, stage: int, sop: SopStage) -> None:
+    requirements = STAGE_CHECKLIST_REQUIREMENTS.get(stage)
+    if not requirements:
+        return
+
+    for doc_type in requirements.get("doc_types", []):
+        exists = db.scalar(
+            select(Document.id).where(Document.project_id == project_id, Document.doc_type == doc_type)
+        )
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stage {stage} requires a '{doc_type}' document to be uploaded first",
+            )
+
+    if requirements.get("needs_land"):
+        exists = db.scalar(select(LandRecord.id).where(LandRecord.project_id == project_id))
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Stage {stage} requires at least one land record"
+            )
+
+    if requirements.get("needs_building"):
+        exists = db.scalar(select(BuildingRecord.id).where(BuildingRecord.project_id == project_id))
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Stage {stage} requires at least one building record"
+            )
+
+    stage_entry = sop.stage_data["stages"].get(str(stage)) or {}
+    checklist = (stage_entry.get("data") or {}).get("checklist") or {}
+    for key in requirements.get("checklist_keys", []):
+        if key not in checklist:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stage {stage} requires checklist item '{key}' to be confirmed first",
+            )
+
+
+def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage) -> None:
+    _assert_checklist_passed(db, project_id, stage, sop)
     if stage == 1:
         total = db.scalar(select(func.count(Landowner.id)).where(Landowner.project_id == project_id)) or 0
         if total < 1:
@@ -122,7 +181,7 @@ def try_auto_complete_stage(db: Session, project_id: int, stage: int, current_us
     if not stage_entry or stage_entry["status"] != "pending":
         return
     try:
-        _assert_gate_passed(db, project_id, stage)
+        _assert_gate_passed(db, project_id, stage, sop)
     except HTTPException:
         return
 
@@ -143,32 +202,29 @@ def try_auto_complete_stage(db: Session, project_id: int, stage: int, current_us
 
 @router.get("", response_model=SopStatusResponse)
 def get_sop_status(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-    sop = get_or_create_sop(db, project_id)
-    return _status_response(project_id, sop)
+    sop = get_or_create_sop(db, project.id)
+    return _status_response(project.id, sop)
 
 
 @router.post("/{stage}/complete", response_model=SopStatusResponse)
 def complete_stage(
-    project_id: int,
     stage: int,
     payload: SopCompleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    project = get_project_or_404(db, project_id)
+    project_id = project.id
     sop = get_or_create_sop(db, project_id)
 
     if not (0 <= stage <= FINAL_STAGE):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
 
-    if payload.force and current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin can force-complete a stage")
+    if payload.force and current_user.role not in MANAGE_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only L1/L2 can force-complete a stage")
 
     if stage != sop.current_stage and not payload.force:
         raise HTTPException(
@@ -185,7 +241,7 @@ def complete_stage(
         stage_entry["status"] = "force_closed"
         stage_entry["forced_reason"] = payload.reason
     else:
-        _assert_gate_passed(db, project_id, stage)
+        _assert_gate_passed(db, project_id, stage, sop)
         stage_entry["status"] = "completed"
 
     stage_entry["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -222,12 +278,12 @@ def _maybe_auto_close(db: Session, project, sop: SopStage, stage_data: dict) -> 
 
 @router.post("/force-close", response_model=SopStatusResponse)
 def force_close_project(
-    project_id: int,
     payload: SopCompleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_manager),
 ):
-    project = get_project_or_404(db, project_id)
+    project_id = project.id
     sop = get_or_create_sop(db, project_id)
 
     stage_data = dict(sop.stage_data)
@@ -247,30 +303,71 @@ def force_close_project(
     return _status_response(project_id, sop)
 
 
-@router.get("/{stage}/consent", response_model=list[ConsentRecordRead])
-def list_consent_records(
-    project_id: int,
+@router.post("/{stage}/checklist", response_model=SopStatusResponse)
+def confirm_checklist_item(
     stage: int,
+    payload: ChecklistConfirmRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
+    """Durably records a manual confirmation for one checklist item within a stage (e.g.
+    第1關's "確認地主清冊正確") - a real staff action with a real timestamp/user, not a
+    fabricated per-item progress tracker. Which items exist and what they mean is defined
+    entirely on the frontend; this just stores whatever key it's told against the stage's
+    own `data.checklist` dict."""
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+
+    if not (0 <= stage <= FINAL_STAGE):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    checklist = dict(entry_data.get("checklist") or {})
+
+    if payload.confirmed:
+        checklist[payload.key] = {
+            "confirmed_at": datetime.now(timezone.utc).isoformat(),
+            "confirmed_by": current_user.id,
+        }
+    else:
+        checklist.pop(payload.key, None)
+
+    entry_data["checklist"] = checklist
+    stage_entry["data"] = entry_data
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
+@router.get("/{stage}/consent", response_model=list[ConsentRecordRead])
+def list_consent_records(
+    stage: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
     return db.scalars(
-        select(ConsentRecord).where(ConsentRecord.project_id == project_id, ConsentRecord.sop_stage == stage)
+        select(ConsentRecord).where(ConsentRecord.project_id == project.id, ConsentRecord.sop_stage == stage)
     ).all()
 
 
 @router.post("/{stage}/consent", response_model=ConsentRecordRead, status_code=status.HTTP_201_CREATED)
 def upsert_consent_record(
-    project_id: int,
     stage: int,
     payload: ConsentUpsertRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    get_project_or_404(db, project_id)
-
+    project_id = project.id
     landowner = db.get(Landowner, payload.landowner_id)
     if landowner is None or landowner.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Landowner not found in this project")

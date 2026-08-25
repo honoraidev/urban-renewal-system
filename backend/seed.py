@@ -7,7 +7,7 @@ from security import hash_password
 
 
 def ensure_admin_account(db: Session) -> None:
-    existing_admin = db.scalar(select(User).where(User.role == "admin"))
+    existing_admin = db.scalar(select(User).where(User.role == "sys_admin"))
     if existing_admin is not None:
         return
 
@@ -15,7 +15,7 @@ def ensure_admin_account(db: Session) -> None:
         username="admin",
         password_hash=hash_password(settings.ADMIN_INITIAL_PASSWORD),
         display_name="系統管理員",
-        role="admin",
+        role="sys_admin",
         is_active=True,
     )
     db.add(admin)

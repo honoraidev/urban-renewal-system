@@ -50,6 +50,49 @@ class BatchDeleteResult(BaseModel):
     not_found_ids: list[int]
 
 
+class ProjectMemberCreate(BaseModel):
+    user_id: int
+
+
+class ProjectMemberRead(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    display_name: str
+    role_in_project: str
+    assigned_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DashboardProjectItem(BaseModel):
+    id: int
+    name: str
+    project_code: str
+    city: str | None = None
+    district: str | None = None
+    status: str
+    land_record_count: int
+    building_record_count: int
+    # None when the project has no OCR import job yet (e.g. all-manual data entry).
+    latest_ocr_job_status: str | None = None
+    # True when the most recent OCR job carries a non-fatal warning (e.g. a page whose
+    # area_sqm extraction failed even after high-accuracy retry) - see OcrJob.error_message.
+    latest_ocr_job_has_warning: bool = False
+
+
+class DashboardSummary(BaseModel):
+    project_count: int
+    land_record_count: int
+    building_record_count: int
+    # Real signal only: OCR jobs that are status="failed", or status="completed" with a
+    # non-fatal warning still attached - both genuinely need a human to look at them.
+    # Not a fabricated "AI confidence" metric.
+    pending_ai_review_count: int
+    ai_online: bool
+    projects: list[DashboardProjectItem]
+
+
 class ConsentRatio(BaseModel):
     stage: int
     headcount_total: int

@@ -12,3 +12,10 @@ def build_upload_path(project_code: str, original_filename: str) -> tuple[str, s
     ext = os.path.splitext(original_filename)[1]
     stored_name = f"{uuid.uuid4().hex}{ext}"
     return os.path.join(project_dir, stored_name), stored_name
+
+
+def build_company_upload_path(original_filename: str) -> tuple[str, str]:
+    """Same as build_upload_path, but for 公版文件 (company-wide document templates)
+    that aren't tied to any single project - stored under a fixed "_company" folder
+    instead of a project_code one."""
+    return build_upload_path("_company", original_filename)

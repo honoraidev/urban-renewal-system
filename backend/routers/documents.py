@@ -6,43 +6,63 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_staff_or_admin
+from deps import get_current_user, require_project_ocr_editor, require_project_viewer
 from models.document import Document
+from models.project import Project
 from models.user import User
-from routers.projects import assert_project_visible, get_project_or_404
 from schemas.document import DocumentRead
 from utils.file_storage import build_upload_path
 from utils.ocr import merge_pages_to_pdf
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
-VALID_DOC_TYPES = {"property_register", "building_register", "consent_form", "briefing_material", "contract", "photo", "other"}
+VALID_DOC_TYPES = {
+    "property_register",
+    "building_register",
+    "consent_form",
+    "briefing_material",
+    "contract",
+    "photo",
+    "other",
+    # Project-level master templates (distinct from consent_form/contract, which are
+    # per-landowner signed instances) - the SOP tab's 第0關 checklist checks for these
+    # specifically so uploading one signed 同意書 doesn't get mistaken for "the blank
+    # 同意書範本 was uploaded" (see routers/sop.py's stage-0 checklist).
+    "dev_letter_template",
+    "willingness_form_template",
+    "consent_form_template",
+    "contract_template",
+    # 地籍圖 (cadastral map) - distinct from property_register (the title deed itself),
+    # checked by the SOP tab's 第1關 checklist.
+    "cadastral_map",
+    # 顧問文件 (consultant/advisor documents - 建築師/估價師/顧問公司 deliverables), checked
+    # by the SOP tab's 第5關 checklist. briefing_material already covers 說明會簡報
+    # (stages 3/6/7) so isn't reused here - a consultant deliverable isn't a briefing.
+    "consultant_document",
+}
 
 
 @router.get("", response_model=list[DocumentRead])
 def list_documents(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
     return db.scalars(
-        select(Document).where(Document.project_id == project_id).order_by(Document.uploaded_at.desc())
+        select(Document).where(Document.project_id == project.id).order_by(Document.uploaded_at.desc())
     ).all()
 
 
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def upload_document(
-    project_id: int,
     file: UploadFile = File(...),
     doc_type: str = Form("other"),
     landowner_id: int | None = Form(None),
     description: str | None = Form(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_ocr_editor),
 ):
-    project = get_project_or_404(db, project_id)
+    project_id = project.id
 
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
@@ -71,19 +91,19 @@ def upload_document(
 
 @router.post("/from-images", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def create_document_from_images(
-    project_id: int,
     files: list[UploadFile] = File(...),
     doc_type: str = Form("property_register"),
     file_name: str | None = Form(None),
     description: str | None = Form(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_ocr_editor),
 ):
     """Merges 1+ uploaded page images into a single PDF and saves it as one document.
     Used right after batch-import case-splitting so each case's source scan pages get a
     durable, findable home in the project's own 文件 tab immediately - see
     merge_pages_to_pdf() for why that matters."""
-    project = get_project_or_404(db, project_id)
+    project_id = project.id
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
 
@@ -126,14 +146,11 @@ def get_document_or_404(db: Session, project_id: int, doc_id: int) -> Document:
 
 @router.get("/{doc_id}/download")
 def download_document(
-    project_id: int,
     doc_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-    document = get_document_or_404(db, project_id, doc_id)
+    document = get_document_or_404(db, project.id, doc_id)
 
     if not os.path.exists(document.file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
@@ -143,12 +160,11 @@ def download_document(
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
-    project_id: int,
     doc_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_ocr_editor),
 ):
-    document = get_document_or_404(db, project_id, doc_id)
+    document = get_document_or_404(db, project.id, doc_id)
 
     if os.path.exists(document.file_path):
         os.remove(document.file_path)

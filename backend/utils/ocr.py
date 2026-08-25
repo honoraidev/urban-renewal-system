@@ -1,10 +1,12 @@
 import base64
+import fcntl
 import io
 import json
 import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from threading import Lock
 from typing import Callable
 
@@ -179,7 +181,9 @@ subsection 填後面剩下、同樣以「段」結尾的部分(「三小段」)�
 更不可以把 subsection 填成地號或其他不相關的數字。判斷依據就是「段」這個字出現兩次,第一次結束的地方是\
 section,第二次(通常較短、常見「一小段」「二小段」「三小段」這類數字+小段的格式)是 subsection。
    - parcel_number:地號(例如「1099-0000」)
-   - area_sqm:土地標示部登載的面積(平方公尺),純數字
+   - area_sqm:土地標示部登載的面積(平方公尺),純數字。真的在文件裡找不到這個數字時,填 null,\
+【絕對不可以填 0】——0 平方公尺不是任何一筆真實地號合理的面積,填 0 等於謊報「這筆地號沒有面積」,\
+比留空(null)更誤導,寧可留 null 讓使用者知道需要人工補值。
    - owners(陣列,**列出這筆地號底下所有登記次序/所有權人,不要只列第一位**):
      - registration_order:登記次序(例如「0157」)
      - owner_name:所有權人姓名
@@ -214,8 +218,9 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
    - parcel_number:建物坐落地號
    - total_floors:層數(依文件原文,例如「地上10層」)
    - floor:層次(這筆建物標示部所在的樓層,例如「三層」)
-   - total_area_sqm:建物總面積(平方公尺),純數字
-   - floor_area_sqm:層次面積(平方公尺,該樓層/主建物本身的面積),純數字
+   - total_area_sqm:建物總面積(平方公尺),純數字。找不到就填 null,【絕對不可以填 0】——理由同\
+land_parcels 的 area_sqm。
+   - floor_area_sqm:層次面積(平方公尺,該樓層/主建物本身的面積),純數字。同樣找不到就填 null,不可以填 0。
    - owners(陣列,若這筆建物沒有所有權部則回傳空陣列 []):
      - registration_order:登記次序
      - owner_name:所有權人姓名
@@ -469,12 +474,18 @@ def _chunk_missing_area(result: dict) -> bool:
     area at all - the fast OCR engine occasionally misses that field's text region
     outright (not a misread, an outright detection miss), which the confidence-based
     smart re-scan can't catch since there's no detected text to score as low-confidence
-    in the first place. See MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT."""
+    in the first place. See MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT.
+
+    Treats both null AND 0 as missing - the prompt tells the model to return null when
+    it can't find a field, but that's a soft instruction the model doesn't reliably
+    follow; in practice a "couldn't find it" area came back as the number 0 instead of
+    null, which null-only detection silently missed entirely (0 sqm is never a real
+    registered area, so there's no legitimate case being wrongly flagged here)."""
     for parcel in result.get("land_parcels", []):
-        if parcel.get("area_sqm") is None:
+        if not parcel.get("area_sqm"):
             return True
     for building in result.get("buildings", []):
-        if building.get("total_area_sqm") is None and building.get("floor_area_sqm") is None:
+        if not building.get("total_area_sqm") and not building.get("floor_area_sqm"):
             return True
     return False
 
@@ -695,6 +706,27 @@ _HEADER_OCR_WORKERS = min(os.cpu_count() or 2, 8)
 # only the actual inference is serialized, not the whole per-page pipeline.
 _GPU_OCR_LOCK = Lock()
 
+# _GPU_OCR_LOCK above only synchronizes threads within this one Python process -
+# uvicorn's --reload spawns a separate reloader process, and any ad-hoc `docker exec
+# python ...` script (e.g. for debugging) is a separate process too. Two processes
+# each holding their own onnxruntime CUDA session and hitting the GPU at the same time
+# doesn't crash (unlike the intra-process concurrent-chunk crash _GPU_OCR_LOCK guards
+# against) but silently tanks throughput - measured a real 27-page high_accuracy batch
+# at 435s (16s/page) with something else contending for the GPU, vs ~42s (1.5-2s/page)
+# for the identical pages/code path with nothing else running. A flock on a shared file
+# provides the same mutual exclusion across process boundaries.
+_GPU_PROCESS_LOCK_PATH = "/tmp/gpu_ocr.lock"
+
+
+@contextmanager
+def _gpu_process_lock():
+    with open(_GPU_PROCESS_LOCK_PATH, "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
 # Loading RapidOCR's models takes a couple seconds - doing that once per process and
 # reusing the engine avoids paying that cost on every single page.
 _OCR_ENGINE: RapidOCR | None = None
@@ -761,10 +793,10 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
     """
     img = Image.open(io.BytesIO(content)).convert("RGB")
     if high_accuracy:
-        with _GPU_OCR_LOCK, _HIGH_ACCURACY_RUN_LOCK:
+        with _gpu_process_lock(), _GPU_OCR_LOCK, _HIGH_ACCURACY_RUN_LOCK:
             result = _get_high_accuracy_ocr_engine()(np.array(img)).txts
         return (_normalize_ocr_text("\n".join(result)) if result else "", None)
-    with _GPU_OCR_LOCK:
+    with _gpu_process_lock(), _GPU_OCR_LOCK:
         result, _ = _get_ocr_engine()(np.array(img))
     if not result:
         return "", 0.0
@@ -831,7 +863,7 @@ def _ocr_header_text(content: bytes) -> str:
     """Like _ocr_page_text, but for a _crop_top_strip() header crop specifically - see
     _get_header_ocr_engine() for why this uses a separate, faster-tuned engine."""
     img = Image.open(io.BytesIO(content)).convert("RGB")
-    with _GPU_OCR_LOCK:
+    with _gpu_process_lock(), _GPU_OCR_LOCK:
         result, _ = _get_header_ocr_engine()(np.array(img))
     return _normalize_ocr_text("\n".join(line[1] for line in result)) if result else ""
 

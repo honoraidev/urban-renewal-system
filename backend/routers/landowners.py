@@ -3,15 +3,15 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
-from deps import get_current_user, require_staff_or_admin
+from deps import get_current_user, require_project_editor, require_project_viewer
 from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
 from models.contact_log import ContactLog
 from models.document import Document
 from models.land_record import LandRecord
 from models.landowner import Landowner
+from models.project import Project
 from models.user import User
-from routers.projects import assert_project_visible, get_project_or_404
 from routers.sop import try_auto_complete_stage
 from schemas.landowner import (
     BuildingRecordCreate,
@@ -55,24 +55,20 @@ def _compute_building_totals(record: BuildingRecord) -> None:
 
 @router.get("", response_model=list[LandownerRead])
 def list_landowners(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-    return db.scalars(_with_records(select(Landowner).where(Landowner.project_id == project_id))).all()
+    return db.scalars(_with_records(select(Landowner).where(Landowner.project_id == project.id))).all()
 
 
 @router.post("", response_model=LandownerRead, status_code=status.HTTP_201_CREATED)
 def create_landowner(
-    project_id: int,
     payload: LandownerCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    get_project_or_404(db, project_id)
-
+    project_id = project.id
     data = payload.model_dump(exclude={"land_records", "building_records"})
     landowner = Landowner(project_id=project_id, **data)
     db.add(landowner)
@@ -96,50 +92,44 @@ def create_landowner(
 
 @router.get("/{landowner_id}", response_model=LandownerRead)
 def get_landowner(
-    project_id: int,
     landowner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-    return get_landowner_or_404(db, project_id, landowner_id)
+    return get_landowner_or_404(db, project.id, landowner_id)
 
 
 @router.patch("/{landowner_id}", response_model=LandownerRead)
 def update_landowner(
-    project_id: int,
     landowner_id: int,
     payload: LandownerUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    landowner = get_landowner_or_404(db, project_id, landowner_id)
+    landowner = get_landowner_or_404(db, project.id, landowner_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(landowner, field, value)
     db.commit()
-    return get_landowner_or_404(db, project_id, landowner_id)
+    return get_landowner_or_404(db, project.id, landowner_id)
 
 
 @router.delete("/{landowner_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_landowner(
-    project_id: int,
     landowner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    landowner = get_landowner_or_404(db, project_id, landowner_id)
+    landowner = get_landowner_or_404(db, project.id, landowner_id)
     db.delete(landowner)
     db.commit()
 
 
 @router.post("/{landowner_id}/merge", response_model=LandownerRead)
 def merge_landowners(
-    project_id: int,
     landowner_id: int,
     payload: LandownerMergeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
     """Merges one or more duplicate landowner records into `landowner_id` (the
     survivor): every land/building record, consent record, contact log, and document
@@ -148,6 +138,7 @@ def merge_landowners(
     import matches by exact name string - a residual simplified-character or OCR misread
     that slips past that matching silently creates a second landowner instead of merging
     into the existing one, and this is the cleanup path for when that already happened."""
+    project_id = project.id
     survivor = get_landowner_or_404(db, project_id, landowner_id)
 
     if landowner_id in payload.source_ids:
@@ -183,14 +174,13 @@ def get_land_record_or_404(db: Session, project_id: int, landowner_id: int, reco
 
 @router.post("/{landowner_id}/land-records", response_model=LandRecordRead, status_code=status.HTTP_201_CREATED)
 def create_land_record(
-    project_id: int,
     landowner_id: int,
     payload: LandRecordCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    get_landowner_or_404(db, project_id, landowner_id)
-    record = LandRecord(project_id=project_id, landowner_id=landowner_id, **payload.model_dump())
+    get_landowner_or_404(db, project.id, landowner_id)
+    record = LandRecord(project_id=project.id, landowner_id=landowner_id, **payload.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -199,14 +189,13 @@ def create_land_record(
 
 @router.patch("/{landowner_id}/land-records/{record_id}", response_model=LandRecordRead)
 def update_land_record(
-    project_id: int,
     landowner_id: int,
     record_id: int,
     payload: LandRecordUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    record = get_land_record_or_404(db, project_id, landowner_id, record_id)
+    record = get_land_record_or_404(db, project.id, landowner_id, record_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     db.commit()
@@ -216,13 +205,12 @@ def update_land_record(
 
 @router.delete("/{landowner_id}/land-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_land_record(
-    project_id: int,
     landowner_id: int,
     record_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    record = get_land_record_or_404(db, project_id, landowner_id, record_id)
+    record = get_land_record_or_404(db, project.id, landowner_id, record_id)
     db.delete(record)
     db.commit()
 
@@ -244,16 +232,15 @@ def get_building_record_or_404(db: Session, project_id: int, landowner_id: int, 
     "/{landowner_id}/building-records", response_model=BuildingRecordRead, status_code=status.HTTP_201_CREATED
 )
 def create_building_record(
-    project_id: int,
     landowner_id: int,
     payload: BuildingRecordCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    get_landowner_or_404(db, project_id, landowner_id)
+    get_landowner_or_404(db, project.id, landowner_id)
     if payload.land_record_id is not None:
-        get_land_record_or_404(db, project_id, landowner_id, payload.land_record_id)
-    record = BuildingRecord(project_id=project_id, landowner_id=landowner_id, **payload.model_dump())
+        get_land_record_or_404(db, project.id, landowner_id, payload.land_record_id)
+    record = BuildingRecord(project_id=project.id, landowner_id=landowner_id, **payload.model_dump())
     _compute_building_totals(record)
     db.add(record)
     db.commit()
@@ -263,17 +250,16 @@ def create_building_record(
 
 @router.patch("/{landowner_id}/building-records/{record_id}", response_model=BuildingRecordRead)
 def update_building_record(
-    project_id: int,
     landowner_id: int,
     record_id: int,
     payload: BuildingRecordUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    record = get_building_record_or_404(db, project_id, landowner_id, record_id)
+    record = get_building_record_or_404(db, project.id, landowner_id, record_id)
     updates = payload.model_dump(exclude_unset=True)
     if updates.get("land_record_id") is not None:
-        get_land_record_or_404(db, project_id, landowner_id, updates["land_record_id"])
+        get_land_record_or_404(db, project.id, landowner_id, updates["land_record_id"])
     for field, value in updates.items():
         setattr(record, field, value)
     _compute_building_totals(record)
@@ -284,12 +270,11 @@ def update_building_record(
 
 @router.delete("/{landowner_id}/building-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_building_record(
-    project_id: int,
     landowner_id: int,
     record_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    record = get_building_record_or_404(db, project_id, landowner_id, record_id)
+    record = get_building_record_or_404(db, project.id, landowner_id, record_id)
     db.delete(record)
     db.commit()

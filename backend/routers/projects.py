@@ -2,16 +2,37 @@ import os
 import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from config import settings
 from database import get_db
-from deps import get_current_user, require_admin, require_staff_or_admin
+from deps import (
+    MANAGE_ROLES,
+    get_current_user,
+    require_manager,
+    require_project_editor,
+    require_project_manager,
+    require_project_viewer,
+)
+from models.building_record import BuildingRecord
+from models.land_record import LandRecord
+from models.ocr import OcrJob
 from models.project import Project, ProjectMember
 from models.sop import SopStage
 from models.user import User
-from schemas.project import BatchDeleteRequest, BatchDeleteResult, ConsentRatio, ProjectCreate, ProjectRead, ProjectUpdate
+from schemas.project import (
+    BatchDeleteRequest,
+    BatchDeleteResult,
+    ConsentRatio,
+    DashboardProjectItem,
+    DashboardSummary,
+    ProjectCreate,
+    ProjectMemberCreate,
+    ProjectMemberRead,
+    ProjectRead,
+    ProjectUpdate,
+)
 from security import verify_password
 from utils.consent_ratio import calculate_consent_ratio
 
@@ -26,7 +47,10 @@ def get_project_or_404(db: Session, project_id: int) -> Project:
 
 
 def assert_project_visible(db: Session, project: Project, user: User) -> None:
-    if user.role in ("admin", "staff"):
+    """Kept for other routers that already fetch `project` themselves and just need the
+    check inline - logic mirrors deps.require_project_viewer, which new/updated
+    endpoints should prefer instead since it also handles the 404."""
+    if user.role in MANAGE_ROLES:
         return
     is_member = db.scalar(
         select(ProjectMember).where(
@@ -37,9 +61,80 @@ def assert_project_visible(db: Session, project: Project, user: User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
 
 
+@router.get("/dashboard-summary", response_model=DashboardSummary)
+def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in MANAGE_ROLES:
+        member_project_ids = db.scalars(
+            select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
+        ).all()
+        projects_stmt = select(Project).where(Project.id.in_(member_project_ids)).order_by(Project.created_at.desc())
+    else:
+        projects_stmt = select(Project).order_by(Project.created_at.desc())
+    projects = db.scalars(projects_stmt).all()
+    project_ids = [p.id for p in projects]
+
+    land_counts = dict(
+        db.execute(
+            select(LandRecord.project_id, func.count(LandRecord.id))
+            .where(LandRecord.project_id.in_(project_ids))
+            .group_by(LandRecord.project_id)
+        ).all()
+    )
+    building_counts = dict(
+        db.execute(
+            select(BuildingRecord.project_id, func.count(BuildingRecord.id))
+            .where(BuildingRecord.project_id.in_(project_ids))
+            .group_by(BuildingRecord.project_id)
+        ).all()
+    )
+
+    # Latest OCR job per project - used for the per-project status badge (OCR中/needs
+    # review/complete) and rolled up into pending_ai_review_count below.
+    latest_job_by_project: dict[int, OcrJob] = {}
+    for job in db.scalars(
+        select(OcrJob).where(OcrJob.project_id.in_(project_ids)).order_by(OcrJob.created_at.desc())
+    ):
+        latest_job_by_project.setdefault(job.project_id, job)
+
+    pending_ai_review_count = (
+        db.scalar(
+            select(func.count(OcrJob.id)).where(
+                OcrJob.project_id.in_(project_ids),
+                or_(OcrJob.status == "failed", (OcrJob.status == "completed") & OcrJob.error_message.isnot(None)),
+            )
+        )
+        or 0
+    )
+
+    project_items = [
+        DashboardProjectItem(
+            id=p.id,
+            name=p.name,
+            project_code=p.project_code,
+            city=p.city,
+            district=p.district,
+            status=p.status,
+            land_record_count=land_counts.get(p.id, 0),
+            building_record_count=building_counts.get(p.id, 0),
+            latest_ocr_job_status=latest_job_by_project[p.id].status if p.id in latest_job_by_project else None,
+            latest_ocr_job_has_warning=bool(latest_job_by_project[p.id].error_message) if p.id in latest_job_by_project else False,
+        )
+        for p in projects
+    ]
+
+    return DashboardSummary(
+        project_count=len(projects),
+        land_record_count=sum(land_counts.values()),
+        building_record_count=sum(building_counts.values()),
+        pending_ai_review_count=pending_ai_review_count,
+        ai_online=bool(settings.OPENAI_API_KEY),
+        projects=project_items,
+    )
+
+
 @router.get("", response_model=list[ProjectRead])
 def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role == "public":
+    if current_user.role not in MANAGE_ROLES:
         stmt = (
             select(Project)
             .join(ProjectMember, ProjectMember.project_id == Project.id)
@@ -55,39 +150,45 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
 def create_project(
     payload: ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    if current_user.role not in MANAGE_ROLES | {"case_owner"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L1/L2/L3 role required")
+
     existing = db.scalar(select(Project).where(Project.project_code == payload.project_code))
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="project_code already exists")
 
-    project = Project(**payload.model_dump(), created_by=current_user.id, current_stage=1)
+    project = Project(**payload.model_dump(), created_by=current_user.id, current_stage=0)
     db.add(project)
     db.flush()
 
-    # Stage 0 (initial filing) is pre-completed by the time a project record exists,
-    # so the actionable "current" stage starts at 1.
-    db.add(SopStage(project_id=project.id, stage_data=_initial_stage_data(), current_stage=1))
+    # Stage 0 (初始核定立案) has its own real checklist (template uploads) that must be
+    # completed before advancing - it is NOT pre-completed at creation time (see
+    # routers/sop.py's build_initial_stage_data/STAGE_CHECKLIST_REQUIREMENTS).
+    db.add(SopStage(project_id=project.id, stage_data=_initial_stage_data(), current_stage=0))
+
+    if current_user.role == "case_owner":
+        # Otherwise an L3 who just created this project couldn't see it themselves -
+        # require_project_viewer/editor require ProjectMember for non-manager roles.
+        db.add(ProjectMember(project_id=project.id, user_id=current_user.id, role_in_project=current_user.role))
+
     db.commit()
     db.refresh(project)
     return project
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-def get_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
+def get_project(project: Project = Depends(require_project_viewer)):
     return project
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
 def update_project(
-    project_id: int,
     payload: ProjectUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    project = get_project_or_404(db, project_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
     db.commit()
@@ -99,18 +200,18 @@ def update_project(
 def batch_delete_projects(
     payload: BatchDeleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
 ):
     """Deletes several projects at once - same irreversible cascade delete as
-    delete_project() below, applied per project. Requires re-entering a real admin
+    delete_project() below, applied per project. Requires re-entering a real L1/L2
     account's username/password in the request body as an extra confirmation step on
-    top of already holding an admin JWT (require_admin) - this guards against e.g. an
-    already-unlocked admin browser tab being used for a bulk delete by whoever is
+    top of already holding an L1/L2 JWT (require_manager) - this guards against e.g. an
+    already-unlocked manager browser tab being used for a bulk delete by whoever is
     physically at the keyboard. The password mismatch case uses 403, not 401: the
     frontend treats any 401 as "session expired" and force-logs-out the current user,
     which would be wrong here since the JWT itself is still perfectly valid."""
     admin_user = db.scalar(select(User).where(User.username == payload.admin_username))
-    if admin_user is None or admin_user.role != "admin" or not verify_password(payload.admin_password, admin_user.password_hash):
+    if admin_user is None or admin_user.role not in MANAGE_ROLES or not verify_password(payload.admin_password, admin_user.password_hash):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="管理者帳號或密碼錯誤")
 
     deleted_ids: list[int] = []
@@ -131,15 +232,13 @@ def batch_delete_projects(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    project: Project = Depends(require_project_manager),
 ):
     """Permanently deletes a project and everything under it (landowners, land/building
     records, contact logs, consent records, documents, expenses, SOP progress) via
-    ON DELETE CASCADE. Admin-only and irreversible - the frontend requires re-typing
+    ON DELETE CASCADE. L1/L2-only and irreversible - the frontend requires re-typing
     the project code before calling this."""
-    project = get_project_or_404(db, project_id)
     upload_dir = os.path.join(settings.UPLOAD_DIR, project.project_code)
     if os.path.isdir(upload_dir):
         shutil.rmtree(upload_dir, ignore_errors=True)
@@ -149,18 +248,84 @@ def delete_project(
 
 @router.get("/{project_id}/consent-ratio", response_model=ConsentRatio)
 def get_consent_ratio(
-    project_id: int,
     stage: int | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-
     if stage is None:
         stage = next((s for s in (4, 8, 9) if s >= project.current_stage), 9)
 
-    return calculate_consent_ratio(db, project_id, stage)
+    return calculate_consent_ratio(db, project.id, stage)
+
+
+@router.get("/{project_id}/members", response_model=list[ProjectMemberRead])
+def list_project_members(db: Session = Depends(get_db), project: Project = Depends(require_project_viewer)):
+    rows = db.execute(
+        select(ProjectMember, User.username, User.display_name)
+        .join(User, User.id == ProjectMember.user_id)
+        .where(ProjectMember.project_id == project.id)
+        .order_by(ProjectMember.assigned_at)
+    ).all()
+    return [
+        ProjectMemberRead(
+            id=member.id,
+            user_id=member.user_id,
+            username=username,
+            display_name=display_name,
+            role_in_project=member.role_in_project,
+            assigned_at=member.assigned_at,
+        )
+        for member, username, display_name in rows
+    ]
+
+
+@router.post("/{project_id}/members", response_model=ProjectMemberRead, status_code=status.HTTP_201_CREATED)
+def add_project_member(
+    payload: ProjectMemberCreate,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_manager),
+):
+    user = db.get(User, payload.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    existing = db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project.id, ProjectMember.user_id == user.id
+        )
+    )
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a member of this project")
+
+    member = ProjectMember(project_id=project.id, user_id=user.id, role_in_project=user.role)
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return ProjectMemberRead(
+        id=member.id,
+        user_id=member.user_id,
+        username=user.username,
+        display_name=user.display_name,
+        role_in_project=member.role_in_project,
+        assigned_at=member.assigned_at,
+    )
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_project_member(
+    user_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_manager),
+):
+    member = db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project.id, ProjectMember.user_id == user_id
+        )
+    )
+    if member is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
+    db.delete(member)
+    db.commit()
 
 
 def _initial_stage_data() -> dict:

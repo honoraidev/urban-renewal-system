@@ -6,14 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import require_staff_or_admin
+from deps import get_current_user, require_project_ocr_editor
 from models.building_record import BuildingRecord
 from models.document import Document
 from models.land_record import LandRecord
 from models.ocr import OcrJob, OcrMatchResult
 from models.ocr_job_document import OcrJobDocument
+from models.project import Project
 from models.user import User
-from routers.projects import get_project_or_404
 from schemas.ocr import (
     OcrExtractionResult,
     OcrJobDetail,
@@ -31,12 +31,10 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["ocr"])
 
 @router.get("/ocr-jobs", response_model=list[OcrJobRead])
 def list_ocr_jobs(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_ocr_editor),
 ):
-    get_project_or_404(db, project_id)
-    return db.scalars(select(OcrJob).where(OcrJob.project_id == project_id).order_by(OcrJob.created_at.desc())).all()
+    return db.scalars(select(OcrJob).where(OcrJob.project_id == project.id).order_by(OcrJob.created_at.desc())).all()
 
 
 def get_ocr_job_or_404(db: Session, project_id: int, job_id: int) -> OcrJob:
@@ -48,16 +46,15 @@ def get_ocr_job_or_404(db: Session, project_id: int, job_id: int) -> OcrJob:
 
 @router.get("/ocr-jobs/{job_id}", response_model=OcrJobDetail)
 def get_ocr_job(
-    project_id: int,
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_ocr_editor),
 ):
     """Backs the 謄本匯入批次 detail page (frontend view-ocr-batch): the job itself, its
     source pages (via ocr_job_documents, ordered), the raw OCR extraction, and whichever
     land/building records this job ended up producing (via source_ocr_job_id, set when
     the wizard's confirm step actually creates them - see submitTitleDeedWizard)."""
-    get_project_or_404(db, project_id)
+    project_id = project.id
     job = get_ocr_job_or_404(db, project_id, job_id)
 
     job_documents = db.scalars(
@@ -89,10 +86,9 @@ def get_ocr_job(
 
 @router.post("/ocr/split-pages", response_model=PageSplitResult)
 def split_pages_for_grouping(
-    project_id: int,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_ocr_editor),
 ):
     """Splits any uploaded PDFs into per-page images (reusing the same logic the OCR
     call itself uses) and returns them as previews, without persisting anything. Also
@@ -100,7 +96,6 @@ def split_pages_for_grouping(
     marker printed at the bottom of each page, so the wizard's grouping step starts
     from a reasonable auto-detected grouping instead of everything defaulting to one
     group - the user can still review and override every page before OCR runs."""
-    get_project_or_404(db, project_id)
     file_payload = [(upload.file.read(), upload.content_type) for upload in files]
     try:
         pages = _flatten_to_pages(file_payload)
@@ -121,7 +116,6 @@ def split_pages_for_grouping(
 
 @router.post("/ocr/title-deed", response_model=OcrExtractionResult, status_code=status.HTTP_201_CREATED)
 def extract_title_deed_job(
-    project_id: int,
     files: list[UploadFile] = File(...),
     record_type: str = Form("both"),
     # Parallel to `files`, same order/length - "" for a freshly-uploaded page, or an
@@ -142,7 +136,8 @@ def extract_title_deed_job(
     # would take far too long.
     high_accuracy: bool = Form(False),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_ocr_editor),
 ):
     """Runs structured extraction on 1+ scanned pages of a title deed (images or PDFs,
     in the given order), synchronously via OpenAI. Every freshly-uploaded page is also
@@ -156,7 +151,7 @@ def extract_title_deed_job(
     step-by-step review wizard."""
     if record_type not in ("land", "building", "both"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid record_type")
-    project = get_project_or_404(db, project_id)
+    project_id = project.id
 
     job = OcrJob(project_id=project_id, status="processing", job_type="title_deed")
     job.started_at = datetime.now(timezone.utc)

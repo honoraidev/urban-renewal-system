@@ -12,7 +12,7 @@
     }
   })();
 </script>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260825">
 </head>
 <body>
 
@@ -71,6 +71,13 @@
       <button class="nav-link" data-nav="dashboard">案件總覽</button>
     </div>
     <div id="sb-cases"></div>
+    <div class="sb-sec">資源區</div>
+    <div class="nav-links">
+      <button class="nav-link" data-nav="companydocs">公版文件</button>
+      <button class="nav-link" data-nav="regulations">相關法規</button>
+      <button class="nav-link" data-nav="websites">相關網站</button>
+      <button class="nav-link" data-nav="faq">知識庫</button>
+    </div>
     <div class="nav-user">
       <div class="avatar-menu">
         <button class="avatar-btn" id="avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="帳號選單"></button>
@@ -94,8 +101,18 @@
   <main>
     <!-- Dashboard -->
     <div id="view-dashboard">
+      <div class="dashboard-summary-card">
+        <div style="position:relative;display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;min-height:32px">
+          <h2 style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0">進度總覽</h2>
+          <span class="status-badge" id="ai-online-badge"></span>
+        </div>
+        <div class="dashboard-stat-row" id="dashboard-stat-row"></div>
+      </div>
       <div class="page-header">
-        <h2>案件事項</h2>
+        <div>
+          <h2>案件一覽</h2>
+          <p class="helper-text" style="margin:2px 0 0">點擊案件進入地號、建號、OCR 與 AI 管理</p>
+        </div>
         <div style="display:flex;gap:8px;align-items:center">
           <label class="helper-text hidden" id="batch-select-all-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer">
             <input type="checkbox" id="batch-select-all" class="project-select-checkbox">
@@ -129,11 +146,6 @@
         </div>
         <div class="field"><label>地址</label><input name="address"></div>
         <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
-        <div class="field">
-          <label>謄本掃描檔(選填)</label>
-          <input type="file" id="new-project-deed-files" accept="image/*,application/pdf" multiple autocomplete="off">
-          <div class="helper-text">建立案件後會直接開啟匯入精靈,自動辨識並建立地號/建物/地主資料</div>
-        </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="cancel-new-project-btn">取消</button>
           <button type="submit" class="btn-primary">建立</button>
@@ -156,6 +168,7 @@
       </div>
       <div id="pd-sop-summary" style="margin-bottom:4px"></div>
       <div class="tab-bar">
+        <button class="tab-btn" data-tab="sop">SOP 進度</button>
         <button class="tab-btn" data-tab="landowners">土地登記</button>
         <button class="tab-btn" data-tab="buildings">建物登記</button>
         <button class="tab-btn" data-tab="relations">關聯</button>
@@ -163,6 +176,7 @@
         <button class="tab-btn" data-tab="documents">文件</button>
         <button class="tab-btn" data-tab="encumbrances">他項權利部</button>
         <button class="tab-btn" data-tab="expenses">費用</button>
+        <button class="tab-btn hidden" data-tab="members" id="tab-btn-members">成員</button>
       </div>
       <div id="tab-content"></div>
     </div>
@@ -206,6 +220,58 @@
       </div>
       <div id="loginlogs-table-wrap" class="table-wrap"></div>
     </div>
+
+    <!-- 公版文件 -->
+    <div id="view-companydocs" class="hidden">
+      <div class="page-header">
+        <div>
+          <h2>公版文件</h2>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="status-badge status-suspended">🔒 僅主管以上可修改</span>
+          <button class="btn-primary hidden" id="upload-companydoc-btn">↑ 上傳新版本</button>
+        </div>
+      </div>
+      <div id="companydocs-table-wrap"></div>
+    </div>
+
+    <!-- 相關法規 -->
+    <div id="view-regulations" class="hidden">
+      <div class="page-header">
+        <h2>相關法規</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
+          <button class="btn-primary hidden" id="new-regulation-btn">+ 新增連結</button>
+        </div>
+      </div>
+      <div id="regulations-list"></div>
+    </div>
+
+    <!-- 相關網站 -->
+    <div id="view-websites" class="hidden">
+      <div class="page-header">
+        <h2>相關網站</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary hidden" id="toggle-website-edit-btn">✏️ 修改</button>
+          <button class="btn-primary hidden" id="new-website-btn">+ 新增連結</button>
+        </div>
+      </div>
+      <div id="websites-list"></div>
+    </div>
+
+    <!-- 知識庫 -->
+    <div id="view-faq" class="hidden">
+      <div class="page-header">
+        <h2>知識庫</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary hidden" id="manage-faq-cats-btn">⚙ 管理分類</button>
+          <button class="btn-secondary hidden" id="toggle-faq-edit-btn">✏️ 修改</button>
+          <button class="btn-primary hidden" id="new-faq-btn">+ 新增問答</button>
+        </div>
+      </div>
+      <div class="faq-cat-bar" id="faq-cat-bar"></div>
+      <div id="faq-list"></div>
+    </div>
   </main>
 
   <footer class="app-footer">
@@ -230,6 +296,6 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=20260825"></script>
 </body>
 </html>

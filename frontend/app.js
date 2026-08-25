@@ -149,15 +149,41 @@ const TAIWAN_CITIES = [
 const DOC_TYPE_LABEL = {
   property_register: "土地登記謄本", building_register: "建物登記謄本", consent_form: "同意書", briefing_material: "說明會資料",
   contract: "合約", photo: "照片", other: "其他",
+  dev_letter_template: "開發信", willingness_form_template: "意願書",
+  consent_form_template: "同意書", contract_template: "合約",
+  cadastral_map: "地籍圖", consultant_document: "顧問文件",
 };
 const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
 const CONTACT_RESULT_LABEL = { no_answer: "未接聽", agreed: "同意", opposed: "反對", undecided: "未決定", callback_needed: "需回電" };
 
+const ROLE_LABEL = {
+  sys_admin: "L1 系統管理員",
+  manager: "L2 都更主管",
+  case_owner: "L3 案件負責人",
+  case_staff: "L4 案件工作人員",
+  ocr_staff: "L5 資料/OCR人員",
+  viewer: "L6 查詢/檢視人員",
+};
+
+// L1-L4: general case-data editing (landowners/contacts/expenses/encumbrances/SOP).
 function isEditor() {
-  return state.user && (state.user.role === "admin" || state.user.role === "staff");
+  return state.user && ["sys_admin", "manager", "case_owner", "case_staff"].includes(state.user.role);
 }
-function isAdmin() {
-  return state.user && state.user.role === "admin";
+// L1/L2: full cross-project management (delete/force actions, expense categories, member assignment).
+function isManager() {
+  return state.user && ["sys_admin", "manager"].includes(state.user.role);
+}
+// L1 only: user account management, login logs.
+function isSystemAdmin() {
+  return state.user && state.user.role === "sys_admin";
+}
+// L1-L5: OCR/document-upload functionality.
+function canOcr() {
+  return state.user && ["sys_admin", "manager", "case_owner", "case_staff", "ocr_staff"].includes(state.user.role);
+}
+// L1-L3: can create a new project.
+function canCreateProject() {
+  return state.user && ["sys_admin", "manager", "case_owner"].includes(state.user.role);
 }
 
 /* ================= Theme ================= */
@@ -235,15 +261,15 @@ async function doLogout() {
 function showApp() {
   document.getElementById("view-login").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
-  document.getElementById("nav-users-btn").classList.toggle("hidden", !isAdmin());
-  document.getElementById("nav-loginlogs-btn").classList.toggle("hidden", !isAdmin());
-  document.getElementById("new-project-btn").classList.toggle("hidden", !isEditor());
+  document.getElementById("nav-users-btn").classList.toggle("hidden", !isSystemAdmin());
+  document.getElementById("nav-loginlogs-btn").classList.toggle("hidden", !isSystemAdmin());
+  document.getElementById("new-project-btn").classList.toggle("hidden", !canCreateProject());
 }
 
 function renderNavUser() {
   document.getElementById("dropdown-user-name").textContent = state.user.display_name;
   document.getElementById("avatar-btn").textContent = (state.user.display_name || "?").trim().charAt(0).toUpperCase();
-  const roleLabel = { admin: "主管", staff: "開發人員", public: "地主" }[state.user.role] || state.user.role;
+  const roleLabel = ROLE_LABEL[state.user.role] || state.user.role;
   const badge = document.getElementById("nav-user-role");
   badge.textContent = roleLabel;
   badge.className = "role-badge " + state.user.role;
@@ -295,6 +321,10 @@ document.querySelectorAll(".nav-link").forEach((btn) => {
     if (target === "dashboard") goToDashboard();
     if (target === "users") goToUsers();
     if (target === "loginlogs") goToLoginLogs();
+    if (target === "companydocs") goToCompanyDocs();
+    if (target === "regulations") goToRegulations();
+    if (target === "websites") goToWebsites();
+    if (target === "faq") goToFaq();
   });
 });
 
@@ -364,7 +394,18 @@ function setActiveSidebarCase(projectId) {
 }
 
 function showView(id) {
-  ["view-dashboard", "view-new-project", "view-project-detail", "view-ocr-batch", "view-users", "view-loginlogs"].forEach((v) => {
+  [
+    "view-dashboard",
+    "view-new-project",
+    "view-project-detail",
+    "view-ocr-batch",
+    "view-users",
+    "view-loginlogs",
+    "view-companydocs",
+    "view-regulations",
+    "view-websites",
+    "view-faq",
+  ].forEach((v) => {
     document.getElementById(v).classList.toggle("hidden", v !== id);
   });
 }
@@ -404,114 +445,105 @@ async function goToDashboard() {
   await loadDashboard();
 }
 
+// Maps a project's latest_ocr_job_status/latest_ocr_job_has_warning (real fields from
+// GET /projects/dashboard-summary) to a status badge. A project with no OCR job yet
+// (latest_ocr_job_status === null) gets no badge - there's nothing to report on.
+function ocrStatusBadge(item) {
+  if (!item.latest_ocr_job_status) return "";
+  if (item.latest_ocr_job_status === "processing") return `<span class="status-badge status-ocr-processing">OCR 中</span>`;
+  if (item.latest_ocr_job_status === "failed") return `<span class="status-badge status-ocr-failed">辨識失敗</span>`;
+  if (item.latest_ocr_job_status === "completed") {
+    return item.latest_ocr_job_has_warning
+      ? `<span class="status-badge status-ocr-review">AI 校正中</span>`
+      : `<span class="status-badge status-ocr-complete">完成</span>`;
+  }
+  return "";
+}
+
 async function loadDashboard() {
   selectedProjectIds = new Set();
   dashboardProjectsById = {};
   updateBatchDeleteBar();
 
+  const statRow = document.getElementById("dashboard-stat-row");
+  const aiBadge = document.getElementById("ai-online-badge");
   const grid = document.getElementById("project-grid");
+  statRow.innerHTML = `<div class="empty-state">載入中...</div>`;
   grid.innerHTML = `<div class="empty-state">載入中...</div>`;
-  let projects;
+
+  let summary;
   try {
-    projects = await api("/projects");
+    summary = await api("/projects/dashboard-summary");
   } catch (e) {
+    statRow.innerHTML = "";
     grid.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
   }
 
-  renderSidebarProjects(projects);
+  aiBadge.textContent = summary.ai_online ? "AI Online" : "AI Offline";
+  aiBadge.className = `status-badge ${summary.ai_online ? "status-active" : "status-closed"}`;
 
-  const addProjectTileHtml = isEditor()
+  statRow.innerHTML = `
+    <div class="dashboard-stat-item accent-brand">
+      <div class="dashboard-stat-icon">📁</div>
+      <div><div class="dashboard-stat-num">${summary.project_count}</div><div class="dashboard-stat-lbl">案件</div></div>
+    </div>
+    <div class="dashboard-stat-item accent-success">
+      <div class="dashboard-stat-icon">🌐</div>
+      <div><div class="dashboard-stat-num">${summary.land_record_count}</div><div class="dashboard-stat-lbl">地號</div></div>
+    </div>
+    <div class="dashboard-stat-item accent-info">
+      <div class="dashboard-stat-icon">🏢</div>
+      <div><div class="dashboard-stat-num">${summary.building_record_count}</div><div class="dashboard-stat-lbl">建號</div></div>
+    </div>
+    <div class="dashboard-stat-item accent-danger">
+      <div class="dashboard-stat-icon">⚠</div>
+      <div><div class="dashboard-stat-num">${summary.pending_ai_review_count}</div><div class="dashboard-stat-lbl">待 AI 校正</div></div>
+    </div>
+  `;
+
+  renderSidebarProjects(summary.projects);
+
+  const addProjectTileHtml = canCreateProject()
     ? `<div class="card project-card project-card-add" id="add-project-tile">
         <span class="project-card-add-icon">+</span>
         <span>新增案件</span>
       </div>`
     : "";
 
-  if (!projects.length) {
+  if (!summary.projects.length) {
     grid.innerHTML = addProjectTileHtml || `<div class="empty-state">目前沒有可查看的案件</div>`;
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
     return;
   }
 
-  const enriched = await Promise.all(
-    projects.map(async (p) => {
-      let ratio = null;
-      let alerts = [];
-      try {
-        ratio = await api(`/projects/${p.id}/consent-ratio`, { silent: true });
-      } catch (e) {}
-      try {
-        alerts = await api(`/projects/${p.id}/alerts`, { silent: true });
-      } catch (e) {}
-      return { p, ratio, alerts };
-    })
-  );
+  summary.projects.forEach((p) => (dashboardProjectsById[p.id] = p));
 
-  enriched.forEach(({ p }) => (dashboardProjectsById[p.id] = p));
-
-  grid.innerHTML = addProjectTileHtml + enriched
-    .map(({ p, ratio, alerts }) => {
-      const stageDots = Array.from({ length: 9 }, (_, i) => {
-        const idx = i + 1;
-        const cls = idx < p.current_stage ? "done" : idx === p.current_stage ? "cur" : "";
-        return `<div class="sd ${cls}"></div>`;
-      }).join("");
-      const headcountPct = ratio && ratio.headcount_total > 0 ? Math.round(ratio.headcount_ratio * 100) : 0;
-      const landPct = ratio && ratio.headcount_total > 0 ? Math.round(ratio.land_share_ratio * 100) : 0;
-      const donutRow =
-        ratio && ratio.headcount_total > 0
-          ? `<div class="donut-row">
-              <div class="donut-item">
-                <div class="donut-wrap">${donutSvg(headcountPct)}<div class="donut-pct">${headcountPct}%</div></div>
-                <div class="donut-lbl">人數同意</div>
-              </div>
-              <div class="donut-item">
-                <div class="donut-wrap">${donutSvg(landPct)}<div class="donut-pct">${landPct}%</div></div>
-                <div class="donut-lbl">面積同意</div>
-              </div>
-            </div>`
-          : "";
-      const gateBadge =
-        ratio && ratio.headcount_total > 0 && ratio.dual_gate_passed
-          ? `<span class="mini-badge gate-ok">已達雙門檻</span>`
-          : "";
-      const tiers = alertTiers(alerts);
-      const alertTierRow = alerts.length
-        ? `<div class="alert-tier-row">
-            <div class="alert-tier alert-tier-warn">⚠ 提醒 ${tiers.warn}</div>
-            <div class="alert-tier alert-tier-alert">🔶 警示 ${tiers.alert}</div>
-            <div class="alert-tier alert-tier-urgent">🔴 緊急 ${tiers.urgent}</div>
-          </div>`
-        : "";
-      return `
+  grid.innerHTML = addProjectTileHtml + summary.projects
+    .map(
+      (p) => `
         <div class="card project-card" data-project-id="${p.id}">
           <div class="project-card-top">
             ${
-              isAdmin()
+              isManager()
                 ? `<input type="checkbox" class="project-select-checkbox" data-select-project="${p.id}" ${selectedProjectIds.has(p.id) ? "checked" : ""}>`
                 : ""
             }
-            <h3>${escapeHtml(p.name)}</h3>
+            <h3 style="flex:1">${escapeHtml(p.name)}</h3>
+            ${ocrStatusBadge(p)}
           </div>
-          <div class="card-meta-row">
-            <span class="project-code">${escapeHtml(p.project_code)}${p.city || p.district ? " · " + escapeHtml([p.city, p.district].filter(Boolean).join("")) : ""}</span>
-            <span class="status-badge status-${p.status}">${PROJECT_STATUS_LABEL[p.status] || p.status}</span>
+          <div class="project-code">${escapeHtml(p.project_code)}${p.city || p.district ? " · " + escapeHtml([p.city, p.district].filter(Boolean).join("")) : ""}</div>
+          <div class="project-card-counts">
+            <span>地號 ${p.land_record_count} 筆</span>
+            <span>建號 ${p.building_record_count} 筆</span>
           </div>
-          <div>
-            <div class="card-meta-row"><span>SOP 進度</span><span>第 ${p.current_stage} / 9 關</span></div>
-            <div class="stg-dots">${stageDots}</div>
-          </div>
-          ${donutRow}
-          <div class="badge-row">${gateBadge}</div>
-          ${alertTierRow}
           ${
-            isAdmin()
+            isManager()
               ? `<div style="text-align:right"><button type="button" class="btn-link" style="color:var(--danger)" data-delete-project="${p.id}">刪除案件</button></div>`
               : ""
           }
-        </div>`;
-    })
+        </div>`
+    )
     .join("");
 
   grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
@@ -522,8 +554,8 @@ async function loadDashboard() {
   grid.querySelectorAll("[data-delete-project]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const target = enriched.find((x) => x.p.id === Number(btn.dataset.deleteProject));
-      if (target) openDeleteProjectModal(target.p);
+      const target = summary.projects.find((x) => x.id === Number(btn.dataset.deleteProject));
+      if (target) openDeleteProjectModal(target);
     });
   });
 
@@ -544,7 +576,7 @@ function updateBatchDeleteBar() {
   const selectAllWrap = document.getElementById("batch-select-all-wrap");
   const selectAllCheckbox = document.getElementById("batch-select-all");
   const total = Object.keys(dashboardProjectsById).length;
-  const show = isAdmin() && selectedProjectIds.size > 0;
+  const show = isManager() && selectedProjectIds.size > 0;
 
   btn.classList.toggle("hidden", !show);
   countEl.classList.toggle("hidden", !show);
@@ -684,17 +716,12 @@ document.getElementById("back-to-dashboard-from-new-project").addEventListener("
 document.getElementById("project-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const deedFiles = Array.from(document.getElementById("new-project-deed-files").files);
   const payload = Object.fromEntries(fd.entries());
   try {
     const project = await api("/projects", { method: "POST", body: payload });
     toast("案件已建立", "success");
     await loadDashboard();
     await openProject(project.id);
-    if (deedFiles.length) {
-      titleDeedWizard = { files: deedFiles, pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "both" };
-      renderWizardStep0();
-    }
   } catch (err) {}
 });
 
@@ -766,7 +793,7 @@ function renderCaseSplitFileList() {
 // then snaps to 100% the moment the request actually resolves - same idea as the
 // progress bars YouTube/most upload UIs show for a step whose real completion time
 // isn't known in advance, so it never looks "stuck" at a fixed number.
-function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20) {
+function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix = "偵測中") {
   const wrap = document.getElementById(wrapId);
   const fill = document.getElementById(fillId);
   const label = document.getElementById(labelId);
@@ -776,7 +803,7 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20) {
     const elapsed = (Date.now() - startedAt) / 1000;
     const pct = 92 * (1 - Math.exp(-elapsed / tauSeconds));
     fill.style.width = `${pct}%`;
-    label.textContent = `偵測中...已等待 ${Math.floor(elapsed)} 秒,頁數多可能需要數分鐘`;
+    label.textContent = `${labelPrefix}...已等待 ${Math.floor(elapsed)} 秒,頁數多可能需要數分鐘`;
   }, 250);
   return {
     finish() {
@@ -1241,6 +1268,7 @@ document.getElementById("back-to-dashboard").addEventListener("click", goToDashb
 async function openProject(id) {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
+  state.sopSelectedStage = null;
   setActiveSidebarCase(id);
   showView("view-project-detail");
 
@@ -1256,6 +1284,7 @@ async function openProject(id) {
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === "landowners");
   });
+  document.getElementById("tab-btn-members").classList.toggle("hidden", !isManager());
   state.activeTab = "landowners";
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
@@ -1280,6 +1309,7 @@ async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
+    sop: renderSopTab,
     landowners: (el) => renderLandownersTypeTab(el, "land"),
     buildings: (el) => renderLandownersTypeTab(el, "building"),
     relations: renderRelationsTab,
@@ -1287,6 +1317,7 @@ async function renderTab(tab) {
     documents: renderDocumentsTab,
     encumbrances: renderEncumbrancesTab,
     expenses: renderExpensesTab,
+    members: renderMembersTab,
   };
   try {
     await renderers[tab](el);
@@ -1316,11 +1347,11 @@ async function renderLandownersTypeTab(el, type) {
     <div class="section-toolbar">
       <h3>${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})</h3>
       ${
-        isEditor()
+        isEditor() || canOcr()
           ? `<div style="display:flex;gap:8px">
-              <button class="btn-secondary btn-sm" id="merge-landowners-btn" disabled>合併選取的地主</button>
-              <button class="btn-secondary btn-sm" id="scan-title-deed-btn">${isLand ? "土地登記匯入" : "建物登記匯入"}</button>
-              <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增地主</button>
+              ${isEditor() ? `<button class="btn-secondary btn-sm" id="merge-landowners-btn" disabled>合併選取的地主</button>` : ""}
+              ${canOcr() ? `<button class="btn-secondary btn-sm" id="scan-title-deed-btn">${isLand ? "土地登記匯入" : "建物登記匯入"}</button>` : ""}
+              ${isEditor() ? `<button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增地主</button>` : ""}
             </div>`
           : ""
       }
@@ -1957,7 +1988,7 @@ function openBuildingTitleDeedWizard() {
 }
 
 function wizardProgressHtml(label) {
-  return `<div class="helper-text" style="margin-bottom:14px">${escapeHtml(label)}</div>`;
+  return `<div class="wizard-progress-label">📝 ${escapeHtml(label)}</div>`;
 }
 
 function normalizeTitleDeedData(raw) {
@@ -2256,7 +2287,18 @@ async function runTitleDeedOcr() {
   // dropped entirely), so accuracy-sensitive imports need the better engine from the
   // start, not patched after the fact.
   btn.textContent = "辨識中...(請稍候，勿關閉視窗)";
-  const progress = startFakeProgress("wizard-ocr-progress-wrap", "wizard-ocr-progress-fill", "wizard-ocr-progress-label");
+  // tauSeconds controls how long the curve takes to approach its ~92% ceiling - the
+  // default (20s) was calibrated for a short batch, so a large multi-page upload spent
+  // most of its real wait crawling the last few percent (fast at first, crawling near
+  // the end, exactly the "前面快後面慢" users kept reporting). Real measured timing
+  // (see the backend's own timing log) runs roughly 2-3s of total work per page, so
+  // scale the curve to the batch size instead of a fixed constant.
+  const progress = startFakeProgress(
+    "wizard-ocr-progress-wrap",
+    "wizard-ocr-progress-fill",
+    "wizard-ocr-progress-label",
+    Math.max(20, titleDeedWizard.files.length * 3)
+  );
   try {
     const fd = new FormData();
     titleDeedWizard.files.forEach((f) => {
@@ -2361,11 +2403,6 @@ function ownerRowHtml(prefix, o, areaSqm) {
       <div class="field"><label>登記次序</label><input class="${prefix}-order" value="${escapeHtml(o.registration_order)}" autocomplete="off"></div>
       <div class="field"><label>所有權人姓名</label><input class="${prefix}-name" value="${escapeHtml(o.owner_name)}" autocomplete="off"></div>
     </div>
-    ${
-      "id_number" in o
-        ? `<div class="field"><label>統一編號</label><input class="${prefix}-idnum" value="${escapeHtml(o.id_number)}" autocomplete="off"></div>`
-        : ""
-    }
     <div class="field">
       <label>權利範圍</label>
       <div style="display:flex;align-items:center;gap:8px">
@@ -2439,7 +2476,7 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       // the page, auto re-scanned with the slower high-accuracy engine only if this
       // page's own confidence comes back low) - no separate "high accuracy" mode to opt
       // into here any more.
-      btn.textContent = "辨識中...(請稍候，勿關閉視窗)";
+      btn.textContent = "重新辨識中...(請稍候，勿關閉視窗)";
       // Same fake-but-honest progress bar as the main wizard OCR step (see
       // startFakeProgress) - asymptotically creeps toward ~92% and jumps to 100% on
       // finish, with an elapsed-seconds label. No real per-page signal exists for a
@@ -2453,7 +2490,9 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
         <div class="helper-text" id="wizard-rescan-progress-label" style="margin-top:4px;text-align:center"></div>`;
       btn.insertAdjacentElement("afterend", wrap);
     }
-    var progress = btn ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label") : null;
+    var progress = btn
+      ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label", 20, "重新辨識中")
+      : null;
     try {
       const fd = new FormData();
       Array.from(input.files).forEach((f) => fd.append("files", f));
@@ -3583,13 +3622,90 @@ function renderBatchTimelineTab() {
 
 const DUAL_GATE_STAGES = [4, 8, 9];
 
-// Breaks a stage label like "同意度>80%(雙門檻)" onto two lines before the "(" - these
-// labels are short but dense (a threshold plus a qualifier in parens), and read better
-// wrapped than crammed onto one line in the narrow stepper node / card heading.
-function formatStageLabelHtml(name) {
-  return escapeHtml(name).replace(/\(/g, "<br>(");
+// Cosmetic-only relabeling for the SOP screen - the backend's own stage names
+// (source of truth, e.g. "初始核定立案", "聯絡率>95%") stay exactly as stored/returned
+// by the API; this just swaps in friendlier display wording for the same 10 stages
+// without touching any backend data or migrating existing projects' stored stage JSON.
+const SOP_STAGE_DISPLAY_NAMES = {
+  0: "案件初始設定",
+  1: "申請第三類謄本",
+  2: "住戶聯絡達95%",
+  3: "第一次說明會",
+  4: "意願書達80%",
+  5: "上傳顧問文件",
+  6: "第二次說明會",
+  7: "第三次說明會",
+  8: "第四次說明會(簽約)",
+  9: "簽約達80%",
+};
+function sopStageLabel(stageKey, stage) {
+  return SOP_STAGE_DISPLAY_NAMES[Number(stageKey)] || stage.name.split(":")[1] || stage.name;
 }
 
+// Per-stage checklists, all backed by real data - no stage here shows a fabricated
+// per-item status. Item kinds:
+//   - docType: done when a document of that doc_type has been uploaded to this project
+//   - countOf "land"/"building": done when >=1 land_record/building_record exists; shows
+//     a real count ("共 N 筆"), not the reference mockup's "8/14份" target-based format,
+//     since this system has no field for how many parcels/buildings a case is expected
+//     to have.
+//   - contactRate: done when >= the real 95% contact-rate gate (same threshold the
+//     backend itself uses to auto-advance stage 2 - see CONTACT_RATE_THRESHOLD in
+//     routers/sop.py), computed from actual landowner.contact_status values.
+//   - manual: a real staff confirmation, durably stored via POST /sop/{stage}/checklist
+//     (not inferred from any other data - e.g. a document existing doesn't mean a human
+//     actually reviewed it).
+// Stages 4/8/9 (dual-gate) intentionally have no checklist here - their real breakdown
+// (headcount/land-share % bars + per-landowner consent table) already renders via
+// renderConsentPanel, which is a more detailed real view than a 2-line checklist would
+// be. 第0關's checklist also deliberately omits "樓棟視圖基礎設定" from the reference
+// mockup this was modeled on - this app has no building-layout-view feature to check
+// that against.
+// Mirrors backend's CONTACT_RATE_THRESHOLD in routers/sop.py (the real gate that
+// auto-advances stage 2) - not a separately-chosen frontend value.
+const CONTACT_RATE_THRESHOLD = 0.95;
+
+const SOP_STAGE_CHECKLISTS = {
+  0: [
+    { key: "basic_info", label: "案件基本資料建立", sub: "名稱、地址、基地範圍" },
+    { key: "dev_letter_template", label: "上傳開發信", docType: "dev_letter_template" },
+    { key: "willingness_form_template", label: "上傳意願書", docType: "willingness_form_template" },
+    { key: "consent_form_template", label: "上傳同意書", docType: "consent_form_template" },
+    { key: "contract_template", label: "上傳合約", docType: "contract_template" },
+  ],
+  1: [
+    { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
+    { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land" },
+    { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building" },
+    { key: "landowner_roster_confirmed", label: "確認地主清冊正確", manual: true },
+  ],
+  2: [
+    { key: "contact_info_established", label: "地主聯絡方式建立", countOf: "landowner_with_phone" },
+    { key: "contact_rate_95", label: "達到95%聯絡門檻", contactRate: true },
+  ],
+  3: [
+    { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "briefing_reviewed_3", label: "主管審核通過", manual: true },
+  ],
+  5: [
+    { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document" },
+    { key: "consultant_reviewed", label: "主管審核通過", manual: true },
+  ],
+  6: [
+    { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "briefing_reviewed_6", label: "主管審核通過", manual: true },
+  ],
+  7: [
+    { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "briefing_reviewed_7", label: "主管審核通過", manual: true },
+  ],
+};
+
+// Compact "進度 X/9" bar that always shows above the tab bar, regardless of which tab
+// is active - the full interactive breakdown (per-stage status, complete/force-complete
+// buttons, dual-gate consent panel) lives in the dedicated "SOP 進度" tab (see
+// renderSopTab) since it needs real screen space and isn't something you need visible
+// while working in, say, 土地登記.
 async function renderSopSummary() {
   const el = document.getElementById("pd-sop-summary");
   const pid = state.currentProjectId;
@@ -3597,6 +3713,9 @@ async function renderSopSummary() {
   state.projectCache[pid].sop = sop;
 
   const stageKeys = Object.keys(sop.stages).sort((a, b) => Number(a) - Number(b));
+  const maxStage = Math.max(...stageKeys.map(Number));
+  const isFinished = sop.final.status !== "pending";
+  const progressNum = isFinished ? maxStage : sop.current_stage;
 
   let finalBanner = "";
   if (sop.final.status === "completed") {
@@ -3605,46 +3724,247 @@ async function renderSopSummary() {
     finalBanner = `<div class="final-banner warning">案件已由主管強制結案${sop.final.reason ? ":" + escapeHtml(sop.final.reason) : ""}</div>`;
   }
 
-  const isFinished = sop.final.status !== "pending";
-
-  const stepper = stageKeys
-    .map((key) => {
-      const stage = sop.stages[key];
-      const num = Number(key);
-      const isCurrent = num === sop.current_stage && !isFinished;
-      const cls = stage.status === "completed" ? "completed" : stage.status === "force_closed" ? "force_closed" : isCurrent ? "current" : "";
-      // The current stage's own 完成本關卡/主管強制完成 buttons live right under that
-      // node's label instead of in a separate card below - keeps them visually
-      // anchored to exactly which stage they act on rather than floating detached
-      // underneath the whole bar.
-      const currentStageActions =
-        isCurrent && isEditor()
-          ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
-              <button class="btn-primary btn-sm" id="complete-stage-btn">完成本關卡</button>
-              ${isAdmin() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
-            </div>`
-          : "";
-      return `<div class="sop-node ${cls}"><div class="line"></div><div class="circle">${key}</div><div class="label">${formatStageLabelHtml(stage.name.split(":")[1] || stage.name)}</div>${currentStageActions}</div>`;
-    })
-    .join("");
-
-  const isDualGate = !isFinished && DUAL_GATE_STAGES.includes(sop.current_stage);
+  const currentStageObj = sop.stages[String(sop.current_stage)];
+  const currentLabel = isFinished
+    ? "已結案"
+    : currentStageObj
+      ? `第${sop.current_stage}關・${sopStageLabel(sop.current_stage, currentStageObj)}`
+      : "";
 
   // Lives up in the case title header (next to the status badge), not down here with
-  // the stepper - it acts on the whole case, not on any one stage, so it reads better
-  // sitting alongside the case's own status than floating off the end of the bar.
+  // the progress bar - it acts on the whole case, not on any one stage, so it reads
+  // better sitting alongside the case's own status.
   document.getElementById("pd-header-actions").innerHTML =
-    isAdmin() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "";
+    isManager() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "";
 
   el.innerHTML = `
     ${finalBanner}
-    <div class="sop-stepper">${stepper}</div>
-    ${isDualGate ? `<div id="consent-panel" style="margin-top:14px"></div>` : ""}
+    <div class="sop-progress-bar">
+      <span class="sop-progress-num">進度 ${progressNum}/${maxStage}</span>
+      <div class="progress-bar-track" style="flex:1"><div class="progress-bar-fill" style="width:${((progressNum / maxStage) * 100).toFixed(0)}%"></div></div>
+      <span class="sop-progress-current">${escapeHtml(currentLabel)}</span>
+    </div>
   `;
 
-  if (isDualGate) {
-    await renderConsentPanel(document.getElementById("consent-panel"), sop.current_stage);
+  const forceCloseBtn = document.getElementById("force-close-project-btn");
+  if (forceCloseBtn) {
+    forceCloseBtn.addEventListener("click", async () => {
+      const reason = prompt("請輸入強制結案原因:");
+      if (reason === null) return;
+      try {
+        await api(`/projects/${pid}/sop/force-close`, { method: "POST", body: { force: true, reason } });
+        toast("案件已強制結案", "success");
+        await loadDashboard();
+        await renderSopSummary();
+        if (state.activeTab === "sop") renderTab("sop");
+      } catch (err) {}
+    });
   }
+}
+
+// The "SOP 進度" tab: a left-hand list of every stage (checkmark if done, highlighted
+// ring if it's the case's current stage, greyed "未解鎖" for anything further along
+// than the current stage - no per-stage sub-checklist here since the backend doesn't
+// track anything at that granularity, only stage-level status), and a right-hand detail
+// card for whichever stage is selected. Only the case's actual current stage gets the
+// complete/force-complete actions and (for dual-gate stages) the real consent-ratio
+// panel; clicking any other stage in the list just shows its status, it's a read-only
+// look back/ahead, not a way to jump the case's real progress around.
+async function renderSopTab(el) {
+  const pid = state.currentProjectId;
+  const sop = await api(`/projects/${pid}/sop`);
+  state.projectCache[pid].sop = sop;
+
+  const stageKeys = Object.keys(sop.stages).sort((a, b) => Number(a) - Number(b));
+  const isFinished = sop.final.status !== "pending";
+
+  if (state.sopSelectedStage == null || !stageKeys.includes(String(state.sopSelectedStage))) {
+    state.sopSelectedStage = isFinished ? Math.max(...stageKeys.map(Number)) : sop.current_stage;
+  }
+  const selected = state.sopSelectedStage;
+
+  const navItemsHtml = stageKeys
+    .map((key, i) => {
+      const stage = sop.stages[key];
+      const num = Number(key);
+      const isCurrent = num === sop.current_stage && !isFinished;
+      const isDone = stage.status === "completed" || stage.status === "force_closed";
+      const statusText = isDone ? (stage.status === "force_closed" ? "已強制完成" : "已完成") : isCurrent ? "進行中" : "未解鎖";
+      const cls = isDone ? "done" : isCurrent ? "current" : "locked";
+      const label = sopStageLabel(key, stage);
+      const isLast = i === stageKeys.length - 1;
+      return `
+      <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}">
+        <div class="sop-nav-circle-wrap">
+          <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
+          ${isLast ? "" : `<div class="sop-nav-line ${isDone ? "done" : ""}"></div>`}
+        </div>
+        <div class="sop-nav-text">
+          <div class="sop-nav-label">第${key}關 ${escapeHtml(label)}</div>
+          <div class="sop-nav-status">${statusText}</div>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  const selectedStage = sop.stages[String(selected)];
+  const selectedIsCurrent = Number(selected) === sop.current_stage && !isFinished;
+  const selectedIsDone = selectedStage.status === "completed" || selectedStage.status === "force_closed";
+  const selectedLabel = sopStageLabel(selected, selectedStage);
+  const statusBadgeText = selectedIsDone
+    ? selectedStage.status === "force_closed"
+      ? "已強制完成"
+      : "已完成"
+    : selectedIsCurrent
+      ? "進行中"
+      : "未解鎖";
+  const statusBadgeCls = selectedIsDone || selectedIsCurrent ? "status-active" : "status-closed";
+  const isDualGate = selectedIsCurrent && DUAL_GATE_STAGES.includes(Number(selected));
+
+  // Checklists are only rendered for stages backed by real, checkable data - see
+  // SOP_STAGE_CHECKLISTS. Stages 4/8/9 (dual-gate) intentionally have none, since their
+  // real breakdown already renders via renderConsentPanel below.
+  let checklistHtml = "";
+  let checklistAllDone = true;
+  const checklistConfig = SOP_STAGE_CHECKLISTS[Number(selected)] || null;
+  if (checklistConfig) {
+    const needsDocs = checklistConfig.some((item) => item.docType);
+    const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate);
+    const [docs, landowners] = await Promise.all([
+      needsDocs ? api(`/projects/${pid}/documents`) : Promise.resolve([]),
+      needsLandowners ? api(`/projects/${pid}/landowners`) : Promise.resolve([]),
+    ]);
+    const latestByType = {};
+    docs.forEach((d) => {
+      if (!latestByType[d.doc_type] || new Date(d.uploaded_at) > new Date(latestByType[d.doc_type].uploaded_at)) {
+        latestByType[d.doc_type] = d;
+      }
+    });
+    const landCount = landowners.reduce((sum, o) => sum + (o.land_records || []).length, 0);
+    const buildingCount = landowners.reduce((sum, o) => sum + (o.building_records || []).length, 0);
+    const phoneCount = landowners.filter((o) => (o.phone || "").trim()).length;
+    const contactedCount = landowners.filter((o) => o.contact_status && o.contact_status !== "not_contacted").length;
+    const contactRate = landowners.length > 0 ? contactedCount / landowners.length : 0;
+    const confirmedChecklist = (selectedStage.data && selectedStage.data.checklist) || {};
+    checklistAllDone = true;
+
+    const itemsHtml = checklistConfig
+      .map((item) => {
+        let done = true;
+        let sub = item.sub || "";
+        if (item.docType) {
+          const doc = latestByType[item.docType];
+          done = !!doc;
+          sub = doc ? `已上傳・${fmtDate(doc.uploaded_at)}` : "尚未上傳";
+        } else if (item.countOf === "landowner_with_phone") {
+          done = phoneCount > 0;
+          sub = `${phoneCount}/${landowners.length} 位已建立聯絡方式`;
+        } else if (item.countOf) {
+          const count = item.countOf === "land" ? landCount : buildingCount;
+          done = count > 0;
+          sub = done ? `共 ${count} 筆` : "尚未匯入";
+        } else if (item.contactRate) {
+          done = contactRate >= CONTACT_RATE_THRESHOLD;
+          sub = `已聯絡 ${contactedCount}/${landowners.length}(${Math.round(contactRate * 100)}%)`;
+        } else if (item.manual) {
+          const confirmed = confirmedChecklist[item.key];
+          done = !!confirmed;
+          sub = done ? `已確認・${fmtDate(confirmed.confirmed_at)}` : "尚未確認";
+        }
+        if (!done) checklistAllDone = false;
+        const confirmBtn =
+          item.manual && isEditor()
+            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
+            : "";
+        const uploadBtn =
+          item.docType && canOcr()
+            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-upload="${item.docType}">${done ? "重新上傳" : "上傳"}</button>
+               <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
+            : "";
+        return `
+        <div class="sop-checklist-item ${done ? "done" : ""}">
+          <div class="sop-checklist-icon">${done ? "✓" : ""}</div>
+          <div style="flex:1">
+            <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
+            <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
+          </div>
+          ${confirmBtn}${uploadBtn}
+        </div>`;
+      })
+      .join("");
+    checklistHtml = `<div class="sop-checklist">${itemsHtml}</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="sop-panel-layout">
+      <div class="sop-nav-list">${navItemsHtml}</div>
+      <div class="sop-detail-card">
+        <div class="sop-detail-header">
+          <h3>第${selected}關・${escapeHtml(selectedLabel)}</h3>
+          <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
+        </div>
+        ${checklistHtml}
+        ${isDualGate ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
+        ${
+          selectedIsCurrent && isEditor()
+            ? `<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
+                <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本關卡</button>
+                ${!checklistAllDone ? `<span class="helper-text">還有項目未完成,無法進入下一關</span>` : ""}
+                ${isManager() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
+              </div>`
+            : !selectedIsCurrent
+              ? `<div class="helper-text" style="margin-top:16px">${selectedIsDone ? "這一關已經完成。" : "這一關還沒開始,要先完成前面的關卡才會解鎖。"}</div>`
+              : ""
+        }
+      </div>
+    </div>`;
+
+  if (isDualGate) {
+    await renderConsentPanel(document.getElementById("sop-tab-consent-panel"), Number(selected));
+  }
+
+  el.querySelectorAll("[data-sop-nav]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.sopSelectedStage = Number(node.dataset.sopNav);
+      renderSopTab(el);
+    });
+  });
+
+  el.querySelectorAll("[data-checklist-confirm]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.checklistConfirm;
+      const currentlyConfirmed = btn.dataset.checklistConfirmed === "true";
+      try {
+        await api(`/projects/${pid}/sop/${selected}/checklist`, {
+          method: "POST",
+          body: { key, confirmed: !currentlyConfirmed },
+        });
+        toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
+        renderSopTab(el);
+      } catch (err) {}
+    });
+  });
+
+  el.querySelectorAll("[data-checklist-upload]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      el.querySelector(`[data-checklist-upload-input="${btn.dataset.checklistUpload}"]`).click();
+    });
+  });
+  el.querySelectorAll("[data-checklist-upload-input]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const docType = input.dataset.checklistUploadInput;
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("doc_type", docType);
+      try {
+        await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
+        toast("文件已上傳", "success");
+        renderSopTab(el);
+      } catch (err) {}
+    });
+  });
 
   const completeBtn = document.getElementById("complete-stage-btn");
   if (completeBtn) {
@@ -3653,7 +3973,9 @@ async function renderSopSummary() {
         await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: {} });
         toast("關卡已完成", "success");
         await loadDashboard();
-        renderSopSummary();
+        await renderSopSummary();
+        state.sopSelectedStage = null;
+        renderSopTab(el);
       } catch (err) {}
     });
   }
@@ -3665,20 +3987,9 @@ async function renderSopSummary() {
       try {
         await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: { force: true, reason } });
         toast("已強制完成關卡", "success");
-        renderSopSummary();
-      } catch (err) {}
-    });
-  }
-  const forceCloseBtn = document.getElementById("force-close-project-btn");
-  if (forceCloseBtn) {
-    forceCloseBtn.addEventListener("click", async () => {
-      const reason = prompt("請輸入強制結案原因:");
-      if (reason === null) return;
-      try {
-        await api(`/projects/${pid}/sop/force-close`, { method: "POST", body: { force: true, reason } });
-        toast("案件已強制結案", "success");
-        await loadDashboard();
-        renderSopSummary();
+        await renderSopSummary();
+        state.sopSelectedStage = null;
+        renderSopTab(el);
       } catch (err) {}
     });
   }
@@ -3740,7 +4051,7 @@ async function renderConsentPanel(el, stage) {
           body: { landowner_id: Number(btn.dataset.consent), consent_status: btn.dataset.status },
         });
         toast("已登記同意狀態", "success");
-        renderSopSummary();
+        renderConsentPanel(el, stage);
       } catch (err) {}
     });
   });
@@ -3907,7 +4218,7 @@ async function renderDocumentsTab(el) {
       <h3>文件清單 (${docs.length})</h3>
       <div style="display:flex;gap:8px">
         <button class="btn-secondary btn-sm" id="view-ocr-batches-btn">謄本匯入批次紀錄</button>
-        ${isEditor() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
+        ${canOcr() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}
       </div>
     </div>
     ${
@@ -3926,7 +4237,7 @@ async function renderDocumentsTab(el) {
                       <td>${escapeHtml(d.description) || "-"}</td>
                       <td class="actions-cell">
                         <button class="btn-secondary btn-sm" data-download="${d.id}" data-filename="${escapeHtml(d.file_name)}">下載</button>
-                        ${isEditor() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
+                        ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
                       </td>
                     </tr>`
                   )
@@ -4043,6 +4354,90 @@ function openUploadDocumentModal() {
       closeModal();
       toast("文件已上傳", "success");
       renderTab("documents");
+    } catch (err) {}
+  });
+}
+
+/* ================= Tab: Members (案件成員) ================= */
+
+async function renderMembersTab(el) {
+  const pid = state.currentProjectId;
+  const members = await api(`/projects/${pid}/members`);
+
+  el.innerHTML = `
+    <div class="section-toolbar">
+      <h3>案件成員 (${members.length})</h3>
+      <button class="btn-primary btn-sm" id="add-member-btn">+ 新增成員</button>
+    </div>
+    ${
+      members.length
+        ? `<div class="table-wrap">
+            <table>
+              <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>加入時間</th><th>操作</th></tr></thead>
+              <tbody>
+                ${members
+                  .map(
+                    (m) => `<tr>
+                      <td>${escapeHtml(m.username)}</td>
+                      <td>${escapeHtml(m.display_name)}</td>
+                      <td><span class="role-badge ${m.role_in_project}">${ROLE_LABEL[m.role_in_project] || m.role_in_project}</span></td>
+                      <td>${fmtDateTime(m.assigned_at)}</td>
+                      <td class="actions-cell">
+                        <button class="btn-danger btn-sm" data-remove-member="${m.user_id}">移除</button>
+                      </td>
+                    </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>`
+        : `<div class="empty-state">尚未指派任何成員(L1/L2 可以看到所有案件,不需要被指派)</div>`
+    }
+  `;
+
+  document.getElementById("add-member-btn").addEventListener("click", () => openAddMemberModal(members));
+  el.querySelectorAll("[data-remove-member]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要將此成員移出這個案件嗎?")) return;
+      try {
+        await api(`/projects/${pid}/members/${btn.dataset.removeMember}`, { method: "DELETE" });
+        toast("已移除", "success");
+        renderTab("members");
+      } catch (err) {}
+    });
+  });
+}
+
+async function openAddMemberModal(existingMembers) {
+  const pid = state.currentProjectId;
+  const allUsers = await api("/users");
+  const existingIds = new Set(existingMembers.map((m) => m.user_id));
+  const candidates = allUsers.filter((u) => !existingIds.has(u.id));
+
+  openModal(
+    "新增案件成員",
+    `
+    <form id="add-member-form">
+      <div class="field"><label>使用者</label>
+        <select name="user_id" required>
+          <option value="">— 選擇使用者 —</option>
+          ${candidates.map((u) => `<option value="${u.id}">${escapeHtml(u.display_name)}(${escapeHtml(u.username)}) - ${ROLE_LABEL[u.role] || u.role}</option>`).join("")}
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">新增</button>
+      </div>
+    </form>`
+  );
+  document.getElementById("add-member-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api(`/projects/${pid}/members`, { method: "POST", body: { user_id: Number(fd.get("user_id")) } });
+      closeModal();
+      toast("已新增成員", "success");
+      renderTab("members");
     } catch (err) {}
   });
 }
@@ -4201,7 +4596,7 @@ async function renderExpensesTab(el) {
     <div class="section-toolbar">
       <h3>支出明細 (${expenses.length})</h3>
       <div style="display:flex;gap:10px">
-        ${isAdmin() ? `<button class="btn-secondary btn-sm" id="manage-categories-btn">管理類別</button>` : ""}
+        ${isManager() ? `<button class="btn-secondary btn-sm" id="manage-categories-btn">管理類別</button>` : ""}
         ${isEditor() ? `<button class="btn-primary btn-sm" id="add-expense-btn">+ 新增支出</button>` : ""}
       </div>
     </div>
@@ -4374,7 +4769,7 @@ async function loadUsers() {
   const wrap = document.getElementById("users-table-wrap");
   wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
   const users = await api("/users");
-  const roleLabel = { admin: "主管", staff: "開發人員", public: "地主" };
+  const roleLabel = ROLE_LABEL;
 
   wrap.innerHTML = `
     <table>
@@ -4436,7 +4831,7 @@ async function loadLoginLogs() {
   const wrap = document.getElementById("loginlogs-table-wrap");
   wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
   const logs = await api("/auth/login-logs");
-  const roleLabel = { admin: "主管", staff: "開發人員", public: "地主" };
+  const roleLabel = ROLE_LABEL;
   const actionLabel = { login: "登入", logout: "登出" };
 
   if (!logs.length) {
@@ -4463,6 +4858,548 @@ async function loadLoginLogs() {
     </table>`;
 }
 
+/* ================= 公版文件 ================= */
+
+async function goToCompanyDocs() {
+  setActiveNav("companydocs");
+  showView("view-companydocs");
+  document.getElementById("upload-companydoc-btn").classList.toggle("hidden", !isManager());
+  await loadCompanyDocs();
+}
+
+// Real signal only - derived from the actual uploaded mime_type, not a fabricated
+// per-item category icon set.
+function companyDocIcon(mimeType) {
+  if (!mimeType) return "📎";
+  if (mimeType === "application/pdf") return "📄";
+  if (mimeType.startsWith("image/")) return "🖼️";
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "📊";
+  if (mimeType.includes("word") || mimeType.includes("document")) return "📝";
+  return "📎";
+}
+
+async function loadCompanyDocs() {
+  const wrap = document.getElementById("companydocs-table-wrap");
+  wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const docs = await api("/company-documents");
+
+  wrap.innerHTML = docs.length
+    ? `<div class="card">
+        ${docs
+          .map(
+            (d) => `
+          <div class="doc-row">
+            <div class="doc-row-icon">${companyDocIcon(d.mime_type)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="doc-row-name">${escapeHtml(d.file_name)}</div>
+              <div class="helper-text">
+                最後更新:${fmtDate(d.uploaded_at)}${d.uploaded_by_name ? ` by ${escapeHtml(d.uploaded_by_name)}` : ""}${d.category ? ` · ${escapeHtml(d.category)}` : ""}${d.description ? ` · ${escapeHtml(d.description)}` : ""}
+              </div>
+            </div>
+            <div class="actions-cell">
+              <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
+              ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`
+    : `<div class="empty-state">尚無公版文件</div>`;
+
+  wrap.querySelectorAll("[data-download-companydoc]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const res = await api(`/company-documents/${btn.dataset.downloadCompanydoc}/download`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = btn.dataset.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {}
+    });
+  });
+  wrap.querySelectorAll("[data-delete-companydoc]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要刪除此文件嗎?")) return;
+      try {
+        await api(`/company-documents/${btn.dataset.deleteCompanydoc}`, { method: "DELETE" });
+        toast("已刪除", "success");
+        loadCompanyDocs();
+      } catch (err) {}
+    });
+  });
+}
+
+document.getElementById("upload-companydoc-btn").addEventListener("click", () => {
+  openModal(
+    "上傳公版文件",
+    `
+    <form id="upload-companydoc-form">
+      <div class="field"><label>檔案</label><input type="file" name="file" required></div>
+      <div class="field"><label>分類(選填)</label><input name="category" placeholder="例:開發信範本"></div>
+      <div class="field"><label>說明</label><textarea name="description" rows="2"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">上傳</button>
+      </div>
+    </form>`
+  );
+  document.getElementById("upload-companydoc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    if (!fd.get("category")) fd.delete("category");
+    try {
+      await api("/company-documents", { method: "POST", body: fd, isForm: true });
+      closeModal();
+      toast("文件已上傳", "success");
+      loadCompanyDocs();
+    } catch (err) {}
+  });
+});
+
+/* ================= 相關法規 / 相關網站 (共用邏輯) ================= */
+
+const LINK_SECTION_ACCENTS = ["accent-brand", "accent-success", "accent-info", "accent-danger"];
+
+function renderLinkListPage(items, listElId, isManagerView) {
+  const el = document.getElementById(listElId);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">尚無連結,${isManagerView ? "點右上角新增" : "請洽管理員新增"}</div>`;
+    return;
+  }
+  const byCategory = {};
+  items.forEach((item) => {
+    const cat = item.category || "未分類";
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+  el.innerHTML = Object.entries(byCategory)
+    .map(
+      ([cat, rows], catIdx) => `
+      <div class="link-section">
+        <div class="link-section-hdr"><span>📄</span>${escapeHtml(cat)}</div>
+        ${rows
+          .map(
+            (r) => `
+          <div class="card link-card" data-id="${r.id}">
+            <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
+            <div style="flex:1;min-width:0">
+              <div class="link-card-name">${escapeHtml(r.name)}</div>
+              ${r.description ? `<div class="helper-text">${escapeHtml(r.description)}</div>` : ""}
+            </div>
+            <div class="actions-cell">
+              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm">開啟 ↗</a>
+              ${
+                isManagerView
+                  ? `<button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+                     <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>`
+                  : ""
+              }
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`
+    )
+    .join("");
+}
+
+function openLinkFormModal(title, endpoint, item, onSaved) {
+  openModal(
+    title,
+    `
+    <form id="link-form">
+      <div class="field"><label>分類(選填)</label><input name="category" value="${item ? escapeHtml(item.category) || "" : ""}"></div>
+      <div class="field"><label>名稱</label><input name="name" required value="${item ? escapeHtml(item.name) : ""}"></div>
+      <div class="field"><label>網址</label><input name="url" type="url" required value="${item ? escapeHtml(item.url) : ""}"></div>
+      <div class="field"><label>說明(選填)</label><textarea name="description" rows="2">${item ? escapeHtml(item.description) || "" : ""}</textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">儲存</button>
+      </div>
+    </form>`
+  );
+  document.getElementById("link-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    if (!payload.category) delete payload.category;
+    if (!payload.description) delete payload.description;
+    try {
+      if (item) {
+        await api(`${endpoint}/${item.id}`, { method: "PATCH", body: payload });
+      } else {
+        await api(endpoint, { method: "POST", body: payload });
+      }
+      closeModal();
+      toast("已儲存", "success");
+      onSaved();
+    } catch (err) {}
+  });
+}
+
+let regulationsEditMode = false;
+let websitesEditMode = false;
+
+async function goToRegulations() {
+  setActiveNav("regulations");
+  showView("view-regulations");
+  regulationsEditMode = false;
+  document.getElementById("new-regulation-btn").classList.toggle("hidden", !isManager());
+  document.getElementById("toggle-regulation-edit-btn").classList.toggle("hidden", !isManager());
+  await loadRegulations();
+}
+
+async function loadRegulations() {
+  const el = document.getElementById("regulations-list");
+  el.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const items = await api("/regulations");
+  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode);
+  if (isManager() && regulationsEditMode) {
+    el.querySelectorAll("[data-edit-link]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        openLinkFormModal("編輯法規連結", "/regulations", item, loadRegulations);
+      });
+    });
+    el.querySelectorAll("[data-delete-link]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("確定要刪除此連結嗎?")) return;
+        try {
+          await api(`/regulations/${btn.dataset.deleteLink}`, { method: "DELETE" });
+          toast("已刪除", "success");
+          loadRegulations();
+        } catch (err) {}
+      });
+    });
+  }
+}
+
+document.getElementById("new-regulation-btn").addEventListener("click", () => {
+  openLinkFormModal("新增法規連結", "/regulations", null, loadRegulations);
+});
+
+document.getElementById("toggle-regulation-edit-btn").addEventListener("click", (e) => {
+  regulationsEditMode = !regulationsEditMode;
+  e.currentTarget.classList.toggle("btn-primary", regulationsEditMode);
+  e.currentTarget.classList.toggle("btn-secondary", !regulationsEditMode);
+  loadRegulations();
+});
+
+async function goToWebsites() {
+  setActiveNav("websites");
+  showView("view-websites");
+  websitesEditMode = false;
+  document.getElementById("new-website-btn").classList.toggle("hidden", !isManager());
+  document.getElementById("toggle-website-edit-btn").classList.toggle("hidden", !isManager());
+  await loadWebsites();
+}
+
+async function loadWebsites() {
+  const el = document.getElementById("websites-list");
+  el.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const items = await api("/websites");
+  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode);
+  if (isManager() && websitesEditMode) {
+    el.querySelectorAll("[data-edit-link]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        openLinkFormModal("編輯網站連結", "/websites", item, loadWebsites);
+      });
+    });
+    el.querySelectorAll("[data-delete-link]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("確定要刪除此連結嗎?")) return;
+        try {
+          await api(`/websites/${btn.dataset.deleteLink}`, { method: "DELETE" });
+          toast("已刪除", "success");
+          loadWebsites();
+        } catch (err) {}
+      });
+    });
+  }
+}
+
+document.getElementById("new-website-btn").addEventListener("click", () => {
+  openLinkFormModal("新增網站連結", "/websites", null, loadWebsites);
+});
+
+document.getElementById("toggle-website-edit-btn").addEventListener("click", (e) => {
+  websitesEditMode = !websitesEditMode;
+  e.currentTarget.classList.toggle("btn-primary", websitesEditMode);
+  e.currentTarget.classList.toggle("btn-secondary", !websitesEditMode);
+  loadWebsites();
+});
+
+/* ================= 知識庫 (FAQ) ================= */
+
+let faqCurCat = "全部";
+
+let faqEditMode = false;
+
+async function goToFaq() {
+  setActiveNav("faq");
+  showView("view-faq");
+  faqEditMode = false;
+  const toggleBtn = document.getElementById("toggle-faq-edit-btn");
+  toggleBtn.classList.toggle("hidden", !isManager());
+  toggleBtn.classList.remove("btn-primary");
+  toggleBtn.classList.add("btn-secondary");
+  document.getElementById("new-faq-btn").classList.toggle("hidden", !isManager());
+  document.getElementById("manage-faq-cats-btn").classList.toggle("hidden", !isManager());
+  faqCurCat = "全部";
+  await loadFaq();
+}
+
+let faqItemsCache = [];
+
+async function loadFaq() {
+  const listEl = document.getElementById("faq-list");
+  listEl.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const items = await api("/faq");
+  faqItemsCache = items;
+
+  // Union of real categories already used on saved items and admin-declared preset
+  // categories (FAQ_CATEGORY_OPTIONS) - lets a newly-added-but-not-yet-used category
+  // show up here right away, same as expense categories can exist before any expense
+  // references them. "未分類" only shows up if some real item actually has no category.
+  const usedCats = items.map((i) => i.category || "未分類");
+  const cats = ["全部", ...new Set([...usedCats, ...FAQ_CATEGORY_OPTIONS])];
+  document.getElementById("faq-cat-bar").innerHTML = cats
+    .map((c) => `<button class="fb ${faqCurCat === c ? "act" : ""}" data-faq-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`)
+    .join("");
+  document.querySelectorAll("[data-faq-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      faqCurCat = btn.dataset.faqCat;
+      renderFaqList(items);
+    });
+  });
+
+  renderFaqList(items);
+}
+
+function renderFaqList(items) {
+  const listEl = document.getElementById("faq-list");
+  const filtered = items.filter((i) => faqCurCat === "全部" || (i.category || "未分類") === faqCurCat);
+
+  listEl.innerHTML = filtered.length
+    ? filtered
+        .map(
+          (i) => `
+      <div class="faq-item">
+        <div class="faq-q" data-faq-toggle="${i.id}">
+          <span class="faq-cat-tag">${escapeHtml(i.category) || "未分類"}</span>
+          <span style="flex:1">${escapeHtml(i.question)}</span>
+          ${
+            isManager() && faqEditMode
+              ? `<span class="actions-cell" onclick="event.stopPropagation()">
+                  <button class="btn-secondary btn-sm" data-edit-faq="${i.id}">編輯</button>
+                  <button class="btn-danger btn-sm" data-delete-faq="${i.id}">刪除</button>
+                </span>`
+              : ""
+          }
+          <span class="faq-arr">▶</span>
+        </div>
+        <div class="faq-a">${escapeHtml(i.answer)}</div>
+      </div>`
+        )
+        .join("")
+    : `<div class="empty-state">尚無問答</div>`;
+
+  listEl.querySelectorAll("[data-faq-toggle]").forEach((hdr) => {
+    hdr.addEventListener("click", () => {
+      const item = hdr.closest(".faq-item");
+      const wasOpen = item.classList.contains("open");
+      listEl.querySelectorAll(".faq-item.open").forEach((x) => x.classList.remove("open"));
+      if (!wasOpen) item.classList.add("open");
+    });
+  });
+  listEl.querySelectorAll("[data-edit-faq]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = items.find((i) => i.id === Number(btn.dataset.editFaq));
+      openFaqFormModal("編輯問答", item);
+    });
+  });
+  listEl.querySelectorAll("[data-delete-faq]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要刪除此問答嗎?")) return;
+      try {
+        await api(`/faq/${btn.dataset.deleteFaq}`, { method: "DELETE" });
+        toast("已刪除", "success");
+        loadFaq();
+      } catch (err) {}
+    });
+  });
+}
+
+const FAQ_CATEGORY_OPTIONS = ["條件分配", "法律問題", "稅務優惠", "說明會相關", "都更流程"];
+
+function openFaqFormModal(title, item) {
+  const currentCat = item ? item.category || "" : "";
+  const isKnownCat = !currentCat || FAQ_CATEGORY_OPTIONS.includes(currentCat);
+  openModal(
+    title,
+    `
+    <form id="faq-form">
+      <div class="field">
+        <label>分類(選填)</label>
+        <select id="faq-category-select">
+          <option value="" ${!currentCat ? "selected" : ""}>無</option>
+          ${FAQ_CATEGORY_OPTIONS.map((c) => `<option value="${escapeHtml(c)}" ${currentCat === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
+          ${!isKnownCat ? `<option value="${escapeHtml(currentCat)}" selected>${escapeHtml(currentCat)}</option>` : ""}
+          <option value="__new__">＋ 新增分類</option>
+        </select>
+        <input type="hidden" name="category" id="faq-category-value" value="${escapeHtml(currentCat)}">
+      </div>
+      <div class="field"><label>問題</label><input name="question" required value="${item ? escapeHtml(item.question) : ""}"></div>
+      <div class="field"><label>答案</label><textarea name="answer" rows="4" required>${item ? escapeHtml(item.answer) : ""}</textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">儲存</button>
+      </div>
+    </form>`
+  );
+  const catSelect = document.getElementById("faq-category-select");
+  const catValue = document.getElementById("faq-category-value");
+  catSelect.addEventListener("change", () => {
+    if (catSelect.value === "__new__") {
+      const name = prompt("輸入新分類名稱:");
+      if (name && name.trim()) {
+        const opt = document.createElement("option");
+        opt.value = name.trim();
+        opt.textContent = name.trim();
+        catSelect.insertBefore(opt, catSelect.querySelector('option[value="__new__"]'));
+        catSelect.value = name.trim();
+      } else {
+        catSelect.value = catValue.value;
+      }
+    }
+    catValue.value = catSelect.value === "__new__" ? "" : catSelect.value;
+  });
+  document.getElementById("faq-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    if (!payload.category) delete payload.category;
+    try {
+      if (item) {
+        await api(`/faq/${item.id}`, { method: "PATCH", body: payload });
+      } else {
+        await api("/faq", { method: "POST", body: payload });
+      }
+      closeModal();
+      toast("已儲存", "success");
+      loadFaq();
+    } catch (err) {}
+  });
+}
+
+document.getElementById("new-faq-btn").addEventListener("click", () => {
+  openFaqFormModal("新增問答", null);
+});
+
+document.getElementById("toggle-faq-edit-btn").addEventListener("click", (e) => {
+  faqEditMode = !faqEditMode;
+  e.currentTarget.classList.toggle("btn-primary", faqEditMode);
+  e.currentTarget.classList.toggle("btn-secondary", !faqEditMode);
+  renderFaqList(faqItemsCache);
+});
+
+function openManageFaqCatsModal() {
+  const realCats = new Set(faqItemsCache.map((i) => i.category).filter(Boolean));
+  const allCats = [...new Set([...FAQ_CATEGORY_OPTIONS, ...realCats])];
+
+  openModal(
+    "管理分類",
+    `
+    <div id="faq-cat-manage-list">
+      ${
+        allCats.length
+          ? allCats
+              .map((c) => {
+                const count = faqItemsCache.filter((i) => i.category === c).length;
+                return `
+              <div class="cat-manage-row" data-cat="${escapeHtml(c)}">
+                <span class="cat-manage-name">${escapeHtml(c)}${count ? ` (${count} 筆問答使用中)` : ""}</span>
+                <button type="button" class="btn-secondary btn-sm" data-rename-cat="${escapeHtml(c)}">編輯</button>
+                <button type="button" class="btn-danger btn-sm" data-delete-cat="${escapeHtml(c)}">刪除</button>
+              </div>`;
+              })
+              .join("")
+          : `<div class="empty-state">尚無分類</div>`
+      }
+    </div>
+    <div class="field-row" style="margin-top:12px">
+      <div class="field" style="margin-bottom:0"><input id="new-faq-cat-name" placeholder="新分類名稱"></div>
+      <div class="field" style="flex:0 0 auto;margin-bottom:0">
+        <button type="button" class="btn-primary" id="add-faq-cat-btn">新增</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal()">關閉</button>
+    </div>`
+  );
+
+  document.getElementById("add-faq-cat-btn").addEventListener("click", () => {
+    const input = document.getElementById("new-faq-cat-name");
+    const name = input.value.trim();
+    if (!name) return;
+    if (FAQ_CATEGORY_OPTIONS.includes(name) || realCats.has(name)) {
+      toast("分類已存在", "error");
+      return;
+    }
+    FAQ_CATEGORY_OPTIONS.push(name);
+    toast("已新增分類", "success");
+    closeModal();
+    loadFaq();
+  });
+
+  document.querySelectorAll("[data-rename-cat]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const oldName = btn.dataset.renameCat;
+      const newName = prompt(`將分類「${oldName}」重新命名為:`, oldName);
+      if (!newName || !newName.trim() || newName.trim() === oldName) return;
+      const trimmed = newName.trim();
+      try {
+        const affected = faqItemsCache.filter((i) => i.category === oldName);
+        for (const item of affected) {
+          await api(`/faq/${item.id}`, { method: "PATCH", body: { category: trimmed } });
+        }
+        const idx = FAQ_CATEGORY_OPTIONS.indexOf(oldName);
+        if (idx >= 0) FAQ_CATEGORY_OPTIONS[idx] = trimmed;
+        toast("已更新分類名稱", "success");
+        closeModal();
+        await loadFaq();
+      } catch (err) {}
+    });
+  });
+  document.querySelectorAll("[data-delete-cat]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.deleteCat;
+      const affected = faqItemsCache.filter((i) => i.category === name);
+      const msg = affected.length
+        ? `確定要刪除分類「${name}」嗎?底下 ${affected.length} 筆問答會變成「無分類」。`
+        : `確定要刪除分類「${name}」嗎?`;
+      if (!confirm(msg)) return;
+      try {
+        for (const item of affected) {
+          await api(`/faq/${item.id}`, { method: "PATCH", body: { category: null } });
+        }
+        const idx = FAQ_CATEGORY_OPTIONS.indexOf(name);
+        if (idx >= 0) FAQ_CATEGORY_OPTIONS.splice(idx, 1);
+        toast("已刪除分類", "success");
+        closeModal();
+        await loadFaq();
+      } catch (err) {}
+    });
+  });
+}
+
+document.getElementById("manage-faq-cats-btn").addEventListener("click", openManageFaqCatsModal);
+
 document.getElementById("new-user-btn").addEventListener("click", () => {
   openModal(
     "新增使用者",
@@ -4476,9 +5413,7 @@ document.getElementById("new-user-btn").addEventListener("click", () => {
         <div class="field"><label>顯示名稱</label><input name="display_name" required></div>
         <div class="field"><label>角色</label>
           <select name="role">
-            <option value="staff">開發人員</option>
-            <option value="admin">主管</option>
-            <option value="public">地主</option>
+            ${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
           </select>
         </div>
       </div>
@@ -4514,9 +5449,7 @@ function openEditUserModal(user) {
         <div class="field"><label>顯示名稱</label><input name="display_name" value="${escapeHtml(user.display_name)}" required></div>
         <div class="field"><label>角色</label>
           <select name="role">
-            <option value="staff" ${user.role === "staff" ? "selected" : ""}>開發人員</option>
-            <option value="admin" ${user.role === "admin" ? "selected" : ""}>主管</option>
-            <option value="public" ${user.role === "public" ? "selected" : ""}>地主</option>
+            ${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}" ${user.role === k ? "selected" : ""}>${v}</option>`).join("")}
           </select>
         </div>
       </div>

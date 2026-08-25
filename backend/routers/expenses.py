@@ -3,10 +3,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_admin, require_staff_or_admin
+from deps import get_current_user, require_manager, require_project_editor, require_project_viewer
 from models.expense import Expense, ExpenseCategory
+from models.project import Project
 from models.user import User
-from routers.projects import assert_project_visible, get_project_or_404
 from schemas.expense import (
     ExpenseCategoryCreate,
     ExpenseCategoryRead,
@@ -31,26 +31,22 @@ def get_expense_or_404(db: Session, project_id: int, expense_id: int) -> Expense
 
 @router.get("", response_model=list[ExpenseRead])
 def list_expenses(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
     return db.scalars(
-        select(Expense).where(Expense.project_id == project_id).order_by(Expense.expense_date.desc())
+        select(Expense).where(Expense.project_id == project.id).order_by(Expense.expense_date.desc())
     ).all()
 
 
 @router.post("", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
 def create_expense(
-    project_id: int,
     payload: ExpenseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
 ):
-    get_project_or_404(db, project_id)
-    expense = Expense(project_id=project_id, created_by=current_user.id, **payload.model_dump())
+    expense = Expense(project_id=project.id, created_by=current_user.id, **payload.model_dump())
     db.add(expense)
     db.commit()
     db.refresh(expense)
@@ -59,13 +55,10 @@ def create_expense(
 
 @router.get("/summary", response_model=ExpenseSummary)
 def expense_summary(
-    project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
-    project = get_project_or_404(db, project_id)
-    assert_project_visible(db, project, current_user)
-
+    project_id = project.id
     total = float(
         db.scalar(select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.project_id == project_id)) or 0
     )
@@ -90,13 +83,12 @@ def expense_summary(
 
 @router.patch("/{expense_id}", response_model=ExpenseRead)
 def update_expense(
-    project_id: int,
     expense_id: int,
     payload: ExpenseUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    expense = get_expense_or_404(db, project_id, expense_id)
+    expense = get_expense_or_404(db, project.id, expense_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(expense, field, value)
     db.commit()
@@ -106,12 +98,11 @@ def update_expense(
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_expense(
-    project_id: int,
     expense_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    project: Project = Depends(require_project_editor),
 ):
-    expense = get_expense_or_404(db, project_id, expense_id)
+    expense = get_expense_or_404(db, project.id, expense_id)
     db.delete(expense)
     db.commit()
 
@@ -125,7 +116,7 @@ def list_categories(db: Session = Depends(get_db), current_user: User = Depends(
 def create_category(
     payload: ExpenseCategoryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
 ):
     existing = db.scalar(select(ExpenseCategory).where(ExpenseCategory.name == payload.name))
     if existing is not None:
@@ -142,7 +133,7 @@ def update_category(
     category_id: int,
     payload: ExpenseCategoryUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
 ):
     category = db.get(ExpenseCategory, category_id)
     if category is None:
@@ -158,7 +149,7 @@ def update_category(
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
 ):
     category = db.get(ExpenseCategory, category_id)
     if category is None:

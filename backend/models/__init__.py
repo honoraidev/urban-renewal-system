@@ -12,6 +12,10 @@ from models.ocr import OcrJob, OcrMatchResult
 from models.ocr_job_document import OcrJobDocument
 from models.encumbrance import Encumbrance
 from models.login_log import LoginLog
+from models.company_document import CompanyDocument
+from models.regulation import Regulation
+from models.website import Website
+from models.faq_item import FaqItem
 
 __all__ = [
     "User",
@@ -31,4 +35,8 @@ __all__ = [
     "OcrJobDocument",
     "Encumbrance",
     "LoginLog",
+    "CompanyDocument",
+    "Regulation",
+    "Website",
+    "FaqItem",
 ]

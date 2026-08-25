@@ -17,6 +17,15 @@ class SopCompleteRequest(BaseModel):
     reason: str | None = None
 
 
+class ChecklistConfirmRequest(BaseModel):
+    # Free-form key naming a checklist item within one SOP stage (e.g.
+    # "landowner_roster_confirmed") - not an enum, since which items exist per stage is
+    # defined entirely on the frontend (see SOP_STAGE_1_CHECKLIST and friends); the
+    # backend just durably stores whichever key/timestamp/user a staff member confirmed.
+    key: str
+    confirmed: bool = True
+
+
 class ConsentUpsertRequest(BaseModel):
     landowner_id: int
     consent_status: str

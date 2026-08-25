@@ -32,7 +32,7 @@ class ProjectMember(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role_in_project: Mapped[str] = mapped_column(String(50), nullable=False, default="staff")
+    role_in_project: Mapped[str] = mapped_column(String(50), nullable=False, default="case_staff")
     assigned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     project: Mapped["Project"] = relationship(back_populates="members")

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import require_staff_or_admin
+from deps import require_ocr_role
 from models.project import Project
 from models.user import User
 from schemas.ocr import BuildingCaseDetectResult, BuildingGroupMatch, CaseDetectResult, CasePagePreview
@@ -52,7 +52,7 @@ def _downscale_previews_parallel(contents: list[bytes], decoded_images: list | N
 @router.post("/detect-cases", response_model=CaseDetectResult)
 def detect_cases_for_batch_import(
     files: list[UploadFile] = File(...),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(require_ocr_role),
 ):
     """Splits an uploaded batch (images/PDFs) into per-page images and guesses which
     都更案件 (urban renewal case, one 地號/建號 in this system) each page belongs to, by
@@ -95,7 +95,7 @@ def detect_cases_for_batch_import(
 def detect_building_cases_for_batch_import(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(require_ocr_role),
 ):
     """Splits an uploaded batch of building deeds into per-建號 groups (same 頁次-based
     grouping as detect_cases_for_batch_import, since both title formats fit the same
@@ -172,7 +172,7 @@ def detect_building_cases_for_batch_import(
 @router.post("/extract-building-group")
 def extract_building_group(
     files: list[UploadFile] = File(...),
-    current_user: User = Depends(require_staff_or_admin),
+    current_user: User = Depends(require_ocr_role),
 ):
     """Runs full AI extraction on one already-matched building group's pages, called by
     the batch building-import confirm step right before it creates records for that

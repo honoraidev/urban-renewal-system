@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_admin
+from deps import get_current_user, require_sys_admin
 from models.login_log import LoginLog
 from models.user import User
 from schemas.auth import LoginLogRead, LoginRequest, TokenResponse, UserInfo
@@ -56,7 +56,7 @@ def me(current_user: User = Depends(get_current_user)):
 @router.get("/login-logs", response_model=list[LoginLogRead])
 def list_login_logs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_sys_admin),
 ):
     rows = db.execute(
         select(LoginLog, User)

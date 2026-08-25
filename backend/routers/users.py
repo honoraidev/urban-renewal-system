@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import require_admin
+from deps import require_manager, require_sys_admin
 from models.user import User
 from schemas.user import UserActiveUpdate, UserCreate, UserRead, UserUpdate
 from security import hash_password
@@ -18,15 +18,15 @@ def get_user_or_404(db: Session, user_id: int) -> User:
     return user
 
 
-def _active_admin_count(db: Session, exclude_user_id: int | None = None) -> int:
-    stmt = select(func.count(User.id)).where(User.role == "admin", User.is_active == True)  # noqa: E712
+def _active_sys_admin_count(db: Session, exclude_user_id: int | None = None) -> int:
+    stmt = select(func.count(User.id)).where(User.role == "sys_admin", User.is_active == True)  # noqa: E712
     if exclude_user_id is not None:
         stmt = stmt.where(User.id != exclude_user_id)
     return db.scalar(stmt) or 0
 
 
 @router.get("", response_model=list[UserRead])
-def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
     return db.scalars(select(User).order_by(User.created_at)).all()
 
 
@@ -34,7 +34,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(requi
 def create_user(
     payload: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_sys_admin),
 ):
     existing = db.scalar(select(User).where(User.username == payload.username))
     if existing is not None:
@@ -55,7 +55,7 @@ def create_user(
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
     return get_user_or_404(db, user_id)
 
 
@@ -64,16 +64,16 @@ def update_user(
     user_id: int,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_sys_admin),
 ):
     user = get_user_or_404(db, user_id)
     data = payload.model_dump(exclude_unset=True)
 
-    if "role" in data and data["role"] != "admin" and user.role == "admin":
-        if _active_admin_count(db, exclude_user_id=user.id) < 1:
+    if "role" in data and data["role"] != "sys_admin" and user.role == "sys_admin":
+        if _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot change role: at least one active admin must remain",
+                detail="Cannot change role: at least one active L1 (sys_admin) must remain",
             )
 
     if "password" in data:
@@ -94,14 +94,14 @@ def set_user_active(
     user_id: int,
     payload: UserActiveUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_sys_admin),
 ):
     user = get_user_or_404(db, user_id)
 
-    if not payload.is_active and user.role == "admin" and _active_admin_count(db, exclude_user_id=user.id) < 1:
+    if not payload.is_active and user.role == "sys_admin" and _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot deactivate the last active admin account",
+            detail="Cannot deactivate the last active L1 (sys_admin) account",
         )
 
     user.is_active = payload.is_active
@@ -114,14 +114,14 @@ def set_user_active(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_sys_admin),
 ):
     user = get_user_or_404(db, user_id)
 
-    if user.role == "admin" and _active_admin_count(db, exclude_user_id=user.id) < 1:
+    if user.role == "sys_admin" and _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete the last active admin account",
+            detail="Cannot delete the last active L1 (sys_admin) account",
         )
 
     db.delete(user)
