@@ -800,9 +800,17 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
         result, _ = _get_ocr_engine()(np.array(img))
     if not result:
         return "", 0.0
-    scores = [float(line[2]) for line in result if len(line) > 2 and isinstance(line[2], (int, float, np.floating))]
-    confidence = sum(scores) / len(scores) if scores else None
     return _normalize_ocr_text("\n".join(line[1] for line in result)), confidence
+
+
+def run_ocr(content: bytes) -> dict:
+    """Runs local RapidOCR on image bytes and returns {'text': extracted_text}."""
+    try:
+        text, _conf = _ocr_page_text(content)
+        return {"text": text or ""}
+    except Exception as exc:
+        print(f"[run_ocr] RapidOCR failed: {exc}", flush=True)
+        return {"text": ""}
 
 
 # A separate, more aggressively-tuned engine used only for the small header-strip crop
