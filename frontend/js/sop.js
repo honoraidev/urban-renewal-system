@@ -6,6 +6,7 @@ const CONTACT_RATE_THRESHOLD = 0.95;
 function sopStageLabel(key, stageObj) {
   if (stageObj && stageObj.custom_name) return stageObj.custom_name;
   const labels = {
+    0: "初始核定立案",
     1: "籌備階段",
     2: "意願調查",
     3: "都更說明會",
@@ -20,6 +21,12 @@ function sopStageLabel(key, stageObj) {
 }
 
 const SOP_STAGE_CHECKLISTS = {
+  0: [
+    { key: "dev_letter_template", label: "上傳開發信範本", docType: "dev_letter_template" },
+    { key: "willingness_form_template", label: "上傳意願書範本", docType: "willingness_form_template" },
+    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
+    { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
+  ],
   1: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
     { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land" },
