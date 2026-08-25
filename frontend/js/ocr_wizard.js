@@ -334,28 +334,36 @@ async function runTitleDeedOcr() {
     fd.append("record_type", titleDeedWizard.recordType);
     const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
 
-    if (result.job.status !== "completed") {
-      toast(result.job.error_message || "辨識失敗,請手動輸入欄位", "error");
-      titleDeedWizard.data = normalizeTitleDeedData(null);
-    } else if (result.job.error_message) {
-      toast(result.job.error_message, "error");
-      titleDeedWizard.data = normalizeTitleDeedData(result.data);
-    } else {
-      titleDeedWizard.data = normalizeTitleDeedData(result.data);
-      titleDeedWizard.data.parcels.forEach((p) => {
-        p._sourceOcrJobId = result.job.id;
-      });
-      titleDeedWizard.data.buildings.forEach((b) => {
-        b._sourceOcrJobId = result.job.id;
-      });
-      toast("辨識完成,請逐步核對每個區塊", "success");
+    if (!result || !result.job || result.job.status !== "completed") {
+      const errMsg = (result && result.job && result.job.error_message) || "辨識失敗,請確認檔案或聯絡管理員";
+      toast(errMsg, "error");
+      progress.stop();
+      btn.disabled = false;
+      btn.textContent = "開始辨識";
+      return;
     }
+
+    if (result.job.error_message) {
+      toast(result.job.error_message, "error");
+    }
+
+    titleDeedWizard.data = normalizeTitleDeedData(result.data);
+    titleDeedWizard.data.parcels.forEach((p) => {
+      p._sourceOcrJobId = result.job.id;
+    });
+    titleDeedWizard.data.buildings.forEach((b) => {
+      b._sourceOcrJobId = result.job.id;
+    });
+    toast("辨識完成,請逐步核對每個區塊", "success");
     progress.finish();
     startWizardReview();
   } catch (err) {
     progress.stop();
     btn.disabled = false;
     btn.textContent = "開始辨識";
+    if (err && err.message !== "unauthorized") {
+      toast(err.message || "辨識過程發生錯誤", "error");
+    }
   }
 }
 
