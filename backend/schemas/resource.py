@@ -17,6 +17,11 @@ class CompanyDocumentRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CompanyDocumentUpdate(BaseModel):
+    category: str | None = None
+    description: str | None = None
+
+
 class RegulationCreate(BaseModel):
     category: str | None = None
     name: str

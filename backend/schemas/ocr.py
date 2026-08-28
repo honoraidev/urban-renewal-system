@@ -47,6 +47,10 @@ class LandOwnershipEntry(BaseModel):
     ownership_numerator: int | None = None
     ownership_denominator: int | None = None
     address: str | None = None
+    # Per-owner, not per-parcel - co-owners of the same parcel often acquired their
+    # share at different times/prices, each with their own 前次移轉現值或原規定地價.
+    declared_value_per_sqm: float | None = None
+    declared_value_period: str | None = None
 
 
 class EncumbranceEntry(BaseModel):

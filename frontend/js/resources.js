@@ -7,6 +7,7 @@ async function goToCompanyDocs() {
   showView("view-companydocs");
   const uploadBtn = document.getElementById("upload-companydoc-btn");
   if (uploadBtn) uploadBtn.classList.toggle("hidden", !isManager());
+  document.getElementById("manage-companydoc-cats-btn")?.classList.toggle("hidden", !isManager());
   await loadCompanyDocs();
 }
 
@@ -19,11 +20,21 @@ function companyDocIcon(mimeType) {
   return "📎";
 }
 
+let currentLoadedCompanyDocs = [];
+
 async function loadCompanyDocs() {
   const wrap = document.getElementById("companydocs-table-wrap");
   if (!wrap) return;
   wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
-  const docs = await api("/company-documents");
+
+  let docs = [];
+  try {
+    docs = await api("/company-documents");
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-state">載入失敗，請重新整理頁面或重新登入</div>`;
+    return;
+  }
+  currentLoadedCompanyDocs = docs || [];
 
   wrap.innerHTML = docs.length
     ? `<div class="card">
@@ -80,12 +91,33 @@ function initCompanyDocs() {
   const btn = document.getElementById("upload-companydoc-btn");
   if (btn) {
     btn.addEventListener("click", () => {
+      const defaultCats = [
+        "開發信範本",
+        "意願書範本",
+        "同意書範本",
+        "合約範本",
+        "說明會簡報",
+        "簡介/宣傳資料",
+        "其他文件",
+      ];
+      const existingCats = [...new Set((currentLoadedCompanyDocs || []).map((d) => (d.category || "").trim()).filter(Boolean))];
+      const allCats = [...new Set([...defaultCats, ...existingCats])];
+
+      const optionsHtml =
+        `<option value="">-- 請選擇分類 --</option>` +
+        allCats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("") +
+        `<option value="__NEW__">+ 新增自訂分類...</option>`;
+
       openModal(
         "上傳公版文件",
         `
         <form id="upload-companydoc-form">
           <div class="field"><label>檔案</label><input type="file" name="file" required></div>
-          <div class="field"><label>分類(選填)</label><input name="category" placeholder="例:開發信範本"></div>
+          <div class="field">
+            <label>分類(選填)</label>
+            <select id="companydoc-cat-select">${optionsHtml}</select>
+            <input type="text" id="companydoc-custom-cat-input" placeholder="請輸入新分類名稱" autocomplete="off" style="display:none;margin-top:6px">
+          </div>
           <div class="field"><label>說明</label><textarea name="description" rows="2"></textarea></div>
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -93,10 +125,36 @@ function initCompanyDocs() {
           </div>
         </form>`
       );
+
+      const catSelect = document.getElementById("companydoc-cat-select");
+      const customInput = document.getElementById("companydoc-custom-cat-input");
+
+      if (catSelect && customInput) {
+        catSelect.addEventListener("change", () => {
+          if (catSelect.value === "__NEW__") {
+            customInput.style.display = "block";
+            customInput.focus();
+          } else {
+            customInput.style.display = "none";
+          }
+        });
+      }
+
       document.getElementById("upload-companydoc-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        if (!fd.get("category")) fd.delete("category");
+
+        let finalCategory = catSelect ? catSelect.value : "";
+        if (finalCategory === "__NEW__") {
+          finalCategory = (customInput ? customInput.value : "").trim();
+        }
+
+        if (finalCategory) {
+          fd.set("category", finalCategory);
+        } else {
+          fd.delete("category");
+        }
+
         try {
           await api("/company-documents", { method: "POST", body: fd, isForm: true });
           closeModal();
@@ -128,7 +186,7 @@ function renderLinkListPage(items, listElId, isManagerView) {
     .map(
       ([cat, rows], catIdx) => `
       <div class="link-section">
-        <div class="link-section-hdr"><span>📄</span>${escapeHtml(cat)}</div>
+        <div class="link-section-hdr">${escapeHtml(cat)}</div>
         ${rows
           .map(
             (r) => `
@@ -154,12 +212,37 @@ function renderLinkListPage(items, listElId, isManagerView) {
     .join("");
 }
 
+let currentLoadedRegulations = [];
+let currentLoadedWebsites = [];
+
 function openLinkFormModal(title, endpoint, item, onSaved) {
+  const isWebsite = endpoint.includes("website");
+  const defaultCats = isWebsite
+    ? ["地籍 & 地圖", "都更 GIS", "建管查詢", "不動產行情", "謄本 & 產權", "其他工具"]
+    : ["中央法規", "地方自治條例", "都更配套子法", "行政命令/函釋", "其他"];
+
+  const currentItems = isWebsite ? currentLoadedWebsites : currentLoadedRegulations;
+  const existingCats = [...new Set((currentItems || []).map((i) => (i.category || "").trim()).filter(Boolean))];
+  const allCats = [...new Set([...defaultCats, ...existingCats])];
+
+  const currentCat = item ? (item.category || "").trim() : "";
+  const isCustomCurrent = currentCat && !allCats.includes(currentCat);
+  if (isCustomCurrent) allCats.push(currentCat);
+
+  const optionsHtml =
+    `<option value="">-- 請選擇分類 --</option>` +
+    allCats.map((c) => `<option value="${escapeHtml(c)}" ${c === currentCat ? "selected" : ""}>${escapeHtml(c)}</option>`).join("") +
+    `<option value="__NEW__">+ 新增自訂分類...</option>`;
+
   openModal(
     title,
     `
     <form id="link-form">
-      <div class="field"><label>分類(選填)</label><input name="category" value="${item ? escapeHtml(item.category) || "" : ""}"></div>
+      <div class="field">
+        <label>分類(選填)</label>
+        <select id="link-cat-select">${optionsHtml}</select>
+        <input type="text" id="link-custom-cat-input" placeholder="請輸入新分類名稱" autocomplete="off" style="display:${isCustomCurrent ? "block" : "none"};margin-top:6px" value="${isCustomCurrent ? escapeHtml(currentCat) : ""}">
+      </div>
       <div class="field"><label>名稱</label><input name="name" required value="${item ? escapeHtml(item.name) : ""}"></div>
       <div class="field"><label>網址</label><input name="url" type="url" required value="${item ? escapeHtml(item.url) : ""}"></div>
       <div class="field"><label>說明(選填)</label><textarea name="description" rows="2">${item ? escapeHtml(item.description) || "" : ""}</textarea></div>
@@ -169,12 +252,39 @@ function openLinkFormModal(title, endpoint, item, onSaved) {
       </div>
     </form>`
   );
+
+  const catSelect = document.getElementById("link-cat-select");
+  const customInput = document.getElementById("link-custom-cat-input");
+
+  if (catSelect && customInput) {
+    catSelect.addEventListener("change", () => {
+      if (catSelect.value === "__NEW__") {
+        customInput.style.display = "block";
+        customInput.focus();
+      } else {
+        customInput.style.display = "none";
+      }
+    });
+  }
+
   document.getElementById("link-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
-    if (!payload.category) delete payload.category;
+
+    let finalCategory = catSelect ? catSelect.value : "";
+    if (finalCategory === "__NEW__") {
+      finalCategory = (customInput ? customInput.value : "").trim();
+    }
+
+    if (finalCategory) {
+      payload.category = finalCategory;
+    } else {
+      delete payload.category;
+    }
+
     if (!payload.description) delete payload.description;
+
     try {
       if (item) {
         await api(`${endpoint}/${item.id}`, { method: "PATCH", body: payload });
@@ -197,6 +307,7 @@ async function goToRegulations() {
   regulationsEditMode = false;
   document.getElementById("new-regulation-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-regulation-edit-btn")?.classList.toggle("hidden", !isManager());
+  document.getElementById("manage-regulation-cats-btn")?.classList.toggle("hidden", !isManager());
   await loadRegulations();
 }
 
@@ -205,6 +316,7 @@ async function loadRegulations() {
   if (!el) return;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/regulations");
+  currentLoadedRegulations = items || [];
   renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode);
   if (isManager() && regulationsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
@@ -232,7 +344,103 @@ async function goToWebsites() {
   websitesEditMode = false;
   document.getElementById("new-website-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-website-edit-btn")?.classList.toggle("hidden", !isManager());
+  document.getElementById("manage-website-cats-btn")?.classList.toggle("hidden", !isManager());
   await loadWebsites();
+}
+
+const WEBSITE_CAT_ICONS = {
+  "地籍 & 地圖": "🔗",
+  "都更 GIS": "🔗",
+  "建管查詢": "🔗",
+  "不動產行情": "🔗",
+  "其他工具": "🔗",
+  "謄本 & 產權": "🔗",
+};
+
+const WEBSITE_ITEM_ICONS = {
+  "地政司地籍圖資查詢": "🗺️",
+  "內政部全國通用電子地圖": "🏷️",
+  "台北市都更雲地圖": "🏷️",
+  "台北市歷史都市計畫GIS": "🏛️",
+  "台北市政府都更雲地圖": "🏷️",
+  "新北市都更GIS": "📊",
+  "台北市建管處": "🏗️",
+  "新北市建管處": "🏗️",
+  "591不動產實價": "🏷️",
+  "樂居房仲資訊": "🏷️",
+  "地下管線總查詢": "🏷️",
+  "郵遞區號查詢": "📮",
+  "民航局航高管制查詢": "🏷️",
+  "電子謄本申請系統": "📜",
+};
+
+const WEBSITE_BG_COLORS = {
+  "地籍 & 地圖": "#e0f2fe",
+  "都更 GIS": "#dcfce7",
+  "建管查詢": "#ffedd5",
+  "不動產行情": "#d1fae5",
+  "其他工具": "#f3f4f6",
+  "謄本 & 產權": "#fef9c3",
+};
+
+function renderWebsitesGrid(items, el, isManagerView) {
+  const byCat = {};
+  items.forEach((item) => {
+    let cat = item.category || "其他工具";
+    if (cat === "謄本 & 謄本") cat = "謄本 & 產權";
+    (byCat[cat] = byCat[cat] || []).push(item);
+  });
+
+  const leftCats = ["地籍 & 地圖", "都更 GIS"];
+  const rightCats = ["建管查詢", "不動產行情", "其他工具", "謄本 & 產權"];
+  Object.keys(byCat).forEach((c) => {
+    if (!leftCats.includes(c) && !rightCats.includes(c)) rightCats.push(c);
+  });
+
+  function renderCategorySection(catName) {
+    const list = byCat[catName] || [];
+    if (!list.length) return "";
+    const bg = WEBSITE_BG_COLORS[catName] || "#f3f4f6";
+
+    return `
+      <div style="margin-bottom:24px">
+        <div style="font-size:14px;font-weight:700;color:var(--text-main);margin-bottom:12px">
+          ${escapeHtml(catName)}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${list.map((r) => {
+      const itemIcon = WEBSITE_ITEM_ICONS[r.name] || "🔗";
+      return `
+              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
+                <div style="display:flex;align-items:center;gap:16px;flex:1;min-width:0">
+                  <div style="width:44px;height:44px;border-radius:12px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+                    ${itemIcon}
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:15px;font-weight:700;color:var(--text-main);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</div>
+                    <div style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.description) || "-"}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                  <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="border-radius:10px;padding:6px 14px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+                    開啟 <span style="font-size:12px">↗</span>
+                  </a>
+                  ${isManagerView ? `
+                    <button class="btn-secondary btn-sm" data-edit-link="${r.id}" style="border-radius:10px">編輯</button>
+                    <button class="btn-danger btn-sm" data-delete-link="${r.id}" style="border-radius:10px">刪除</button>
+                  ` : ""}
+                </div>
+              </div>`;
+    }).join("")}
+        </div>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:24px">
+      <div>${leftCats.map(renderCategorySection).join("")}</div>
+      <div>${rightCats.map(renderCategorySection).join("")}</div>
+    </div>`;
 }
 
 async function loadWebsites() {
@@ -240,7 +448,8 @@ async function loadWebsites() {
   if (!el) return;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/websites");
-  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode);
+  currentLoadedWebsites = items || [];
+  renderWebsitesGrid(items, el, isManager() && websitesEditMode);
   if (isManager() && websitesEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -266,12 +475,16 @@ async function loadWebsites() {
 let faqCurCat = "全部";
 let faqEditMode = false;
 let faqItemsCache = [];
+let faqSearchQuery = "";
 const FAQ_CATEGORY_OPTIONS = ["條件分配", "法律問題", "稅務優惠", "說明會相關", "都更流程"];
 
 async function goToFaq() {
   setActiveNav("faq");
   showView("view-faq");
   faqEditMode = false;
+  faqSearchQuery = "";
+  const searchInput = document.getElementById("faq-search-input");
+  if (searchInput) searchInput.value = "";
   const toggleBtn = document.getElementById("toggle-faq-edit-btn");
   if (toggleBtn) {
     toggleBtn.classList.toggle("hidden", !isManager());
@@ -301,9 +514,18 @@ async function loadFaq() {
     document.querySelectorAll("[data-faq-cat]").forEach((btn) => {
       btn.addEventListener("click", () => {
         faqCurCat = btn.dataset.faqCat;
+        document.querySelectorAll("[data-faq-cat]").forEach((b) => b.classList.toggle("act", b.dataset.faqCat === faqCurCat));
         renderFaqList(items);
       });
     });
+  }
+
+  const searchInput = document.getElementById("faq-search-input");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      faqSearchQuery = e.target.value;
+      renderFaqList(items);
+    };
   }
 
   renderFaqList(items);
@@ -312,13 +534,22 @@ async function loadFaq() {
 function renderFaqList(items) {
   const listEl = document.getElementById("faq-list");
   if (!listEl) return;
-  const filtered = items.filter((i) => faqCurCat === "全部" || (i.category || "未分類") === faqCurCat);
+  const q = (faqSearchQuery || "").toLowerCase().trim();
+  const filtered = items.filter((i) => {
+    const matchCat = faqCurCat === "全部" || (i.category || "未分類") === faqCurCat;
+    if (!matchCat) return false;
+    if (!q) return true;
+    const qText = (i.question || "").toLowerCase();
+    const aText = (i.answer || "").toLowerCase();
+    const cText = (i.category || "").toLowerCase();
+    return qText.includes(q) || aText.includes(q) || cText.includes(q);
+  });
 
   listEl.innerHTML = filtered.length
     ? filtered
       .map(
         (i) => `
-      <div class="faq-item">
+      <div class="faq-item ${q ? "open" : ""}">
         <div class="faq-q" data-faq-toggle="${i.id}">
           <span class="faq-cat-tag">${escapeHtml(i.category) || "未分類"}</span>
           <span style="flex:1">${escapeHtml(i.question)}</span>
@@ -335,7 +566,7 @@ function renderFaqList(items) {
       </div>`
       )
       .join("")
-    : `<div class="empty-state">尚無問答</div>`;
+    : `<div class="empty-state">尚無符合條件的問答</div>`;
 
   listEl.querySelectorAll("[data-faq-toggle]").forEach((hdr) => {
     hdr.addEventListener("click", () => {
@@ -513,8 +744,169 @@ function openManageFaqCatsModal() {
   });
 }
 
+const COMPANYDOC_DEFAULT_CATS = [
+  "開發信範本",
+  "意願書範本",
+  "同意書範本",
+  "合約範本",
+  "說明會簡報",
+  "簡介/宣傳資料",
+  "其他文件",
+];
+
+const REGULATION_DEFAULT_CATS = [
+  "中央法規",
+  "地方自治條例",
+  "都更配套子法",
+  "行政命令/函釋",
+  "其他",
+];
+
+const WEBSITE_DEFAULT_CATS = [
+  "地籍 & 地圖",
+  "都更 GIS",
+  "建管查詢",
+  "不動產行情",
+  "謄本 & 產權",
+  "其他工具",
+];
+
+function openManageCategoryModal(config) {
+  const realCats = new Set((config.items || []).map((i) => (i.category || "").trim()).filter(Boolean));
+  const allCats = [...new Set([...(config.defaultCats || []), ...realCats])];
+
+  openModal(
+    `管理 ${config.title} 分類`,
+    `
+    <div id="cat-manage-list">
+      ${allCats.length
+      ? allCats
+        .map((c) => {
+          const count = (config.items || []).filter((i) => (i.category || "").trim() === c).length;
+          return `
+              <div class="cat-manage-row" data-cat="${escapeHtml(c)}">
+                <span class="cat-manage-name">${escapeHtml(c)}${count ? ` (${count} 筆使用中)` : ""}</span>
+                <button type="button" class="btn-secondary btn-sm" data-rename-cat="${escapeHtml(c)}">編輯</button>
+                <button type="button" class="btn-danger btn-sm" data-delete-cat="${escapeHtml(c)}">刪除</button>
+              </div>`;
+        })
+        .join("")
+      : `<div class="empty-state">尚無分類</div>`
+    }
+    </div>
+    <div class="field-row" style="margin-top:12px">
+      <div class="field" style="margin-bottom:0"><input id="new-cat-name-input" placeholder="新分類名稱"></div>
+      <div class="field" style="flex:0 0 auto;margin-bottom:0">
+        <button type="button" class="btn-primary" id="add-cat-confirm-btn">新增</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal()">關閉</button>
+    </div>`
+  );
+
+  document.getElementById("add-cat-confirm-btn")?.addEventListener("click", () => {
+    const input = document.getElementById("new-cat-name-input");
+    const name = input ? input.value.trim() : "";
+    if (!name) return;
+    if (config.defaultCats.includes(name) || realCats.has(name)) {
+      toast("分類已存在", "error");
+      return;
+    }
+    config.defaultCats.push(name);
+    toast("已新增分類", "success");
+    closeModal();
+    config.onReload();
+  });
+
+  document.querySelectorAll("[data-rename-cat]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const oldName = btn.dataset.renameCat;
+      const newName = prompt(`將分類「${oldName}」重新命名為:`, oldName);
+      if (!newName || !newName.trim() || newName.trim() === oldName) return;
+      const trimmed = newName.trim();
+      try {
+        const affected = (config.items || []).filter((i) => (i.category || "").trim() === oldName);
+        for (const item of affected) {
+          if (config.isFormUpload) {
+            const fd = new FormData();
+            fd.set("category", trimmed);
+            await api(`${config.endpoint}/${item.id}`, { method: "PATCH", body: fd, isForm: true });
+          } else {
+            await api(`${config.endpoint}/${item.id}`, { method: "PATCH", body: { category: trimmed } });
+          }
+        }
+        const idx = config.defaultCats.indexOf(oldName);
+        if (idx >= 0) config.defaultCats[idx] = trimmed;
+        else config.defaultCats.push(trimmed);
+        toast("已更新分類名稱", "success");
+        closeModal();
+        await config.onReload();
+      } catch (err) { }
+    });
+  });
+
+  document.querySelectorAll("[data-delete-cat]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.deleteCat;
+      const affected = (config.items || []).filter((i) => (i.category || "").trim() === name);
+      const msg = affected.length
+        ? `確定要刪除分類「${name}」嗎?底下 ${affected.length} 筆會變成「未分類」。`
+        : `確定要刪除分類「${name}」嗎?`;
+      if (!confirm(msg)) return;
+      try {
+        for (const item of affected) {
+          if (config.isFormUpload) {
+            const fd = new FormData();
+            fd.set("category", "");
+            await api(`${config.endpoint}/${item.id}`, { method: "PATCH", body: fd, isForm: true });
+          } else {
+            await api(`${config.endpoint}/${item.id}`, { method: "PATCH", body: { category: null } });
+          }
+        }
+        const idx = config.defaultCats.indexOf(name);
+        if (idx >= 0) config.defaultCats.splice(idx, 1);
+        toast("已刪除分類", "success");
+        closeModal();
+        await config.onReload();
+      } catch (err) { }
+    });
+  });
+}
+
 function initResources() {
   initCompanyDocs();
+
+  document.getElementById("manage-companydoc-cats-btn")?.addEventListener("click", () => {
+    openManageCategoryModal({
+      title: "公版文件",
+      items: currentLoadedCompanyDocs,
+      defaultCats: COMPANYDOC_DEFAULT_CATS,
+      endpoint: "/company-documents",
+      onReload: loadCompanyDocs,
+      isFormUpload: true,
+    });
+  });
+
+  document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {
+    openManageCategoryModal({
+      title: "相關法規",
+      items: currentLoadedRegulations,
+      defaultCats: REGULATION_DEFAULT_CATS,
+      endpoint: "/regulations",
+      onReload: loadRegulations,
+    });
+  });
+
+  document.getElementById("manage-website-cats-btn")?.addEventListener("click", () => {
+    openManageCategoryModal({
+      title: "相關網站",
+      items: currentLoadedWebsites,
+      defaultCats: WEBSITE_DEFAULT_CATS,
+      endpoint: "/websites",
+      onReload: loadWebsites,
+    });
+  });
 
   document.getElementById("new-regulation-btn")?.addEventListener("click", () => {
     openLinkFormModal("新增法規連結", "/regulations", null, loadRegulations);

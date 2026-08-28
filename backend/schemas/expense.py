@@ -53,6 +53,7 @@ class ExpenseRead(BaseModel):
     receipt_number: str | None = None
     receipt_document_id: int | None = None
     created_by: int | None = None
+    creator_name: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

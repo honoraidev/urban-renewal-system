@@ -1,5 +1,6 @@
 import os
 import shutil
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_, select
@@ -21,6 +22,7 @@ from models.ocr import OcrJob
 from models.project import Project, ProjectMember
 from models.sop import SopStage
 from models.user import User
+from routers.contacts import _contactable_landowners_with_last_contact
 from schemas.project import (
     BatchDeleteRequest,
     BatchDeleteResult,
@@ -59,6 +61,45 @@ def assert_project_visible(db: Session, project: Project, user: User) -> None:
     )
     if is_member is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
+
+
+def _alert_tier_counts(db: Session, project_id: int) -> dict[str, int]:
+    """Buckets each contactable landowner into a follow-up urgency tier by days since
+    last contact - not_contacted (never reached at all) counts as urgent regardless of
+    elapsed time, same as the "always overdue" rule in contacts.py's _is_overdue."""
+    landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project_id)
+    now = datetime.now(timezone.utc)
+    counts = {"reminder": 0, "warning": 0, "urgent": 0}
+    for owner in landowners:
+        last_contact = last_contact_by_landowner.get(owner.id)
+        if owner.contact_status == "not_contacted":
+            counts["urgent"] += 1
+            continue
+        if last_contact is None:
+            continue
+        days = (now - last_contact).days
+        if days >= 30:
+            counts["urgent"] += 1
+        elif days >= 14:
+            counts["warning"] += 1
+        elif days >= 7:
+            counts["reminder"] += 1
+    return counts
+
+
+def _case_handler_names(db: Session, project_id: int) -> tuple[str | None, str | None]:
+    """First case_staff/case_owner and first manager/sys_admin assigned to the project
+    (by assigned_at) - display-only "who's on this case" for the dashboard card, not an
+    access-control list (see MANAGE_ROLES/EDIT_ROLES in deps.py for the real thing)."""
+    rows = db.execute(
+        select(User.display_name, User.role)
+        .join(ProjectMember, ProjectMember.user_id == User.id)
+        .where(ProjectMember.project_id == project_id)
+        .order_by(ProjectMember.assigned_at)
+    ).all()
+    handler = next((name for name, role in rows if role in ("case_staff", "case_owner")), None)
+    manager = next((name for name, role in rows if role in ("manager", "sys_admin")), None)
+    return handler, manager
 
 
 @router.get("/dashboard-summary", response_model=DashboardSummary)
@@ -106,21 +147,36 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         or 0
     )
 
-    project_items = [
-        DashboardProjectItem(
-            id=p.id,
-            name=p.name,
-            project_code=p.project_code,
-            city=p.city,
-            district=p.district,
-            status=p.status,
-            land_record_count=land_counts.get(p.id, 0),
-            building_record_count=building_counts.get(p.id, 0),
-            latest_ocr_job_status=latest_job_by_project[p.id].status if p.id in latest_job_by_project else None,
-            latest_ocr_job_has_warning=bool(latest_job_by_project[p.id].error_message) if p.id in latest_job_by_project else False,
+    project_items = []
+    for p in projects:
+        ratio = calculate_consent_ratio(db, p.id, p.current_stage)
+        alert_tiers = _alert_tier_counts(db, p.id)
+        handler_name, manager_name = _case_handler_names(db, p.id)
+        project_items.append(
+            DashboardProjectItem(
+                id=p.id,
+                name=p.name,
+                project_code=p.project_code,
+                city=p.city,
+                district=p.district,
+                status=p.status,
+                land_record_count=land_counts.get(p.id, 0),
+                building_record_count=building_counts.get(p.id, 0),
+                latest_ocr_job_status=latest_job_by_project[p.id].status if p.id in latest_job_by_project else None,
+                latest_ocr_job_has_warning=bool(latest_job_by_project[p.id].error_message)
+                if p.id in latest_job_by_project
+                else False,
+                current_stage=p.current_stage,
+                headcount_ratio=ratio["headcount_ratio"],
+                land_share_ratio=ratio["land_share_ratio"],
+                building_share_ratio=ratio["building_share_ratio"],
+                reminder_count=alert_tiers["reminder"],
+                warning_count=alert_tiers["warning"],
+                urgent_count=alert_tiers["urgent"],
+                case_handler_name=handler_name,
+                case_manager_name=manager_name,
+            )
         )
-        for p in projects
-    ]
 
     return DashboardSummary(
         project_count=len(projects),

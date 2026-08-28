@@ -30,7 +30,7 @@ async function renderMembersTab(el) {
               </tbody>
             </table>
           </div>`
-      : `<div class="empty-state">尚未指派任何人員(L1/L2 可以看到所有案件,不需要被指派)</div>`
+      : `<div class="empty-state">尚未指派任何人員</div>`
     }
   `;
 
@@ -139,30 +139,111 @@ async function openAddMemberModal(existingMembers) {
   });
 }
 
+const USER_ROLE_GROUPS = [
+  { key: "admin", label: "Admin", icon: "🔑", roles: ["sys_admin", "manager"] },
+  { key: "staff", label: "開發人員", icon: "💼", roles: ["case_owner", "case_staff", "ocr_staff", "viewer"] },
+  { key: "owner", label: "地主", icon: "🏠", roles: ["landowner"] },
+];
+
+let usersState = { all: [], group: "all", search: "" };
+
 async function goToUsers() {
   setActiveNav("users");
   showView("view-users");
   await loadUsers();
 }
 
+function roleGroupKey(role) {
+  const g = USER_ROLE_GROUPS.find((g) => g.roles.includes(role));
+  return g ? g.key : "owner";
+}
+
 async function loadUsers() {
   const wrap = document.getElementById("users-table-wrap");
   if (!wrap) return;
   wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
-  const users = await api("/users");
+  usersState.all = await api("/users");
+  renderUsersStatRow();
+  renderUsersRoleFilter();
+  wireUsersToolbar();
+  renderUsersTable();
+}
+
+function renderUsersStatRow() {
+  const row = document.getElementById("users-stat-row");
+  if (!row) return;
+  row.innerHTML = USER_ROLE_GROUPS
+    .map((g) => {
+      const count = usersState.all.filter((u) => g.roles.includes(u.role)).length;
+      return `
+        <div class="dashboard-stat-item">
+          <div class="dashboard-stat-icon">${g.icon}</div>
+          <div>
+            <div class="dashboard-stat-num">${count}</div>
+            <div class="dashboard-stat-lbl">${g.label}</div>
+          </div>
+        </div>`;
+    })
+    .join("");
+}
+
+function renderUsersRoleFilter() {
+  const box = document.getElementById("users-role-filter");
+  if (!box) return;
+  const groups = [{ key: "all", label: "全部" }, ...USER_ROLE_GROUPS];
+  box.innerHTML = groups
+    .map(
+      (g) =>
+        `<button type="button" class="btn-secondary btn-sm users-filter-btn ${usersState.group === g.key ? "active" : ""}" data-users-group="${g.key}">${g.label}</button>`
+    )
+    .join("");
+  box.querySelectorAll("[data-users-group]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      usersState.group = btn.dataset.usersGroup;
+      renderUsersRoleFilter();
+      renderUsersTable();
+    });
+  });
+}
+
+function wireUsersToolbar() {
+  const input = document.getElementById("users-search-input");
+  if (!input) return;
+  input.value = usersState.search;
+  input.oninput = () => {
+    usersState.search = input.value.trim();
+    renderUsersTable();
+  };
+}
+
+function renderUsersTable() {
+  const wrap = document.getElementById("users-table-wrap");
+  if (!wrap) return;
   const roleLabel = ROLE_LABEL;
+  const q = usersState.search.toLowerCase();
+  const users = usersState.all.filter((u) => {
+    if (usersState.group !== "all" && roleGroupKey(u.role) !== usersState.group) return false;
+    if (q && !`${u.display_name} ${u.username}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (!users.length) {
+    wrap.innerHTML = `<div class="empty-state">📭<br>無符合條件的帳號</div>`;
+    return;
+  }
 
   wrap.innerHTML = `
     <table>
-      <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>Email</th><th>狀態</th><th>操作</th></tr></thead>
+      <thead><tr><th>姓名</th><th>帳號</th><th>角色</th><th>Email</th><th>最後登入</th><th>狀態</th><th>操作</th></tr></thead>
       <tbody>
         ${users
       .map(
         (u) => `<tr>
-              <td>${escapeHtml(u.username)}</td>
               <td>${escapeHtml(u.display_name)}</td>
+              <td>${escapeHtml(u.username)}</td>
               <td><span class="role-badge ${u.role}">${roleLabel[u.role] || u.role}</span></td>
               <td>${escapeHtml(u.email) || "-"}</td>
+              <td>${u.last_login_at ? fmtDateTime(u.last_login_at) : "-"}</td>
               <td><span class="mini-badge ${u.is_active ? "gate-ok" : "alert"}">${u.is_active ? "啟用" : "停用"}</span></td>
               <td class="actions-cell">
                 <button class="btn-secondary btn-sm" data-edit-user="${u.id}">編輯</button>
@@ -176,7 +257,7 @@ async function loadUsers() {
     </table>`;
 
   wrap.querySelectorAll("[data-edit-user]").forEach((btn) => {
-    btn.addEventListener("click", () => openEditUserModal(users.find((u) => u.id === Number(btn.dataset.editUser))));
+    btn.addEventListener("click", () => openEditUserModal(usersState.all.find((u) => u.id === Number(btn.dataset.editUser))));
   });
   wrap.querySelectorAll("[data-toggle-user]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -244,9 +325,15 @@ function openEditUserModal(user) {
   });
 }
 
+let loginLogsCache = [];
+let loginLogsSearchQuery = "";
+
 async function goToLoginLogs() {
   setActiveNav("loginlogs");
   showView("view-loginlogs");
+  loginLogsSearchQuery = "";
+  const input = document.getElementById("loginlogs-search-input");
+  if (input) input.value = "";
   await loadLoginLogs();
 }
 
@@ -255,11 +342,41 @@ async function loadLoginLogs() {
   if (!wrap) return;
   wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
   const logs = await api("/auth/login-logs");
+  loginLogsCache = logs;
+
+  const input = document.getElementById("loginlogs-search-input");
+  if (input) {
+    input.oninput = (e) => {
+      loginLogsSearchQuery = e.target.value;
+      renderLoginLogsList(loginLogsCache);
+    };
+  }
+
+  renderLoginLogsList(logs);
+}
+
+function renderLoginLogsList(logs) {
+  const wrap = document.getElementById("loginlogs-table-wrap");
+  if (!wrap) return;
+
   const roleLabel = ROLE_LABEL;
   const actionLabel = { login: "登入", logout: "登出" };
+  const q = (loginLogsSearchQuery || "").toLowerCase().trim();
 
-  if (!logs.length) {
-    wrap.outerHTML = `<div class="empty-state">尚無登入紀錄</div>`;
+  const filtered = (logs || []).filter((l) => {
+    if (!q) return true;
+    const dn = (l.display_name || "").toLowerCase();
+    const un = (l.username || "").toLowerCase();
+    const rl = (roleLabel[l.role] || l.role || "").toLowerCase();
+    const ac = (actionLabel[l.action] || l.action || "").toLowerCase();
+    const dt = fmtDateTime(l.occurred_at).toLowerCase();
+    const ip = (l.ip_address || "").toLowerCase();
+
+    return dn.includes(q) || un.includes(q) || rl.includes(q) || ac.includes(q) || dt.includes(q) || ip.includes(q);
+  });
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="empty-state">${q ? "尚無符合條件的登入紀錄" : "尚無登入紀錄"}</div>`;
     return;
   }
 
@@ -267,7 +384,7 @@ async function loadLoginLogs() {
     <table>
       <thead><tr><th>使用者</th><th>角色</th><th>動作</th><th>時間</th><th>IP 位址</th></tr></thead>
       <tbody>
-        ${logs
+        ${filtered
       .map(
         (l) => `<tr>
               <td>${escapeHtml(l.display_name)} <span class="project-code">(${escapeHtml(l.username)})</span></td>

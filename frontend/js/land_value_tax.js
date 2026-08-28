@@ -75,6 +75,7 @@ async function renderLandValueTaxTab(el) {
       </table>
     </div>`;
 
+  wireYearMonthPickers(el);
   wireLandValueTaxRows(el, rows);
 }
 
@@ -87,7 +88,7 @@ function lttRowHtml({ owner, record }) {
       <td>${escapeHtml(owner.name)}</td>
       <td>${editable
       ? `<input type="number" min="0" step="1" class="ltt-input-original" value="${record.ltt_original_value ?? ""}" style="width:140px">
-         <div class="helper-text" style="margin-top:4px">地價年月:<input type="text" class="ltt-input-period" value="${escapeHtml(record.ltt_original_value_period) || ""}" placeholder="例:113年01月" style="width:110px;display:inline-block"></div>`
+         <div style="margin-top:4px;display:flex;gap:4px;align-items:center;width:140px">${minguoYearMonthPickerHtml("ltt_period", record.ltt_original_value_period)}</div>`
       : `${record.ltt_original_value ? Number(record.ltt_original_value).toLocaleString() : "-"}${record.ltt_original_value_period ? `<div class="helper-text">(${escapeHtml(record.ltt_original_value_period)})</div>` : ""}`
     }</td>
       <td>${editable
@@ -116,7 +117,9 @@ function wireLandValueTaxRows(el, rows) {
       const ownerId = Number(btn.dataset.owner);
       const row = el.querySelector(`[data-ltt-row="${recordId}"]`);
       const originalValue = row.querySelector(".ltt-input-original").value;
-      const originalValuePeriod = row.querySelector(".ltt-input-period").value.trim();
+      const periodYear = row.querySelector('[name="ltt_period_year"]').value;
+      const periodMonth = row.querySelector('[name="ltt_period_month"]').value;
+      const originalValuePeriod = periodYear && periodMonth ? `${periodYear}年${String(periodMonth).padStart(2, "0")}月` : "";
       const currentValue = row.querySelector(".ltt-input-current").value;
       const holdingYears = row.querySelector(".ltt-input-years").value;
 

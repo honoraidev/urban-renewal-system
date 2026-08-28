@@ -18,6 +18,18 @@ function donutSvg(pct, size = 62) {
   </svg>`;
 }
 
+function projectRingHtml(ratio, label) {
+  const pct = Math.round((ratio || 0) * 100);
+  return `
+    <div class="project-ring">
+      <div class="project-ring-svg-wrap">
+        ${donutSvg(pct, 62)}
+        <span class="project-ring-pct">${pct}%</span>
+      </div>
+      <div class="project-ring-label">${escapeHtml(label)}</div>
+    </div>`;
+}
+
 function alertTiers(alerts) {
   const tiers = { warn: 0, alert: 0, urgent: 0 };
   (alerts || []).forEach((a) => {
@@ -41,10 +53,16 @@ function showView(id) {
     "view-regulations",
     "view-websites",
     "view-faq",
+    "view-tools",
   ].forEach((v) => {
     const el = document.getElementById(v);
     if (el) el.classList.toggle("hidden", v !== id);
   });
+}
+
+function goToTools() {
+  setActiveNav("tools");
+  showView("view-tools");
 }
 
 function setActiveNav(name) {
@@ -86,7 +104,13 @@ function renderSidebarProjects(projects) {
           </div>
           <div class="sb-cg-items ${open ? "open" : ""}">
             ${cases
-              .map((p) => `<div class="sb-case-item" data-project-id="${p.id}">${escapeHtml(p.name)}</div>`)
+              .map(
+                (p) => `
+                <div class="sb-case-item" data-project-id="${p.id}">
+                  <span class="sb-case-name"><span style="margin-right:6px">📋</span>${escapeHtml(p.name)}</span>
+                  <span class="sb-case-stage">第${p.current_stage}關</span>
+                </div>`
+              )
               .join("")}
           </div>
         </div>`;
@@ -168,41 +192,53 @@ async function loadDashboard() {
 
   renderSidebarProjects(summary.projects);
 
-  const addProjectTileHtml = canCreateProject()
-    ? `<div class="card project-card project-card-add" id="add-project-tile">
-        <span class="project-card-add-icon">+</span>
-        <span>新增案件</span>
-      </div>`
-    : "";
-
   if (!summary.projects.length) {
     if (grid) {
-      grid.innerHTML = addProjectTileHtml || `<div class="empty-state">目前沒有可查看的案件</div>`;
-      document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
+      grid.innerHTML = `<div class="empty-state">目前沒有可查看的案件</div>`;
     }
     return;
   }
 
   summary.projects.forEach((p) => (dashboardProjectsById[p.id] = p));
 
+  const cardAccents = ["accent-info", "accent-success", "accent-brand", "accent-danger"];
+
   if (grid) {
-    grid.innerHTML = addProjectTileHtml + summary.projects
+    grid.innerHTML = summary.projects
       .map(
-        (p) => `
-          <div class="card project-card" data-project-id="${p.id}">
+        (p, i) => `
+          <div class="card project-card ${cardAccents[i % cardAccents.length]}" data-project-id="${p.id}">
             <div class="project-card-top">
               ${isManager()
                 ? `<input type="checkbox" class="project-select-checkbox" data-select-project="${p.id}" ${selectedProjectIds.has(p.id) ? "checked" : ""}>`
                 : ""
               }
               <h3 style="flex:1">${escapeHtml(p.name)}</h3>
-              ${ocrStatusBadge(p)}
+              ${p.city ? `<span class="mini-badge">${escapeHtml(p.city)}</span>` : ""}
             </div>
-            <div class="project-code">${escapeHtml(p.project_code)}${p.city || p.district ? " · " + escapeHtml([p.city, p.district].filter(Boolean).join("")) : ""}</div>
-            <div class="project-card-counts">
-              <span>地號 ${p.land_record_count} 筆</span>
-              <span>建號 ${p.building_record_count} 筆</span>
+            <div class="project-card-stage">
+              <div class="project-stage-bar">
+                ${Array.from({ length: 10 }, (_, i) => `<span class="${i <= p.current_stage ? "filled" : ""}"></span>`).join("")}
+              </div>
+              <div class="helper-text">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
+            <div class="project-card-rings">
+              ${projectRingHtml(p.headcount_ratio, "人數同意")}
+              ${projectRingHtml(p.land_share_ratio, "土地同意")}
+              ${projectRingHtml(p.building_share_ratio, "建物同意")}
+            </div>
+            <div class="project-card-tiers">
+              <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>
+              <span class="tier-badge tier-warning">▲ 警示:${p.warning_count}</span>
+              <span class="tier-badge tier-urgent">▲ 緊急:${p.urgent_count}</span>
+            </div>
+            ${p.case_handler_name || p.case_manager_name
+              ? `<div class="project-card-footer">
+                  ${p.case_handler_name ? `<span>👤 ${escapeHtml(p.case_handler_name)}</span>` : ""}
+                  ${p.case_manager_name ? `<span>💼 ${escapeHtml(p.case_manager_name)}</span>` : ""}
+                </div>`
+              : ""
+            }
             ${isManager()
               ? `<div style="text-align:right"><button type="button" class="btn-link" style="color:var(--danger)" data-delete-project="${p.id}">刪除案件</button></div>`
               : ""
@@ -358,22 +394,64 @@ async function suggestNextProjectCode() {
   return `${year}-${String(maxSeq + 1).padStart(3, "0")}`;
 }
 
+function updateDistrictSelectOptions(city, defaultDistrict = "") {
+  const distSelect = document.getElementById("np-district");
+  if (!distSelect) return;
+  const districts = (typeof TAIWAN_DISTRICTS !== "undefined" && TAIWAN_DISTRICTS[city]) || [];
+  if (!districts.length) {
+    distSelect.innerHTML = `<option value="">請先選擇縣市</option>`;
+    distSelect.disabled = true;
+  } else {
+    distSelect.disabled = false;
+    distSelect.innerHTML =
+      `<option value="">請選擇行政區</option>` +
+      districts.map((d) => `<option value="${d}" ${d === defaultDistrict ? "selected" : ""}>${d}</option>`).join("");
+  }
+}
+
 async function goToNewProject() {
-  setActiveNav("");
-  document.querySelectorAll(".sb-case-item").forEach((b) => b.classList.remove("active"));
-  showView("view-new-project");
+  const cityOptions =
+    `<option value="">請選擇</option>` + TAIWAN_CITIES.map((c) => `<option value="${c}">${c}</option>`).join("");
+  openModal(
+    "建立都更案",
+    `
+    <form id="project-form">
+      <div class="field-row">
+        <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
+        <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
+        <div class="field"><label>案件名稱</label><input name="name" required></div>
+      </div>
+      <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">建立</button>
+      </div>
+    </form>`,
+    { width: "560px" }
+  );
 
-  const citySelect = document.getElementById("np-city");
-  if (citySelect) {
-    citySelect.innerHTML =
-      `<option value="">請選擇</option>` + TAIWAN_CITIES.map((c) => `<option value="${c}">${c}</option>`).join("");
-  }
+  updateDistrictSelectOptions("");
+  document.getElementById("np-code").value = await suggestNextProjectCode();
 
-  const form = document.getElementById("project-form");
-  if (form) {
-    form.reset();
-    document.getElementById("np-code").value = await suggestNextProjectCode();
-  }
+  document.getElementById("np-city").addEventListener("change", (e) => {
+    updateDistrictSelectOptions(e.target.value);
+  });
+
+  document.getElementById("project-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      const project = await api("/projects", { method: "POST", body: payload });
+      toast("案件已建立", "success");
+      closeModal();
+      await loadDashboard();
+      await openProject(project.id);
+    } catch (err) { }
+  });
 }
 
 async function openProject(id) {
@@ -437,7 +515,9 @@ async function renderTab(tab) {
       await renderers[tab](el);
     }
   } catch (e) {
-    el.innerHTML = `<div class="empty-state">載入失敗</div>`;
+    console.error(`[renderDashboardTab] tab=${tab} error:`, e);
+    const msg = escapeHtml(e && (e.message || String(e))) || "系統連線錯誤";
+    el.innerHTML = `<div class="empty-state">載入失敗（${msg}）<br><button type="button" class="btn-secondary btn-sm" style="margin-top:12px" onclick="renderDashboardTab('${tab}')">🔄 點此重新載入</button></div>`;
   }
 }
 
@@ -457,34 +537,12 @@ function initDashboard() {
     newProjectBtn.addEventListener("click", goToNewProject);
   }
 
-  const cancelNewProjectBtn = document.getElementById("cancel-new-project-btn");
-  if (cancelNewProjectBtn) {
-    cancelNewProjectBtn.addEventListener("click", goToDashboard);
-  }
-
-  const backToDashboardBtn = document.getElementById("back-to-dashboard-from-new-project");
-  if (backToDashboardBtn) {
-    backToDashboardBtn.addEventListener("click", goToDashboard);
-  }
+  // 建立都更案 is now a modal (see goToNewProject) - its city/district/submit
+  // handlers are wired when the modal opens, not here.
 
   const backToDashboardDetailBtn = document.getElementById("back-to-dashboard");
   if (backToDashboardDetailBtn) {
     backToDashboardDetailBtn.addEventListener("click", goToDashboard);
-  }
-
-  const projectForm = document.getElementById("project-form");
-  if (projectForm) {
-    projectForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const payload = Object.fromEntries(fd.entries());
-      try {
-        const project = await api("/projects", { method: "POST", body: payload });
-        toast("案件已建立", "success");
-        await loadDashboard();
-        await openProject(project.id);
-      } catch (err) { }
-    });
   }
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {

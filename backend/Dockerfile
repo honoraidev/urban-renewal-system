@@ -2,28 +2,29 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# paddlepaddle's shared libs are linked against OpenMP (libgomp1), which the slim base
+# image doesn't ship - without it `import paddle` fails with an OSError at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    # rapidocr-onnxruntime pulls in full opencv-python, which needs GUI system
-    # libraries (libGL/libxcb) this slim base image doesn't have and fails to import.
+    # opencv-python needs GUI system libraries (libGL/libxcb) this slim base image doesn't have.
     # Swap it for the headless build - same `cv2` API, no system deps.
     && pip uninstall -y opencv-python \
     && pip install --no-cache-dir opencv-python-headless==5.0.0.93 \
-    # rapidocr/rapidocr-onnxruntime both pull in the CPU-only `onnxruntime` package;
-    # onnxruntime-gpu occupies the same `onnxruntime` import namespace, so this swap
-    # (same idea as opencv above) makes both libraries transparently pick up GPU support
-    # without any code change to how they're constructed - only the params each engine
-    # is built with (see utils/ocr.py) decide whether CUDA actually gets used, so this
-    # is harmless on a machine with no GPU (falls back to CPU). Run as its own
-    # uninstall+--force-reinstall step, deliberately separate from the requirements.txt
-    # install above rather than just listing onnxruntime-gpu there too - both packages
-    # ship a full onnxruntime tree under the same import path, and letting pip resolve
-    # rapidocr's plain `onnxruntime` dependency and an explicit onnxruntime-gpu entry in
-    # the *same* `pip install -r` invocation corrupted the result (broken/empty
-    # `onnxruntime` package, ImportError at runtime) - forcing a clean, fully separate
-    # reinstall afterward avoids that.
+    # Force reinstall onnxruntime-gpu for CUDA acceleration if available.
     && pip uninstall -y onnxruntime \
-    && pip install --no-cache-dir --force-reinstall onnxruntime-gpu==1.20.2
+    && pip install --no-cache-dir --force-reinstall onnxruntime-gpu==1.20.2 \
+    # PaddleOCR is the primary OCR engine. Installed as its own step, deliberately kept out
+    # of requirements.txt: on Windows dev machines several of paddleocr's transitive deps
+    # need a C++ compiler, but linux/amd64 has manylinux wheels for all of them. CPU
+    # build of paddlepaddle - GPU would need paddlepaddle-gpu with a matching CUDA
+    # toolchain, a separate exercise. paddlepaddle 2.x requires numpy<2 (already capped
+    # in requirements.txt); force-reinstall it afterwards in case a transitive bumped it.
+    && pip install --no-cache-dir "paddlepaddle>=2.5,<2.7" "paddleocr>=2.7,<3.0" \
+    && pip install --no-cache-dir --force-reinstall "numpy<2"
 
 # onnxruntime's CUDA execution provider dlopen()s cuDNN/cuBLAS/etc. at runtime instead
 # of linking them at build time - it doesn't search site-packages on its own, so the

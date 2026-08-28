@@ -45,6 +45,10 @@ services:
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+      # PaddleOCR downloads its detection/recognition/angle models to ~/.paddleocr on
+      # first use (~15MB, needs outbound internet once). Persist them so a container
+      # recreate doesn't re-download every time.
+      - paddle_models:/root/.paddleocr
 
   nginx:
     image: nginx:alpine
@@ -69,3 +73,6 @@ services:
     command: tunnel --no-autoupdate --url http://localhost:8090
     depends_on:
       - nginx
+
+volumes:
+  paddle_models:

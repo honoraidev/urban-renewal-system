@@ -79,6 +79,18 @@ class DashboardProjectItem(BaseModel):
     # True when the most recent OCR job carries a non-fatal warning (e.g. a page whose
     # area_sqm extraction failed even after high-accuracy retry) - see OcrJob.error_message.
     latest_ocr_job_has_warning: bool = False
+    current_stage: int
+    headcount_ratio: float
+    land_share_ratio: float
+    building_share_ratio: float
+    # Contact follow-up tiers by days overdue - see _alert_tier_counts in routers/projects.py.
+    reminder_count: int
+    warning_count: int
+    urgent_count: int
+    # First case_staff/case_owner and first manager/sys_admin assigned to this project
+    # (by assigned_at) - display-only "who's on this case", not an access-control list.
+    case_handler_name: str | None = None
+    case_manager_name: str | None = None
 
 
 class DashboardSummary(BaseModel):
@@ -101,4 +113,7 @@ class ConsentRatio(BaseModel):
     land_share_total_sqm: float
     land_share_agreed_sqm: float
     land_share_ratio: float
+    building_share_total_sqm: float
+    building_share_agreed_sqm: float
+    building_share_ratio: float
     dual_gate_passed: bool

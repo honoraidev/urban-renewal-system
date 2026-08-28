@@ -210,7 +210,7 @@ async function renderLandownersTypeTab(el, type) {
     btn.addEventListener("click", () => deleteLandowner(Number(btn.dataset.delete)));
   });
   const addBtn = document.getElementById("add-landowner-btn");
-  if (addBtn) addBtn.addEventListener("click", openAddLandownerModal);
+  if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
   const scanBtn = document.getElementById("scan-title-deed-btn");
   if (scanBtn) scanBtn.addEventListener("click", isLand ? openTitleDeedWizard : openBuildingTitleDeedWizard);
 
@@ -227,9 +227,6 @@ async function renderLandownersTypeTab(el, type) {
       if (record) openEditLandRecordModal(owner.id, record);
     });
   });
-  el.querySelectorAll("[data-delete-land]").forEach((btn) => {
-    btn.addEventListener("click", () => deleteLandRecord(Number(btn.dataset.owner), Number(btn.dataset.deleteLand)));
-  });
   el.querySelectorAll("[data-edit-building]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const owner = landowners.find((o) => o.id === Number(btn.dataset.owner));
@@ -244,129 +241,124 @@ async function renderLandownersTypeTab(el, type) {
   });
 }
 
-function landRecordRowHtml() {
+function formatMonthToMinguo(yyyyMm) {
+  if (!yyyyMm) return null;
+  const parts = yyyyMm.split("-");
+  if (parts.length === 2) {
+    const minguoYear = Number(parts[0]) - 1911;
+    return `${minguoYear}年${parts[1]}月`;
+  }
+  return yyyyMm;
+}
+
+function formatMinguoToMonth(minguoStr) {
+  if (!minguoStr) return "";
+  const match = minguoStr.match(/(\d+)年(\d+)月/);
+  if (match) {
+    const yyyy = Number(match[1]) + 1911;
+    const mm = match[2].padStart(2, "0");
+    return `${yyyy}-${mm}`;
+  }
+  return minguoStr;
+}
+
+function parcelOwnerRowHtml() {
   return `
     <div class="field-row">
-      <div class="field"><label>地號</label><input class="lr-parcel"></div>
-      <div class="field"><label>地段</label><input class="lr-section"></div>
+      <div class="field"><label>登記次序</label><input class="po-reg-order" placeholder="例: 0006" autocomplete="off"></div>
+      <div class="field"><label>所有權人姓名</label><input class="po-name" required placeholder="例: 陳仕偉" autocomplete="off"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>總面積(m²)</label><input class="lr-area" type="number" step="0.01"></div>
-      <div class="field"><label>持分(分子/分母)</label>
-        <div style="display:flex;gap:6px">
-          <input class="lr-num" type="number" placeholder="分子" value="1">
-          <input class="lr-den" type="number" placeholder="分母" value="1">
+      <div class="field">
+        <label>權利範圍</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="po-num" type="number" placeholder="分子" value="1" style="width:80px" autocomplete="off">
+          <span style="color:var(--text-muted)">/</span>
+          <input class="po-den" type="number" placeholder="分母" value="1" style="width:80px" autocomplete="off">
         </div>
       </div>
+      <div class="field"><label>持分面積(m²)</label><input class="po-owned-sqm" type="number" step="0.01" placeholder="自動計算" readonly style="background:var(--bg-subtle)" autocomplete="off"></div>
+      <div class="field"><label>持分面積(坪)</label><input class="po-owned-ping" type="number" step="0.001" placeholder="自動計算" readonly style="background:var(--bg-subtle)" autocomplete="off"></div>
     </div>
-    <button type="button" class="btn-link btn-sm remove-row-btn">刪除此筆</button>`;
-}
-
-function buildingRecordRowHtml() {
-  return `
-    <div class="field-row">
-      <div class="field"><label>建號</label><input class="br-number"></div>
-      <div class="field"><label>樓層</label><input class="br-floor"></div>
-    </div>
-    <div class="field"><label>建物地址</label><input class="br-address"></div>
-    <div class="field-row">
-      <div class="field"><label>主建物面積(m²)</label><input class="br-structure" type="number" step="0.01" value="0"></div>
-      <div class="field"><label>附屬建物面積(m²)</label><input class="br-auxiliary" type="number" step="0.01" value="0"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>共有部分面積(m²)</label><input class="br-common" type="number" step="0.01" value="0"></div>
-      <div class="field"><label>持分(分子/分母)</label>
-        <div style="display:flex;gap:6px">
-          <input class="br-num" type="number" placeholder="分子" value="1">
-          <input class="br-den" type="number" placeholder="分母" value="1">
-        </div>
+    <div class="field po-idnum-wrap"><label>統一編號</label><input class="po-idnum" placeholder="例如 A123456789 (一類完整、二類隱匿)" autocomplete="off"></div>
+    <div class="field"><label>戶籍地址</label><input class="po-address" placeholder="完整戶籍地址" autocomplete="off"></div>
+    <div class="field">
+      <label>前次移轉現值或原規定地價(元/m²)</label>
+      <div style="display:flex;gap:8px"
+>
+        <input class="po-ltt-period" type="text" placeholder="年月 (例: 86年01月)" style="flex:1" autocomplete="off">
+        <input class="po-ltt-val" type="number" step="1"  style="flex:1" autocomplete="off">
       </div>
     </div>
-    <button type="button" class="btn-link btn-sm remove-row-btn">刪除此筆</button>`;
+    <div class="field"><label>備註</label><input class="po-notes" placeholder="選填備註" autocomplete="off"></div>
+    <button type="button" class="btn-link btn-sm remove-po-row-btn" style="margin-top:6px">刪除此所有人</button>`;
 }
 
-function addLandRecordRow(container, prefill = {}) {
+function addParcelOwnerRow(container, totalAreaInput, prefill = {}) {
   const row = document.createElement("div");
-  row.className = "record-row";
-  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px";
-  row.innerHTML = landRecordRowHtml();
-  if (prefill.parcel_number) row.querySelector(".lr-parcel").value = prefill.parcel_number;
-  if (prefill.section) row.querySelector(".lr-section").value = prefill.section;
-  if (prefill.total_area_sqm) row.querySelector(".lr-area").value = prefill.total_area_sqm;
-  if (prefill.ownership_numerator) row.querySelector(".lr-num").value = prefill.ownership_numerator;
-  if (prefill.ownership_denominator) row.querySelector(".lr-den").value = prefill.ownership_denominator;
-  row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
+  row.className = "po-row record-row";
+  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--bg-card)";
+  row.innerHTML = parcelOwnerRowHtml();
+
+  if (prefill.registration_order) row.querySelector(".po-reg-order").value = prefill.registration_order;
+  if (prefill.name) row.querySelector(".po-name").value = prefill.name;
+  if (prefill.ownership_numerator) row.querySelector(".po-num").value = prefill.ownership_numerator;
+  if (prefill.ownership_denominator) row.querySelector(".po-den").value = prefill.ownership_denominator;
+  if (prefill.id_number) row.querySelector(".po-idnum").value = prefill.id_number;
+  if (prefill.address) row.querySelector(".po-address").value = prefill.address;
+  if (prefill.ltt_original_value_period) row.querySelector(".po-ltt-period").value = prefill.ltt_original_value_period;
+  if (prefill.ltt_original_value) row.querySelector(".po-ltt-val").value = prefill.ltt_original_value;
+  if (prefill.notes) row.querySelector(".po-notes").value = prefill.notes;
+
+  const updateOwnedArea = () => {
+    const totalArea = Number(totalAreaInput?.value) || 0;
+    const num = Number(row.querySelector(".po-num").value) || 1;
+    const den = Number(row.querySelector(".po-den").value) || 1;
+    const ownedSqm = den > 0 ? (totalArea * num) / den : 0;
+    const ownedPing = ownedSqm * 0.3025;
+    row.querySelector(".po-owned-sqm").value = ownedSqm ? ownedSqm.toFixed(2) : "";
+    row.querySelector(".po-owned-ping").value = ownedPing ? ownedPing.toFixed(3) : "";
+  };
+
+  row.updateOwnedArea = updateOwnedArea;
+
+  row.querySelector(".po-num").addEventListener("input", updateOwnedArea);
+  row.querySelector(".po-den").addEventListener("input", updateOwnedArea);
+  updateOwnedArea();
+
+  row.querySelector(".remove-po-row-btn").addEventListener("click", () => row.remove());
   container.appendChild(row);
   return row;
-}
-
-function addBuildingRecordRow(container, prefill = {}) {
-  const row = document.createElement("div");
-  row.className = "record-row";
-  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px";
-  row.innerHTML = buildingRecordRowHtml();
-  if (prefill.building_number) row.querySelector(".br-number").value = prefill.building_number;
-  if (prefill.floor) row.querySelector(".br-floor").value = prefill.floor;
-  if (prefill.address) row.querySelector(".br-address").value = prefill.address;
-  if (prefill.structure_area_sqm) row.querySelector(".br-structure").value = prefill.structure_area_sqm;
-  if (prefill.auxiliary_area_sqm) row.querySelector(".br-auxiliary").value = prefill.auxiliary_area_sqm;
-  if (prefill.common_area_sqm) row.querySelector(".br-common").value = prefill.common_area_sqm;
-  if (prefill.ownership_numerator) row.querySelector(".br-num").value = prefill.ownership_numerator;
-  if (prefill.ownership_denominator) row.querySelector(".br-den").value = prefill.ownership_denominator;
-  row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
-  container.appendChild(row);
-  return row;
-}
-
-function readLandRecordRows(container) {
-  return [...container.querySelectorAll(".record-row")]
-    .map((row) => ({
-      parcel_number: row.querySelector(".lr-parcel").value.trim(),
-      section: row.querySelector(".lr-section").value.trim() || null,
-      total_area_sqm: Number(row.querySelector(".lr-area").value) || 0,
-      ownership_numerator: Number(row.querySelector(".lr-num").value) || 1,
-      ownership_denominator: Number(row.querySelector(".lr-den").value) || 1,
-    }))
-    .filter((r) => r.parcel_number);
-}
-
-function readBuildingRecordRows(container) {
-  return [...container.querySelectorAll(".record-row")]
-    .map((row) => ({
-      building_number: row.querySelector(".br-number").value.trim() || null,
-      floor: row.querySelector(".br-floor").value.trim() || null,
-      address: row.querySelector(".br-address").value.trim() || null,
-      structure_area_sqm: Number(row.querySelector(".br-structure").value) || 0,
-      auxiliary_area_sqm: Number(row.querySelector(".br-auxiliary").value) || 0,
-      common_area_sqm: Number(row.querySelector(".br-common").value) || 0,
-      ownership_numerator: Number(row.querySelector(".br-num").value) || 1,
-      ownership_denominator: Number(row.querySelector(".br-den").value) || 1,
-    }))
-    .filter((r) => r.building_number || r.address);
 }
 
 function openAddLandownerModal() {
   openModal(
-    `新增${currentLandownerLabel}`,
+    `按地號建立所有人資料`,
     `
-    <form id="landowner-form">
-      <div class="field-row">
-        <div class="field"><label>姓名</label><input name="name" required></div>
-        <div class="field"><label>電話</label><input name="phone"></div>
+    <form id="landowner-parcel-form">
+      <div style="background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px">
+        <div class="field-row">
+          <div class="field"><label>地號</label><input name="parcel_number" required placeholder="例: 0232-0000" autocomplete="off"></div>
+          <div class="field"><label>地段/小段</label><input name="section" placeholder="例: 信義區祥和段三小段" autocomplete="off"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>土地總面積(m²)</label><input name="total_area_sqm" id="p-total-area" type="number" step="0.01" placeholder="例: 138.00" autocomplete="off"></div>
+          <div class="field"><label>謄本類別</label>
+            <select id="p-deed-category">
+              <option value="第一類謄本">第一類謄本</option>
+              <option value="第二類謄本" selected>第二類謄本</option>
+              <option value="第三類謄本">第三類謄本</option>
+            </select>
+          </div>
+        </div>
       </div>
-      <div class="field"><label>地址</label><input name="address"></div>
-      <label><input type="checkbox" name="is_representative" style="width:auto;display:inline-block;margin-right:6px"> 為土地/建物代表人</label>
-      <div class="field" style="margin-top:10px"><label>備註</label><textarea name="notes" rows="2"></textarea></div>
+
       <fieldset>
-        <legend>土地資料(選填,可新增多筆)</legend>
-        <div id="land-records-list"></div>
-        <button type="button" class="btn-secondary btn-sm" id="add-land-row-btn">+ 新增一筆土地</button>
+        <legend>此地號下的所有人清單</legend>
+        <div id="parcel-owners-list"></div>
+        <button type="button" class="btn-secondary btn-sm" id="add-po-row-btn" style="margin-top:8px">+ 新增一位所有權人</button>
       </fieldset>
-      <fieldset>
-        <legend>建物資料(選填,可新增多筆)</legend>
-        <div id="building-records-list"></div>
-        <button type="button" class="btn-secondary btn-sm" id="add-building-row-btn">+ 新增一筆建物</button>
-      </fieldset>
+
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">建立</button>
@@ -374,31 +366,271 @@ function openAddLandownerModal() {
     </form>`
   );
 
-  const landList = document.getElementById("land-records-list");
-  const buildingList = document.getElementById("building-records-list");
-  addLandRecordRow(landList);
+  const ownersList = document.getElementById("parcel-owners-list");
+  const totalAreaInput = document.getElementById("p-total-area");
+  const deedCatSelect = document.getElementById("p-deed-category");
+  const applyDeedCategory = () => {
+    const isThird = deedCatSelect.value.includes("第三類");
+    ownersList.querySelectorAll(".po-idnum-wrap").forEach((w) => {
+      w.style.display = isThird ? "none" : "block";
+    });
+  };
+  deedCatSelect.addEventListener("change", applyDeedCategory);
 
-  document.getElementById("add-land-row-btn").addEventListener("click", () => addLandRecordRow(landList));
-  document.getElementById("add-building-row-btn").addEventListener("click", () => addBuildingRecordRow(buildingList));
+  addParcelOwnerRow(ownersList, totalAreaInput);
+  applyDeedCategory();
 
-  document.getElementById("landowner-form").addEventListener("submit", async (e) => {
+  document.getElementById("add-po-row-btn").addEventListener("click", () => {
+    addParcelOwnerRow(ownersList, totalAreaInput);
+    applyDeedCategory();
+  });
+  totalAreaInput.addEventListener("input", () => {
+    ownersList.querySelectorAll(".po-row").forEach((row) => row.updateOwnedArea && row.updateOwnedArea());
+  });
+
+  document.getElementById("landowner-parcel-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    const payload = {
-      name: data.name,
-      id_number: data.id_number || null,
-      phone: data.phone || null,
-      address: data.address || null,
-      is_representative: fd.has("is_representative"),
-      notes: data.notes || null,
-      land_records: readLandRecordRows(landList),
-      building_records: readBuildingRecordRows(buildingList),
-    };
+    const parcelNumber = fd.get("parcel_number")?.toString().trim();
+    const section = fd.get("section")?.toString().trim() || null;
+    const totalAreaSqm = Number(fd.get("total_area_sqm")) || 0;
+
+    const ownerRows = [...ownersList.querySelectorAll(".po-row")].map((row) => ({
+      registration_order: row.querySelector(".po-reg-order")?.value.trim() || null,
+      name: row.querySelector(".po-name")?.value.trim(),
+      id_number: row.querySelector(".po-idnum")?.value.trim() || null,
+      ownership_numerator: Number(row.querySelector(".po-num")?.value) || 1,
+      ownership_denominator: Number(row.querySelector(".po-den")?.value) || 1,
+      address: row.querySelector(".po-address")?.value.trim() || null,
+      ltt_original_value_period: formatMonthToMinguo(row.querySelector(".po-ltt-period")?.value.trim()),
+      ltt_original_value: Number(row.querySelector(".po-ltt-val")?.value) || null,
+      notes: row.querySelector(".po-notes")?.value.trim() || null,
+    })).filter((o) => o.name);
+
+    if (ownerRows.length === 0) {
+      toast("請至少填寫一位所有權人姓名", "error");
+      return;
+    }
+
     try {
-      await api(`/projects/${state.currentProjectId}/landowners`, { method: "POST", body: payload });
+      for (const o of ownerRows) {
+        const payload = {
+          name: o.name,
+          id_number: o.id_number,
+          phone: null,
+          address: o.address,
+          is_representative: false,
+          notes: o.notes,
+          land_records: [{
+            registration_order: o.registration_order,
+            parcel_number: parcelNumber,
+            section: section,
+            total_area_sqm: totalAreaSqm,
+            ownership_numerator: o.ownership_numerator,
+            ownership_denominator: o.ownership_denominator,
+            ltt_original_value_period: o.ltt_original_value_period,
+            ltt_original_value: o.ltt_original_value,
+          }],
+          building_records: [],
+        };
+        await api(`/projects/${state.currentProjectId}/landowners`, { method: "POST", body: payload });
+      }
       closeModal();
-      toast(`${currentLandownerLabel}已新增`, "success");
+      toast("地號與所有權人已成功建立", "success");
+      renderTab(state.activeTab);
+    } catch (err) { }
+  });
+}
+
+function buildingOwnerRowHtml() {
+  return `
+    <div class="field-row">
+      <div class="field"><label>登記次序</label><input class="bo-reg-order" placeholder="例: 0001" autocomplete="off"></div>
+      <div class="field"><label>所有權人姓名</label><input class="bo-name" required placeholder="例: 鄭敏敏" autocomplete="off"></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>權利範圍</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="bo-num" type="number" placeholder="分子" value="1" style="width:80px" autocomplete="off">
+          <span style="color:var(--text-muted)">/</span>
+          <input class="bo-den" type="number" placeholder="分母" value="1" style="width:80px" autocomplete="off">
+        </div>
+      </div>
+      <div class="field"><label>持分面積(m²)</label><input class="bo-owned-sqm" type="number" step="0.01" placeholder="自動計算" readonly style="background:var(--bg-subtle)" autocomplete="off"></div>
+      <div class="field"><label>持分面積(坪)</label><input class="bo-owned-ping" type="number" step="0.001" placeholder="自動計算" readonly style="background:var(--bg-subtle)" autocomplete="off"></div>
+    </div>
+    <div class="field bo-idnum-wrap"><label>統一編號</label><input class="bo-idnum" placeholder="例如 A123456789 (一類完整、二類隱匿)" autocomplete="off"></div>
+    <div class="field"><label>戶籍地址</label><input class="bo-address" placeholder="完整戶籍地址" autocomplete="off"></div>
+    <div class="field"><label>備註</label><input class="bo-notes" placeholder="選填備註" autocomplete="off"></div>
+    <button type="button" class="btn-link btn-sm remove-bo-row-btn" style="margin-top:6px">刪除此所有人</button>`;
+}
+
+function addBuildingOwnerRow(container, getTotalArea, prefill = {}) {
+  const row = document.createElement("div");
+  row.className = "bo-row record-row";
+  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--bg-card)";
+  row.innerHTML = buildingOwnerRowHtml();
+
+  if (prefill.registration_order) row.querySelector(".bo-reg-order").value = prefill.registration_order;
+  if (prefill.name) row.querySelector(".bo-name").value = prefill.name;
+  if (prefill.ownership_numerator) row.querySelector(".bo-num").value = prefill.ownership_numerator;
+  if (prefill.ownership_denominator) row.querySelector(".bo-den").value = prefill.ownership_denominator;
+  if (prefill.id_number) row.querySelector(".bo-idnum").value = prefill.id_number;
+  if (prefill.address) row.querySelector(".bo-address").value = prefill.address;
+  if (prefill.notes) row.querySelector(".bo-notes").value = prefill.notes;
+
+  const updateOwnedArea = () => {
+    const totalArea = getTotalArea() || 0;
+    const num = Number(row.querySelector(".bo-num").value) || 1;
+    const den = Number(row.querySelector(".bo-den").value) || 1;
+    const ownedSqm = den > 0 ? (totalArea * num) / den : 0;
+    const ownedPing = ownedSqm * 0.3025;
+    row.querySelector(".bo-owned-sqm").value = ownedSqm ? ownedSqm.toFixed(2) : "";
+    row.querySelector(".bo-owned-ping").value = ownedPing ? ownedPing.toFixed(3) : "";
+  };
+
+  row.updateOwnedArea = updateOwnedArea;
+
+  row.querySelector(".bo-num").addEventListener("input", updateOwnedArea);
+  row.querySelector(".bo-den").addEventListener("input", updateOwnedArea);
+  updateOwnedArea();
+
+  row.querySelector(".remove-bo-row-btn").addEventListener("click", () => row.remove());
+  container.appendChild(row);
+  return row;
+}
+
+function openAddBuildingByNumberModal() {
+  openModal(
+    `按建號建立建物與所有人資料`,
+    `
+    <form id="building-by-number-form">
+      <div style="background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px">
+        <div class="field-row">
+          <div class="field"><label>建號</label><input name="building_number" required placeholder="例: 00060-000" autocomplete="off"></div>
+          <div class="field"><label>樓層</label><input name="floor" placeholder="例: 1樓" autocomplete="off"></div>
+          <div class="field"><label>謄本類別</label>
+            <select id="b-deed-category">
+              <option value="第一類謄本">第一類謄本</option>
+              <option value="第二類謄本" selected>第二類謄本</option>
+              <option value="第三類謄本">第三類謄本</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>建物地址/門牌</label><input name="address" placeholder="例: 台北市信義區祥和路100號" autocomplete="off"></div>
+        <div class="field-row">
+          <div class="field"><label>主建物面積(m²)</label><input name="structure_area_sqm" id="b-struct-area" type="number" step="0.01" value="0" autocomplete="off"></div>
+          <div class="field"><label>附屬建物面積(m²)</label><input name="auxiliary_area_sqm" id="b-aux-area" type="number" step="0.01" value="0" autocomplete="off"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>共有部分面積(m²)</label><input name="common_area_sqm" id="b-common-area" type="number" step="0.01" value="0" autocomplete="off"></div>
+          <div class="field"><label>建物總面積(m²)</label><input id="b-total-area" type="number" step="0.01" placeholder="自動計算" readonly style="background:var(--bg-subtle)" autocomplete="off"></div>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>此建號的所有權人</legend>
+        <div id="building-owners-list"></div>
+        <button type="button" class="btn-secondary btn-sm" id="add-bo-row-btn" style="margin-top:8px">+ 新增一位所有權人</button>
+      </fieldset>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">建立</button>
+      </div>
+    </form>`
+  );
+
+  const ownersList = document.getElementById("building-owners-list");
+  const structInput = document.getElementById("b-struct-area");
+  const auxInput = document.getElementById("b-aux-area");
+  const commonInput = document.getElementById("b-common-area");
+  const totalInput = document.getElementById("b-total-area");
+
+  const getTotalArea = () => {
+    const total = (Number(structInput.value) || 0) + (Number(auxInput.value) || 0) + (Number(commonInput.value) || 0);
+    totalInput.value = total ? total.toFixed(2) : "0.00";
+    return total;
+  };
+
+  const updateAllOwnedAreas = () => {
+    getTotalArea();
+    ownersList.querySelectorAll(".bo-row").forEach((row) => row.updateOwnedArea && row.updateOwnedArea());
+  };
+
+  structInput.addEventListener("input", updateAllOwnedAreas);
+  auxInput.addEventListener("input", updateAllOwnedAreas);
+  commonInput.addEventListener("input", updateAllOwnedAreas);
+
+  const deedCatSelect = document.getElementById("b-deed-category");
+  const applyDeedCategory = () => {
+    const isThird = deedCatSelect.value.includes("第三類");
+    ownersList.querySelectorAll(".bo-idnum-wrap").forEach((w) => {
+      w.style.display = isThird ? "none" : "block";
+    });
+  };
+  deedCatSelect.addEventListener("change", applyDeedCategory);
+
+  addBuildingOwnerRow(ownersList, getTotalArea);
+  applyDeedCategory();
+
+  document.getElementById("add-bo-row-btn").addEventListener("click", () => {
+    addBuildingOwnerRow(ownersList, getTotalArea);
+    applyDeedCategory();
+  });
+
+  document.getElementById("building-by-number-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const buildingNumber = fd.get("building_number")?.toString().trim();
+    const floor = fd.get("floor")?.toString().trim() || null;
+    const bAddress = fd.get("address")?.toString().trim() || null;
+    const structureAreaSqm = Number(fd.get("structure_area_sqm")) || 0;
+    const auxiliaryAreaSqm = Number(fd.get("auxiliary_area_sqm")) || 0;
+    const commonAreaSqm = Number(fd.get("common_area_sqm")) || 0;
+
+    const ownerRows = [...ownersList.querySelectorAll(".po-row, .bo-row")].map((row) => ({
+      registration_order: row.querySelector(".bo-reg-order")?.value.trim() || null,
+      name: row.querySelector(".bo-name")?.value.trim(),
+      id_number: row.querySelector(".bo-idnum")?.value.trim() || null,
+      ownership_numerator: Number(row.querySelector(".bo-num")?.value) || 1,
+      ownership_denominator: Number(row.querySelector(".bo-den")?.value) || 1,
+      address: row.querySelector(".bo-address")?.value.trim() || null,
+      notes: row.querySelector(".bo-notes")?.value.trim() || null,
+    })).filter((o) => o.name);
+
+    if (ownerRows.length === 0) {
+      toast("請至少填寫一位所有權人姓名", "error");
+      return;
+    }
+
+    try {
+      for (const o of ownerRows) {
+        const payload = {
+          name: o.name,
+          id_number: o.id_number,
+          phone: null,
+          address: o.address,
+          is_representative: false,
+          notes: o.notes,
+          land_records: [],
+          building_records: [{
+            registration_order: o.registration_order,
+            building_number: buildingNumber,
+            floor: floor,
+            address: bAddress,
+            structure_area_sqm: structureAreaSqm,
+            auxiliary_area_sqm: auxiliaryAreaSqm,
+            common_area_sqm: commonAreaSqm,
+            ownership_numerator: o.ownership_numerator,
+            ownership_denominator: o.ownership_denominator,
+          }],
+        };
+        await api(`/projects/${state.currentProjectId}/landowners`, { method: "POST", body: payload });
+      }
+      closeModal();
+      toast("建號與所有權人已成功建立", "success");
       renderTab(state.activeTab);
     } catch (err) { }
   });
@@ -465,16 +697,28 @@ function landRecordFormFields(record) {
   const r = record || {};
   return `
     <div class="field-row">
-      <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(r.parcel_number) || ""}" required></div>
-      <div class="field"><label>地段</label><input name="section" value="${escapeHtml(r.section) || ""}"></div>
+      <div class="field"><label>登記次序</label><input name="registration_order" value="${escapeHtml(r.registration_order) || ""}" placeholder="例: 0006" autocomplete="off"></div>
+      <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(r.parcel_number) || ""}" placeholder="例: 0232-0000" required autocomplete="off"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>總面積(m²)</label><input name="total_area_sqm" type="number" step="0.01" value="${r.total_area_sqm ?? 0}"></div>
-      <div class="field"><label>持分(分子/分母)</label>
-        <div style="display:flex;gap:6px">
-          <input name="ownership_numerator" type="number" value="${r.ownership_numerator ?? 1}">
-          <input name="ownership_denominator" type="number" value="${r.ownership_denominator ?? 1}">
+      <div class="field"><label>地段/小段</label><input name="section" value="${escapeHtml(r.section) || ""}" placeholder="例: 祥和段三小段" autocomplete="off"></div>
+      <div class="field">
+        <label>權利範圍</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input name="ownership_numerator" type="number" value="${r.ownership_numerator ?? 1}" placeholder="分子" style="width:80px" autocomplete="off">
+          <span style="color:var(--text-muted)">/</span>
+          <input name="ownership_denominator" type="number" value="${r.ownership_denominator ?? 1}" placeholder="分母" style="width:80px" autocomplete="off">
         </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>土地總面積(m²)</label><input name="total_area_sqm" type="number" step="0.01" value="${r.total_area_sqm ?? 0}" autocomplete="off"></div>
+    </div>
+    <div class="field">
+      <label>前次移轉現值或原規定地價(元/m²)</label>
+      <div style="display:flex;gap:8px">
+        <input name="ltt_original_value_period" value="${escapeHtml(r.ltt_original_value_period) || ""}" placeholder="年月 (例: 95年12月)" style="flex:1" autocomplete="off">
+        <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="金額 (例: 123000)" style="flex:1" autocomplete="off">
       </div>
     </div>`;
 }
@@ -482,11 +726,14 @@ function landRecordFormFields(record) {
 function readLandRecordForm(fd) {
   const data = Object.fromEntries(fd.entries());
   return {
+    registration_order: data.registration_order || null,
     parcel_number: data.parcel_number,
     section: data.section || null,
     total_area_sqm: Number(data.total_area_sqm) || 0,
     ownership_numerator: Number(data.ownership_numerator) || 1,
     ownership_denominator: Number(data.ownership_denominator) || 1,
+    ltt_original_value_period: data.ltt_original_value_period || null,
+    ltt_original_value: Number(data.ltt_original_value) || null,
   };
 }
 

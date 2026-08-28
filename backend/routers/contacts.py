@@ -65,6 +65,19 @@ def create_contact(
     return contact
 
 
+def _normalize_datetime(val: datetime | str | None) -> datetime | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        try:
+            val = datetime.fromisoformat(val)
+        except ValueError:
+            return None
+    if isinstance(val, datetime) and val.tzinfo is None:
+        val = val.replace(tzinfo=timezone.utc)
+    return val
+
+
 def _contactable_landowners_with_last_contact(db: Session, project_id: int):
     """Shared by /alerts and /contact-summary: landowners who actually own a stake in
     the case (land or building - a Landowner row that only exists as an encumbrance's
@@ -81,16 +94,22 @@ def _contactable_landowners_with_last_contact(db: Session, project_id: int):
         .where(ContactLog.project_id == project_id)
         .group_by(ContactLog.landowner_id)
     )
-    last_contact_by_landowner = {row.landowner_id: row.last_contact for row in db.execute(last_contact_stmt)}
+    last_contact_by_landowner = {}
+    for row in db.execute(last_contact_stmt):
+        dt = _normalize_datetime(row.last_contact)
+        if dt is not None:
+            last_contact_by_landowner[row.landowner_id] = dt
+
     return landowners, last_contact_by_landowner
 
 
 def _is_overdue(owner: Landowner, last_contact: datetime | None) -> bool:
     if owner.contact_status == "not_contacted":
         return True
+    last_contact = _normalize_datetime(last_contact)
     if last_contact is None:
         return False
-    days_since = (datetime.now(timezone.utc) - last_contact.replace(tzinfo=timezone.utc)).days
+    days_since = (datetime.now(timezone.utc) - last_contact).days
     return days_since >= settings.ALERT_UNCONTACTED_DAYS
 
 
@@ -104,10 +123,8 @@ def list_alerts(
     now = datetime.now(timezone.utc)
     alerts: list[AlertItem] = []
     for owner in landowners:
-        last_contact = last_contact_by_landowner.get(owner.id)
-        days_since = None
-        if last_contact is not None:
-            days_since = (now - last_contact.replace(tzinfo=timezone.utc)).days
+        last_contact = _normalize_datetime(last_contact_by_landowner.get(owner.id))
+        days_since = (now - last_contact).days if last_contact is not None else None
 
         if _is_overdue(owner, last_contact):
             alerts.append(

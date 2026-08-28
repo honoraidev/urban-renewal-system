@@ -2,7 +2,7 @@ import io
 import os
 import re
 
-import fitz
+import pymupdf as fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select

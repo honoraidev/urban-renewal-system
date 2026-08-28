@@ -12,20 +12,15 @@ jinja2==3.1.4
 httpx==0.27.2
 pymupdf==1.24.11
 pillow==10.4.0
-rapidocr-onnxruntime==1.4.4
-rapidocr==3.9.2
-numpy==2.5.2
+paddlepaddle>=2.5,<2.7
+paddleocr>=2.7,<3.0
+numpy<2
 opencc-python-reimplemented==0.1.7
 
-# GPU acceleration for the high-accuracy engine - onnxruntime-gpu itself is
-# deliberately NOT listed here (see Dockerfile: it's installed as a separate
-# --force-reinstall step *after* this file, not mixed into the same pip invocation as
-# rapidocr/rapidocr-onnxruntime's plain `onnxruntime` dependency - both packages ship a
-# full onnxruntime tree under the same import name, and letting pip install both in one
-# resolve corrupted the result). These nvidia-*-cu12 wheels (just the .so files, no
-# system CUDA toolkit needed) are safe to list normally since nothing else depends on
-# the plain `onnxruntime` name. Measured on this dev machine's RTX 3060: ~57s/page on
-# CPU -> ~2s/page on GPU for the PP-OCRv5 server model, same weights/accuracy either way.
+# GPU acceleration - onnxruntime-gpu itself is deliberately NOT listed here
+# (see Dockerfile: it's installed as a separate --force-reinstall step *after* this file).
+# These nvidia-*-cu12 wheels (just the .so files, no system CUDA toolkit needed) are safe
+# to list normally since nothing else depends on the plain `onnxruntime` name.
 nvidia-cudnn-cu12
 nvidia-cublas-cu12
 nvidia-curand-cu12

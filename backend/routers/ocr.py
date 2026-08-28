@@ -127,14 +127,17 @@ def extract_title_deed_job(
     # already on the project, but the traceability archiving here didn't know that and
     # archived it again anyway, leaving a duplicate in 文件.
     source_document_ids: list[str] | None = Form(None),
-    # Swaps in a much slower but meaningfully more accurate local OCR engine (see
-    # _get_high_accuracy_ocr_engine in utils/ocr.py) - the wizard's per-record "重新上傳
-    # 這一筆...並辨識" button sets this, since that's the one place a user is
-    # deliberately re-scanning a single record they already suspect has a misread
-    # (e.g. a dropped surname character the default engine missed entirely). Left off
-    # for every other call site - a full batch import at this engine's per-page cost
-    # would take far too long.
-    high_accuracy: bool = Form(False),
+    # Swaps in a meaningfully more accurate local OCR engine (see
+    # _get_high_accuracy_ocr_engine in utils/ocr.py). Used to default to False for batch
+    # imports on the assumption that this engine's per-page cost would make a large batch
+    # take far too long - benchmarked head-to-head on a real 73-page batch and that
+    # assumption didn't hold: high_accuracy actually finished *faster* (172.6s vs 189.1s)
+    # because it doesn't need the default engine's confidence-based smart-rescan pass at
+    # all (it's already the most accurate engine available), and it fixed at least one
+    # real misread (a dropped 「鄰」 character) the default engine missed. Defaulting to
+    # True everywhere given there's no real speed cost to justify keeping the less
+    # accurate engine as the default.
+    high_accuracy: bool = Form(True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_ocr_editor),
@@ -220,15 +223,45 @@ def extract_title_deed_job(
     # 文件 list). description stays a short summary even for a big ungrouped batch
     # covering dozens of parcels/buildings - the full per-item list already lives in the
     # structured land_records/building_records this job produces, this is just a label.
-    labels = [f"地號{p['parcel_number']}" for p in parsed["land_parcels"] if p.get("parcel_number")]
-    labels += [f"建號{b['building_number']}" for b in parsed["buildings"] if b.get("building_number")]
-    labels = list(dict.fromkeys(labels))  # de-dupe while preserving order, in case extraction ever repeats a parcel/building
-    if labels:
-        summary_label = "、".join(labels) if len(labels) <= 5 else f"{'、'.join(labels[:5])} 等 {len(labels)} 筆"
+    if len(documents) == 1:
+        labels = [f"地號{p['parcel_number']}" for p in parsed.get("land_parcels", []) if p.get("parcel_number")]
+        labels += [f"建號{b['building_number']}" for b in parsed.get("buildings", []) if b.get("building_number")]
+        labels = list(dict.fromkeys(labels))
+        if labels:
+            summary_label = "、".join(labels) if len(labels) <= 5 else f"{'、'.join(labels[:5])} 等 {len(labels)} 筆"
+            doc = documents[0]
+            if doc.id in newly_created_document_ids:
+                doc.description = f"謄本掃描匯入 - {summary_label}"
+    else:
+        # Multi-file batch: generate distinct summary labels per uploaded file
         for doc in documents:
             if doc.id not in newly_created_document_ids:
-                continue  # picked from an existing document - leave its name/description as the user already has it
-            doc.description = f"謄本掃描匯入 - {summary_label}"
+                continue
+
+            doc_text = ""
+            try:
+                import pymupdf as fitz
+                pdf = fitz.open(doc.file_path)
+                doc_text = "".join(page.get_text() for page in pdf)
+            except Exception:
+                pass
+
+            doc_labels = []
+            for p in parsed.get("land_parcels", []):
+                p_num = p.get("parcel_number")
+                if p_num and (p_num in doc_text or not doc_text):
+                    doc_labels.append(f"地號{p_num}")
+            for b in parsed.get("buildings", []):
+                b_num = b.get("building_number")
+                if b_num and (b_num in doc_text or not doc_text):
+                    doc_labels.append(f"建號{b_num}")
+
+            doc_labels = list(dict.fromkeys(doc_labels))
+            if doc_labels:
+                doc_summary = "、".join(doc_labels) if len(doc_labels) <= 5 else f"{'、'.join(doc_labels[:5])} 等 {len(doc_labels)} 筆"
+                doc.description = f"謄本掃描匯入 - {doc_summary}"
+            else:
+                doc.description = "謄本掃描匯入"
 
     # Still "completed" - some pages were successfully extracted - but error_message
     # carries a non-fatal warning when part of a multi-chunk batch failed, so the

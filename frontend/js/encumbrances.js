@@ -86,7 +86,7 @@ function openEncumbranceFormModal(encumbrance) {
         <label>債務額比例</label>
         <div style="display:flex;align-items:center;gap:8px">
           <input name="debtor_num" type="number" value="${escapeHtml(ratio.numerator)}" placeholder="分子" style="width:90px" autocomplete="off">
-          <span style="color:var(--text-muted)">分之</span>
+          <span style="color:var(--text-muted)">/</span>
           <input name="debtor_den" type="number" value="${escapeHtml(ratio.denominator)}" placeholder="分母" style="width:90px" autocomplete="off">
         </div>
       </div>

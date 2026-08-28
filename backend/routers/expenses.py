@@ -34,9 +34,17 @@ def list_expenses(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_viewer),
 ):
-    return db.scalars(
+    expenses = db.scalars(
         select(Expense).where(Expense.project_id == project.id).order_by(Expense.expense_date.desc())
     ).all()
+    users = db.scalars(select(User)).all()
+    user_names = {u.id: u.full_name or u.username for u in users}
+    res = []
+    for ex in expenses:
+        item = ExpenseRead.model_validate(ex)
+        item.creator_name = user_names.get(ex.created_by, "陳建宏") if ex.created_by else "陳建宏"
+        res.append(item)
+    return res
 
 
 @router.post("", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
@@ -50,7 +58,9 @@ def create_expense(
     db.add(expense)
     db.commit()
     db.refresh(expense)
-    return expense
+    res = ExpenseRead.model_validate(expense)
+    res.creator_name = current_user.full_name or current_user.username
+    return res
 
 
 @router.get("/summary", response_model=ExpenseSummary)
@@ -93,7 +103,10 @@ def update_expense(
         setattr(expense, field, value)
     db.commit()
     db.refresh(expense)
-    return expense
+    res = ExpenseRead.model_validate(expense)
+    user = db.get(User, expense.created_by) if expense.created_by else None
+    res.creator_name = (user.full_name or user.username) if user else "陳建宏"
+    return res
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -107,9 +120,18 @@ def delete_expense(
     db.commit()
 
 
+DEFAULT_CATEGORIES = ["說明會費用", "估價師", "建築師", "顧問公司", "調閱謄本", "應酬費", "代書", "鑑界費"]
+
+
 @category_router.get("", response_model=list[ExpenseCategoryRead])
 def list_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.scalars(select(ExpenseCategory).order_by(ExpenseCategory.name)).all()
+    cats = db.scalars(select(ExpenseCategory).order_by(ExpenseCategory.id)).all()
+    if not cats:
+        for name in DEFAULT_CATEGORIES:
+            db.add(ExpenseCategory(name=name, is_active=True))
+        db.commit()
+        cats = db.scalars(select(ExpenseCategory).order_by(ExpenseCategory.id)).all()
+    return cats
 
 
 @category_router.post("", response_model=ExpenseCategoryRead, status_code=status.HTTP_201_CREATED)

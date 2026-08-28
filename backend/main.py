@@ -18,14 +18,9 @@ async def lifespan(app: FastAPI):
         ensure_admin_account(db)
     finally:
         db.close()
-    # Deliberately NOT eagerly loading the RapidOCR engines here anymore - tried that to
-    # shave the model-load cost off the first OCR request, but on the NAS this runs on
-    # (only ~5.6GB RAM total, already shared with MariaDB/nginx/cloudflared/DSM, and
-    # observed sitting at ~4.5GB used + heavy swap even before this app does anything)
-    # loading both engines' models at startup instead of lazily on first use was enough
-    # extra memory pressure to trigger repeated unexplained container restarts. Lazily
-    # loading on first OCR call (see _get_ocr_engine/_get_header_ocr_engine in utils/ocr.py)
-    # is slower for that one request but doesn't add a permanent extra footprint.
+    # Deliberately NOT eagerly loading the PaddleOCR engine here at startup - lazily
+    # loading on first OCR call (see _get_paddle_ocr_engine in utils/ocr.py) prevents
+    # memory pressure on limited RAM systems while preserving optimal inference speed.
     yield
 
 

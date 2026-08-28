@@ -15,7 +15,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     display_name VARCHAR(100) NOT NULL,
-    role ENUM('sys_admin','manager','case_owner','case_staff','ocr_staff','viewer') NOT NULL DEFAULT 'case_staff',
+    role ENUM('sys_admin','manager','case_owner','case_staff','ocr_staff','viewer','landowner') NOT NULL DEFAULT 'case_staff',
     email VARCHAR(255),
     phone VARCHAR(30),
     is_active TINYINT(1) NOT NULL DEFAULT 1,

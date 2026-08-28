@@ -2,7 +2,7 @@ import os
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -71,7 +71,9 @@ def upload_company_document(
     db.add(document)
     db.commit()
     db.refresh(document)
-    return document
+    item = CompanyDocumentRead.model_validate(document)
+    item.uploaded_by_name = current_user.display_name
+    return item
 
 
 def _get_company_document_or_404(db: Session, doc_id: int) -> CompanyDocument:
@@ -89,6 +91,27 @@ def download_company_document(
     if not os.path.exists(document.file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
     return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
+
+
+@router.patch("/company-documents/{doc_id}", response_model=CompanyDocumentRead)
+def update_company_document(
+    doc_id: int,
+    category: str | None = Form(None),
+    description: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager),
+):
+    document = _get_company_document_or_404(db, doc_id)
+    if category is not None:
+        document.category = category.strip() if category.strip() else None
+    if description is not None:
+        document.description = description.strip() if description.strip() else None
+    db.commit()
+    db.refresh(document)
+    item = CompanyDocumentRead.model_validate(document)
+    if document.uploaded_by_user:
+        item.uploaded_by_name = document.uploaded_by_user.display_name
+    return item
 
 
 @router.delete("/company-documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -150,9 +173,38 @@ def delete_regulation(
 
 # ================= 相關網站 (websites) =================
 
+DEFAULT_WEBSITES = [
+    {"category": "地籍 & 地圖", "name": "地政司地籍圖資查詢", "url": "https://landmaps.land.moi.gov.tw/", "description": "查地段、地小段、地籍圖及地主資料"},
+    {"category": "地籍 & 地圖", "name": "內政部全國通用電子地圖", "url": "https://maps.nlsc.gov.tw/", "description": "整合式地圖服務，含地形及航照圖層"},
+    {"category": "都更 GIS", "name": "台北市都更雲地圖", "url": "https://uro.gov.taipei/", "description": "台北都更範圍、容積獎勵查詢"},
+    {"category": "都更 GIS", "name": "台北市歷史都市計畫GIS", "url": "https://www.gis.udd.taipei.gov.tw/", "description": "歷史地籍及都市計畫圖查詢"},
+    {"category": "都更 GIS", "name": "台北市政府都更雲地圖", "url": "https://land.gov.taipei/", "description": "台北市都更地圖查詢"},
+    {"category": "都更 GIS", "name": "新北市都更GIS", "url": "https://www.ur.ntpc.gov.tw/", "description": "新北市都更範圍及申請案件地圖"},
+    {"category": "建管查詢", "name": "台北市建管處", "url": "https://dba.gov.taipei/", "description": "建照、使照、違章建築查詢"},
+    {"category": "建管查詢", "name": "新北市建管處", "url": "https://www.publicwork.ntpc.gov.tw/", "description": "新北市建照、使照查詢"},
+    {"category": "不動產行情", "name": "591不動產實價", "url": "https://www.591.com.tw/", "description": "實登實價查詢，了解區域成交行情"},
+    {"category": "不動產行情", "name": "樂居房仲資訊", "url": "https://www.leju.com.tw/", "description": "建案資訊、成交行情分析"},
+    {"category": "其他工具", "name": "地下管線總查詢", "url": "https://pipeline.moi.gov.tw/", "description": "地下設施管線位置查詢"},
+    {"category": "其他工具", "name": "郵遞區號查詢", "url": "https://www.post.gov.tw/", "description": "地址查詢郵遞區號"},
+    {"category": "其他工具", "name": "民航局航高管制查詢", "url": "https://www.caa.gov.tw/", "description": "地區及航行管制及建物高度限制"},
+    {"category": "謄本 & 產權", "name": "電子謄本申請系統", "url": "https://hn.land.moi.gov.tw/", "description": "線上申請第一類、第二類謄本"},
+]
+
+
 @router.get("/websites", response_model=list[WebsiteRead])
 def list_websites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.scalars(select(Website).order_by(Website.category, Website.created_at)).all()
+    db.execute(
+        update(Website).where(Website.category == "謄本 & 謄本").values(category="謄本 & 產權")
+    )
+    db.commit()
+    sites = db.scalars(select(Website).order_by(Website.id)).all()
+    if not sites or len(sites) < len(DEFAULT_WEBSITES):
+        db.query(Website).delete()
+        for w in DEFAULT_WEBSITES:
+            db.add(Website(**w))
+        db.commit()
+        sites = db.scalars(select(Website).order_by(Website.id)).all()
+    return sites
 
 
 @router.post("/websites", response_model=WebsiteRead, status_code=status.HTTP_201_CREATED)

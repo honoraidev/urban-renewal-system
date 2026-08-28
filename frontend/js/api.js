@@ -47,6 +47,7 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
 }
 
 function toast(message, type = "info") {
+  if (!message || !String(message).trim()) return;
   const container = document.getElementById("toast-container");
   if (!container) return;
   const el = document.createElement("div");
