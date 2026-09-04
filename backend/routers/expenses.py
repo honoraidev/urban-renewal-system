@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,25 @@ from schemas.expense import (
 
 router = APIRouter(prefix="/projects/{project_id}/expenses", tags=["expenses"])
 category_router = APIRouter(prefix="/expense-categories", tags=["expense-categories"])
+
+
+@router.post("/scan-invoice")
+async def scan_invoice(
+    file: UploadFile = File(...),
+    project: Project = Depends(require_project_editor),
+):
+    """把一張發票照片交給 AI 辨識,回傳可帶入支出表單的欄位(不寫入資料庫)。"""
+    from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="沒有收到影像")
+    if len(content) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="影像過大(上限 12MB)")
+    try:
+        return extract_invoice_fields(content)
+    except InvoiceOcrError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 def get_expense_or_404(db: Session, project_id: int, expense_id: int) -> Expense:

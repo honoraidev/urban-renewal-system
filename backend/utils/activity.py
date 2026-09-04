@@ -60,7 +60,7 @@ _RAW_RULES: list[tuple[str, str, str]] = [
 _RULES = [(m, re.compile("^" + p), label) for m, p, label in _RAW_RULES]
 
 # Paths that are mutating in HTTP terms but not worth showing in an activity feed.
-_IGNORE = re.compile(r"^/(auth/(login|logout)|dashboard/my-work)")
+_IGNORE = re.compile(r"^/(auth/(login|logout)|dashboard/my-work)|^/projects/\d+/expenses/scan-invoice$")
 
 
 def describe_request(method: str, path: str) -> tuple[str | None, int | None]:

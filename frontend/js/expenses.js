@@ -445,6 +445,65 @@ function wireInvoiceScanner(formId) {
     }
   });
 
+  const aiBtn = document.getElementById("invoice-ai-btn");
+  const extra = document.getElementById("invoice-scan-extra");
+
+  // 把 blob 送後端 AI 辨識,成功就帶入欄位。
+  async function aiRecognize(blob) {
+    if (!blob) return;
+    const pid = state.currentProjectId;
+    if (!pid) {
+      toast("請先進入案件", "error");
+      return;
+    }
+    if (extra) extra.textContent = "AI 辨識中…約需 3~10 秒";
+    const fd = new FormData();
+    fd.append("file", blob, "invoice.jpg");
+    try {
+      const r = await api(`/projects/${pid}/expenses/scan-invoice`, { method: "POST", body: fd, isForm: true });
+      const parsed = {
+        invoice_number: r.invoice_number || null,
+        expense_date: r.invoice_date || null,
+        amount: r.total_amount != null ? r.total_amount : null,
+      };
+      if (!parsed.invoice_number && !parsed.expense_date && parsed.amount == null) {
+        if (extra) extra.textContent = "AI 沒有從這張照片讀到發票欄位,請拍清楚一點或手動輸入";
+        return;
+      }
+      applyInvoiceToForm(formId, parsed);
+      stopInvoiceScan();
+      panel.classList.add("hidden");
+      const bits = [];
+      if (r.seller_name) bits.push(r.seller_name);
+      if (r.total_amount != null) bits.push("$" + r.total_amount);
+      toast("AI 已帶入" + (bits.length ? "(" + bits.join(" / ") + ")" : "") + ",請確認", "success");
+    } catch (e) {
+      if (extra) extra.textContent = "AI 辨識失敗:" + (e && e.message ? e.message : e);
+    }
+  }
+
+  // 從目前相機畫面截一張圖
+  function grabStill() {
+    if (!video.videoWidth) return null;
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext("2d").drawImage(video, 0, 0);
+    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.9));
+  }
+
+  if (aiBtn)
+    aiBtn.addEventListener("click", async () => {
+      if (panel.classList.contains("hidden")) panel.classList.remove("hidden");
+      if (_invoiceScanStream) {
+        const blob = await grabStill();
+        if (blob) return aiRecognize(blob);
+      }
+      // 沒有開相機 → 讓使用者選檔,再走 AI
+      fileInput.dataset.mode = "ai";
+      fileInput.click();
+    });
+
   if (closeBtn)
     closeBtn.addEventListener("click", () => {
       stopInvoiceScan();
@@ -455,17 +514,21 @@ function wireInvoiceScanner(formId) {
     fileInput.addEventListener("change", async () => {
       const f = fileInput.files && fileInput.files[0];
       if (!f) return;
-      if (!canScan) {
-        toast("此瀏覽器無法辨識條碼,請手動輸入", "error");
-        return;
+      const mode = fileInput.dataset.mode;
+      fileInput.dataset.mode = "";
+      if (mode === "ai") return aiRecognize(f);
+
+      // 一般上傳:先試 QR,讀不到再自動轉 AI
+      if (canScan) {
+        try {
+          const bitmap = await createImageBitmap(f);
+          const res = await scanFrom(bitmap, bitmap.width, bitmap.height);
+          if (bitmap.close) bitmap.close();
+          if (res.parsed) return finish(res);
+        } catch (e) {}
       }
-      try {
-        const bitmap = await createImageBitmap(f);
-        finish(await scanFrom(bitmap, bitmap.width, bitmap.height));
-        if (bitmap.close) bitmap.close();
-      } catch (e) {
-        toast("圖片辨識失敗", "error");
-      }
+      if (extra) extra.textContent = "沒讀到發票 QR,改用 AI 辨識…";
+      aiRecognize(f);
     });
 }
 
@@ -503,10 +566,12 @@ const INVOICE_SCAN_HTML = `
         <span class="isc-line"></span>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
-      <label style="font-size:13px">或上傳發票照片 <input type="file" accept="image/*" id="invoice-scan-file"></label>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button type="button" class="btn-primary btn-sm" id="invoice-ai-btn" style="background:#0d9488;border-color:#0d9488">🤖 拍這張用 AI 辨識</button>
+      <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片<input type="file" accept="image/*" id="invoice-scan-file" style="display:none"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
     </div>
+    <div id="invoice-scan-extra" class="helper-text" style="margin-top:6px"></div>
   </div>`;
 
 function openAddExpenseModal(categories) {
