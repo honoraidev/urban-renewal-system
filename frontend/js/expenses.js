@@ -253,10 +253,168 @@ async function renderExpensesTab(el) {
   if (manageBtn) manageBtn.addEventListener("click", () => openManageCategoriesModal(categories));
 }
 
+// ---- 台灣電子發票 QR / 條碼掃描 -------------------------------------------------
+
+let _invoiceScanStream = null;
+let _invoiceScanRAF = null;
+
+function stopInvoiceScan() {
+  if (_invoiceScanRAF) cancelAnimationFrame(_invoiceScanRAF);
+  _invoiceScanRAF = null;
+  if (_invoiceScanStream) {
+    _invoiceScanStream.getTracks().forEach((t) => t.stop());
+    _invoiceScanStream = null;
+  }
+}
+
+// 財政部電子發票 QR（左方）固定欄位:
+//  0-9   發票字軌號碼      10-16 開立日期(民國年3+月2+日2)
+//  17-20 隨機碼            21-28 銷售額(未稅,16進位)
+//  29-36 總計額(含稅,16進位)
+// 一維條碼(Code39): 期別(民國yyymm,5) + 發票號碼(10) + 隨機碼(4)
+function parseTwInvoice(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+
+  // QR: 前 10 碼為 2 英文 + 8 數字
+  if (/^[A-Z]{2}\d{8}/.test(s) && s.length >= 37) {
+    const rocY = parseInt(s.slice(10, 13), 10);
+    const mm = s.slice(13, 15);
+    const dd = s.slice(15, 17);
+    let dateStr = "";
+    if (rocY > 0 && /^\d\d$/.test(mm) && /^\d\d$/.test(dd)) {
+      dateStr = `${rocY + 1911}-${mm}-${dd}`;
+    }
+    let amount = parseInt(s.slice(29, 37), 16);
+    if (!Number.isFinite(amount) || amount <= 0) amount = null;
+    return { invoice_number: s.slice(0, 10), expense_date: dateStr || null, amount };
+  }
+
+  // Code39 一維條碼
+  const m = /^(\d{5})([A-Z]{2}\d{8})(\d{4})$/.exec(s);
+  if (m) {
+    const rocY = parseInt(m[1].slice(0, 3), 10);
+    const mm = m[1].slice(3, 5);
+    return {
+      invoice_number: m[2],
+      expense_date: rocY > 0 ? `${rocY + 1911}-${mm}-01` : null,
+      amount: null,
+    };
+  }
+  return null;
+}
+
+function applyInvoiceToForm(formId, parsed) {
+  const form = document.getElementById(formId);
+  if (!form || !parsed) return;
+  if (parsed.expense_date) form.querySelector('[name="expense_date"]').value = parsed.expense_date;
+  if (parsed.amount != null) form.querySelector('[name="amount"]').value = parsed.amount;
+  if (parsed.invoice_number) form.querySelector('[name="receipt_number"]').value = parsed.invoice_number;
+}
+
+// 綁定「掃描發票」按鈕。formId = 該表單 id,用來回填欄位。
+function wireInvoiceScanner(formId) {
+  const btn = document.getElementById("scan-invoice-btn");
+  const panel = document.getElementById("invoice-scan-panel");
+  const video = document.getElementById("invoice-scan-video");
+  const fileInput = document.getElementById("invoice-scan-file");
+  const closeBtn = document.getElementById("invoice-scan-close");
+  const hint = document.getElementById("invoice-scan-hint");
+  if (!btn || !panel) return;
+
+  const supported = "BarcodeDetector" in window;
+  let detector = null;
+  if (supported) {
+    try {
+      detector = new BarcodeDetector({ formats: ["qr_code", "code_39"] });
+    } catch (e) {
+      detector = null;
+    }
+  }
+
+  const finish = (parsed) => {
+    if (!parsed) {
+      toast("這張圖片沒有辨識到發票 QR / 條碼", "error");
+      return;
+    }
+    applyInvoiceToForm(formId, parsed);
+    stopInvoiceScan();
+    panel.classList.add("hidden");
+    toast("已帶入發票資料，請確認金額與日期", "success");
+  };
+
+  btn.addEventListener("click", async () => {
+    panel.classList.toggle("hidden");
+    if (panel.classList.contains("hidden")) {
+      stopInvoiceScan();
+      return;
+    }
+    if (!detector) {
+      hint.textContent = "此瀏覽器不支援即時掃描，請改用 Chrome / Edge，或用下方「上傳發票照片」。";
+      video.classList.add("hidden");
+      return;
+    }
+    try {
+      _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      video.srcObject = _invoiceScanStream;
+      video.classList.remove("hidden");
+      await video.play();
+      const tick = async () => {
+        if (!_invoiceScanStream) return;
+        try {
+          const codes = await detector.detect(video);
+          const parsed = codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean);
+          if (parsed) return finish(parsed);
+        } catch (e) {}
+        _invoiceScanRAF = requestAnimationFrame(tick);
+      };
+      _invoiceScanRAF = requestAnimationFrame(tick);
+    } catch (e) {
+      hint.textContent = "無法開啟相機，請用下方「上傳發票照片」。";
+      video.classList.add("hidden");
+    }
+  });
+
+  if (closeBtn) closeBtn.addEventListener("click", () => {
+    stopInvoiceScan();
+    panel.classList.add("hidden");
+  });
+
+  if (fileInput) fileInput.addEventListener("change", async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (!detector) {
+      toast("此瀏覽器不支援條碼辨識，請改用 Chrome / Edge", "error");
+      return;
+    }
+    try {
+      const bitmap = await createImageBitmap(f);
+      const codes = await detector.detect(bitmap);
+      finish(codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean));
+    } catch (e) {
+      toast("圖片辨識失敗", "error");
+    }
+  });
+}
+
+const INVOICE_SCAN_HTML = `
+  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票 QR / 條碼自動帶入</button>
+  <div id="invoice-scan-panel" class="hidden" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg-subtle)">
+    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">對準發票<strong>左方 QR code</strong>(或下方一維條碼)。</div>
+    <video id="invoice-scan-video" playsinline muted style="width:100%;max-height:260px;border-radius:8px;background:#000"></video>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <label style="font-size:13px">或上傳發票照片 <input type="file" accept="image/*" id="invoice-scan-file"></label>
+      <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
+    </div>
+  </div>`;
+
 function openAddExpenseModal(categories) {
   openModal(
     "記錄支出",
     `
+    ${INVOICE_SCAN_HTML}
     <form id="expense-form">
       <div class="field-row">
         <div class="field"><label>日期</label><input type="date" name="expense_date" value="${new Date().toISOString().slice(0, 10)}" required></div>
@@ -271,11 +429,13 @@ function openAddExpenseModal(categories) {
       <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
       <div class="field"><label>收據/發票號碼(選填)</label><input name="receipt_number" placeholder="例: AX-00123"></div>
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
     </form>`
   );
+
+  wireInvoiceScanner("expense-form");
 
   document.getElementById("expense-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -290,6 +450,7 @@ function openAddExpenseModal(categories) {
     };
     try {
       await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload });
+      stopInvoiceScan();
       closeModal();
       toast("支出已新增", "success");
       renderTab("expenses");
@@ -301,6 +462,7 @@ function openEditExpenseModal(expense, categories) {
   openModal(
     "編輯支出記錄",
     `
+    ${INVOICE_SCAN_HTML}
     <form id="expense-edit-form">
       <div class="field-row">
         <div class="field"><label>日期</label><input type="date" name="expense_date" value="${fmtDate(expense.expense_date)}" required></div>
@@ -315,11 +477,13 @@ function openEditExpenseModal(expense, categories) {
       <div class="field"><label>說明</label><input name="description" value="${escapeHtml(expense.description) || ""}" placeholder="例: 第一次說明會場地費"></div>
       <div class="field"><label>收據/發票號碼(選填)</label><input name="receipt_number" value="${escapeHtml(expense.receipt_number) || ""}" placeholder="例: AX-00123"></div>
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
     </form>`
   );
+
+  wireInvoiceScanner("expense-edit-form");
 
   document.getElementById("expense-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -334,6 +498,7 @@ function openEditExpenseModal(expense, categories) {
     };
     try {
       await api(`/projects/${state.currentProjectId}/expenses/${expense.id}`, { method: "PATCH", body: payload });
+      stopInvoiceScan();
       closeModal();
       toast("支出已更新", "success");
       renderTab("expenses");
