@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
+    # 發票拍照辨識可選用 Google Gemini(有免費額度)。設了金鑰就優先用 Gemini,
+    # 否則退回本機 PaddleOCR + 規則解析。金鑰申請:https://aistudio.google.com/apikey
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
     # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
     OCR_PAGES_PER_CHUNK: int = 4
     OCR_CHUNK_OVERLAP: int = 2
