@@ -292,7 +292,7 @@ function invoiceScanEnsureStyle() {
   document.head.appendChild(s);
 }
 
-// 綁定發票辨識按鈕。formId = 該表單 id,用來回填欄位。整張發票拍照後交後端 AI 辨識。
+// 綁定發票辨識按鈕。formId = 該表單 id,用來回填欄位。整張發票拍照後交後端本機 OCR 辨識。
 function wireInvoiceScanner(formId) {
   const btn = document.getElementById("scan-invoice-btn");
   const panel = document.getElementById("invoice-scan-panel");
@@ -321,7 +321,7 @@ function wireInvoiceScanner(formId) {
       toast("請先進入案件", "error");
       return;
     }
-    if (extra) extra.textContent = "AI 辨識中…約需 3~10 秒";
+    if (extra) extra.textContent = "辨識中…約需 3~8 秒";
     if (shotBtn) shotBtn.disabled = true;
     const fd = new FormData();
     fd.append("file", blob, "invoice.jpg");
@@ -402,7 +402,7 @@ function wireInvoiceScanner(formId) {
 }
 
 const INVOICE_SCAN_HTML = `
-  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票(AI 辨識)</button>
+  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票(拍照辨識)</button>
   <div id="invoice-scan-panel" class="hidden" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg-subtle)">
     <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">把整張發票放進框內、對正、對到焦,再按「拍照辨識」。</div>
     <div id="invoice-scan-stage" class="hidden">
