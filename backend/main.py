@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+import anyio
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
@@ -44,43 +45,72 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def _activity_log_middleware(request: Request, call_next):
-    """Records every successful mutating request into activity_logs, keyed to the
-    caller from their JWT. Best-effort: any failure here must never affect the
-    response."""
-    response = await call_next(request)
+def _write_activity(user_id, project_id, method, path, label, status_code):
+    db = SessionLocal()
     try:
-        if request.method in _MUTATING_METHODS and response.status_code < 400:
-            auth_header = request.headers.get("authorization", "")
-            user_id = None
-            if auth_header.lower().startswith("bearer "):
-                try:
-                    payload = decode_access_token(auth_header[7:])
-                    user_id = int(payload.get("sub")) if payload.get("sub") else None
-                except Exception:
-                    user_id = None
-            if user_id is not None:
-                label, project_id = describe_request(request.method, request.url.path)
-                if label is not None:
-                    db = SessionLocal()
-                    try:
-                        db.add(
-                            ActivityLog(
-                                user_id=user_id,
-                                project_id=project_id,
-                                method=request.method,
-                                path=request.url.path[:500],
-                                action=label[:120],
-                                status_code=response.status_code,
-                            )
-                        )
-                        db.commit()
-                    finally:
-                        db.close()
-    except Exception:
-        pass
-    return response
+        db.add(
+            ActivityLog(
+                user_id=user_id,
+                project_id=project_id,
+                method=method,
+                path=path[:500],
+                action=label[:120],
+                status_code=status_code,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+class ActivityLogMiddleware:
+    """Pure-ASGI (not BaseHTTPMiddleware) so it never buffers/blocks the response.
+    Records every successful mutating request into activity_logs, keyed to the caller
+    from their JWT. Best-effort: any failure here must never affect the response."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") not in _MUTATING_METHODS:
+            await self.app(scope, receive, send)
+            return
+
+        status_code = 500
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+        try:
+            if status_code >= 400:
+                return
+            headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
+            auth = headers.get("authorization", "")
+            if not auth.lower().startswith("bearer "):
+                return
+            try:
+                payload = decode_access_token(auth[7:])
+                user_id = int(payload["sub"]) if payload.get("sub") else None
+            except Exception:
+                return
+            if user_id is None:
+                return
+            label, project_id = describe_request(scope["method"], scope["path"])
+            if label is None:
+                return
+            await anyio.to_thread.run_sync(
+                _write_activity, user_id, project_id, scope["method"], scope["path"], label, status_code
+            )
+        except Exception:
+            pass
+
+
+app.add_middleware(ActivityLogMiddleware)
 
 app.include_router(auth.router)
 app.include_router(projects.router)
