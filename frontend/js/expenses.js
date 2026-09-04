@@ -253,57 +253,17 @@ async function renderExpensesTab(el) {
   if (manageBtn) manageBtn.addEventListener("click", () => openManageCategoriesModal(categories));
 }
 
-// ---- 台灣電子發票 QR / 條碼掃描 -------------------------------------------------
+// ---- 發票辨識(拍照 → 後端 AI OCR)-------------------------------------------
 
 let _invoiceScanStream = null;
-let _invoiceScanRAF = null;
 
 function stopInvoiceScan() {
-  if (_invoiceScanRAF) cancelAnimationFrame(_invoiceScanRAF);
-  _invoiceScanRAF = null;
   if (_invoiceScanStream) {
     _invoiceScanStream.getTracks().forEach((t) => t.stop());
     _invoiceScanStream = null;
   }
   const stage = document.getElementById("invoice-scan-stage");
   if (stage) stage.classList.add("hidden");
-}
-
-// 財政部電子發票 QR（左方）固定欄位:
-//  0-9   發票字軌號碼      10-16 開立日期(民國年3+月2+日2)
-//  17-20 隨機碼            21-28 銷售額(未稅,16進位)
-//  29-36 總計額(含稅,16進位)
-// 一維條碼(Code39): 期別(民國yyymm,5) + 發票號碼(10) + 隨機碼(4)
-function parseTwInvoice(raw) {
-  if (!raw) return null;
-  const s = String(raw).trim();
-
-  // QR: 前 10 碼為 2 英文 + 8 數字
-  if (/^[A-Z]{2}\d{8}/.test(s) && s.length >= 37) {
-    const rocY = parseInt(s.slice(10, 13), 10);
-    const mm = s.slice(13, 15);
-    const dd = s.slice(15, 17);
-    let dateStr = "";
-    if (rocY > 0 && /^\d\d$/.test(mm) && /^\d\d$/.test(dd)) {
-      dateStr = `${rocY + 1911}-${mm}-${dd}`;
-    }
-    let amount = parseInt(s.slice(29, 37), 16);
-    if (!Number.isFinite(amount) || amount <= 0) amount = null;
-    return { invoice_number: s.slice(0, 10), expense_date: dateStr || null, amount };
-  }
-
-  // Code39 一維條碼
-  const m = /^(\d{5})([A-Z]{2}\d{8})(\d{4})$/.exec(s);
-  if (m) {
-    const rocY = parseInt(m[1].slice(0, 3), 10);
-    const mm = m[1].slice(3, 5);
-    return {
-      invoice_number: m[2],
-      expense_date: rocY > 0 ? `${rocY + 1911}-${mm}-01` : null,
-      amount: null,
-    };
-  }
-  return null;
 }
 
 function applyInvoiceToForm(formId, parsed) {
@@ -314,173 +274,46 @@ function applyInvoiceToForm(formId, parsed) {
   if (parsed.invoice_number) form.querySelector('[name="receipt_number"]').value = parsed.invoice_number;
 }
 
-// 綁定「掃描發票」按鈕。formId = 該表單 id,用來回填欄位。
-// 優先用瀏覽器內建 BarcodeDetector(可讀 QR + 一維條碼);不支援時(iOS Safari、
-// Firefox)退回打包在專案內的 jsQR,只讀 QR,但電子發票主要就是 QR。
+function invoiceScanEnsureStyle() {
+  if (document.getElementById("invoice-scan-style")) return;
+  const s = document.createElement("style");
+  s.id = "invoice-scan-style";
+  s.textContent = `
+    #invoice-scan-stage { position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000; }
+    #invoice-scan-video { width:100%; display:block; max-height:64vh; object-fit:cover; }
+    .isc-box { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:86%; height:70%; box-shadow:0 0 0 100vmax rgba(0,0,0,.45); border-radius:14px; }
+    .isc-c { position:absolute; width:26px; height:26px; border:3px solid #34d399; }
+    .isc-c.tl { top:-2px; left:-2px; border-right:0; border-bottom:0; border-top-left-radius:12px; }
+    .isc-c.tr { top:-2px; right:-2px; border-left:0; border-bottom:0; border-top-right-radius:12px; }
+    .isc-c.bl { bottom:-2px; left:-2px; border-right:0; border-top:0; border-bottom-left-radius:12px; }
+    .isc-c.br { bottom:-2px; right:-2px; border-left:0; border-top:0; border-bottom-right-radius:12px; }
+  `;
+  document.head.appendChild(s);
+}
+
+// 綁定發票辨識按鈕。formId = 該表單 id,用來回填欄位。整張發票拍照後交後端 AI 辨識。
 function wireInvoiceScanner(formId) {
   const btn = document.getElementById("scan-invoice-btn");
   const panel = document.getElementById("invoice-scan-panel");
   const video = document.getElementById("invoice-scan-video");
   const fileInput = document.getElementById("invoice-scan-file");
   const closeBtn = document.getElementById("invoice-scan-close");
+  const shotBtn = document.getElementById("invoice-shot-btn");
   const hint = document.getElementById("invoice-scan-hint");
+  const extra = document.getElementById("invoice-scan-extra");
   if (!btn || !panel) return;
   invoiceScanEnsureStyle();
 
-  let detector = null;
-  if ("BarcodeDetector" in window) {
-    try {
-      detector = new BarcodeDetector({ formats: ["qr_code", "code_39"] });
-    } catch (e) {
-      detector = null;
-    }
-  }
-  const hasJsQR = typeof jsQR === "function";
-  const canScan = detector || hasJsQR;
-  let canvas = null;
-  let frames = 0;
-
-  // 電子發票有「左 QR(有號碼/金額)」和「右 QR(以 ** 開頭,只有品項)」。
-  // 從一堆候選字串裡挑出左 QR。
-  const isLeftQr = (s) => /^[A-Z]{2}\d{8}/.test(s || "");
-  function pickBest(cands) {
-    const list = cands.filter(Boolean);
-    return list.find(isLeftQr) || list.find((s) => !s.startsWith("**")) || list[0] || null;
+  function grabStill() {
+    if (!video.videoWidth) return Promise.resolve(null);
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext("2d").drawImage(video, 0, 0);
+    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.92));
   }
 
-  // 一律先把(可裁切的)區域畫到 canvas,再交給 BarcodeDetector / jsQR。
-  // 因為兩個 QR 常同時入框,會分別掃「整框 / 左半 / 右半」再挑出左 QR。
-  async function scanFrom(source, w, h, crop) {
-    const r = crop || { sx: 0, sy: 0, sw: w, sh: h };
-    if (!r.sw || !r.sh) return { raw: null, parsed: null };
-    const maxW = 1400;
-    const scale = r.sw > maxW ? maxW / r.sw : 1;
-    const cw = Math.max(1, Math.round(r.sw * scale));
-    const ch = Math.max(1, Math.round(r.sh * scale));
-    if (!canvas) canvas = document.createElement("canvas");
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    try {
-      ctx.drawImage(source, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
-    } catch (e) {
-      return { raw: null, parsed: null };
-    }
-
-    const cands = [];
-    if (detector) {
-      try {
-        const codes = await detector.detect(canvas);
-        (codes || []).forEach((c) => cands.push(c.rawValue));
-      } catch (e) {}
-    }
-    if (hasJsQR && !cands.some(isLeftQr)) {
-      const full = ctx.getImageData(0, 0, cw, ch);
-      const regions = [
-        [0, 0, cw, ch],
-        [0, 0, Math.round(cw * 0.6), ch], // 左半(左 QR 較可能在這)
-        [Math.round(cw * 0.4), 0, Math.round(cw * 0.6), ch], // 右半
-      ];
-      for (const [rx, ry, rw, rh] of regions) {
-        try {
-          let data = full.data;
-          let dw = cw;
-          let dh = ch;
-          if (rx || ry || rw !== cw || rh !== ch) {
-            const sub = ctx.getImageData(rx, ry, rw, rh);
-            data = sub.data;
-            dw = rw;
-            dh = rh;
-          }
-          const q = jsQR(data, dw, dh, { inversionAttempts: "attemptBoth" });
-          if (q && q.data) {
-            cands.push(q.data);
-            if (isLeftQr(q.data)) break;
-          }
-        } catch (e) {}
-      }
-    }
-
-    const raw = pickBest(cands);
-    return { raw, parsed: raw ? parseTwInvoice(raw) : null };
-  }
-
-  const finish = (res, quiet) => {
-    if (res && res.parsed) {
-      applyInvoiceToForm(formId, res.parsed);
-      stopInvoiceScan();
-      panel.classList.add("hidden");
-      toast("已帶入發票資料，請確認金額與日期", "success");
-      return true;
-    }
-    if (res && res.raw) {
-      hint.textContent = String(res.raw).startsWith("**")
-        ? "掃到的是右邊那個 QR,請把框對準發票「左邊」的 QR(有號碼那個)"
-        : "掃到的不是電子發票 QR:" + String(res.raw).slice(0, 40);
-    } else if (!quiet) {
-      toast("沒有辨識到 QR,請拍近一點、只框住 QR", "error");
-    }
-    return false;
-  };
-
-  btn.addEventListener("click", async () => {
-    panel.classList.toggle("hidden");
-    if (panel.classList.contains("hidden")) {
-      stopInvoiceScan();
-      return;
-    }
-    if (!canScan) {
-      hint.textContent = "此瀏覽器無法掃描,請手動輸入。";
-      video.classList.add("hidden");
-      return;
-    }
-    hint.innerHTML = "把發票<strong>左方 QR code</strong>對進框內。";
-    const stage = document.getElementById("invoice-scan-stage");
-    if (stage) stage.classList.remove("hidden");
-    try {
-      _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-      });
-      video.srcObject = _invoiceScanStream;
-      video.classList.remove("hidden");
-      video.setAttribute("playsinline", "");
-      await video.play();
-      frames = 0;
-      const tick = async () => {
-        if (!_invoiceScanStream) return;
-        if (video.readyState >= 2 && video.videoWidth) {
-          frames++;
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-          const side = Math.floor(Math.min(vw, vh) * 0.82);
-          const crop = {
-            sx: Math.floor((vw - side) / 2),
-            sy: Math.floor((vh - side) / 2),
-            sw: side,
-            sh: side,
-          };
-          const res = await scanFrom(video, vw, vh, crop);
-          if (res.parsed && finish(res)) return;
-          if (res.raw) finish(res); // 顯示掃到什麼,但繼續掃
-          else if (frames % 20 === 0) hint.textContent = "掃描中…請讓 QR 填滿定位框、對到焦";
-        }
-        _invoiceScanRAF = requestAnimationFrame(tick);
-      };
-      _invoiceScanRAF = requestAnimationFrame(tick);
-    } catch (e) {
-      hint.textContent = "無法開啟相機(需 HTTPS 並允許權限):" + (e && e.name || e);
-      video.classList.add("hidden");
-    }
-  });
-
-  const aiBtn = document.getElementById("invoice-ai-btn");
-  const extra = document.getElementById("invoice-scan-extra");
-
-  // 把 blob 送後端 AI 辨識,成功就帶入欄位。
   async function aiRecognize(blob) {
     if (!blob) return;
     const pid = state.currentProjectId;
@@ -489,6 +322,7 @@ function wireInvoiceScanner(formId) {
       return;
     }
     if (extra) extra.textContent = "AI 辨識中…約需 3~10 秒";
+    if (shotBtn) shotBtn.disabled = true;
     const fd = new FormData();
     fd.append("file", blob, "invoice.jpg");
     try {
@@ -499,7 +333,7 @@ function wireInvoiceScanner(formId) {
         amount: r.total_amount != null ? r.total_amount : null,
       };
       if (!parsed.invoice_number && !parsed.expense_date && parsed.amount == null) {
-        if (extra) extra.textContent = "AI 沒有從這張照片讀到發票欄位,請拍清楚一點或手動輸入";
+        if (extra) extra.textContent = "沒有從這張照片讀到發票欄位,請拍清楚一點(對正、光線足、填滿框)再試";
         return;
       }
       applyInvoiceToForm(formId, parsed);
@@ -508,32 +342,49 @@ function wireInvoiceScanner(formId) {
       const bits = [];
       if (r.seller_name) bits.push(r.seller_name);
       if (r.total_amount != null) bits.push("$" + r.total_amount);
-      toast("AI 已帶入" + (bits.length ? "(" + bits.join(" / ") + ")" : "") + ",請確認", "success");
+      toast("已帶入" + (bits.length ? "(" + bits.join(" / ") + ")" : "") + ",請確認金額與日期", "success");
     } catch (e) {
-      if (extra) extra.textContent = "AI 辨識失敗:" + (e && e.message ? e.message : e);
+      if (extra) extra.textContent = "辨識失敗:" + (e && e.message ? e.message : e);
+    } finally {
+      if (shotBtn) shotBtn.disabled = false;
     }
   }
 
-  // 從目前相機畫面截一張圖
-  function grabStill() {
-    if (!video.videoWidth) return null;
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    c.getContext("2d").drawImage(video, 0, 0);
-    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.9));
+  async function openCamera() {
+    const stage = document.getElementById("invoice-scan-stage");
+    if (stage) stage.classList.remove("hidden");
+    hint.textContent = "把整張發票放進框內、對正、對到焦,再按「拍照辨識」。";
+    try {
+      _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      video.srcObject = _invoiceScanStream;
+      video.setAttribute("playsinline", "");
+      await video.play();
+    } catch (e) {
+      hint.textContent = "無法開啟相機(需 HTTPS 並允許權限):" + ((e && e.name) || e) + "。可改用「上傳發票照片」。";
+      if (stage) stage.classList.add("hidden");
+    }
   }
 
-  if (aiBtn)
-    aiBtn.addEventListener("click", async () => {
-      if (panel.classList.contains("hidden")) panel.classList.remove("hidden");
-      if (_invoiceScanStream) {
-        const blob = await grabStill();
-        if (blob) return aiRecognize(blob);
+  btn.addEventListener("click", async () => {
+    panel.classList.toggle("hidden");
+    if (panel.classList.contains("hidden")) {
+      stopInvoiceScan();
+      return;
+    }
+    if (extra) extra.textContent = "";
+    await openCamera();
+  });
+
+  if (shotBtn)
+    shotBtn.addEventListener("click", async () => {
+      if (!_invoiceScanStream) {
+        await openCamera();
+        return;
       }
-      // 沒有開相機 → 讓使用者選檔,再走 AI
-      fileInput.dataset.mode = "ai";
-      fileInput.click();
+      const blob = await grabStill();
+      aiRecognize(blob);
     });
 
   if (closeBtn)
@@ -543,63 +394,26 @@ function wireInvoiceScanner(formId) {
     });
 
   if (fileInput)
-    fileInput.addEventListener("change", async () => {
+    fileInput.addEventListener("change", () => {
       const f = fileInput.files && fileInput.files[0];
-      if (!f) return;
-      const mode = fileInput.dataset.mode;
-      fileInput.dataset.mode = "";
-      if (mode === "ai") return aiRecognize(f);
-
-      // 一般上傳:先試 QR,讀不到再自動轉 AI
-      if (canScan) {
-        try {
-          const bitmap = await createImageBitmap(f);
-          const res = await scanFrom(bitmap, bitmap.width, bitmap.height);
-          if (bitmap.close) bitmap.close();
-          if (res.parsed) return finish(res);
-        } catch (e) {}
-      }
-      if (extra) extra.textContent = "沒讀到發票 QR,改用 AI 辨識…";
-      aiRecognize(f);
+      if (f) aiRecognize(f);
+      fileInput.value = "";
     });
 }
 
-function invoiceScanEnsureStyle() {
-  if (document.getElementById("invoice-scan-style")) return;
-  const s = document.createElement("style");
-  s.id = "invoice-scan-style";
-  s.textContent = `
-    #invoice-scan-stage { position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000; }
-    #invoice-scan-video { width:100%; display:block; max-height:64vh; object-fit:cover; }
-    .isc-box { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-      width:78%; aspect-ratio:1/1; box-shadow:0 0 0 100vmax rgba(0,0,0,.5);
-      border-radius:16px; }
-    .isc-c { position:absolute; width:26px; height:26px; border:3px solid #34d399; }
-    .isc-c.tl { top:-2px; left:-2px; border-right:0; border-bottom:0; border-top-left-radius:14px; }
-    .isc-c.tr { top:-2px; right:-2px; border-left:0; border-bottom:0; border-top-right-radius:14px; }
-    .isc-c.bl { bottom:-2px; left:-2px; border-right:0; border-top:0; border-bottom-left-radius:14px; }
-    .isc-c.br { bottom:-2px; right:-2px; border-left:0; border-top:0; border-bottom-right-radius:14px; }
-    .isc-line { position:absolute; left:6%; right:6%; height:2px; background:#34d399;
-      box-shadow:0 0 8px #34d399; animation:isc-scan 2s linear infinite; }
-    @keyframes isc-scan { 0%{top:6%} 50%{top:94%} 100%{top:6%} }
-  `;
-  document.head.appendChild(s);
-}
-
 const INVOICE_SCAN_HTML = `
-  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票 QR / 條碼自動帶入</button>
+  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票(AI 辨識)</button>
   <div id="invoice-scan-panel" class="hidden" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg-subtle)">
-    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">把發票<strong>左方 QR code</strong>對進框內。</div>
+    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">把整張發票放進框內、對正、對到焦,再按「拍照辨識」。</div>
     <div id="invoice-scan-stage" class="hidden">
       <video id="invoice-scan-video" playsinline muted></video>
       <div class="isc-box">
         <span class="isc-c tl"></span><span class="isc-c tr"></span>
         <span class="isc-c bl"></span><span class="isc-c br"></span>
-        <span class="isc-line"></span>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button type="button" class="btn-primary btn-sm" id="invoice-ai-btn" style="background:#0d9488;border-color:#0d9488">🤖 拍這張用 AI 辨識</button>
+      <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 拍照辨識</button>
       <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片<input type="file" accept="image/*" id="invoice-scan-file" style="display:none"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
     </div>
