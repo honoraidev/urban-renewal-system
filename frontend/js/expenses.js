@@ -265,6 +265,8 @@ function stopInvoiceScan() {
     _invoiceScanStream.getTracks().forEach((t) => t.stop());
     _invoiceScanStream = null;
   }
+  const stage = document.getElementById("invoice-scan-stage");
+  if (stage) stage.classList.add("hidden");
 }
 
 // 財政部電子發票 QR（左方）固定欄位:
@@ -323,6 +325,7 @@ function wireInvoiceScanner(formId) {
   const closeBtn = document.getElementById("invoice-scan-close");
   const hint = document.getElementById("invoice-scan-hint");
   if (!btn || !panel) return;
+  invoiceScanEnsureStyle();
 
   let detector = null;
   if ("BarcodeDetector" in window) {
@@ -337,29 +340,36 @@ function wireInvoiceScanner(formId) {
   let canvas = null;
   let frames = 0;
 
-  // 回傳 { raw, parsed } - raw 是掃到的字串(即使不是發票也給,方便判斷)。
-  async function scanFrom(source, w, h) {
+  // 一律先把(可裁切的)區域畫到 canvas,再交給 BarcodeDetector / jsQR。
+  // crop = {sx,sy,sw,sh} 只掃該區域(定位框內),大幅提高發票小 QR 的成功率。
+  async function scanFrom(source, w, h, crop) {
+    const r = crop || { sx: 0, sy: 0, sw: w, sh: h };
+    if (!r.sw || !r.sh) return { raw: null, parsed: null };
+    const maxW = 1600;
+    const scale = r.sw > maxW ? maxW / r.sw : 1;
+    const cw = Math.max(1, Math.round(r.sw * scale));
+    const ch = Math.max(1, Math.round(r.sh * scale));
+    if (!canvas) canvas = document.createElement("canvas");
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    try {
+      ctx.drawImage(source, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
+    } catch (e) {
+      return { raw: null, parsed: null };
+    }
     let raw = null;
     if (detector) {
       try {
-        const codes = await detector.detect(source);
+        const codes = await detector.detect(canvas);
         if (codes && codes.length) raw = codes[0].rawValue;
       } catch (e) {}
     }
-    if (!raw && hasJsQR && w && h) {
-      // 大圖縮到寬度 1600 以內,jsQR 才跑得動
-      const scale = w > 1600 ? 1600 / w : 1;
-      const cw = Math.round(w * scale);
-      const ch = Math.round(h * scale);
-      if (!canvas) canvas = document.createElement("canvas");
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(source, 0, 0, cw, ch);
+    if (!raw && hasJsQR) {
       try {
         const img = ctx.getImageData(0, 0, cw, ch);
-        const r = jsQR(img.data, cw, ch, { inversionAttempts: "attemptBoth" });
-        if (r && r.data) raw = r.data;
+        const q = jsQR(img.data, cw, ch, { inversionAttempts: "attemptBoth" });
+        if (q && q.data) raw = q.data;
       } catch (e) {}
     }
     return { raw, parsed: raw ? parseTwInvoice(raw) : null };
@@ -392,7 +402,9 @@ function wireInvoiceScanner(formId) {
       video.classList.add("hidden");
       return;
     }
-    hint.innerHTML = "對準發票<strong>左方 QR code</strong>(填滿畫面一半以上)。";
+    hint.innerHTML = "把發票<strong>左方 QR code</strong>對進框內。";
+    const stage = document.getElementById("invoice-scan-stage");
+    if (stage) stage.classList.remove("hidden");
     try {
       _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -410,10 +422,19 @@ function wireInvoiceScanner(formId) {
         if (!_invoiceScanStream) return;
         if (video.readyState >= 2 && video.videoWidth) {
           frames++;
-          if (frames % 20 === 0) hint.textContent = `掃描中…(${frames} 幀,對準 QR)`;
-          const res = await scanFrom(video, video.videoWidth, video.videoHeight);
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          const side = Math.floor(Math.min(vw, vh) * 0.82);
+          const crop = {
+            sx: Math.floor((vw - side) / 2),
+            sy: Math.floor((vh - side) / 2),
+            sw: side,
+            sh: side,
+          };
+          const res = await scanFrom(video, vw, vh, crop);
           if (res.parsed && finish(res)) return;
           if (res.raw) finish(res); // 顯示掃到什麼,但繼續掃
+          else if (frames % 20 === 0) hint.textContent = "掃描中…請讓 QR 填滿定位框、對到焦";
         }
         _invoiceScanRAF = requestAnimationFrame(tick);
       };
@@ -448,11 +469,40 @@ function wireInvoiceScanner(formId) {
     });
 }
 
+function invoiceScanEnsureStyle() {
+  if (document.getElementById("invoice-scan-style")) return;
+  const s = document.createElement("style");
+  s.id = "invoice-scan-style";
+  s.textContent = `
+    #invoice-scan-stage { position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000; }
+    #invoice-scan-video { width:100%; display:block; max-height:64vh; object-fit:cover; }
+    .isc-box { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:78%; aspect-ratio:1/1; box-shadow:0 0 0 100vmax rgba(0,0,0,.5);
+      border-radius:16px; }
+    .isc-c { position:absolute; width:26px; height:26px; border:3px solid #34d399; }
+    .isc-c.tl { top:-2px; left:-2px; border-right:0; border-bottom:0; border-top-left-radius:14px; }
+    .isc-c.tr { top:-2px; right:-2px; border-left:0; border-bottom:0; border-top-right-radius:14px; }
+    .isc-c.bl { bottom:-2px; left:-2px; border-right:0; border-top:0; border-bottom-left-radius:14px; }
+    .isc-c.br { bottom:-2px; right:-2px; border-left:0; border-top:0; border-bottom-right-radius:14px; }
+    .isc-line { position:absolute; left:6%; right:6%; height:2px; background:#34d399;
+      box-shadow:0 0 8px #34d399; animation:isc-scan 2s linear infinite; }
+    @keyframes isc-scan { 0%{top:6%} 50%{top:94%} 100%{top:6%} }
+  `;
+  document.head.appendChild(s);
+}
+
 const INVOICE_SCAN_HTML = `
   <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票 QR / 條碼自動帶入</button>
   <div id="invoice-scan-panel" class="hidden" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg-subtle)">
-    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">對準發票<strong>左方 QR code</strong>(或下方一維條碼)。</div>
-    <video id="invoice-scan-video" playsinline muted style="width:100%;max-height:260px;border-radius:8px;background:#000"></video>
+    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">把發票<strong>左方 QR code</strong>對進框內。</div>
+    <div id="invoice-scan-stage" class="hidden">
+      <video id="invoice-scan-video" playsinline muted></video>
+      <div class="isc-box">
+        <span class="isc-c tl"></span><span class="isc-c tr"></span>
+        <span class="isc-c bl"></span><span class="isc-c br"></span>
+        <span class="isc-line"></span>
+      </div>
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
       <label style="font-size:13px">或上傳發票照片 <input type="file" accept="image/*" id="invoice-scan-file"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
