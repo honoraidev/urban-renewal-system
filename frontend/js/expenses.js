@@ -269,9 +269,17 @@ function stopInvoiceScan() {
 function applyInvoiceToForm(formId, parsed) {
   const form = document.getElementById(formId);
   if (!form || !parsed) return;
-  if (parsed.expense_date) form.querySelector('[name="expense_date"]').value = parsed.expense_date;
-  if (parsed.amount != null) form.querySelector('[name="amount"]').value = parsed.amount;
-  if (parsed.invoice_number) form.querySelector('[name="receipt_number"]').value = parsed.invoice_number;
+  const set = (name, val) => {
+    const el = form.querySelector(`[name="${name}"]`);
+    if (el && val != null && val !== "") el.value = val;
+  };
+  set("expense_date", parsed.expense_date);
+  set("amount", parsed.amount);
+  set("receipt_number", parsed.invoice_number);
+  set("untaxed_amount", parsed.untaxed_amount);
+  set("tax_amount", parsed.tax_amount);
+  set("seller_tax_id", parsed.seller_tax_id);
+  set("buyer_tax_id", parsed.buyer_tax_id);
 }
 
 function invoiceScanEnsureStyle() {
@@ -331,18 +339,20 @@ function wireInvoiceScanner(formId) {
         invoice_number: r.invoice_number || null,
         expense_date: r.invoice_date || null,
         amount: r.total_amount != null ? r.total_amount : null,
+        untaxed_amount: r.untaxed_amount != null ? r.untaxed_amount : null,
+        tax_amount: r.tax_amount != null ? r.tax_amount : null,
+        seller_tax_id: r.seller_tax_id || null,
+        buyer_tax_id: r.buyer_tax_id || null,
       };
       if (!parsed.invoice_number && !parsed.expense_date && parsed.amount == null) {
-        if (extra) extra.textContent = "沒有從這張照片讀到發票欄位,請拍清楚一點(對正、光線足、填滿框)再試";
+        if (extra) extra.textContent = "沒有讀到發票欄位,請拍清楚一點(對正、光線足、填滿框)再試";
         return;
       }
       applyInvoiceToForm(formId, parsed);
       stopInvoiceScan();
       panel.classList.add("hidden");
-      const bits = [];
-      if (r.seller_name) bits.push(r.seller_name);
-      if (r.total_amount != null) bits.push("$" + r.total_amount);
-      toast("已帶入" + (bits.length ? "(" + bits.join(" / ") + ")" : "") + ",請確認金額與日期", "success");
+      const src = r.source === "qr" ? "QR" : "OCR";
+      toast(`已由 ${src} 帶入${r.total_amount != null ? "(總計 $" + r.total_amount + ")" : ""},請確認`, "success");
     } catch (e) {
       if (extra) extra.textContent = "辨識失敗:" + (e && e.message ? e.message : e);
     } finally {
@@ -414,7 +424,7 @@ const INVOICE_SCAN_HTML = `
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 拍照辨識</button>
-      <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片<input type="file" accept="image/*" id="invoice-scan-file" style="display:none"></label>
+      <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片 / PDF<input type="file" accept="image/*,application/pdf" id="invoice-scan-file" style="display:none"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
     </div>
     <div id="invoice-scan-extra" class="helper-text" style="margin-top:6px"></div>
@@ -435,9 +445,17 @@ function openAddExpenseModal(categories) {
           </select>
         </div>
       </div>
-      <div class="field"><label>金額(新臺幣)</label><input type="number" name="amount" step="1" placeholder="例: 85000" required></div>
+      <div class="field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" placeholder="例: 85000" required></div>
+      <div class="field-row">
+        <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" placeholder="辨識後自動帶入"></div>
+        <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" placeholder="辨識後自動帶入"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>賣方統編</label><input name="seller_tax_id" placeholder="8 碼"></div>
+        <div class="field"><label>買方統編</label><input name="buyer_tax_id" placeholder="8 碼"></div>
+      </div>
       <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
-      <div class="field"><label>收據/發票號碼(選填)</label><input name="receipt_number" placeholder="例: AX-00123"></div>
+      <div class="field"><label>發票號碼</label><input name="receipt_number" placeholder="例: AX00123456"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
@@ -457,6 +475,10 @@ function openAddExpenseModal(categories) {
       expense_date: data.expense_date,
       description: data.description || null,
       receipt_number: data.receipt_number || null,
+      untaxed_amount: data.untaxed_amount ? Number(data.untaxed_amount) : null,
+      tax_amount: data.tax_amount ? Number(data.tax_amount) : null,
+      seller_tax_id: data.seller_tax_id || null,
+      buyer_tax_id: data.buyer_tax_id || null,
     };
     try {
       await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload });
@@ -483,9 +505,17 @@ function openEditExpenseModal(expense, categories) {
           </select>
         </div>
       </div>
-      <div class="field"><label>金額(新臺幣)</label><input type="number" name="amount" step="1" value="${expense.amount}" required></div>
+      <div class="field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" value="${expense.amount}" required></div>
+      <div class="field-row">
+        <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" value="${expense.untaxed_amount ?? ""}"></div>
+        <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" value="${expense.tax_amount ?? ""}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(expense.seller_tax_id) || ""}" placeholder="8 碼"></div>
+        <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(expense.buyer_tax_id) || ""}" placeholder="8 碼"></div>
+      </div>
       <div class="field"><label>說明</label><input name="description" value="${escapeHtml(expense.description) || ""}" placeholder="例: 第一次說明會場地費"></div>
-      <div class="field"><label>收據/發票號碼(選填)</label><input name="receipt_number" value="${escapeHtml(expense.receipt_number) || ""}" placeholder="例: AX-00123"></div>
+      <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(expense.receipt_number) || ""}" placeholder="例: AX00123456"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
@@ -505,6 +535,10 @@ function openEditExpenseModal(expense, categories) {
       expense_date: data.expense_date,
       description: data.description || null,
       receipt_number: data.receipt_number || null,
+      untaxed_amount: data.untaxed_amount ? Number(data.untaxed_amount) : null,
+      tax_amount: data.tax_amount ? Number(data.tax_amount) : null,
+      seller_tax_id: data.seller_tax_id || null,
+      buyer_tax_id: data.buyer_tax_id || null,
     };
     try {
       await api(`/projects/${state.currentProjectId}/expenses/${expense.id}`, { method: "PATCH", body: payload });

@@ -28,6 +28,11 @@ class Expense(Base):
     # Free-text receipt/invoice number as printed on the paper receipt - distinct from
     # receipt_document_id below, which is an uploaded scan of that same receipt.
     receipt_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # 發票辨識帶入的稅務欄位(可為空,手動建立的支出通常不填)
+    untaxed_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    tax_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    seller_tax_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    buyer_tax_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
     receipt_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

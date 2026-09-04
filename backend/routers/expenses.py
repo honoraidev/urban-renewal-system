@@ -33,10 +33,10 @@ async def scan_invoice(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="沒有收到影像")
-    if len(content) > 12 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="影像過大(上限 12MB)")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案過大(上限 20MB)")
     try:
-        return extract_invoice_fields(content)
+        return extract_invoice_fields(content, file.content_type)
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

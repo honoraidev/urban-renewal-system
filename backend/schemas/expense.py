@@ -29,6 +29,10 @@ class ExpenseCreate(BaseModel):
     description: str | None = None
     vendor: str | None = None
     receipt_number: str | None = None
+    untaxed_amount: float | None = None
+    tax_amount: float | None = None
+    seller_tax_id: str | None = None
+    buyer_tax_id: str | None = None
     receipt_document_id: int | None = None
 
 
@@ -39,6 +43,10 @@ class ExpenseUpdate(BaseModel):
     description: str | None = None
     vendor: str | None = None
     receipt_number: str | None = None
+    untaxed_amount: float | None = None
+    tax_amount: float | None = None
+    seller_tax_id: str | None = None
+    buyer_tax_id: str | None = None
     receipt_document_id: int | None = None
 
 
@@ -51,6 +59,10 @@ class ExpenseRead(BaseModel):
     description: str | None = None
     vendor: str | None = None
     receipt_number: str | None = None
+    untaxed_amount: float | None = None
+    tax_amount: float | None = None
+    seller_tax_id: str | None = None
+    buyer_tax_id: str | None = None
     receipt_document_id: int | None = None
     created_by: int | None = None
     creator_name: str | None = None

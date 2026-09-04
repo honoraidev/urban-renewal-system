@@ -1,8 +1,9 @@
-"""發票照片辨識,回傳要帶入支出表單的欄位。
-優先順序:設了 GEMINI_API_KEY → Google Gemini(有免費額度);否則本機 PaddleOCR + 規則解析。
-兩條路都不需付費(Gemini 免費額度內)。"""
+"""發票辨識管線:① 先試 QR(電子發票證明聯,最準)→ ② 讀不到再 PaddleOCR
+→ ③ 規則校正。回傳可帶入支出表單並存進 expenses 的欄位。完全本機執行、零費用。
+(GEMINI 那條路預設關閉,見 settings.INVOICE_USE_GEMINI。)"""
 
 import base64
+import io
 import json
 import re
 
@@ -13,189 +14,261 @@ class InvoiceOcrError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- 規則解析(PaddleOCR)
+# ============================================================ 共用
+
+def _to_int(s):
+    digits = re.sub(r"[^\d]", "", str(s or ""))
+    return int(digits) if digits else None
+
+
+def _roc_to_ad(y, m, d):
+    y, m, d = int(y), int(m), int(d)
+    if y < 1000:
+        y += 1911
+    if 2000 <= y <= 2100 and 1 <= m <= 12 and 1 <= d <= 31:
+        return f"{y:04d}-{m:02d}-{d:02d}"
+    return None
+
+
+def _pdf_first_page_png(pdf_bytes: bytes) -> bytes | None:
+    try:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if doc.page_count == 0:
+            return None
+        pix = doc.load_page(0).get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72))
+        return pix.tobytes("png")
+    except Exception:
+        return None
+
+
+# ============================================================ ① QR
+
+def _decode_qr_strings(image_bytes: bytes) -> list[str]:
+    try:
+        import cv2
+        import numpy as np
+    except Exception:
+        return []
+    arr = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+    if arr is None:
+        return []
+    out: list[str] = []
+    det = cv2.QRCodeDetector()
+    try:
+        ok, infos, points, _ = det.detectAndDecodeMulti(arr)
+        if ok:
+            out.extend([s for s in infos if s])
+    except Exception:
+        pass
+    if not out:  # 單碼後援
+        try:
+            s, _pts, _ = det.detectAndDecode(arr)
+            if s:
+                out.append(s)
+        except Exception:
+            pass
+    return out
+
+
+def _parse_einvoice_left_qr(s: str) -> dict | None:
+    # 左 QR 固定欄位:0-9 號碼 / 10-16 民國日期 / 17-20 隨機碼 /
+    # 21-28 銷售額(hex) / 29-36 總計(hex) / 37-44 買方統編 / 45-52 賣方統編
+    if not re.match(r"^[A-Z]{2}\d{8}", s or "") or len(s) < 53:
+        return None
+    date = _roc_to_ad(s[10:13], s[13:15], s[15:17])
+    try:
+        untaxed = int(s[21:29], 16)
+        total = int(s[29:37], 16)
+    except ValueError:
+        return None
+    buyer = s[37:45].strip()
+    seller = s[45:53].strip()
+    return {
+        "invoice_number": s[0:10],
+        "invoice_date": date,
+        "total_amount": total if total > 0 else None,
+        "untaxed_amount": untaxed if untaxed > 0 else None,
+        "tax_amount": (total - untaxed) if total and untaxed and total >= untaxed else None,
+        "seller_tax_id": seller if seller.isdigit() and len(seller) == 8 else None,
+        "buyer_tax_id": buyer if buyer.isdigit() and len(buyer) == 8 else None,
+        "seller_name": None,
+        "source": "qr",
+    }
+
+
+def _try_qr(image_bytes: bytes) -> dict | None:
+    for s in _decode_qr_strings(image_bytes):
+        parsed = _parse_einvoice_left_qr(s.strip())
+        if parsed:
+            return parsed
+    return None
+
+
+# ============================================================ ② + ③ PaddleOCR + 規則
 
 _NUM_RE = re.compile(r"[A-Z]{2}[-\s]?\d{8}")
 _ROC_DATE_RE = re.compile(r"(?<!\d)(\d{2,3})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})")
 _ROC_DATE_COMPACT_RE = re.compile(r"(?<!\d)(1\d{2})(\d{2})(\d{2})(?!\d)")
 _AD_DATE_RE = re.compile(r"(20\d{2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})")
-_MONEY_RE = re.compile(r"\d{1,3}(?:,\d{3})+|\d+")
-_AMOUNT_LABEL_RE = re.compile(r"(總\s*計|總計額|應\s*收|合\s*計|實\s*收|金\s*額)[^\d]{0,6}(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+)")
-_TAXID_LABEL_RE = re.compile(r"(賣\s*方|統一編號|統編|買\s*方)[^\d]{0,6}(\d{8})")
-
-
-def _to_int(s):
-    digits = re.sub(r"[^\d]", "", s or "")
-    return int(digits) if digits else None
+_MONEY = r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+)"
+_TOTAL_RE = re.compile(r"(總\s*計|總計額|應\s*收|實\s*收|含稅總額|合\s*計)\D{0,6}" + _MONEY)
+_UNTAX_RE = re.compile(r"(銷\s*售\s*額|課稅銷售額|未稅金額|未稅)\D{0,6}" + _MONEY)
+_TAX_RE = re.compile(r"(營\s*業\s*稅|稅\s*額)\D{0,6}" + _MONEY)
+_SELLER_TAXID_RE = re.compile(r"(賣\s*方|營業人統編|統一編號|統編)\D{0,6}(\d{8})")
+_BUYER_TAXID_RE = re.compile(r"(買\s*方|買受人統編)\D{0,6}(\d{8})")
+_ANY_MONEY_RE = re.compile(r"\d{1,3}(?:,\d{3})+")
 
 
 def _parse_date(text):
     m = _AD_DATE_RE.search(text)
     if m:
-        y, mo, d = (int(x) for x in m.groups())
-        if 1 <= mo <= 12 and 1 <= d <= 31:
-            return f"{y:04d}-{mo:02d}-{d:02d}"
+        return _roc_to_ad(*m.groups())
     m = _ROC_DATE_RE.search(text)
     if m:
-        ry, mo, d = (int(x) for x in m.groups())
-        if 1 <= mo <= 12 and 1 <= d <= 31 and 1 <= ry <= 199:
-            return f"{ry + 1911:04d}-{mo:02d}-{d:02d}"
+        return _roc_to_ad(*m.groups())
     m = _ROC_DATE_COMPACT_RE.search(text)
     if m:
-        ry, mo, d = (int(x) for x in m.groups())
-        if 1 <= mo <= 12 and 1 <= d <= 31:
-            return f"{ry + 1911:04d}-{mo:02d}-{d:02d}"
+        return _roc_to_ad(*m.groups())
     return None
 
 
-def _parse_amount(text):
-    m = _AMOUNT_LABEL_RE.search(text)
-    if m:
-        v = _to_int(m.group(2))
-        if v:
-            return v
-    best = None
-    for token in _MONEY_RE.findall(text):
-        if "," in token:
-            v = _to_int(token)
-            if v and (best is None or v > best):
-                best = v
-    return best
+def _rule_extract(text: str) -> dict:
+    flat = text.replace(" ", "").replace("　", "")
+
+    num_m = _NUM_RE.search(text) or _NUM_RE.search(flat)
+    invoice_number = re.sub(r"[-\s]", "", num_m.group(0)).upper() if num_m else None
+
+    total = _to_int(_TOTAL_RE.search(text).group(2)) if _TOTAL_RE.search(text) else None
+    untaxed = _to_int(_UNTAX_RE.search(text).group(2)) if _UNTAX_RE.search(text) else None
+    tax = _to_int(_TAX_RE.search(text).group(2)) if _TAX_RE.search(text) else None
+
+    if total is None:
+        cands = sorted({_to_int(x) for x in _ANY_MONEY_RE.findall(text)} - {None})
+        if cands:
+            total = cands[-1]
+
+    # ③ 規則校正:互補推算(營業稅 5%)
+    if total and untaxed is None and tax is None:
+        untaxed = round(total / 1.05)
+        tax = total - untaxed
+    elif total and untaxed and tax is None:
+        tax = total - untaxed
+    elif untaxed and tax and total is None:
+        total = untaxed + tax
+    elif total and tax and untaxed is None:
+        untaxed = total - tax
+
+    sm = _SELLER_TAXID_RE.search(flat)
+    bm = _BUYER_TAXID_RE.search(flat)
+    return {
+        "invoice_number": invoice_number,
+        "invoice_date": _parse_date(text) or _parse_date(flat),
+        "total_amount": total,
+        "untaxed_amount": untaxed,
+        "tax_amount": tax,
+        "seller_tax_id": sm.group(2) if sm else None,
+        "buyer_tax_id": bm.group(2) if bm else None,
+        "seller_name": None,
+        "source": "ocr",
+    }
 
 
-def _extract_via_paddle(image_bytes: bytes) -> dict:
+def _paddle_text(image_bytes: bytes) -> str:
     try:
         from utils.ocr import run_ocr
     except Exception as exc:  # pragma: no cover
         raise InvoiceOcrError(f"OCR 模組載入失敗:{exc}") from exc
-
-    text = (run_ocr(image_bytes) or {}).get("text") or ""
-    if not text.strip():
-        raise InvoiceOcrError("OCR 沒有讀到任何文字,請拍清楚一點、對正、光線充足再試")
-
-    flat = text.replace(" ", "").replace("　", "")
-    num_m = _NUM_RE.search(text) or _NUM_RE.search(flat)
-    tm = _TAXID_LABEL_RE.search(flat)
-    return {
-        "invoice_number": re.sub(r"[-\s]", "", num_m.group(0)).upper() if num_m else None,
-        "invoice_date": _parse_date(text) or _parse_date(flat),
-        "total_amount": _parse_amount(text),
-        "seller_name": None,
-        "seller_tax_id": tm.group(2) if tm else None,
-        "provider": "paddleocr",
-        "ocr_text": text[:4000],
-    }
+    return (run_ocr(image_bytes) or {}).get("text") or ""
 
 
-# ---------------------------------------------------------------- Google Gemini
+# ============================================================ Gemini(預設關閉)
 
-_GEMINI_PROMPT = (
-    "這是一張台灣發票(電子發票證明聯、收銀機統一發票、二聯式或三聯式)的照片。"
-    "只依照片上實際印出的文字擷取欄位,不要臆測。日期若是民國年請換算西元(民國年+1911)。"
-    "金額取『含稅總計』,去掉逗號與符號回整數。讀不到的欄位回 null。"
-)
+def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-in only
+    import time
 
-_GEMINI_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "invoice_number": {"type": "string", "nullable": True},
-        "invoice_date": {"type": "string", "nullable": True},
-        "total_amount": {"type": "integer", "nullable": True},
-        "seller_name": {"type": "string", "nullable": True},
-        "seller_tax_id": {"type": "string", "nullable": True},
-    },
-    "required": ["invoice_number", "invoice_date", "total_amount", "seller_name", "seller_tax_id"],
-}
-
-
-def _downscale(image_bytes: bytes, max_dim: int = 1600) -> bytes:
-    try:
-        import io
-
-        from PIL import Image
-
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        w, h = img.size
-        if max(w, h) > max_dim:
-            scale = max_dim / max(w, h)
-            img = img.resize((int(w * scale), int(h * scale)))
-        out = io.BytesIO()
-        img.save(out, format="JPEG", quality=82)
-        return out.getvalue()
-    except Exception:
-        return image_bytes
-
-
-def _extract_via_gemini(image_bytes: bytes) -> dict:
     import httpx
 
+    prompt = (
+        "台灣發票照片。只依實際印出的文字擷取:發票號碼、開立日期(民國換西元 YYYY-MM-DD)、"
+        "未稅金額、營業稅額、含稅總計、賣方統編、買方統編。讀不到填 null。金額回整數。"
+    )
+    schema = {
+        "type": "object",
+        "properties": {
+            "invoice_number": {"type": "string", "nullable": True},
+            "invoice_date": {"type": "string", "nullable": True},
+            "untaxed_amount": {"type": "integer", "nullable": True},
+            "tax_amount": {"type": "integer", "nullable": True},
+            "total_amount": {"type": "integer", "nullable": True},
+            "seller_tax_id": {"type": "string", "nullable": True},
+            "buyer_tax_id": {"type": "string", "nullable": True},
+        },
+        "required": [
+            "invoice_number", "invoice_date", "untaxed_amount", "tax_amount",
+            "total_amount", "seller_tax_id", "buyer_tax_id",
+        ],
+    }
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
     )
-    b64 = base64.b64encode(_downscale(image_bytes)).decode("ascii")
+    b64 = base64.b64encode(image_bytes).decode("ascii")
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": _GEMINI_PROMPT},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0,
-            "responseMimeType": "application/json",
-            "responseSchema": _GEMINI_SCHEMA,
-        },
+        "contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": "image/jpeg", "data": b64}}]}],
+        "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "responseSchema": schema},
     }
-    import time
-
     resp = None
-    last_detail = ""
     for attempt in range(3):
-        try:
-            resp = httpx.post(url, json=payload, timeout=60.0)
-            if resp.status_code in (429, 500, 503):
-                last_detail = f"HTTP {resp.status_code}(服務忙碌)"
-                time.sleep(2 * (attempt + 1))
-                continue
-            resp.raise_for_status()
-            break
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            try:
-                detail = exc.response.json().get("error", {}).get("message", detail)
-            except ValueError:
-                pass
-            raise InvoiceOcrError(f"呼叫 Gemini 失敗:{detail}") from exc
-        except httpx.HTTPError as exc:
-            last_detail = str(exc)
-            time.sleep(1.5)
+        resp = httpx.post(url, json=payload, timeout=60.0)
+        if resp.status_code in (429, 500, 503):
+            time.sleep(2 * (attempt + 1))
+            continue
+        break
     if resp is None or resp.status_code >= 400:
-        raise InvoiceOcrError(f"Gemini 暫時無法使用,請稍後再試({last_detail})")
-
+        raise InvoiceOcrError("Gemini 暫時無法使用")
     try:
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        parsed = json.loads(text)
-    except (KeyError, IndexError, ValueError, TypeError) as exc:
+        parsed = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+    except Exception as exc:
         raise InvoiceOcrError(f"無法解析 Gemini 回傳:{exc}") from exc
-
-    num = (parsed.get("invoice_number") or "").strip().upper().replace("-", "")
-    amount = parsed.get("total_amount")
-    if isinstance(amount, str):
-        amount = _to_int(amount)
-    return {
-        "invoice_number": num or None,
-        "invoice_date": (parsed.get("invoice_date") or "").strip() or None,
-        "total_amount": amount if isinstance(amount, int) and amount > 0 else None,
-        "seller_name": (parsed.get("seller_name") or "").strip() or None,
-        "seller_tax_id": (parsed.get("seller_tax_id") or "").strip() or None,
-        "provider": "gemini",
-    }
+    parsed["invoice_number"] = (parsed.get("invoice_number") or "").upper().replace("-", "") or None
+    parsed["source"] = "gemini"
+    parsed["seller_name"] = None
+    return parsed
 
 
-def extract_invoice_fields(image_bytes: bytes) -> dict:
-    if settings.GEMINI_API_KEY:
-        return _extract_via_gemini(image_bytes)
-    return _extract_via_paddle(image_bytes)
+# ============================================================ 進入點
+
+def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -> dict:
+    is_pdf = (content_type or "").lower().endswith("pdf") or file_bytes[:5] == b"%PDF-"
+    image_bytes = file_bytes
+    if is_pdf:
+        png = _pdf_first_page_png(file_bytes)
+        if png is None:
+            raise InvoiceOcrError("PDF 無法轉圖,請改上傳照片")
+        image_bytes = png
+
+    # ① QR
+    qr = _try_qr(image_bytes)
+    if qr:
+        qr["ocr_text"] = ""
+        return qr
+
+    # ② OCR
+    text = _paddle_text(image_bytes)
+    if not text.strip():
+        raise InvoiceOcrError("讀不到 QR,OCR 也沒讀到文字。請拍清楚一點、對正、光線充足再試")
+
+    # ③ 校正
+    if settings.INVOICE_USE_GEMINI and settings.GEMINI_API_KEY:
+        try:
+            result = _extract_via_gemini(image_bytes)
+            result.setdefault("untaxed_amount", None)
+            result["ocr_text"] = text[:4000]
+            return result
+        except InvoiceOcrError:
+            pass  # 退回規則
+    result = _rule_extract(text)
+    result["ocr_text"] = text[:4000]
+    return result

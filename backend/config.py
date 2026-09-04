@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     # 否則退回本機 PaddleOCR + 規則解析。金鑰申請:https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.6-flash"
+    # 發票辨識 ③ 校正是否改用 Gemini(預設 False = 純規則)。
+    INVOICE_USE_GEMINI: bool = False
 
     # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
     OCR_PAGES_PER_CHUNK: int = 4
