@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import require_project_editor, require_project_viewer
+from deps import require_project_editor, require_project_staff_viewer
 from models.encumbrance import Encumbrance
 from models.project import Project
 from schemas.encumbrance import EncumbranceCreate, EncumbranceRead, EncumbranceUpdate
@@ -23,7 +23,7 @@ def get_encumbrance_or_404(db: Session, project_id: int, encumbrance_id: int) ->
 @router.get("", response_model=list[EncumbranceRead])
 def list_encumbrances(
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     return db.scalars(
         select(Encumbrance).where(Encumbrance.project_id == project.id).order_by(Encumbrance.created_at)

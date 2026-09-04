@@ -215,6 +215,7 @@ async function loadDashboard() {
               }
               <h3 style="flex:1">${escapeHtml(p.name)}</h3>
               ${p.city ? `<span class="mini-badge">${escapeHtml(p.city)}</span>` : ""}
+              ${isManager() ? `<button type="button" class="project-card-menu-btn" data-project-menu="${p.id}" title="案件選項">⋮</button>` : ""}
             </div>
             <div class="project-card-stage">
               <div class="project-stage-bar">
@@ -239,10 +240,6 @@ async function loadDashboard() {
                 </div>`
               : ""
             }
-            ${isManager()
-              ? `<div style="text-align:right"><button type="button" class="btn-link" style="color:var(--danger)" data-delete-project="${p.id}">刪除案件</button></div>`
-              : ""
-            }
           </div>`
       )
       .join("");
@@ -252,11 +249,11 @@ async function loadDashboard() {
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
 
-    grid.querySelectorAll("[data-delete-project]").forEach((btn) => {
+    grid.querySelectorAll("[data-project-menu]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const target = summary.projects.find((x) => x.id === Number(btn.dataset.deleteProject));
-        if (target) openDeleteProjectModal(target);
+        const target = summary.projects.find((x) => x.id === Number(btn.dataset.projectMenu));
+        if (target) toggleProjectCardMenu(btn, target);
       });
     });
 
@@ -380,18 +377,22 @@ function openDeleteProjectModal(project) {
 
 async function suggestNextProjectCode() {
   const year = new Date().getFullYear();
-  let maxSeq = 0;
+  const used = new Set();
   try {
     const projects = await api("/projects", { silent: true });
     const prefix = `${year}-`;
     projects.forEach((p) => {
       if (p.project_code && p.project_code.startsWith(prefix)) {
         const seq = Number(p.project_code.slice(prefix.length));
-        if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+        if (Number.isInteger(seq) && seq > 0) used.add(seq);
       }
     });
   } catch (e) { }
-  return `${year}-${String(maxSeq + 1).padStart(3, "0")}`;
+  // Fill the lowest free number so a deleted code (e.g. 2026-001) gets reused
+  // instead of the sequence always climbing.
+  let seq = 1;
+  while (used.has(seq)) seq++;
+  return `${year}-${String(seq).padStart(3, "0")}`;
 }
 
 function updateDistrictSelectOptions(city, defaultDistrict = "") {
@@ -454,6 +455,125 @@ async function goToNewProject() {
   });
 }
 
+// 案件卡片右上角 ⋮ 的選單 - 直接以下拉方式貼在卡片上,不再開對話框
+function closeAllProjectCardMenus() {
+  document.querySelectorAll(".project-card-menu-pop").forEach((m) => m.remove());
+  document.removeEventListener("click", _onDocClickProjectMenu, true);
+  document.removeEventListener("keydown", _onKeyProjectMenu, true);
+}
+function _onDocClickProjectMenu(e) {
+  if (!e.target.closest(".project-card-menu-pop, [data-project-menu]")) closeAllProjectCardMenus();
+}
+function _onKeyProjectMenu(e) {
+  if (e.key === "Escape") closeAllProjectCardMenus();
+}
+function toggleProjectCardMenu(btn, project) {
+  const card = btn.closest(".project-card");
+  const alreadyOpen = card && card.querySelector(".project-card-menu-pop");
+  closeAllProjectCardMenus();
+  if (alreadyOpen || !card) return;
+
+  const pop = document.createElement("div");
+  pop.className = "project-card-menu-pop";
+  pop.innerHTML = `
+    <button type="button" data-pm="edit">✏️ 編輯案件資料</button>
+    <button type="button" data-pm="delete" class="danger">🗑️ 刪除案件</button>`;
+  pop.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const act = e.target.closest("[data-pm]")?.dataset.pm;
+    closeAllProjectCardMenus();
+    if (act === "edit") openProjectEditModal(project.id);
+    else if (act === "delete") openDeleteProjectModal(project);
+  });
+  card.appendChild(pop);
+  setTimeout(() => {
+    document.addEventListener("click", _onDocClickProjectMenu, true);
+    document.addEventListener("keydown", _onKeyProjectMenu, true);
+  }, 0);
+}
+
+async function openProjectEditModal(projectId) {
+  let p;
+  try {
+    p = await api(`/projects/${projectId}`);
+  } catch (e) {
+    return;
+  }
+  let docs = [];
+  try {
+    docs = await api(`/projects/${projectId}/documents`, { silent: true });
+  } catch (e) { }
+  // 文件說明裡的地號/建號摘要 - 提供在「備註」欄快速帶入 (去掉「謄本掃描匯入 - 」前綴)
+  const noteSuggestions = [
+    ...new Set(
+      (docs || [])
+        .map((d) => (d.description || "").replace(/^謄本掃描匯入\s*-\s*/, "").trim())
+        .filter((s) => s && s !== "謄本掃描匯入")
+    ),
+  ];
+  const noteFillHtml = noteSuggestions.length
+    ? `<select id="pe-note-fill" style="margin-bottom:6px">
+         <option value="">— 從文件地號帶入… —</option>
+         ${noteSuggestions.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}
+       </select>`
+    : "";
+
+  const cityOptions =
+    `<option value="">請選擇</option>` +
+    TAIWAN_CITIES.map((c) => `<option value="${c}" ${c === (p.city || "") ? "selected" : ""}>${c}</option>`).join("");
+  openModal(
+    "編輯案件資料",
+    `
+    <form id="project-edit-form">
+      <div class="field-row">
+        <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
+        <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>案件代碼</label><input name="project_code" value="${escapeHtml(p.project_code || "")}" required></div>
+        <div class="field"><label>案件名稱</label><input name="name" value="${escapeHtml(p.name || "")}" required></div>
+      </div>
+      <div class="field"><label>案件地址</label><input name="address" value="${escapeHtml(p.address || "")}"></div>
+      <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">儲存</button>
+      </div>
+    </form>`,
+    { width: "560px" }
+  );
+
+  updateDistrictSelectOptions(p.city || "", p.district || "");
+  document.getElementById("np-city").addEventListener("change", (e) => {
+    updateDistrictSelectOptions(e.target.value);
+  });
+
+  const noteFill = document.getElementById("pe-note-fill");
+  if (noteFill) {
+    noteFill.addEventListener("change", () => {
+      if (!noteFill.value) return;
+      const ta = document.getElementById("pe-note");
+      ta.value = ta.value.trim() ? `${ta.value.trim()}\n${noteFill.value}` : noteFill.value;
+      noteFill.value = "";
+    });
+  }
+
+  document.getElementById("project-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      const updated = await api(`/projects/${projectId}`, { method: "PATCH", body: payload });
+      toast("案件資料已更新", "success");
+      closeModal();
+      if (state.currentProjectId === projectId) {
+        state.currentProject = updated;
+        renderProjectHeader(updated);
+      }
+      await loadDashboard();
+    } catch (err) { }
+  });
+}
+
 async function openProject(id) {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
@@ -470,11 +590,15 @@ async function openProject(id) {
     return;
   }
 
-  document.querySelectorAll(".tab-btn").forEach((btn) => {
+  // 地主帳號:只保留 SOP 進度 / 土地登記 / 建物登記 / 聯絡紀錄 / 土增稅,其餘分頁隱藏
+  const landownerHiddenTabs = ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"];
+  document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
+    const hideForLandowner = isLandowner() && landownerHiddenTabs.includes(btn.dataset.tab);
+    btn.classList.toggle("hidden", hideForLandowner);
     btn.classList.toggle("active", btn.dataset.tab === "sop");
   });
   const membersTabBtn = document.getElementById("tab-btn-members");
-  if (membersTabBtn) membersTabBtn.classList.toggle("hidden", !isManager());
+  if (membersTabBtn) membersTabBtn.classList.toggle("hidden", !isManager() || isLandowner());
   state.activeTab = "sop";
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
@@ -484,7 +608,7 @@ function renderProjectHeader(p) {
   const subEl = document.getElementById("pd-sub");
   const badgeEl = document.getElementById("pd-status-badge");
 
-  if (nameEl) nameEl.textContent = `${p.name} (${p.project_code})`;
+  if (nameEl) nameEl.textContent = `${p.name} (${p.project_code})${p.description ? ` · ${p.description}` : ""}`;
   if (subEl) subEl.textContent = [p.district, p.address].filter(Boolean).join(" · ") || "—";
   if (badgeEl) {
     badgeEl.innerHTML =
@@ -496,6 +620,12 @@ function renderProjectHeader(p) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
+  // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
+  if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
+    tab = "sop";
+    state.activeTab = "sop";
+    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "sop"));
+  }
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
     sop: renderSopTab,

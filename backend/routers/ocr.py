@@ -228,7 +228,7 @@ def extract_title_deed_job(
         labels += [f"建號{b['building_number']}" for b in parsed.get("buildings", []) if b.get("building_number")]
         labels = list(dict.fromkeys(labels))
         if labels:
-            summary_label = "、".join(labels) if len(labels) <= 5 else f"{'、'.join(labels[:5])} 等 {len(labels)} 筆"
+            summary_label = labels[0] if len(labels) == 1 else f"{labels[0]} 等 {len(labels)} 筆"
             doc = documents[0]
             if doc.id in newly_created_document_ids:
                 doc.description = f"謄本掃描匯入 - {summary_label}"
@@ -258,7 +258,7 @@ def extract_title_deed_job(
 
             doc_labels = list(dict.fromkeys(doc_labels))
             if doc_labels:
-                doc_summary = "、".join(doc_labels) if len(doc_labels) <= 5 else f"{'、'.join(doc_labels[:5])} 等 {len(doc_labels)} 筆"
+                doc_summary = doc_labels[0] if len(doc_labels) == 1 else f"{doc_labels[0]} 等 {len(doc_labels)} 筆"
                 doc.description = f"謄本掃描匯入 - {doc_summary}"
             else:
                 doc.description = "謄本掃描匯入"

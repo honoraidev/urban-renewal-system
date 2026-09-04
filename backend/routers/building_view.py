@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
-from deps import require_project_viewer
+from deps import require_project_staff_viewer
 from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
 from models.project import Project
@@ -28,7 +28,7 @@ def get_building_view(
     project_id: int,
     stage: int | None = Query(None, description="SOP stage to read consent status from; defaults to the project's current stage"),
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     effective_stage = stage if stage is not None else project.current_stage
 

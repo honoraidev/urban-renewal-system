@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_manager, require_project_editor, require_project_viewer
+from deps import get_current_user, require_manager, require_project_editor, require_project_staff_viewer
 from models.expense import Expense, ExpenseCategory
 from models.project import Project
 from models.user import User
@@ -32,13 +32,13 @@ def get_expense_or_404(db: Session, project_id: int, expense_id: int) -> Expense
 @router.get("", response_model=list[ExpenseRead])
 def list_expenses(
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     expenses = db.scalars(
         select(Expense).where(Expense.project_id == project.id).order_by(Expense.expense_date.desc())
     ).all()
     users = db.scalars(select(User)).all()
-    user_names = {u.id: u.full_name or u.username for u in users}
+    user_names = {u.id: u.display_name or u.username for u in users}
     res = []
     for ex in expenses:
         item = ExpenseRead.model_validate(ex)
@@ -59,14 +59,14 @@ def create_expense(
     db.commit()
     db.refresh(expense)
     res = ExpenseRead.model_validate(expense)
-    res.creator_name = current_user.full_name or current_user.username
+    res.creator_name = current_user.display_name or current_user.username
     return res
 
 
 @router.get("/summary", response_model=ExpenseSummary)
 def expense_summary(
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     project_id = project.id
     total = float(
@@ -105,7 +105,7 @@ def update_expense(
     db.refresh(expense)
     res = ExpenseRead.model_validate(expense)
     user = db.get(User, expense.created_by) if expense.created_by else None
-    res.creator_name = (user.full_name or user.username) if user else "陳建宏"
+    res.creator_name = (user.display_name or user.username) if user else "-"
     return res
 
 

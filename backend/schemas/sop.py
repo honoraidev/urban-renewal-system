@@ -26,6 +26,15 @@ class ChecklistConfirmRequest(BaseModel):
     confirmed: bool = True
 
 
+class StageFormRequest(BaseModel):
+    # doc_type names which stage-0 範本 item this online form belongs to
+    # (e.g. "dev_letter_template"); form_data is the free-form field bag the
+    # frontend collected (案件名稱 / 開發單位 / 文件狀態 …). Passing form_data=None
+    # clears a previously submitted form.
+    doc_type: str
+    form_data: dict[str, Any] | None = None
+
+
 class ConsentUpsertRequest(BaseModel):
     landowner_id: int
     consent_status: str

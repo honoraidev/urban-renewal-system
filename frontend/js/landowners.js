@@ -5,15 +5,32 @@
 // 把 isLand 一路傳進每個共用的 modal 函式。
 let currentLandownerLabel = "地主";
 
+// 地主 / 土地登記 / 建物登記 / 聯絡紀錄有異動後,連帶更新專案上方的 SOP 進度與同意率、
+// 以及左側側欄的關卡徽章與案件卡片統計(提醒/警示/緊急、人數/土地/建物同意)。
+function syncProjectAggregates() {
+  try { if (typeof renderSopSummary === "function") renderSopSummary(); } catch (e) {}
+  try {
+    if (typeof loadDashboard === "function") {
+      Promise.resolve(loadDashboard()).then(() => {
+        // loadDashboard 重畫了側欄案件清單,把目前案件的 active 標記補回去
+        if (state.currentProjectId && typeof setActiveSidebarCase === "function") {
+          setActiveSidebarCase(state.currentProjectId);
+        }
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
 async function renderLandownersTypeTab(el, type) {
   const pid = state.currentProjectId;
   const isLand = type === "land";
   currentLandownerLabel = isLand ? "地主" : "屋主";
+  // 地主帳號沒有 documents 權限,個別呼叫失敗不應讓整頁掛掉
   const [allLandowners, documents, alerts, contactSummary] = await Promise.all([
     api(`/projects/${pid}/landowners`),
-    api(`/projects/${pid}/documents`),
-    api(`/projects/${pid}/alerts`),
-    api(`/projects/${pid}/contact-summary`),
+    api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
+    api(`/projects/${pid}/alerts`, { silent: true }).catch(() => []),
+    api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
   ]);
   state.projectCache[pid].landowners = allLandowners;
   const contactByOwner = new Map(contactSummary.map((c) => [c.landowner_id, c]));
@@ -61,13 +78,12 @@ async function renderLandownersTypeTab(el, type) {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>編號</th><th>姓名</th><th>門牌地址</th><th>${isLand ? "土地" : "建物"}持分</th>
-          <th>意願狀態</th><th>聯繫狀態</th><th>最近聯繫</th>
-          ${isEditor() ? "<th>操作</th>" : ""}
+          <th>編號</th><th>姓名</th><th>統一編號</th><th>門牌地址</th><th>${isLand ? "土地" : "建物"}持分</th>
+          <th>意願狀態</th><th>聯繫狀態</th><th>操作</th>
         </tr></thead>
         <tbody>
           ${landowners
-      .map((o) => {
+      .map((o, rowIdx) => {
         const records = isLand ? o.land_records : o.building_records;
         const shareLabel = records.length
           ? `${records[0].ownership_numerator}/${records[0].ownership_denominator}${records.length > 1 ? ` 等${records.length}筆` : ""}`
@@ -75,25 +91,24 @@ async function renderLandownersTypeTab(el, type) {
         const contact = contactByOwner.get(o.id);
         return `
             <tr data-row-owner="${o.id}">
-              <td>${escapeHtml(o.roster_code) || "-"}</td>
+              <td>${String(rowIdx + 1).padStart(3, "0")}</td>
               <td>${escapeHtml(o.name)}</td>
+              <td>${escapeHtml(o.id_number) || "-"}</td>
               <td>${escapeHtml(o.address) || "-"}</td>
-              <td>${shareLabel}
-                <div><button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button></div>
-              </td>
+              <td>${shareLabel}</td>
               <td><span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span></td>
               <td>${contact && contact.is_overdue
             ? `<span class="contact-overdue-flag">⚠ 提醒</span>`
             : `<span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span>`
           }</td>
-              <td>${contact && contact.last_contact_date ? fmtDate(contact.last_contact_date) : "-"}</td>
-              ${isEditor()
-            ? `<td class="actions-cell">
-                      <button class="btn-secondary btn-sm" data-edit="${o.id}">編輯</button>
-                      <button class="btn-danger btn-sm" data-delete="${o.id}">刪除</button>
-                    </td>`
+              <td class="actions-cell">
+                ${isEditor()
+            ? `<button class="btn-secondary btn-sm" data-edit="${o.id}">編輯</button>
+                       <button class="btn-danger btn-sm" data-delete="${o.id}">刪除</button>`
             : ""
           }
+                <button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
+              </td>
             </tr>
             <tr class="detail-row hidden" id="detail-row-${o.id}"><td colspan="10">
               <div class="sub-detail">
@@ -208,6 +223,14 @@ async function renderLandownersTypeTab(el, type) {
   });
   el.querySelectorAll("[data-delete]").forEach((btn) => {
     btn.addEventListener("click", () => deleteLandowner(Number(btn.dataset.delete)));
+  });
+  el.querySelectorAll("[data-log-contact]").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      openAddContactModal(Number(btn.dataset.logContact), () => {
+        renderTab(state.activeTab);
+        syncProjectAggregates();
+      })
+    );
   });
   const addBtn = document.getElementById("add-landowner-btn");
   if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
@@ -438,6 +461,7 @@ function openAddLandownerModal() {
       closeModal();
       toast("地號與所有權人已成功建立", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -632,6 +656,7 @@ function openAddBuildingByNumberModal() {
       closeModal();
       toast("建號與所有權人已成功建立", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -639,12 +664,15 @@ function openAddBuildingByNumberModal() {
 function openEditLandownerModal(landownerId) {
   const owner = state.projectCache[state.currentProjectId].landowners.find((o) => o.id === landownerId);
   if (!owner) return;
+  const now = new Date();
+  const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   openModal(
     `編輯${currentLandownerLabel}`,
     `
     <form id="landowner-edit-form">
       <div class="field-row">
         <div class="field"><label>姓名</label><input name="name" value="${escapeHtml(owner.name)}" required></div>
+        <div class="field"><label>統一編號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}" placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"></div>
         <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
       </div>
       <div class="field-row">
@@ -655,31 +683,114 @@ function openEditLandownerModal(landownerId) {
               .join("")}
           </select>
         </div>
-        <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
+        <div class="field"><label>意願狀態</label>
+          <select name="agreement_status">
+            ${Object.entries(AGREEMENT_STATUS_LABEL)
+              .map(([k, v]) => `<option value="${k}" ${owner.agreement_status === k ? "selected" : ""}>${v}</option>`)
+              .join("")}
+          </select>
+        </div>
       </div>
-      <div class="field"><label>意願狀態</label>
-        <select name="agreement_status">
-          ${Object.entries(AGREEMENT_STATUS_LABEL)
-      .map(([k, v]) => `<option value="${k}" ${owner.agreement_status === k ? "selected" : ""}>${v}</option>`)
-      .join("")}
-        </select>
+      <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
+      <div class="field">
+        <label>綁定登入帳號(限地主帳號,可讓該地主自行登入查看本筆)</label>
+        <select name="user_id" id="lo-bind-user"><option value="">— 未綁定 —</option></select>
       </div>
-      <div class="field"><label>備註</label><textarea name="notes" rows="2">${escapeHtml(owner.notes) || ""}</textarea></div>
+
+      <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
+        <label for="lo-add-contact-toggle" style="display:inline-flex;align-items:center;gap:8px;font-weight:700;cursor:pointer;margin:0">
+          <input type="checkbox" id="lo-add-contact-toggle" checked style="width:17px;height:17px;flex:none;margin:0;accent-color:var(--brand);cursor:pointer">
+          <span>同時新增一筆聯絡紀錄</span>
+        </label>
+        <div id="lo-contact-fields" style="margin-top:10px">
+          <div class="field-row">
+            <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date" value="${localIso}"></div>
+            <div class="field"><label>聯絡方式</label>
+              <select name="c_contact_method">
+                ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>聯絡結果</label>
+              <select name="c_contact_result" id="lo-c-result">
+                ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field" id="lo-c-followup"><label>下次跟進日期(選填)</label><input type="date" name="c_next_follow_up_date"></div>
+          </div>
+          <div class="field"><label>聯絡備註</label><textarea name="c_notes" rows="2"></textarea></div>
+        </div>
+      </div>
+
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
     </form>`
   );
+  const contactToggle = document.getElementById("lo-add-contact-toggle");
+  const contactFields = document.getElementById("lo-contact-fields");
+  contactToggle.addEventListener("change", () => contactFields.classList.toggle("hidden", !contactToggle.checked));
+
+  // 綁定登入帳號下拉:載入所有地主角色帳號
+  (async () => {
+    const sel = document.getElementById("lo-bind-user");
+    if (!sel) return;
+    try {
+      const users = await api(`/projects/${state.currentProjectId}/landowners/account-options`);
+      sel.innerHTML =
+        `<option value="">— 未綁定 —</option>` +
+        users
+          .map((u) => `<option value="${u.id}" ${owner.user_id === u.id ? "selected" : ""}>${escapeHtml(u.display_name)}(${escapeHtml(u.username)})</option>`)
+          .join("");
+    } catch (e) {
+      sel.innerHTML = `<option value="">(無法載入帳號清單)</option>`;
+    }
+  })();
+
+  const cResult = document.getElementById("lo-c-result");
+  const cFollowup = document.getElementById("lo-c-followup");
+  const syncFollowupVisibility = () => {
+    const hide = cResult.value === "agreed" || cResult.value === "opposed";
+    cFollowup.classList.toggle("hidden", hide);
+    if (hide) cFollowup.querySelector("input").value = "";
+  };
+  cResult.addEventListener("change", syncFollowupVisibility);
+  syncFollowupVisibility();
+
   document.getElementById("landowner-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const payload = Object.fromEntries(fd.entries());
+    const data = Object.fromEntries(fd.entries());
+    const payload = {
+      name: data.name,
+      id_number: data.id_number || null,
+      phone: data.phone || null,
+      contact_status: data.contact_status,
+      agreement_status: data.agreement_status,
+      address: data.address || null,
+      user_id: data.user_id ? Number(data.user_id) : null,
+    };
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
+      if (contactToggle.checked && data.c_contact_date) {
+        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
+          method: "POST",
+          body: {
+            landowner_id: landownerId,
+            contact_date: new Date(data.c_contact_date).toISOString(),
+            contact_method: data.c_contact_method,
+            contact_result: data.c_contact_result,
+            notes: data.c_notes || null,
+            next_follow_up_date: data.c_next_follow_up_date || null,
+          },
+        });
+      }
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -690,6 +801,7 @@ async function deleteLandowner(id) {
     await api(`/projects/${state.currentProjectId}/landowners/${id}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
+    syncProjectAggregates();
   } catch (err) { }
 }
 
@@ -713,6 +825,8 @@ function landRecordFormFields(record) {
     </div>
     <div class="field-row">
       <div class="field"><label>土地總面積(m²)</label><input name="total_area_sqm" type="number" step="0.01" value="${r.total_area_sqm ?? 0}" autocomplete="off"></div>
+      <div class="field"><label>持分面積(m²) · 自動重算</label><input class="lr-owned-sqm" type="number" readonly placeholder="總面積 × 分子/分母" style="background:var(--bg-subtle)" tabindex="-1"></div>
+      <div class="field"><label>持分面積(坪) · 自動重算</label><input class="lr-owned-ping" type="number" readonly style="background:var(--bg-subtle)" tabindex="-1"></div>
     </div>
     <div class="field">
       <label>前次移轉現值或原規定地價(元/m²)</label>
@@ -721,6 +835,35 @@ function landRecordFormFields(record) {
         <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="金額 (例: 123000)" style="flex:1" autocomplete="off">
       </div>
     </div>`;
+}
+
+// 編輯土地/建物登記時,依總面積與權利範圍即時重算持分面積,讓使用者存檔前就看到結果
+// (後端 owned_area_sqm 是 DB GENERATED 欄位、建物 total_area_sqm 由 _compute_building_totals
+// 重算,所以存檔後也一定是對的;這裡只是提前把重算結果顯示出來)。
+function wireLandRecordAreaPreview(form) {
+  const q = (s) => form.querySelector(s);
+  const calc = () => {
+    const total = Number(q('[name="total_area_sqm"]').value) || 0;
+    const num = Number(q('[name="ownership_numerator"]').value) || 1;
+    const den = Number(q('[name="ownership_denominator"]').value) || 1;
+    const sqm = den ? (total * num) / den : 0;
+    q(".lr-owned-sqm").value = sqm ? sqm.toFixed(2) : "";
+    q(".lr-owned-ping").value = sqm ? (sqm * 0.3025).toFixed(2) : "";
+  };
+  form.addEventListener("input", calc);
+  calc();
+}
+
+function wireBuildingRecordAreaPreview(form) {
+  const q = (s) => form.querySelector(s);
+  const calc = () => {
+    const s = Number(q('[name="structure_area_sqm"]').value) || 0;
+    const a = Number(q('[name="auxiliary_area_sqm"]').value) || 0;
+    const c = Number(q('[name="common_area_sqm"]').value) || 0;
+    q(".br-total-area").value = (s + a + c).toFixed(2);
+  };
+  form.addEventListener("input", calc);
+  calc();
 }
 
 function readLandRecordForm(fd) {
@@ -748,7 +891,9 @@ function openAddLandRecordModal(landownerId) {
       </div>
     </form>`
   );
-  document.getElementById("land-record-form").addEventListener("submit", async (e) => {
+  const _f=document.getElementById("land-record-form");
+  wireLandRecordAreaPreview(_f);
+  _f.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/land-records`, {
@@ -758,6 +903,7 @@ function openAddLandRecordModal(landownerId) {
       closeModal();
       toast("土地資料已新增", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -773,7 +919,9 @@ function openEditLandRecordModal(landownerId, record) {
       </div>
     </form>`
   );
-  document.getElementById("land-record-edit-form").addEventListener("submit", async (e) => {
+  const _f=document.getElementById("land-record-edit-form");
+  wireLandRecordAreaPreview(_f);
+  _f.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/land-records/${record.id}`, {
@@ -783,6 +931,7 @@ function openEditLandRecordModal(landownerId, record) {
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -793,6 +942,7 @@ async function deleteLandRecord(landownerId, recordId) {
     await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/land-records/${recordId}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
+    syncProjectAggregates();
   } catch (err) { }
 }
 
@@ -810,11 +960,13 @@ function buildingRecordFormFields(record) {
     </div>
     <div class="field-row">
       <div class="field"><label>共有部分面積(m²)</label><input name="common_area_sqm" type="number" step="0.01" value="${r.common_area_sqm ?? 0}"></div>
-      <div class="field"><label>持分(分子/分母)</label>
-        <div style="display:flex;gap:6px">
-          <input name="ownership_numerator" type="number" value="${r.ownership_numerator ?? 1}">
-          <input name="ownership_denominator" type="number" value="${r.ownership_denominator ?? 1}">
-        </div>
+      <div class="field"><label>建物總面積(m²) · 自動重算</label><input class="br-total-area" type="number" readonly placeholder="主+附屬+共有" style="background:var(--bg-subtle)" tabindex="-1"></div>
+    </div>
+    <div class="field">
+      <label>持分(分子/分母)</label>
+      <div style="display:flex;gap:6px">
+        <input name="ownership_numerator" type="number" value="${r.ownership_numerator ?? 1}">
+        <input name="ownership_denominator" type="number" value="${r.ownership_denominator ?? 1}">
       </div>
     </div>`;
 }
@@ -844,7 +996,9 @@ function openAddBuildingRecordModal(landownerId) {
       </div>
     </form>`
   );
-  document.getElementById("building-record-form").addEventListener("submit", async (e) => {
+  const _f=document.getElementById("building-record-form");
+  wireBuildingRecordAreaPreview(_f);
+  _f.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/building-records`, {
@@ -854,6 +1008,7 @@ function openAddBuildingRecordModal(landownerId) {
       closeModal();
       toast("建物資料已新增", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -869,7 +1024,9 @@ function openEditBuildingRecordModal(landownerId, record) {
       </div>
     </form>`
   );
-  document.getElementById("building-record-edit-form").addEventListener("submit", async (e) => {
+  const _f=document.getElementById("building-record-edit-form");
+  wireBuildingRecordAreaPreview(_f);
+  _f.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/building-records/${record.id}`, {
@@ -879,6 +1036,7 @@ function openEditBuildingRecordModal(landownerId, record) {
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
+      syncProjectAggregates();
     } catch (err) { }
   });
 }
@@ -889,6 +1047,7 @@ async function deleteBuildingRecord(landownerId, recordId) {
     await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/building-records/${recordId}`, { method: "DELETE" });
     toast("已刪除", "success");
     renderTab(state.activeTab);
+    syncProjectAggregates();
   } catch (err) { }
 }
 

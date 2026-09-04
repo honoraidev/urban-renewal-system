@@ -30,6 +30,9 @@ class Landowner(Base):
     # if earlier landowners in the project are later deleted (no renumbering).
     roster_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_representative: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 綁定的登入帳號(限 role=landowner)。地主帳號登入後只能看到 user_id = 自己 的
+    # 那些 Landowner 列。由 L1~L4 於編輯地主時指定;可多對一(共有、跨案)。
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

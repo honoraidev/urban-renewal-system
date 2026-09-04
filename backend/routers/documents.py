@@ -5,12 +5,17 @@ import re
 import pymupdf as fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_project_ocr_editor, require_project_viewer
+from deps import get_current_user, require_project_ocr_editor, require_project_staff_viewer
+from models.building_record import BuildingRecord
 from models.document import Document
+from models.land_record import LandRecord
+from models.landowner import Landowner
+from models.ocr import OcrJob
+from models.ocr_job_document import OcrJobDocument
 from models.project import Project
 from models.user import User
 from schemas.document import DocumentRead
@@ -246,7 +251,7 @@ async def inspect_document_content(
 @router.get("", response_model=list[DocumentRead])
 def list_documents(
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     return db.scalars(
         select(Document).where(Document.project_id == project.id).order_by(Document.uploaded_at.desc())
@@ -423,7 +428,7 @@ def get_document_or_404(db: Session, project_id: int, doc_id: int) -> Document:
 def download_document(
     doc_id: int,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     document = get_document_or_404(db, project.id, doc_id)
 
@@ -441,8 +446,65 @@ def delete_document(
 ):
     document = get_document_or_404(db, project.id, doc_id)
 
+    # If this document was a source for OCR 謄本 import jobs, delete the 土地/建物登記
+    # records those jobs produced (and jobs that end up with no source document left),
+    # then clean up landowners left with no land/building record at all - so removing a
+    # mistaken/duplicate 謄本 檔案 also removes the data it created.
+    job_ids = [
+        row[0]
+        for row in db.execute(
+            select(OcrJobDocument.ocr_job_id).where(OcrJobDocument.document_id == doc_id)
+        )
+    ]
+    removed_land = removed_bldg = removed_jobs = removed_owners = 0
+    if job_ids:
+        # ocr_job_documents.document_id FK is ON DELETE CASCADE, so those links go with
+        # the document. A job is considered fully removed only once it has no *other*
+        # source document remaining.
+        emptied_jobs = [
+            jid
+            for jid in job_ids
+            if db.scalar(
+                select(func.count())
+                .select_from(OcrJobDocument)
+                .where(OcrJobDocument.ocr_job_id == jid, OcrJobDocument.document_id != doc_id)
+            )
+            == 0
+        ]
+        if emptied_jobs:
+            removed_land = (
+                db.query(LandRecord)
+                .filter(LandRecord.project_id == project.id, LandRecord.source_ocr_job_id.in_(emptied_jobs))
+                .delete(synchronize_session=False)
+            )
+            removed_bldg = (
+                db.query(BuildingRecord)
+                .filter(BuildingRecord.project_id == project.id, BuildingRecord.source_ocr_job_id.in_(emptied_jobs))
+                .delete(synchronize_session=False)
+            )
+            removed_jobs = (
+                db.query(OcrJob)
+                .filter(OcrJob.id.in_(emptied_jobs))
+                .delete(synchronize_session=False)
+            )
+
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
-
     db.delete(document)
+    db.flush()
+
+    orphans = (
+        db.query(Landowner)
+        .filter(
+            Landowner.project_id == project.id,
+            ~Landowner.land_records.any(),
+            ~Landowner.building_records.any(),
+        )
+        .all()
+    )
+    removed_owners = len(orphans)
+    for o in orphans:
+        db.delete(o)
+
     db.commit()
+    return  # 204

@@ -168,18 +168,24 @@ async function renderBuildingViewTab(el) {
 function openBuildingViewCellModal(cell) {
   if (!cell || !cell.owners.length) return;
   const rowsHtml = cell.owners
-    .map(
-      (o) => `
-      <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
-        <div>
-          <a href="#" data-bv-open-owner="${o.landowner_id}" style="font-weight:600">${escapeHtml(o.name) || "-"}</a>
-          <div class="helper-text">${escapeHtml(o.phone) || "無電話"}</div>
+    .map((o) => {
+      const nm = escapeHtml(o.name) || "-";
+      const initial = (o.name || "?").trim().charAt(0) || "?";
+      const st = o.consent_status === "agreed" ? "status-active" : o.consent_status === "opposed" ? "status-suspended" : "status-closed";
+      const phone = (o.phone || "").trim();
+      return `
+      <div class="bv-owner-row">
+        <span class="bv-owner-avatar">${escapeHtml(initial)}</span>
+        <div class="bv-owner-main">
+          <a href="#" data-bv-open-owner="${o.landowner_id}" class="bv-owner-name">${nm}<span class="bv-owner-go">查看 ›</span></a>
+          <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
         </div>
-        <span class="status-badge ${o.consent_status === "agreed" ? "status-active" : o.consent_status === "opposed" ? "status-suspended" : "status-closed"}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
-      </div>`
-    )
+        <span class="status-badge ${st}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
+      </div>`;
+    })
     .join("");
-  openModal("此門牌共有人", `<div class="wizard-confirm-card">${rowsHtml}</div>`, { width: "420px" });
+  const title = cell.label || cell.address ? `此門牌共有人 · ${escapeHtml(cell.label || cell.address)}` : "此門牌共有人";
+  openModal(title, `<div class="bv-owner-list">${rowsHtml}</div>`, { width: "400px" });
   document.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
     a.addEventListener("click", async (e) => {
       e.preventDefault();

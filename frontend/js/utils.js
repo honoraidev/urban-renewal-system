@@ -249,6 +249,11 @@ function isEditor() {
   return state.user && ["sys_admin", "manager", "case_owner", "case_staff"].includes(state.user.role);
 }
 
+// L7 地主:唯讀,且只看得到自己被綁定的那筆(其餘由後端強制過濾)。
+function isLandowner() {
+  return state.user && state.user.role === "landowner";
+}
+
 // L1/L2: full cross-project management (delete/force actions, expense categories, member assignment).
 function isManager() {
   return state.user && ["sys_admin", "manager"].includes(state.user.role);

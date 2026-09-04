@@ -5,7 +5,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import MANAGE_ROLES, get_current_user, require_project_editor, require_project_manager, require_project_viewer
+from deps import (
+    MANAGE_ROLES,
+    get_current_user,
+    require_project_editor,
+    require_project_manager,
+    require_project_staff_viewer,
+    require_project_viewer,
+)
 from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
 from models.document import Document
@@ -21,6 +28,7 @@ from schemas.sop import (
     ConsentUpsertRequest,
     SopCompleteRequest,
     SopStatusResponse,
+    StageFormRequest,
 )
 from utils.consent_ratio import calculate_consent_ratio
 
@@ -81,6 +89,52 @@ def get_or_create_sop(db: Session, project_id: int) -> SopStage:
         db.commit()
         db.refresh(sop)
     return sop
+
+
+def _roster_counts(db: Session, project_id: int) -> dict[str, int]:
+    return {
+        "land_count": db.scalar(
+            select(func.count(LandRecord.id)).where(LandRecord.project_id == project_id)
+        )
+        or 0,
+        "building_count": db.scalar(
+            select(func.count(BuildingRecord.id)).where(BuildingRecord.project_id == project_id)
+        )
+        or 0,
+    }
+
+
+def _sync_roster_confirmation(db: Session, project_id: int, sop: SopStage) -> bool:
+    """第1關「確認地主清冊正確」是對「當下的土地/建物登記」做的確認。之後若又匯入 /
+    編輯 / 刪除土地或建物登記,筆數會變,原本的確認就過期了 - 這裡自動撤銷,讓
+    「產生地主清冊 Excel」按鈕跟著隱藏,必須重新確認。回傳是否有撤銷。"""
+    stages = (sop.stage_data or {}).get("stages") or {}
+    entry = stages.get("1") or {}
+    checklist = (entry.get("data") or {}).get("checklist") or {}
+    confirmed = checklist.get("landowner_roster_confirmed")
+    if not confirmed:
+        return False
+    now = _roster_counts(db, project_id)
+    if (
+        confirmed.get("land_count") == now["land_count"]
+        and confirmed.get("building_count") == now["building_count"]
+    ):
+        return False
+
+    stage_data = dict(sop.stage_data)
+    all_stages = dict(stage_data["stages"])
+    stage_entry = dict(all_stages["1"])
+    entry_data = dict(stage_entry.get("data") or {})
+    new_checklist = dict(entry_data.get("checklist") or {})
+    new_checklist.pop("landowner_roster_confirmed", None)
+    entry_data["checklist"] = new_checklist
+    stage_entry["data"] = entry_data
+    all_stages["1"] = stage_entry
+    stage_data["stages"] = all_stages
+    sop.stage_data = stage_data
+    db.commit()
+    db.refresh(sop)
+    return True
 
 
 def _status_response(project_id: int, sop: SopStage) -> SopStatusResponse:
@@ -206,6 +260,7 @@ def get_sop_status(
     project: Project = Depends(require_project_viewer),
 ):
     sop = get_or_create_sop(db, project.id)
+    _sync_roster_confirmation(db, project.id, sop)
     return _status_response(project.id, sop)
 
 
@@ -241,6 +296,10 @@ def complete_stage(
         stage_entry["status"] = "force_closed"
         stage_entry["forced_reason"] = payload.reason
     else:
+        if stage == 1 and _sync_roster_confirmation(db, project_id, sop):
+            stage_data = dict(sop.stage_data)
+            stages = dict(stage_data["stages"])
+            stage_entry = dict(stages[stage_key])
         _assert_gate_passed(db, project_id, stage, sop)
         stage_entry["status"] = "completed"
 
@@ -330,10 +389,13 @@ def confirm_checklist_item(
     checklist = dict(entry_data.get("checklist") or {})
 
     if payload.confirmed:
-        checklist[payload.key] = {
+        entry = {
             "confirmed_at": datetime.now(timezone.utc).isoformat(),
             "confirmed_by": current_user.id,
         }
+        if payload.key == "landowner_roster_confirmed":
+            entry.update(_roster_counts(db, project_id))
+        checklist[payload.key] = entry
     else:
         checklist.pop(payload.key, None)
 
@@ -348,11 +410,58 @@ def confirm_checklist_item(
     return _status_response(project_id, sop)
 
 
+@router.post("/{stage}/form", response_model=SopStatusResponse)
+def save_stage_form(
+    stage: int,
+    payload: StageFormRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    """Stores an online-filled form for one stage checklist item (第0關 範本項目) in the
+    stage's own `data.forms[<doc_type>]` dict. A submitted form counts as completing that
+    checklist item, so the frontend gate treats it the same as an uploaded file.
+    Re-posting overwrites (edit); form_data=None removes it."""
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+
+    if not (0 <= stage <= FINAL_STAGE):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    forms = dict(entry_data.get("forms") or {})
+
+    if payload.form_data is None:
+        forms.pop(payload.doc_type, None)
+    else:
+        prev = forms.get(payload.doc_type) or {}
+        forms[payload.doc_type] = {
+            "fields": payload.form_data,
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            "submitted_by": current_user.id,
+            "created_at": prev.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        }
+
+    entry_data["forms"] = forms
+    stage_entry["data"] = entry_data
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
 @router.get("/{stage}/consent", response_model=list[ConsentRecordRead])
 def list_consent_records(
     stage: int,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_viewer),
+    project: Project = Depends(require_project_staff_viewer),
 ):
     return db.scalars(
         select(ConsentRecord).where(ConsentRecord.project_id == project.id, ConsentRecord.sop_stage == stage)

@@ -12,7 +12,19 @@ function openModal(title, bodyHtml, { width = "480px" } = {}) {
         <div class="modal-body">${bodyHtml}</div>
       </div>
     </div>`;
-  root.querySelector("#modal-close-btn").onclick = closeModal;
+  root.querySelector("#modal-close-btn").onclick = () => {
+    // The 謄本 import wizard has no 取消 button - the × is the only way out - so once
+    // OCR has produced data, confirm before discarding the un-created edits.
+    if (
+      title === "掃描謄本匯入" &&
+      typeof titleDeedWizard !== "undefined" &&
+      titleDeedWizard &&
+      titleDeedWizard.data
+    ) {
+      if (!confirm("關閉匯入精靈?已辨識與編輯的內容還沒建立,關閉後就會遺失。")) return;
+    }
+    closeModal();
+  };
   return root;
 }
 

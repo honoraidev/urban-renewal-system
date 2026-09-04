@@ -18,6 +18,8 @@ MANAGE_ROLES = {"sys_admin", "manager"}
 EDIT_ROLES = MANAGE_ROLES | {"case_owner", "case_staff"}
 # L1-L5 - can additionally use OCR/document-upload endpoints for their assigned projects.
 OCR_ROLES = EDIT_ROLES | {"ocr_staff"}
+# L7 地主 - read-only, and only ever their own linked Landowner rows (Landowner.user_id).
+LANDOWNER_ROLE = "landowner"
 
 
 def get_current_user(
@@ -79,16 +81,44 @@ def _is_project_member(db: Session, project_id: int, user_id: int) -> bool:
     )
 
 
+def _landowner_owns_something(db: Session, project_id: int, user_id: int) -> bool:
+    from models.landowner import Landowner
+
+    return (
+        db.scalar(
+            select(Landowner.id).where(
+                Landowner.project_id == project_id, Landowner.user_id == user_id
+            )
+        )
+        is not None
+    )
+
+
 def require_project_viewer(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """L1/L2 see every project; L3-L6 must be a ProjectMember of this one."""
+    """L1/L2 see every project; L3-L6 must be a ProjectMember; L7 地主 must have a linked
+    Landowner row in this project (and only ever sees their own data - enforced per-endpoint)."""
     project = _get_project_or_404(db, project_id)
     if user.role in MANAGE_ROLES:
+        return project
+    if user.role == LANDOWNER_ROLE:
+        if not _landowner_owns_something(db, project_id, user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a landowner of this project")
         return project
     if not _is_project_member(db, project_id, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
     return project
+
+
+def require_project_staff_viewer(
+    project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> Project:
+    """Like require_project_viewer but 地主(L7) is rejected outright - for case-wide data a
+    landowner must never see (成員名單、費用、他項權利部、樓棟視圖、關聯、其他地主清冊)。"""
+    if user.role == LANDOWNER_ROLE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not permitted for landowner accounts")
+    return require_project_viewer(project_id, db, user)
 
 
 def require_project_editor(

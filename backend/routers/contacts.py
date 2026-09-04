@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from config import settings
 from database import get_db
-from deps import get_current_user, require_project_editor, require_project_viewer
+from deps import LANDOWNER_ROLE, get_current_user, require_project_editor, require_project_viewer
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project
@@ -20,9 +20,14 @@ router = APIRouter(tags=["contacts"])
 def list_contacts(
     landowner_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_viewer),
 ):
     project_id = project.id
+    if current_user.role == LANDOWNER_ROLE:
+        owner = db.get(Landowner, landowner_id)
+        if owner is None or owner.project_id != project_id or owner.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your own record")
     return db.scalars(
         select(ContactLog)
         .where(ContactLog.project_id == project_id, ContactLog.landowner_id == landowner_id)
@@ -104,6 +109,9 @@ def _contactable_landowners_with_last_contact(db: Session, project_id: int):
 
 
 def _is_overdue(owner: Landowner, last_contact: datetime | None) -> bool:
+    # A landowner who has already signed (意願狀態 = 已簽約) no longer needs follow-up.
+    if owner.agreement_status == "signed":
+        return False
     if owner.contact_status == "not_contacted":
         return True
     last_contact = _normalize_datetime(last_contact)
@@ -116,8 +124,11 @@ def _is_overdue(owner: Landowner, last_contact: datetime | None) -> bool:
 @router.get("/projects/{project_id}/alerts", response_model=list[AlertItem])
 def list_alerts(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_viewer),
 ):
+    if current_user.role == LANDOWNER_ROLE:
+        return []
     landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project.id)
 
     now = datetime.now(timezone.utc)
@@ -143,11 +154,14 @@ def list_alerts(
 @router.get("/projects/{project_id}/contact-summary", response_model=list[ContactSummaryItem])
 def list_contact_summary(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_viewer),
 ):
     """Every contactable landowner's last contact date + overdue flag (unlike /alerts,
     which only returns the overdue ones) - backs the roster table's 最近聯繫/聯繫狀態 columns."""
     landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project.id)
+    if current_user.role == LANDOWNER_ROLE:
+        landowners = [o for o in landowners if o.user_id == current_user.id]
     return [
         ContactSummaryItem(
             landowner_id=owner.id,

@@ -13,6 +13,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    project_code: str | None = Field(default=None, min_length=1, max_length=50)
     name: str | None = None
     address: str | None = None
     city: str | None = None

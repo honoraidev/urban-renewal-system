@@ -42,7 +42,14 @@ OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 _S2TW_CONVERTER = OpenCC("s2t")
 
 
+# 字形極相近、OCR/字型常混淆的字 - 一律校正成台灣戶政/地政慣用字。
+# 「内」(U+5185) -> 「內」(U+5167):地址「內湖」「內政部」等常被辨識成「内」。
+_LOOKALIKE_CHAR_FIX = str.maketrans({"内": "內"})
+
+
 def _to_traditional(value, key=None):
+    if isinstance(value, str):
+        value = value.translate(_LOOKALIKE_CHAR_FIX)
     if key == "owner_name":
         return value
     if isinstance(value, str):
@@ -54,14 +61,28 @@ def _to_traditional(value, key=None):
     return value
 
 
+_BLANK_ADDRESS_TOKENS = {
+    "",
+    "空白",
+    "無",
+    "null",
+    "none",
+    "-",
+    "nil",
+    "n/a",
+    "na",
+    "依規定隱匿",
+    "隱匿",
+    "依規定隱匿住址",
+    "住址隱匿",
+}
+
+
 def _clean_address(addr: str) -> str:
     if not addr or not isinstance(addr, str):
         return addr
-    addr = addr.strip()
-    # 「(空白)」 belongs to 其他登記事項, never a real 住址 - the model sometimes copies it
-    # into address. Treat these placeholders as "no address" so the wizard shows an empty
-    # field to fill (and the ADDRESS_MISSING check can flag it).
-    if addr.strip("()（）") in ("空白", "無", "null", "None", "-", ""):
+    addr = addr.translate(_FULLWIDTH_DIGIT_MAP).strip().strip("*＊").strip()
+    if addr.strip("()（） ").lower() in _BLANK_ADDRESS_TOKENS or not addr:
         return ""
     # 1. Standardize '臺' -> '台', '裏'/'裡' -> '里', '楼' -> '樓'
     addr = addr.replace("臺", "台").replace("裏", "里").replace("裡", "里").replace("楼", "樓")
@@ -71,12 +92,25 @@ def _clean_address(addr: str) -> str:
     for num, cn in cn_num_map_rev.items():
         addr = addr.replace(f"{num}段", f"{cn}段")
 
-    # 3. Floor numbers (樓) use Arabic numerals (e.g. 二樓 -> 2樓, 十一樓 -> 11樓)
-    cn_num_map = {"一": "1", "二": "2", "三": "3", "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9", "十": "10"}
-    addr = re.sub(r"十([一二三四五六七八九])樓", lambda m: f"1{cn_num_map[m.group(1)]}樓", addr)
-    addr = re.sub(r"二十樓", "20樓", addr)
-    for cn, num in cn_num_map.items():
-        addr = addr.replace(f"{cn}樓", f"{num}樓")
+    # 3. Floor numbers (樓) use Arabic numerals (e.g. 二樓 -> 2樓, 十一樓 -> 11樓, 二十八樓 -> 28樓)
+    def _cn_to_num(cn_str: str) -> str:
+        cn_map = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+        if not cn_str:
+            return cn_str
+        if cn_str == "十":
+            return "10"
+        if cn_str.startswith("十") and len(cn_str) == 2:
+            return str(10 + cn_map.get(cn_str[1], 0))
+        if "十" in cn_str:
+            parts = cn_str.split("十")
+            tens = cn_map.get(parts[0], 1) * 10
+            ones = cn_map.get(parts[1], 0) if len(parts) > 1 and parts[1] else 0
+            return str(tens + ones)
+        if len(cn_str) == 1 and cn_str in cn_map:
+            return str(cn_map[cn_str])
+        return cn_str
+
+    addr = re.sub(r"([一二三四五六七八九十]+)樓", lambda m: f"{_cn_to_num(m.group(1))}樓", addr)
 
     # 4. Collapse spaced-out digits in Taiwanese address components
     # e.g. "1 5 0 巷 3 3 5 弄 1 5 號" -> "150巷335弄15號"
@@ -88,7 +122,7 @@ def _clean_address(addr: str) -> str:
     addr = re.sub(r"(\d+)[.,、]\s*([巷弄號樓鄰])", r"\1\2", addr)
 
     # 6. Fix OCR misreads of '鄰' (frequently misread as '鄭', '鄰', etc.) right after neighborhood numbers
-    addr = re.sub(r"(\d{1,3})\s*[鄭鄰鄰]\s*", r"\1鄰", addr)
+    addr = re.sub(r"(\d{1,3})\s*[鄭鄰隣粼潾嶙鏻]\s*", r"\1鄰", addr)
 
     # 7. Insert missing '鄰' when a number after '里'/'村'/'犂'/'梨' is missing '鄰' before a road/street/character
     # e.g. "三犂里6信義路" -> "三犂里6鄰信義路"
@@ -100,9 +134,9 @@ def _clean_address(addr: str) -> str:
     return addr
 
 
-_ADDR_STOP_RE = re.compile(r"(?:權\s*利\s*範\s*圍|權狀字號|當期申報地價|統\s*一\s*編\s*號|管\s*理\s*者|前次移轉現值|歷次取得)")
-_OWNER_BLOCK_RE = re.compile(r"（\s*[0-9]{3,4}\s*）\s*登記次序\s*[:：]\s*0*([0-9]{1,4})(.*?)(?=（\s*[0-9]{3,4}\s*）\s*登記次序|\Z)", re.S)
-_CUR_SHARE_RE = re.compile(r"(?<!取得)權\s*利\s*範\s*圍\s*[:：]\s*(?:全部\s*)?[*\s]*([0-9]+)\s*分\s*之\s*([0-9]+)")
+_ADDR_STOP_RE = re.compile(r"(?:權\s*利\s*範\s*圍|權\s*利\s*圍|權\s*狀\s*字\s*號|權\s*狀|當\s*期\s*申\s*報|當期申報地價|統\s*一\s*編\s*號|管\s*理\s*者|前\s*次\s*移\s*轉|前次移轉現值|歷次取得|其他登記事項)")
+_OWNER_BLOCK_RE = re.compile(r"(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?登記次序\s*[:：]\s*0*([0-9]{1,4})(.*?)(?=(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?登記次序|\Z)", re.S)
+_CUR_SHARE_RE = re.compile(r"(?<!取得)權\s*利\s*範\s*圍\s*[:：]\s*(?:(公同共有|公同|全部)\s*)?[*\s]*([0-9]+)\s*分\s*之\s*([0-9]+)")
 _YM_VAL_RE = re.compile(r"([0-9]{2,3})\s*年\s*([0-9]{1,2})\s*月\s*[*\s]*([0-9,]+(?:\.[0-9]+)?)\s*元")
 
 
@@ -137,13 +171,18 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
             merged.append((pn, text))
     sections = merged
 
+    def _order_key(v) -> str:
+        digits = re.sub(r"\D", "", str(v or "")).lstrip("0")
+        return digits if digits != "" else ("0" if re.search(r"\d", str(v or "")) else "")
+
     def _field_map(text: str) -> dict[str, dict]:
-        owner_part = re.split(r"他項權利部", text)[0]
+        owner_part = re.split(r"土地他項權利部|建物他項權利部|他項權利部", text)[0]
         out: dict[str, dict] = {}
         for bm in _OWNER_BLOCK_RE.finditer(owner_part):
-            order = bm.group(1)
+            raw_order = bm.group(1)
+            key = _order_key(raw_order)
             block = bm.group(2)
-            if order in out:
+            if not key or key in out:
                 continue
             rec: dict = {}
 
@@ -153,15 +192,44 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
                 if nval and nval not in ("空白", "（空白）", "(空白)"):
                     rec["name"] = nval
 
-            am = re.search(r"住\s*址\s*[:：]\s*([^\n]+)", block)
+            idm = re.search(r"統\s*一\s*編\s*號\s*[:：]\s*([A-Za-z0-9*＊]+)", block)
+            if idm:
+                idv = idm.group(1).strip().strip("*＊")
+                if idv:
+                    rec["id_number"] = idm.group(1).strip()
+
+            # 「相關他項權利登記次序：0004-000」 - links this owner to the 他項權利部 entry
+            # set on their share. Absent => owner carries no 他項權利.
+            rel = re.findall(
+                r"相\s*關\s*他\s*項\s*權\s*利\s*登\s*記\s*次\s*序\s*[:：]\s*([0-9]{1,4}(?:\s*-\s*[0-9]{1,4})?)",
+                block,
+            )
+            if rel:
+                seen_rel: list[str] = []
+                for v in rel:
+                    nv = re.sub(r"\s+", "", v)
+                    if nv and nv not in seen_rel:
+                        seen_rel.append(nv)
+                if seen_rel:
+                    rec["related_enc_orders"] = seen_rel
+
+            am = re.search(r"[住佳往]\s*[址趾]\s*[:：]?\s*(.*?)(?=\s*(?:(歷次取得)?權\s*利\s*範\s*圍|權\s*狀\s*字\s*號|當期申報地價|統\s*一\s*編\s*號|管\s*理\s*者|前次移轉現值|歷次取得|其他登記事項|[（\(]|\Z))", block, re.S)
             if am:
-                val = _ADDR_STOP_RE.split(am.group(1).strip())[0].strip()
-                if val and val.strip("()（） ") not in ("空白", "無", ""):
+                raw_val = re.sub(r"\s+", "", am.group(1).strip())
+                val = _ADDR_STOP_RE.split(raw_val)[0].strip()
+                val = val.strip("*＊").strip()
+                if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                     rec["address"] = val
+
+            if re.search(r"權\s*利\s*範\s*圍\s*[:：]\s*(?:[*　\s]*)(?:公同共有|公同)", block):
+                rec["is_pooled"] = True
 
             sm = _CUR_SHARE_RE.search(block)
             if sm:
-                den, num = int(sm.group(1)), int(sm.group(2))  # 「X分之Y」 == Y/X
+                prefix_matched = sm.group(1) or ""
+                if "公同" in prefix_matched:
+                    rec["is_pooled"] = True
+                den, num = int(sm.group(2)), int(sm.group(3))  # 「X分之Y」 == Y/X
                 if den > 0 and 0 < num <= den:
                     rec["share"] = (num, den)
 
@@ -175,7 +243,7 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
                 for ym in _YM_VAL_RE.finditer(tail):
                     y, mo, v = int(ym.group(1)), int(ym.group(2)), ym.group(3).replace(",", "")
                     try:
-                        dated.append(((y, mo), f"{y:03d}年{mo:02d}月", float(v)))
+                        dated.append(((y, mo), f"{int(y):03d}年{int(mo):02d}月", float(v)))
                     except ValueError:
                         pass
                 if dated:
@@ -184,18 +252,38 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
                     rec["value"] = dated[-1][2]
 
             if rec:
-                out[order] = rec
+                out[key] = rec
         return out
 
-    global_map = _field_map(raw) if not sections else {}
+    # Always available whole-document field map. Used as the fallback whenever a
+    # per-地號 section can't be matched to a parcel (the model's parcel_number
+    # formatting isn't guaranteed to digit-match the OCR page header - e.g. it
+    # returns "301-2" while the header reads "0301-0002"), which otherwise left the
+    # address blank even though the raw text clearly had it.
+    global_map = _field_map(raw)
 
     def _order_key(v) -> str:
         digits = re.sub(r"\D", "", str(v or "")).lstrip("0")
         return digits or ""
 
+    def _id_key(v) -> str:
+        return re.sub(r"[^A-Za-z0-9]", "", str(v or "")).upper()
+
     def _apply(owners: list, fmap: dict[str, dict]) -> None:
+        by_id = {
+            _id_key(r["id_number"]): r
+            for r in fmap.values()
+            if r.get("id_number") and _id_key(r["id_number"])
+        }
         for o in owners or []:
+            o_id = _id_key(o.get("id_number"))
             rec = fmap.get(_order_key(o.get("registration_order")))
+            # If the order-matched record's id_number contradicts the owner's, this is
+            # a cross-地號 collision (orders repeat between parcels); trust id instead.
+            if rec and o_id and rec.get("id_number") and _id_key(rec["id_number"]) != o_id:
+                rec = None
+            if not rec and o_id:
+                rec = by_id.get(o_id)
             if not rec:
                 continue
             raw_name = (rec.get("name") or "").strip()
@@ -208,8 +296,11 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
                 dropped_surname = len(raw_name) > len(cur_name) and raw_name.endswith(cur_name)
                 if degenerate or dropped_surname:
                     o["owner_name"] = raw_name
-            if not (o.get("address") or "").strip() and rec.get("address"):
+            cur_addr = (o.get("address") or "").strip()
+            if (not cur_addr or cur_addr.strip("()（） ").lower() in _BLANK_ADDRESS_TOKENS) and rec.get("address"):
                 o["address"] = _clean_address(rec["address"])
+            if rec.get("is_pooled"):
+                o["is_pooled"] = True
             if rec.get("share"):
                 num, den = rec["share"]
                 if (o.get("ownership_numerator"), o.get("ownership_denominator")) != (num, den):
@@ -217,16 +308,28 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
             if rec.get("value_period"):
                 o["declared_value_period"] = rec["value_period"]
                 o["declared_value_per_sqm"] = rec.get("value")
+            # Raw text is authoritative for 相關他項權利登記次序 - the model routinely
+            # omits it. Only fill when the model didn't already provide one.
+            if rec.get("related_enc_orders") and not o.get("related_encumbrance_orders"):
+                o["related_encumbrance_orders"] = list(rec["related_enc_orders"])
 
     for parcel in data.get("land_parcels", []) or []:
         pn = re.sub(r"\D", "", str(parcel.get("parcel_number") or ""))
         fmap = {}
         for spn, stext in sections:
-            if spn and spn == pn:
+            if not spn or not pn:
+                continue
+            # tolerant match: exact, or either side a suffix of the other (handles
+            # "301-2" vs "0301-0002" / "30010002")
+            if spn == pn or (len(pn) >= 4 and spn.endswith(pn)) or (len(spn) >= 4 and pn.endswith(spn)):
                 fmap = _field_map(stext)
                 break
         if not fmap and len(sections) == 1:
             fmap = _field_map(sections[0][1])
+        # Fall back to the whole-document map when the per-地號 section couldn't be
+        # matched - _apply only fills BLANK fields and matches each owner by
+        # registration_order (and id_number), so a wrong-地號 record can't overwrite
+        # a good one.
         _apply(parcel.get("owners"), fmap or global_map)
 
     for building in data.get("buildings", []) or []:
@@ -480,7 +583,7 @@ def _validation_problems(data: dict, page_texts: list[str] | None = None) -> lis
         # omits addresses, so skip it there.
         # Count only 住址 labels that are actually followed by an address - a
         # 「住　址：（空白）」 (e.g. 中華民國 / 管理機關 rows) legitimately has none.
-        addr_label_count = len(re.findall(r"住\s*址\s*[:：]\s*(?!（?\s*空白\s*）?)\S", raw_text))
+        addr_label_count = len(re.findall(r"[住佳往]\s*[址趾]\s*[:：]?\s*(?!（?\s*空白\s*）?)\S", raw_text))
         is_third = "第三類" in str(data.get("deed_category") or "")
         if addr_label_count and not is_third:
             blank_addr = 0
@@ -532,18 +635,21 @@ def _normalize_applies_to_parcels(value):
     if not s:
         return None
 
-    # 地號目前以「4碼-4碼」為主要格式；允許前面有任意段名文字。
-    match = re.search(r'(\d{4}-\d{4})\s*$', s)
-    if match:
-        return match.group(1)
+    # 只保留地號/建號數字，丟掉前面的段名（例如
+    # 「西湖段二小段 01805-000 01852-000 01853-000」-> 「01805-000 01852-000 01853-000」、
+    # 「祥和段三小段0242-0000」-> 「0242-0000」）。土地地號多為 4-4，建號多為 5-3，
+    # 一律接受 3~5 碼 - 2~4 碼。找不到就保留原值，避免誤刪「全部」等文字。
+    nums = re.findall(r'\d{3,5}-\d{2,4}', s)
+    if nums:
+        return " ".join(nums)
 
     return s
 
 
 def _normalize_encumbrance_parcel_fields(data):
     """統一所有他項權利的 applies_to_parcels 顯示格式。"""
-    for parcel in data.get("land_parcels", []) or []:
-        for enc in parcel.get("encumbrances", []) or []:
+    for holder in (data.get("land_parcels", []) or []) + (data.get("buildings", []) or []):
+        for enc in holder.get("encumbrances", []) or []:
             enc["applies_to_parcels"] = _normalize_applies_to_parcels(
                 enc.get("applies_to_parcels")
             )
@@ -803,16 +909,13 @@ def _fix_known_entity_names(data: dict) -> dict:
                 name = name.replace(wrong, right)
         return name
 
-    for parcel in data.get("land_parcels", []) or []:
-        for owner in parcel.get("owners", []) or []:
+    for holder in (data.get("land_parcels", []) or []) + (data.get("buildings", []) or []):
+        for owner in holder.get("owners", []) or []:
             owner["owner_name"] = _fix(owner.get("owner_name"))
-        for enc in parcel.get("encumbrances", []) or []:
+        for enc in holder.get("encumbrances", []) or []:
             enc["right_holder"] = _fix(enc.get("right_holder"))
     for enc in data.get("encumbrances", []) or []:
         enc["right_holder"] = _fix(enc.get("right_holder"))
-    for bldg in data.get("buildings", []) or []:
-        for owner in bldg.get("owners", []) or []:
-            owner["owner_name"] = _fix(owner.get("owner_name"))
     return data
 
 
@@ -945,6 +1048,7 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
      - transfer_history(陣列):【非常重要】把該位所有權人底下「前次移轉現值或原規定地價:」出現的**每一筆歷史紀錄全部抓出來**，不要只抓第一筆。每筆包含 period(年月，例如「090年05月」) 與 value(元/平方公尺，例如 113000)。只收錄「前次移轉現值或原規定地價」這個欄位，絕對不要把「當期申報地價」混進來。若有 90年05月、91年09月、92年05月三筆，就三筆全部放進 transfer_history。
      - declared_value_per_sqm:【最終顯示值】該位所有權人底下「前次移轉現值或原規定地價:」的單價金額(元/平方公尺),純數字。若有多筆，**不要自行只抓第一筆**，先完整放入 transfer_history；系統會在後處理階段依年月自動選最新一筆。絕對不可以抓成「當期申報地價」(如 67520.0)的金額；若完全沒有則填 null。
      - declared_value_period:【最終顯示值】該位所有權人底下「前次移轉現值或原規定地價:」的年月。若有多筆，先完整放入 transfer_history；系統會依民國年月自動選最新一筆。絕對不可以抓成「當期申報地價」(如 115年01月)的年月；若完全沒有則填 null。
+     - related_encumbrance_orders(陣列):該位所有權人區塊裡「相關他項權利登記次序:」這一行後面的登記次序(例如「0004-000」),逐筆放進陣列(可能有多筆)。這條是把這位所有權人連到土地他項權利部裡設定在他持分上的那筆抵押權/他項權利用的。若該所有權人區塊裡**沒有出現**「相關他項權利登記次序:」這一行,就回傳空陣列 [],不要臆測、不要從別的所有權人或標示部借。
    - encumbrances(陣列,只放明確只屬於這筆地號自己的他項權利,沒有的話回傳空陣列 []。他項權利部裡每一個「(流水號)登記次序:XXXX-XXX」區塊都要產出一筆,連號逐一、不可跳過或合併;某頁尾寫「(續次頁)」表示該筆延續到下一頁):
      - registration_order:該區塊開頭的「登記次序:XXXX-XXX」。不可用區塊中間的「標的登記次序」(那是指設定在哪位所有權人身上,不是這筆抵押權的次序)
      - applies_to_parcels:依原文填寫(通常就是這筆地號本身)
@@ -975,6 +1079,8 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
    - total_area_sqm:建物總面積(平方公尺),純數字。找不到就填 null,【絕對不可以填 0】——理由同\
 land_parcels 的 area_sqm。
    - floor_area_sqm:層次面積(平方公尺,該樓層/主建物本身的面積),純數字。同樣找不到就填 null,不可以填 0。
+   - accessory_use:「附屬建物用途:」欄位後面的用途文字(例如「平台」「陽台」「露臺」);沒有就填 null。
+   - accessory_area_sqm:緊接在「附屬建物用途:」那一行後面的「面積:」數字(平方公尺),純數字;沒有就填 null,不可以填 0。若有多筆附屬建物,取第一筆。
    - owners(陣列,若這筆建物沒有所有權部則回傳空陣列 []):
      - registration_order:登記次序
      - owner_name:所有權人姓名
@@ -1001,6 +1107,7 @@ _LAND_OWNER_ITEM_SCHEMA = {
         "ownership_numerator": _n("integer"),
         "ownership_denominator": _n("integer"),
         "address": _n("string"),
+        "is_pooled": _n("boolean"),
         "transfer_history": {
             "type": "array",
             "items": {
@@ -1023,6 +1130,7 @@ _LAND_OWNER_ITEM_SCHEMA = {
         "ownership_numerator",
         "ownership_denominator",
         "address",
+        "is_pooled",
         "transfer_history",
         "declared_value_per_sqm",
         "declared_value_period",
@@ -1039,8 +1147,9 @@ _BUILDING_OWNER_ITEM_SCHEMA = {
         "ownership_numerator": _n("integer"),
         "ownership_denominator": _n("integer"),
         "address": _n("string"),
+        "is_pooled": _n("boolean"),
     },
-    "required": ["registration_order", "owner_name", "id_number", "ownership_numerator", "ownership_denominator", "address"],
+    "required": ["registration_order", "owner_name", "id_number", "ownership_numerator", "ownership_denominator", "address", "is_pooled"],
     "additionalProperties": False,
 }
 
@@ -1106,6 +1215,8 @@ RESPONSE_SCHEMA = {
                     "floor": _n("string"),
                     "total_area_sqm": _n("number"),
                     "floor_area_sqm": _n("number"),
+                    "accessory_use": _n("string"),
+                    "accessory_area_sqm": _n("number"),
                     "owners": {"type": "array", "items": _BUILDING_OWNER_ITEM_SCHEMA},
                 },
                 "required": [
@@ -1116,6 +1227,8 @@ RESPONSE_SCHEMA = {
                     "floor",
                     "total_area_sqm",
                     "floor_area_sqm",
+                    "accessory_use",
+                    "accessory_area_sqm",
                     "owners",
                 ],
                 "additionalProperties": False,
@@ -1137,7 +1250,7 @@ class OcrError(Exception):
 # Four image-only registry pages already contain a large amount of dense OCR text.
 # Keeping chunks small prevents a single structured-AI request from stalling for
 # several minutes on 27–41 page deeds.
-PAGES_PER_CHUNK = 4
+PAGES_PER_CHUNK = settings.OCR_PAGES_PER_CHUNK
 # Each chunk (after the first) also re-includes this many trailing pages of the previous
 # chunk. A 地號's owner list often spans several pages; without overlap, an owner list
 # straddling a 4-page cut point gets split across two independent OpenAI calls and
@@ -1146,19 +1259,19 @@ PAGES_PER_CHUNK = 4
 # chunk. Set to 2 (not 1) because a dense 土地他項權利部 - one 地號 with many 抵押權
 # entries, each block several lines, often marked 「(續次頁)」 - regularly runs across
 # three pages, which a 1-page overlap still splits.
-CHUNK_OVERLAP = 2
+CHUNK_OVERLAP = settings.OCR_CHUNK_OVERLAP
 # How many chunks' OpenAI structuring calls run concurrently in extract_title_deed. Each
 # chunk's call is independent (different pages, no shared state), so this just overlaps
 # their network wait time instead of serializing every chunk's full round-trip one after
 # another - kept modest to stay within OpenAI's per-minute rate limits and avoid piling
 # every chunk's own local-OCR thread pool on top of each other at once.
-CHUNK_CONCURRENCY = 3
+CHUNK_CONCURRENCY = settings.OCR_CHUNK_CONCURRENCY
 OCR_OPENAI_TIMEOUT_SECONDS = 90.0
 PDF_RENDER_DPI = 300
 # Fast OCR remains the default. Only the weakest pages in each chunk are re-scanned
 # with the slower engine, preserving batch speed while recovering likely misreads.
 SMART_RESCAN_CONFIDENCE = 0.82
-SMART_RESCAN_MAX_PAGES_PER_DOCUMENT = 6
+SMART_RESCAN_MAX_PAGES_PER_DOCUMENT = settings.OCR_SMART_RESCAN_MAX_PAGES
 # Confidence-based smart re-scan (above) only catches text the fast engine detected but
 # read uncertainly - it can't catch a field the fast engine's detector missed outright
 # (no detected text = no confidence score to flag it), which is what was actually
@@ -1169,7 +1282,7 @@ SMART_RESCAN_MAX_PAGES_PER_DOCUMENT = 6
 # a small number of chunks per document (chunk-level, not page-level, since by the time
 # a field is known missing the AI has already merged multiple pages' text into one
 # response - there's no cheap way to know which single page within the chunk needs it).
-MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT = 3
+MISSING_AREA_RESCAN_MAX_CHUNKS_PER_DOCUMENT = settings.OCR_MISSING_AREA_RESCAN_MAX_CHUNKS
 
 
 # Used when extract_title_deed() is called with high_accuracy=True (the single-record
@@ -1232,6 +1345,185 @@ def _flatten_to_pages(files: list[tuple[bytes, str | None]], dpi: int = PDF_REND
 TEXT_LAYER_MIN_CHARS = 200
 
 
+_PAGE_OWNER_MARKER_RE = re.compile(r"(?<!標的)(?<!他項權利)登\s*記\s*次\s*序\s*[:：]\s*(\d{3,4})(?!\s*-\s*\d)")
+_PAGE_ADDR_LINE_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*(.+)")
+_PAGE_PARCEL_HDR_RE = re.compile(r"(\d{3,5})\s*-\s*(\d{3,5})\s*[地建]\s*[號琥唬]")
+
+
+def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[tuple[str, str], str]:
+    """Newer 電子謄本 burn every owner's 「住　址：…」 line into the page as a raster
+    strip that never reaches the text layer, so a pure text-layer read leaves every
+    戶籍地址 blank. For each such page, render + OCR it once and walk the recognised
+    lines top-to-bottom: track the running 「NNNN-NNNN 地號」 header and the current
+    「登記次序：XXXX」, and bind the first 住址 line after each marker to that
+    (地號, 登記次序). Each address is tied to the 登記次序 printed right above it on
+    the SAME page, so page-boundary straddling and a missed strip never shift another
+    owner's address. Returns {(parcel_digits, order_digits): address}. No vision call.
+    """
+    recovered: dict[tuple[str, str], str] = {}
+    for content, mime_type in files:
+        is_pdf = (mime_type or "").lower() == "application/pdf" or content[:5] == b"%PDF-"
+        if not is_pdf:
+            continue
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+        except Exception:
+            continue
+
+        # One global reading-order stream across the whole PDF: text-layer
+        # 「（M）登記次序：NNNN」 markers (exact - from the text layer) interleaved with
+        # the address image strips (by page + y). An owner's 登記次序 text and its
+        # address strip can land on different pages when the record sits on a page
+        # boundary, so this must be matched globally, not per page.
+        events: list[tuple[int, float, str, object]] = []  # (page_idx, y, kind, payload)
+        needs_recovery = False
+        page_needs: set[int] = set()  # page indices whose 住址 lines are missing
+        for pi, page in enumerate(doc):
+            try:
+                raw = page.get_text("text") or ""
+            except Exception:
+                raw = ""
+            norm_tl = _normalize_ocr_text(raw)
+            has_owner = re.search(r"所有權人\s*[:：]\s*\S", norm_tl)
+            has_addr = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]", norm_tl)
+            if has_owner and not has_addr and "第三類" not in norm_tl:
+                needs_recovery = True
+                page_needs.add(pi)
+            try:
+                tld = page.get_text("dict")
+            except Exception:
+                tld = {"blocks": []}
+            cur_parcel_this_page = ""
+            for blk in tld.get("blocks", []):
+                for line in blk.get("lines", []):
+                    ltext = "".join(sp.get("text", "") for sp in line.get("spans", []))
+                    lt = _normalize_ocr_text(ltext)
+                    y = line.get("bbox", (0, 0, 0, 0))[1]
+                    ph = _PAGE_PARCEL_HDR_RE.search(lt)
+                    # 「共有部分：…01854-000建號」 / 「共同擔保地號：…」 name a DIFFERENT
+                    # 地/建號 inside the 標示部 / 他項權利部 body - not this page's own
+                    # header. Binding the following 住址 strip to that number files
+                    # every flat's address under the shared 共有部分 建號.
+                    if ph and not re.search(r"共有部分|共同擔保|主建物|附屬建物", lt):
+                        cur_parcel_this_page = ph.group(1) + ph.group(2)
+                        events.append((pi, y, "parcel", cur_parcel_this_page))
+                    mk = _PAGE_OWNER_MARKER_RE.search(lt)
+                    if mk:
+                        events.append((pi, y, "order", mk.group(1).lstrip("0") or "0"))
+            try:
+                info = page.get_text("rawdict")
+            except Exception:
+                info = {"blocks": []}
+            for b in info.get("blocks", []):
+                if b.get("type") != 1:
+                    continue
+                x0, y0, x1, y1 = b.get("bbox", (0, 0, 0, 0))
+                w, h = x1 - x0, y1 - y0
+                if w > 200 and 4 < h < 40 and w / max(h, 1) > 6:
+                    events.append((pi, y0, "strip", (pi, x0, y0, x1, y1)))
+
+        if not needs_recovery:
+            continue
+
+        events.sort(key=lambda e: (e[0], e[1]))
+        cur_parcel = ""
+        cur_order = ""
+        done_order = None
+        for _pi, _y, kind, payload in events:
+            if kind == "parcel":
+                cur_parcel = payload
+            elif kind == "order":
+                cur_order = payload
+            elif kind == "strip" and cur_order and (cur_parcel, cur_order) not in recovered:
+                if (cur_parcel, cur_order) == done_order:
+                    continue
+                pj, x0, y0, x1, y1 = payload
+                try:
+                    clip = fitz.Rect(x0 - 2, y0 - 10, x1 + 2, y1 + 12)
+                    png = doc[pj].get_pixmap(dpi=400, clip=clip).tobytes("png")
+                    text, _c = _ocr_page_text(png)
+                    m = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", _normalize_ocr_text(text or ""))
+                    if m:
+                        val = re.sub(r"\s+", "", m.group(1))
+                        val = _ADDR_STOP_RE.split(val)[0].strip("*＊ ")
+                        if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
+                            recovered[(cur_parcel, cur_order)] = val
+                            done_order = (cur_parcel, cur_order)
+                except Exception as exc:
+                    print(f"[_recover_burned_in_addresses] strip OCR failed: {exc}", flush=True)
+
+        # Fallback for PDFs where the 住址 lines are unmappable vector text (a font
+        # with no ToUnicode) rather than raster strips: no "strip" event fires, so
+        # nothing above recovers them. OCR each still-deficient page ONCE with the
+        # local engine (no vision LLM) and walk it top-to-bottom the same way.
+        order_pairs_by_page: dict[int, list[tuple[str, str]]] = {}
+        _p = ""
+        for _pi, _y, kind, payload in events:  # already sorted above
+            if kind == "parcel":
+                _p = payload
+            elif kind == "order":
+                order_pairs_by_page.setdefault(_pi, []).append((_p, payload))
+        for pi in sorted(page_needs):
+            wanted = [k for k in order_pairs_by_page.get(pi, []) if k not in recovered]
+            if not wanted:
+                continue
+            try:
+                png = doc[pi].get_pixmap(dpi=300).tobytes("png")
+                text, _c = _ocr_page_text(png)
+            except Exception as exc:
+                print(f"[_recover_burned_in_addresses] full-page OCR failed: {exc}", flush=True)
+                continue
+            cur_p, cur_o = wanted[0][0], ""
+            for ln in _normalize_ocr_text(text or "").splitlines():
+                ph = _PAGE_PARCEL_HDR_RE.search(ln)
+                if ph and not re.search(r"共有部分|共同擔保|主建物|附屬建物", ln):
+                    cur_p = ph.group(1) + ph.group(2)
+                mk = _PAGE_OWNER_MARKER_RE.search(ln)
+                if mk:
+                    cur_o = mk.group(1).lstrip("0") or "0"
+                    continue
+                am = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", ln)
+                if am and cur_o and (cur_p, cur_o) not in recovered:
+                    val = re.sub(r"\s+", "", am.group(1))
+                    val = _ADDR_STOP_RE.split(val)[0].strip("*＊ ")
+                    if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
+                        recovered[(cur_p, cur_o)] = val
+                        cur_o = ""
+    if recovered:
+        print(f"[_recover_burned_in_addresses] recovered {len(recovered)} burned-in 住址", flush=True)
+    return recovered
+
+
+def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]) -> dict:
+    """Fill any still-blank owner 戶籍地址 from the burned-in-strip recovery map,
+    matched by (地號, 登記次序) and then by 登記次序 alone."""
+    if not recovered:
+        return data
+    by_order: dict[str, list[str]] = {}
+    for (_p, o), v in recovered.items():
+        by_order.setdefault(o, []).append(v)
+    containers = [
+        (p, p.get("parcel_number")) for p in (data.get("land_parcels", []) or [])
+    ] + [
+        (b, b.get("building_number")) for b in (data.get("buildings", []) or [])
+    ]
+    for holder, ident in containers:
+        pdig = re.sub(r"\D", "", str(ident or ""))
+        for owner in holder.get("owners", []) or []:
+            cur = (owner.get("address") or "").strip()
+            if cur and cur.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
+                continue
+            odig = re.sub(r"\D", "", str(owner.get("registration_order") or "")).lstrip("0") or "0"
+            hit = recovered.get((pdig, odig))
+            if not hit:
+                cands = by_order.get(odig) or []
+                if len(cands) == 1:
+                    hit = cands[0]
+            if hit:
+                owner["address"] = _clean_address(hit)
+    return data
+
+
 def _pdf_text_layer_overrides(files: list[tuple[bytes, str | None]]) -> list[str | None]:
     """For every flattened page (same order as _flatten_to_pages), return the PDF's
     own embedded text layer when the page already has real, extractable text - i.e.
@@ -1256,9 +1548,22 @@ def _pdf_text_layer_overrides(files: list[tuple[bytes, str | None]]) -> list[str
             except Exception:
                 raw = ""
             compact = re.sub(r"\s+", "", raw)
-            if len(compact) >= TEXT_LAYER_MIN_CHARS and re.search(
-                r"地號|建號|登記次序|所有權|標示部|權利範圍", raw
-            ):
+            has_marker = re.search(r"地號|建號|登記次序|所有權|標示部|權利範圍", raw)
+            usable = has_marker and (
+                len(compact) >= TEXT_LAYER_MIN_CHARS
+                # A short continuation/tail page of an electronic 謄本 (e.g. a
+                # 共有部分 建號's 「本謄本依第二類提供…」 note) has a real text layer,
+                # just few characters. Its page furniture (列印時間 / 頁次 / 地政事務所)
+                # proves it is a rendered e-謄本 page, not a blank scan - accept it so
+                # one short page doesn't disqualify the whole document from the
+                # rule-based (no-OCR, no-OpenAI) fast path.
+                or (len(compact) >= 30 and re.search(r"列印時間|頁\s*次|地政事務所|登記機關", raw))
+            )
+            if usable:
+                # Note: newer 電子謄本 omit every owner's 「住　址：…」 line from the text
+                # layer (it is burned into the page as a raster strip). The structure
+                # here is still exact and free to read; the missing 戶籍地址 is filled
+                # separately by _recover_burned_in_addresses() + _apply_recovered_addresses().
                 overrides.append(_normalize_ocr_text(raw))
             else:
                 overrides.append(None)
@@ -1387,34 +1692,58 @@ def extract_title_deed(
     except Exception:
         text_overrides = [None] * len(pages)
 
-    # When EVERY page has a usable text layer (a pure electronic 土地謄本), try the
+    # Newer 電子謄本 leave every owner's 戶籍地址 out of the text layer (burned into the
+    # page as an image). Recover those once, up front, so both the fast rule-based path
+    # and the AI path can fill them in. Cheap: OCRs only the address-deficient pages,
+    # never calls the vision model.
+    try:
+        recovered_addresses = _recover_burned_in_addresses(files)
+    except Exception as exc:
+        print(f"[extract_title_deed] burned-in address recovery failed: {exc}", flush=True)
+        recovered_addresses = {}
+
+    # When EVERY page has a usable text layer (a pure electronic 土地/建物謄本), try the
     # regex parser first - it needs no OCR and no OpenAI call at all. It returns None
     # (and we fall through to the AI pipeline) on anything it is not fully sure about:
-    # buildings, unexpected layout, or a coverage mismatch.
+    # unexpected layout, or a coverage mismatch.
     if text_overrides and all(text_overrides):
+        joined_text = "\n\n".join(o for o in text_overrides if o)
+        rule_data = None
         try:
-            from utils.deed_parser import parse_electronic_deed
+            from utils.deed_parser import parse_electronic_deed, parse_electronic_building_deed
 
-            rule_data = parse_electronic_deed("\n\n".join(o for o in text_overrides if o))
+            if record_type == "building":
+                rule_data = parse_electronic_building_deed(joined_text) or parse_electronic_deed(joined_text)
+            else:
+                rule_data = parse_electronic_deed(joined_text)
+                if rule_data is None and record_type != "land":
+                    rule_data = parse_electronic_building_deed(joined_text)
         except Exception as exc:
             print(f"[extract_title_deed] rule-based parser raised, using AI path: {exc}", flush=True)
             rule_data = None
-        if rule_data and rule_data.get("land_parcels"):
+        if rule_data and (rule_data.get("land_parcels") or rule_data.get("buildings")):
             data = _post_process_extracted_data(rule_data)
             data = _backfill_owner_addresses(data, [o for o in text_overrides if o])
+            data = _apply_recovered_addresses(data, recovered_addresses)
             probs = _validation_problems(data, [o for o in text_overrides if o])
-            n_owners = sum(len(p.get("owners") or []) for p in data.get("land_parcels", []))
-            n_enc = sum(len(p.get("encumbrances") or []) for p in data.get("land_parcels", []))
+            n_parcels = len(data.get("land_parcels") or [])
+            n_bldgs = len(data.get("buildings") or [])
+            n_owners = sum(
+                len(x.get("owners") or [])
+                for x in (data.get("land_parcels") or []) + (data.get("buildings") or [])
+            )
+            n_enc = len(data.get("encumbrances") or []) + sum(
+                len(p.get("encumbrances") or []) for p in (data.get("land_parcels") or [])
+            )
             print(
-                f"[extract_title_deed] parsed {len(data['land_parcels'])} 地號 / {n_owners} 所有權人 / {n_enc} 他項權利 "
+                f"[extract_title_deed] parsed {n_parcels} 地號 / {n_bldgs} 建號 / {n_owners} 所有權人 / {n_enc} 他項權利 "
                 f"via rule-based parser (no OCR, no OpenAI) in {time.time() - document_started_at:.1f}s; "
                 f"validation issues={len(probs)}",
                 flush=True,
             )
-            warn = None
-            if probs:
-                warn = "此為規則直讀結果,仍請逐筆核對: " + ", ".join(sorted({p.get("type", "?") for p in probs}))
-            return data, warn
+            # 規則直讀的軟性驗證提示不回傳給前端(使用者反映是雜訊);
+            # 真正的失敗只會發生在下面的 AI 路徑。
+            return data, None
 
     # Chunks step by PAGES_PER_CHUNK but each chunk (after the first) also re-includes
     # the last CHUNK_OVERLAP page(s) of the previous chunk, so a 地號 whose owner list
@@ -1651,10 +1980,12 @@ def extract_title_deed(
     data = _post_process_extracted_data(data)
 
     all_page_texts = [text for chunk in page_texts_by_chunk if chunk for text in chunk]
+
     # Deterministic address recovery: if the model left an owner's address blank but the
     # raw text (text-layer PDF or OCR) clearly has a 「住址：…」 line in that owner's
     # 登記次序 block, fill it from the text directly - no dependence on the model.
     data = _backfill_owner_addresses(data, all_page_texts)
+    data = _apply_recovered_addresses(data, recovered_addresses)
 
     final_problems = _validation_problems(data, all_page_texts)
     if final_problems:
@@ -2131,6 +2462,12 @@ def _parse_paddle_ocr_result(res) -> tuple[list[str], list[float]]:
         except Exception:
             data = None
 
+        # PaddleOCR 3.7's Result.json() wraps everything one level deep under "res"
+        # ({"res": {"rec_texts": [...], "rec_scores": [...]}}); older/other builds put
+        # those keys at the top level. Unwrap so both shapes work.
+        if isinstance(data, dict) and isinstance(data.get("res"), dict) and "rec_texts" not in data:
+            data = data["res"]
+
         if isinstance(data, dict):
             rec_texts = data.get("rec_texts") or []
             rec_scores = data.get("rec_scores") or []
@@ -2272,6 +2609,13 @@ def _normalize_ocr_text(text: str) -> str:
     # these documents on its own, so it's safe to deterministically restore it here rather
     # than relying on the model to notice the dropped character on its own.
     text = text.replace("權利圍", "權利範圍")
+    # 「住　址：」 is printed with a wide gap between 住 and 址, which wrecks the label
+    # on OCR: spurious chars get inserted between the two (住劵滘址 / 住二址 / 住_址)
+    # AND 住 itself is routinely misread (崔昇址 / 往址 / 位址 / 佳址). 址 survives
+    # reliably, and inside an owner block a short run ending in 「址：」 (or 「址」 right
+    # before an address) is only ever the address label - so normalise it back to the
+    # canonical 「住址：」 so every downstream 住址-line regex can anchor on it.
+    text = re.sub(r"(?m)^[ 　\t]{0,4}[^\n：:]{0,3}?址[ 　\t]*[:：]", "住址：", text)
     # Other frequent misreads of the same three critical labels. The extraction prompt
     # keys off these literal strings to locate 權利範圍 / 前次移轉現值或原規定地價 /
     # 當期申報地價; a garbled label means the whole field is silently skipped and an
@@ -2280,6 +2624,18 @@ def _normalize_ocr_text(text: str) -> str:
     # safe. 圍=圍 園=園 圈=圈 ; 值=值 直=直 植=植
     for wrong in ("權利範園", "權利範圈", "權利軛圍", "榷利範圍", "権利範圍", "權利範圓"):
         text = text.replace(wrong, "權利範圍")
+    # This OCR engine also drops 「範圍」 entirely, printing just 「權利：」 before the
+    # fraction. Only 「權利範圍：」 is ever followed by a 「*…分之…」 share, so it is safe
+    # to restore in that context (「他項權利：」 etc. never are).
+    text = re.sub(r"權\s*利\s*[:：]\s*(?=[*＊\s]*\d+\s*分\s*之)", "權利範圍：", text)
+    # 「權狀字號」 with 狀 misread as the simplified 状 - restore so it still works as an
+    # address-line stop boundary and as a label.
+    text = re.sub(r"權\s*[狀状]\s*字\s*號", "權狀字號", text)
+    # 「地號」 with 號 misread as 琥/唬 - the per-地號 section splitter in
+    # _backfill_owners_from_raw keys off the literal 「NNNN-NNNN 地號」 page header, so a
+    # garbled 號 there collapses a batch deed into one section and lets owners from
+    # different 地號 (which reuse 登記次序) overwrite each other.
+    text = re.sub(r"(\d{3,5}-\d{3,5}\s*)地\s*[琥唬]", r"\1地號", text)
     for wrong in ("前次移轉現直", "前次移轉現植", "前次移轉現偵", "前次移轉現稙"):
         text = text.replace(wrong, "前次移轉現值")
     for wrong in ("原規定地慣", "原規定地憤", "原規定地債"):

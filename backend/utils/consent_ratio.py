@@ -13,19 +13,40 @@ from models.landowner import Landowner
 _OWNED_BUILDING_AREA = BuildingRecord.total_area_sqm * BuildingRecord.ownership_share_pct / 100
 
 
+def _agreed_landowner_ids(db: Session, project_id: int, stage: int) -> set[int]:
+    """A landowner counts as "agreed" for the consent ratio if EITHER:
+      - they have a formal 同意書 (ConsentRecord) marked agreed for this SOP stage, OR
+      - their 意願狀態 (Landowner.agreement_status) is "signed".
+    The second path lets the dashboard rings move as staff mark 已簽約 during 意願調查,
+    before the formal per-stage 同意書 process starts, without weakening the legal gate
+    (a real ConsentRecord still always counts)."""
+    consent_ids = set(
+        db.scalars(
+            select(ConsentRecord.landowner_id).where(
+                ConsentRecord.project_id == project_id,
+                ConsentRecord.sop_stage == stage,
+                ConsentRecord.consent_status == "agreed",
+            )
+        ).all()
+    )
+    signed_ids = set(
+        db.scalars(
+            select(Landowner.id).where(
+                Landowner.project_id == project_id,
+                Landowner.agreement_status == "signed",
+            )
+        ).all()
+    )
+    return {i for i in (consent_ids | signed_ids) if i is not None}
+
+
 def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold: float = 0.8) -> dict:
     headcount_total = db.scalar(
         select(func.count(Landowner.id)).where(Landowner.project_id == project_id)
     ) or 0
 
-    headcount_agreed = db.scalar(
-        select(func.count(func.distinct(ConsentRecord.landowner_id)))
-        .where(
-            ConsentRecord.project_id == project_id,
-            ConsentRecord.sop_stage == stage,
-            ConsentRecord.consent_status == "agreed",
-        )
-    ) or 0
+    agreed_ids = _agreed_landowner_ids(db, project_id, stage)
+    headcount_agreed = len(agreed_ids)
 
     land_share_total_sqm = float(
         db.scalar(
@@ -36,20 +57,18 @@ def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold:
         or 0
     )
 
-    land_share_agreed_sqm = float(
-        db.scalar(
-            select(func.coalesce(func.sum(LandRecord.owned_area_sqm), 0))
-            .join(Landowner, LandRecord.landowner_id == Landowner.id)
-            .join(
-                ConsentRecord,
-                (ConsentRecord.landowner_id == Landowner.id) & (ConsentRecord.sop_stage == stage),
+    land_share_agreed_sqm = (
+        float(
+            db.scalar(
+                select(func.coalesce(func.sum(LandRecord.owned_area_sqm), 0)).where(
+                    LandRecord.project_id == project_id,
+                    LandRecord.landowner_id.in_(agreed_ids),
+                )
             )
-            .where(
-                LandRecord.project_id == project_id,
-                ConsentRecord.consent_status == "agreed",
-            )
+            or 0
         )
-        or 0
+        if agreed_ids
+        else 0.0
     )
 
     building_share_total_sqm = float(
@@ -57,20 +76,18 @@ def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold:
         or 0
     )
 
-    building_share_agreed_sqm = float(
-        db.scalar(
-            select(func.coalesce(func.sum(_OWNED_BUILDING_AREA), 0))
-            .join(Landowner, BuildingRecord.landowner_id == Landowner.id)
-            .join(
-                ConsentRecord,
-                (ConsentRecord.landowner_id == Landowner.id) & (ConsentRecord.sop_stage == stage),
+    building_share_agreed_sqm = (
+        float(
+            db.scalar(
+                select(func.coalesce(func.sum(_OWNED_BUILDING_AREA), 0)).where(
+                    BuildingRecord.project_id == project_id,
+                    BuildingRecord.landowner_id.in_(agreed_ids),
+                )
             )
-            .where(
-                BuildingRecord.project_id == project_id,
-                ConsentRecord.consent_status == "agreed",
-            )
+            or 0
         )
-        or 0
+        if agreed_ids
+        else 0.0
     )
 
     headcount_ratio = headcount_agreed / headcount_total if headcount_total > 0 else 0.0

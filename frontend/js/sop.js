@@ -22,10 +22,10 @@ function sopStageLabel(key, stageObj) {
 
 const SOP_STAGE_CHECKLISTS = {
   0: [
-    { key: "dev_letter_template", label: "上傳開發信範本", docType: "dev_letter_template" },
-    { key: "willingness_form_template", label: "上傳意願書範本", docType: "willingness_form_template" },
-    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
-    { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
+    { key: "dev_letter_template", label: "上傳開發信範本", docType: "dev_letter_template", form: true },
+    { key: "willingness_form_template", label: "上傳意願書範本", docType: "willingness_form_template", form: true },
+    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template", form: true },
+    { key: "contract_template", label: "上傳合約範本", docType: "contract_template", form: true },
   ],
   1: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
@@ -298,8 +298,8 @@ async function renderSopTab(el) {
     const needsDocs = checklistConfig.some((item) => item.docType);
     const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate);
     const [docs, landowners] = await Promise.all([
-      needsDocs ? api(`/projects/${pid}/documents`) : Promise.resolve([]),
-      needsLandowners ? api(`/projects/${pid}/landowners`) : Promise.resolve([]),
+      needsDocs ? api(`/projects/${pid}/documents`, { silent: true }).catch(() => []) : Promise.resolve([]),
+      needsLandowners ? api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []) : Promise.resolve([]),
     ]);
     const latestByType = {};
     docs.forEach((d) => {
@@ -313,6 +313,7 @@ async function renderSopTab(el) {
     const contactedCount = landowners.filter((o) => o.contact_status && o.contact_status !== "not_contacted").length;
     const contactRate = landowners.length > 0 ? contactedCount / landowners.length : 0;
     const confirmedChecklist = (selectedStage.data && selectedStage.data.checklist) || {};
+    const stageForms = (selectedStage.data && selectedStage.data.forms) || {};
     checklistAllDone = true;
 
     const itemsHtml = checklistConfig
@@ -321,8 +322,13 @@ async function renderSopTab(el) {
         let sub = item.sub || "";
         if (item.docType) {
           const doc = latestByType[item.docType];
-          done = !!doc;
-          sub = doc ? `已上傳・${fmtDateTime(doc.uploaded_at)}` : "尚未上傳";
+          const formEntry = item.form ? stageForms[item.docType] : null;
+          done = !!doc || !!formEntry;
+          if (formEntry) {
+            sub = `已填表・${fmtDateTime(formEntry.submitted_at)}${doc ? "・另有上傳檔案" : ""}`;
+          } else {
+            sub = doc ? `已上傳・${fmtDateTime(doc.uploaded_at)}` : "尚未上傳";
+          }
         } else if (item.countOf === "landowner_with_phone") {
           done = phoneCount > 0;
           sub = `${phoneCount}/${landowners.length} 位已建立聯絡方式`;
@@ -348,6 +354,14 @@ async function renderSopTab(el) {
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-upload="${item.docType}">${done ? "重新上傳" : "上傳"}</button>
                <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
             : "";
+        const formBtn =
+          item.form && isEditor()
+            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-form="${item.docType}">${stageForms[item.docType] ? "編輯" : "填表"}</button>`
+            : "";
+        const rosterBtn =
+          item.key === "landowner_roster_confirmed" && done && !isLandowner()
+            ? `<button type="button" class="btn-primary btn-sm" id="roster-xlsx-btn">📊 產生地主清冊 Excel</button>`
+            : "";
         return `
         <div class="sop-checklist-item ${done ? "done" : ""}">
           <div class="sop-checklist-icon">${done ? "✓" : ""}</div>
@@ -355,7 +369,7 @@ async function renderSopTab(el) {
             <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
             <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
           </div>
-          ${confirmBtn}${uploadBtn}
+          ${rosterBtn}${confirmBtn}${formBtn}${uploadBtn}
         </div>`;
       })
       .join("");
@@ -371,7 +385,7 @@ async function renderSopTab(el) {
           <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
         </div>
         ${checklistHtml}
-        ${isDualGate ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
+        ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
         ${selectedIsCurrent && isEditor()
           ? `<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
                 <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本關卡</button>
@@ -385,7 +399,7 @@ async function renderSopTab(el) {
       </div>
     </div>`;
 
-  if (isDualGate) {
+  if (isDualGate && !isLandowner()) {
     await renderConsentPanel(document.getElementById("sop-tab-consent-panel"), Number(selected));
   }
 
@@ -408,6 +422,42 @@ async function renderSopTab(el) {
         toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
         renderSopTab(el);
       } catch (err) { }
+    });
+  });
+
+  const rosterBtn = document.getElementById("roster-xlsx-btn");
+  if (rosterBtn) {
+    rosterBtn.addEventListener("click", async () => {
+      rosterBtn.disabled = true;
+      const orig = rosterBtn.textContent;
+      rosterBtn.textContent = "產生中…";
+      try {
+        const res = await api(`/projects/${pid}/roster.xlsx`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const proj = state.currentProject || {};
+        a.download = `${proj.project_code || "roster"}_地主清冊.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast("地主清冊已下載", "success");
+      } catch (err) {
+      } finally {
+        rosterBtn.disabled = false;
+        rosterBtn.textContent = orig;
+      }
+    });
+  }
+
+  el.querySelectorAll("[data-checklist-form]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const docType = btn.dataset.checklistForm;
+      const stageEntry = sop.stages[String(selected)] || {};
+      const existing = ((stageEntry.data || {}).forms || {})[docType] || null;
+      openStageFormModal(pid, Number(selected), docType, existing, () => renderSopTab(el));
     });
   });
 
@@ -527,5 +577,230 @@ async function renderConsentPanel(el, stage) {
         renderConsentPanel(el, stage);
       } catch (err) { }
     });
+  });
+}
+
+const STAGE_FORM_STATUS_OPTIONS = [
+  "草擬中",
+  "待主管核准",
+  "待發文",
+  "已發文",
+  "待回覆",
+  "已回覆",
+  "退件補正",
+  "作廢",
+  "已完成",
+];
+
+const WILLINGNESS_INTENT_DEFAULT =
+  "本人願意參與本都市更新案件之相關整合及後續程序。\n本人同意由案件工作人員依相關規定聯繫、說明及辦理必要文件。";
+const CONSENT_INTENT_DEFAULT =
+  "本人已悉本案都市更新相關說明，並同意依案件程序辦理後續相關作業。";
+
+const CONTRACT_PURPOSE_DEFAULT = "雙方就本都市更新案件之合作事項，依本契約約定辦理。";
+const CONTRACT_COOPERATION_DEFAULT =
+  "一、案件資料提供與確認。\n二、都市更新相關文件之簽署與管理。\n三、案件進度及必要事項之協調。";
+const CONTRACT_DOCUMENTS_DEFAULT =
+  "乙方應依甲方通知提供土地、建物及身分相關文件。\n甲方應妥善保存案件資料，並依約定用途使用。";
+const CONTRACT_PERIOD_DEFAULT = "契約期間：自民國115年__月__日起至案件完成相關程序止。";
+
+// Applicant + 不動產 blocks shared by 意願書 / 同意書 (the applicant's own data, not
+// case-level, so no auto-fill from the project).
+const APPLICANT_SECTIONS = [
+  {
+    title: "申請人資料",
+    fields: [
+      { name: "applicant_name", label: "姓名" },
+      { name: "applicant_id", label: "身分證字號" },
+      { name: "applicant_phone", label: "聯絡電話" },
+      { name: "applicant_address", label: "通訊地址", full: true },
+    ],
+  },
+  {
+    title: "不動產資料",
+    fields: [
+      { name: "estate_section", label: "段名" },
+      { name: "estate_parcel_number", label: "地號" },
+      { name: "estate_building_number", label: "建號" },
+      { name: "estate_share", label: "權利範圍" },
+    ],
+  },
+];
+
+// 案件層級基本資料 (auto-filled from the project) - used by 開發信 / 合約.
+const CASE_BASIC_SECTION = {
+  title: "基本資料",
+  fields: [
+    { name: "case_name", label: "案件名稱", default: (p) => p.name },
+    { name: "case_number", label: "案件編號", default: (p) => p.project_code },
+    { name: "dev_unit", label: "開發單位" },
+    { name: "contact_name", label: "聯絡窗口 · 姓名" },
+    { name: "contact_phone", label: "聯絡窗口 · 電話" },
+    {
+      name: "case_address",
+      label: "案件地址",
+      full: true,
+      default: (p) => [p.city, p.district, p.address].filter(Boolean).join(""),
+    },
+  ],
+};
+
+// Per-範本 field schema. Falls back to the 案件基本資料 set for anything unlisted.
+const STAGE_FORM_SCHEMAS = {
+  willingness_form_template: {
+    sections: [
+      ...APPLICANT_SECTIONS,
+      {
+        title: "意願內容",
+        fields: [
+          { name: "intent_content", label: "意願內容", type: "textarea", full: true, rows: 3, default: () => WILLINGNESS_INTENT_DEFAULT },
+        ],
+      },
+    ],
+  },
+  consent_form_template: {
+    sections: [
+      {
+        title: "案件資料",
+        fields: [
+          { name: "case_name", label: "案件名稱", default: (p) => p.name },
+          { name: "case_number", label: "案件編號", default: (p) => p.project_code },
+          { name: "implementer_unit", label: "實施單位", full: true },
+        ],
+      },
+      {
+        title: "權利人資料",
+        fields: [
+          { name: "holder_name", label: "姓名" },
+          { name: "holder_id", label: "身分證字號" },
+          { name: "holder_address", label: "聯絡地址", full: true },
+        ],
+      },
+      {
+        title: "土地及建物資料",
+        fields: [
+          { name: "land_parcel_number", label: "土地地號" },
+          { name: "building_number", label: "建物建號" },
+          { name: "land_share", label: "土地持分" },
+          { name: "building_share", label: "建物持分" },
+        ],
+      },
+      {
+        title: "同意事項",
+        fields: [
+          { name: "consent_content", label: "同意事項", type: "textarea", full: true, rows: 3, default: () => CONSENT_INTENT_DEFAULT },
+        ],
+      },
+    ],
+  },
+  dev_letter_template: {
+    sections: [
+      CASE_BASIC_SECTION,
+      { title: "", fields: [{ name: "dev_note", label: "開發說明", type: "textarea", full: true, rows: 4 }] },
+    ],
+  },
+  contract_template: {
+    sections: [
+      {
+        title: "契約雙方",
+        fields: [
+          { name: "party_a", label: "甲方" },
+          { name: "party_b", label: "乙方" },
+          { name: "case_name", label: "案件名稱", default: (p) => p.name },
+          { name: "contract_number", label: "契約編號" },
+        ],
+      },
+      {
+        title: "契約條款",
+        fields: [
+          { name: "contract_purpose", label: "第一條 契約目的", type: "textarea", full: true, rows: 2, default: () => CONTRACT_PURPOSE_DEFAULT },
+          { name: "contract_cooperation", label: "第二條 合作內容", type: "textarea", full: true, rows: 3, default: () => CONTRACT_COOPERATION_DEFAULT },
+          { name: "contract_documents", label: "第三條 文件與資料", type: "textarea", full: true, rows: 3, default: () => CONTRACT_DOCUMENTS_DEFAULT },
+          { name: "contract_period", label: "第四條 契約期限", type: "textarea", full: true, rows: 2, default: () => CONTRACT_PERIOD_DEFAULT },
+        ],
+      },
+    ],
+  },
+};
+
+// Online form for a 第0關 範本 checklist item. Submitting it counts as completing that
+// item (see save_stage_form on the backend); re-opening pre-fills the saved values.
+function openStageFormModal(pid, stage, docType, existing, onSaved) {
+  const label = (typeof DOC_TYPE_LABEL !== "undefined" && DOC_TYPE_LABEL[docType]) || docType;
+  const f = (existing && existing.fields) || {};
+  const proj = state.currentProject || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const schema = STAGE_FORM_SCHEMAS[docType] || STAGE_FORM_SCHEMAS.dev_letter_template;
+
+  const fieldValue = (fld) => {
+    const cur = f[fld.name];
+    if (cur != null && cur !== "") return cur;
+    return typeof fld.default === "function" ? fld.default(proj) || "" : fld.default || "";
+  };
+  const renderField = (fld) => {
+    const style = fld.full ? ' style="grid-column:1 / -1"' : "";
+    const val = escapeHtml(fieldValue(fld));
+    const input =
+      fld.type === "textarea"
+        ? `<textarea name="${fld.name}" rows="${fld.rows || 3}" style="resize:vertical">${val}</textarea>`
+        : `<input name="${fld.name}" value="${val}">`;
+    return `<label class="field"${style}><span>${escapeHtml(fld.label)}</span>${input}</label>`;
+  };
+  const renderSection = (sec) => `
+    <div>
+      ${sec.title ? `<div style="font-weight:600;margin-bottom:8px;color:var(--text-primary)">${escapeHtml(sec.title)}</div>` : ""}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${sec.fields.map(renderField).join("")}</div>
+    </div>`;
+
+  const statusOpts = STAGE_FORM_STATUS_OPTIONS.map(
+    (s) => `<option value="${escapeHtml(s)}" ${f.status === s ? "selected" : ""}>${escapeHtml(s)}</option>`
+  ).join("");
+
+  const bodyHtml = `
+    <form id="stage-form" style="display:flex;flex-direction:column;gap:14px">
+      ${schema.sections.map(renderSection).join("")}
+      <div>
+        <div style="font-weight:600;margin-bottom:8px;color:var(--text-primary)">文件狀態</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <label class="field"><span>發文日期</span><input type="date" name="issue_date" value="${escapeHtml(f.issue_date || today)}"></label>
+          <label class="field"><span>文件狀態</span><select name="status">${statusOpts}</select></label>
+          <label class="field" style="grid-column:1 / -1"><span>備註</span><textarea name="remark" rows="3" style="resize:vertical">${escapeHtml(f.remark || "")}</textarea></label>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:4px">
+        ${existing ? `<button type="button" class="btn-link btn-sm" id="stage-form-clear" style="color:var(--danger);margin-right:auto">清除此填表</button>` : ""}
+        <button type="button" class="btn-secondary" id="stage-form-cancel">取消</button>
+        <button type="submit" class="btn-primary">${existing ? "儲存修改" : "送出"}</button>
+      </div>
+    </form>`;
+
+  const root = openModal(`${label} · 線上填表`, bodyHtml, { width: "640px" });
+  const form = root.querySelector("#stage-form");
+  root.querySelector("#stage-form-cancel").onclick = closeModal;
+
+  const clearBtn = root.querySelector("#stage-form-clear");
+  if (clearBtn) {
+    clearBtn.onclick = async () => {
+      if (!confirm("確定要清除這份填表內容嗎?")) return;
+      try {
+        await api(`/projects/${pid}/sop/${stage}/form`, { method: "POST", body: { doc_type: docType, form_data: null } });
+        toast("已清除填表", "success");
+        closeModal();
+        onSaved && onSaved();
+      } catch (err) { }
+    };
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const form_data = {};
+    fd.forEach((val, key) => { form_data[key] = String(val).trim(); });
+    try {
+      await api(`/projects/${pid}/sop/${stage}/form`, { method: "POST", body: { doc_type: docType, form_data } });
+      toast(existing ? "填表已更新" : "填表已送出", "success");
+      closeModal();
+      onSaved && onSaved();
+    } catch (err) { }
   });
 }

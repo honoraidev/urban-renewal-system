@@ -36,7 +36,7 @@ async function renderDocumentsTab(el) {
     }
     ${docs.length
       ? `<div class="table-wrap">
-            <table>
+            <table class="docs-table">
               <thead><tr><th>檔名</th><th>類型</th><th>大小</th><th>上傳時間</th><th>說明</th><th>操作</th></tr></thead>
               <tbody>
                 ${docs
@@ -152,17 +152,11 @@ function openUploadDocumentModal() {
     "上傳文件",
     `
     <form id="upload-form">
-      <div class="field"><label>檔案</label><input type="file" name="file" required></div>
       <div class="field-row">
+        <div class="field" style="flex:0 0 200px"><label>檔案</label><input type="file" name="file" required></div>
         <div class="field"><label>文件類型</label>
           <select name="doc_type">
             ${Object.entries(DOC_TYPE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field"><label>關聯地主(選填)</label>
-          <select name="landowner_id">
-            <option value="">— 無 —</option>
-            ${landowners.map((o) => `<option value="${o.id}">${escapeHtml(o.name)}</option>`).join("")}
           </select>
         </div>
       </div>

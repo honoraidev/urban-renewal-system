@@ -51,6 +51,10 @@ class LandOwnershipEntry(BaseModel):
     # share at different times/prices, each with their own 前次移轉現值或原規定地價.
     declared_value_per_sqm: float | None = None
     declared_value_period: str | None = None
+    # 「相關他項權利登記次序」printed under this owner's 所有權部 block (e.g. "0004-000").
+    # Links this owner to the 土地他項權利部 entry set on their share - an owner with no
+    # such line has no 他項權利, so the roster leaves their 他項權利部 columns blank.
+    related_encumbrance_orders: list[str] = []
 
 
 class EncumbranceEntry(BaseModel):
@@ -80,9 +84,21 @@ class LandParcelExtraction(BaseModel):
 class BuildingOwnershipEntry(BaseModel):
     registration_order: str | None = None
     owner_name: str | None = None
+    id_number: str | None = None
     ownership_numerator: int | None = None
     ownership_denominator: int | None = None
     address: str | None = None
+    is_pooled: bool | None = None
+
+
+class BuildingAccessory(BaseModel):
+    use: str | None = None
+    area_sqm: float | None = None
+
+
+class BuildingFloor(BaseModel):
+    floor: str | None = None
+    area_sqm: float | None = None
 
 
 class BuildingExtraction(BaseModel):
@@ -91,9 +107,14 @@ class BuildingExtraction(BaseModel):
     parcel_number: str | None = None
     total_floors: str | None = None
     floor: str | None = None
+    floors: list[BuildingFloor] = []
     total_area_sqm: float | None = None
     floor_area_sqm: float | None = None
+    accessory_use: str | None = None
+    accessory_area_sqm: float | None = None
+    accessories: list[BuildingAccessory] = []
     owners: list[BuildingOwnershipEntry] = []
+    encumbrances: list[EncumbranceEntry] = []
 
 
 class TitleDeedExtraction(BaseModel):

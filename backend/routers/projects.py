@@ -14,10 +14,15 @@ from deps import (
     require_manager,
     require_project_editor,
     require_project_manager,
+    require_project_staff_viewer,
     require_project_viewer,
 )
+from fastapi import Response
+
 from models.building_record import BuildingRecord
+from models.encumbrance import Encumbrance
 from models.land_record import LandRecord
+from models.landowner import Landowner
 from models.ocr import OcrJob
 from models.project import Project, ProjectMember
 from models.sop import SopStage
@@ -104,7 +109,12 @@ def _case_handler_names(db: Session, project_id: int) -> tuple[str | None, str |
 
 @router.get("/dashboard-summary", response_model=DashboardSummary)
 def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in MANAGE_ROLES:
+    if current_user.role == "landowner":
+        lo_project_ids = db.scalars(
+            select(Landowner.project_id).where(Landowner.user_id == current_user.id).distinct()
+        ).all()
+        projects_stmt = select(Project).where(Project.id.in_(lo_project_ids)).order_by(Project.created_at.desc())
+    elif current_user.role not in MANAGE_ROLES:
         member_project_ids = db.scalars(
             select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
         ).all()
@@ -190,7 +200,16 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
 
 @router.get("", response_model=list[ProjectRead])
 def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in MANAGE_ROLES:
+    if current_user.role == "landowner":
+        # 地主帳號:只看得到「自己被綁定為某筆地主」的案件
+        stmt = (
+            select(Project)
+            .join(Landowner, Landowner.project_id == Project.id)
+            .where(Landowner.user_id == current_user.id)
+            .distinct()
+            .order_by(Project.created_at.desc())
+        )
+    elif current_user.role not in MANAGE_ROLES:
         stmt = (
             select(Project)
             .join(ProjectMember, ProjectMember.project_id == Project.id)
@@ -245,10 +264,28 @@ def update_project(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_editor),
 ):
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    new_code = data.get("project_code")
+    old_code = project.project_code
+    if new_code and new_code != old_code:
+        clash = db.scalar(select(Project).where(Project.project_code == new_code, Project.id != project.id))
+        if clash:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="案件代碼已被使用")
+
+    for field, value in data.items():
         setattr(project, field, value)
     db.commit()
     db.refresh(project)
+
+    # 上傳資料夾以案件代碼命名 - 代碼改了就把資料夾一起搬過去,避免既有檔案失聯。
+    if new_code and new_code != old_code:
+        old_dir = os.path.join(settings.UPLOAD_DIR, old_code)
+        new_dir = os.path.join(settings.UPLOAD_DIR, new_code)
+        if os.path.isdir(old_dir) and not os.path.exists(new_dir):
+            try:
+                shutil.move(old_dir, new_dir)
+            except OSError:
+                pass
     return project
 
 
@@ -314,8 +351,49 @@ def get_consent_ratio(
     return calculate_consent_ratio(db, project.id, stage)
 
 
+@router.get("/{project_id}/roster.xlsx")
+def download_roster_xlsx(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    """地主清冊 Excel(版面同「清冊範本」):土地標示/所有權/他項權利 + 對應建物。"""
+    from urllib.parse import quote
+
+    from utils.roster_excel import build_roster_workbook
+
+    land_records = list(
+        db.scalars(
+            select(LandRecord)
+            .where(LandRecord.project_id == project.id)
+            .order_by(LandRecord.parcel_number, LandRecord.registration_order, LandRecord.id)
+        )
+    )
+    building_records = list(
+        db.scalars(select(BuildingRecord).where(BuildingRecord.project_id == project.id))
+    )
+    encumbrances = list(
+        db.scalars(select(Encumbrance).where(Encumbrance.project_id == project.id))
+    )
+    landowners_by_id = {
+        o.id: o for o in db.scalars(select(Landowner).where(Landowner.project_id == project.id))
+    }
+
+    content = build_roster_workbook(
+        project, land_records, building_records, encumbrances, landowners_by_id
+    )
+    fname = f"{project.project_code}_地主清冊.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=roster_{project.project_code}.xlsx; "
+            f"filename*=UTF-8''{quote(fname)}"
+        },
+    )
+
+
 @router.get("/{project_id}/members", response_model=list[ProjectMemberRead])
-def list_project_members(db: Session = Depends(get_db), project: Project = Depends(require_project_viewer)):
+def list_project_members(db: Session = Depends(get_db), project: Project = Depends(require_project_staff_viewer)):
     rows = db.execute(
         select(ProjectMember, User.username, User.display_name)
         .join(User, User.id == ProjectMember.user_id)

@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
+    # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
+    OCR_PAGES_PER_CHUNK: int = 4
+    OCR_CHUNK_OVERLAP: int = 2
+    OCR_CHUNK_CONCURRENCY: int = 3
+    OCR_SMART_RESCAN_MAX_PAGES: int = 6
+    OCR_MISSING_AREA_RESCAN_MAX_CHUNKS: int = 3
+
     @property
     def database_url(self) -> str:
         # DB_USER/DB_PASSWORD must be percent-encoded before going into the connection

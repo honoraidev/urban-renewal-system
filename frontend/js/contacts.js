@@ -2,10 +2,11 @@
 
 async function renderContactsTab(el) {
   const pid = state.currentProjectId;
-  const [landowners, alerts] = await Promise.all([
+  const [landowners, summary] = await Promise.all([
     api(`/projects/${pid}/landowners`),
-    api(`/projects/${pid}/alerts`),
+    api(`/projects/${pid}/contact-summary`),
   ]);
+  const summaryByOwner = new Map(summary.map((s) => [s.landowner_id, s]));
   state.projectCache[pid].landowners = landowners;
 
   // Contacting someone is about following up on their consent as an actual owner -
@@ -23,85 +24,83 @@ async function renderContactsTab(el) {
     : contactableLandowners[0].id;
   state.selectedContactLandownerId = selectedId;
 
+  const overdueCount = contactableLandowners.filter((o) => summaryByOwner.get(o.id)?.is_overdue).length;
+  const daysSince = (iso) => {
+    if (!iso) return null;
+    return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  };
+
   el.innerHTML = `
-    ${alerts.length
-      ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--danger)">
-            <h3 style="margin-top:0">⚠ 需跟進地主 (${alerts.length})</h3>
-            <div class="table-wrap" style="box-shadow:none;border:none">
-              <table>
-                <thead><tr><th>姓名</th><th>聯絡狀態</th><th>最後聯絡</th><th>未聯絡天數</th></tr></thead>
-                <tbody>
-                  ${alerts
-        .map(
-          (a) => `<tr>
-                        <td>${escapeHtml(a.landowner_name)}</td>
-                        <td><span class="contact-status-badge cs-${a.contact_status}">${CONTACT_STATUS_LABEL[a.contact_status]}</span></td>
-                        <td>${a.last_contact_date ? fmtDateTime(a.last_contact_date) : "尚無紀錄"}</td>
-                        <td>${a.days_since_last_contact ?? "-"}</td>
-                      </tr>`
-        )
+    <div class="card" style="margin-bottom:16px;border-left:4px solid var(--danger)">
+      <h3 style="margin-top:0">地主聯繫狀態 (${contactableLandowners.length}) · 需跟進 ${overdueCount}</h3>
+      <div class="table-wrap" style="box-shadow:none;border:none">
+        <table>
+          <thead><tr><th>編號</th><th>姓名</th><th>聯絡狀態</th><th>最後聯絡</th><th>未聯絡天數</th><th>聯絡紀錄</th></tr></thead>
+          <tbody>
+            ${contactableLandowners
+        .map((o, i) => {
+          const s = summaryByOwner.get(o.id);
+          const d = daysSince(s && s.last_contact_date);
+          return `<tr${s && s.is_overdue ? ' style="background:var(--danger-light)"' : ""}>
+                        <td>${String(i + 1).padStart(3, "0")}</td>
+                        <td>${escapeHtml(o.name)}</td>
+                        <td>${s && s.is_overdue
+              ? `<span class="contact-overdue-flag">⚠ 提醒</span>`
+              : `<span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span>`}</td>
+                        <td>${s && s.last_contact_date ? fmtDateTime(s.last_contact_date) : "尚無紀錄"}</td>
+                        <td>${d ?? "-"}</td>
+                        <td><button class="btn-link btn-sm" data-contact-log="${o.id}">查看</button></td>
+                      </tr>`;
+        })
         .join("")}
-                </tbody>
-              </table>
-            </div>
-          </div>`
-      : ""
-    }
-    <div class="section-toolbar">
-      <h3>聯絡紀錄</h3>
-      <div style="display:flex;gap:10px;align-items:center">
-        <select id="contact-landowner-select" style="width:auto">
-          ${contactableLandowners.map((o) => `<option value="${o.id}" ${o.id === selectedId ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
-        </select>
-        ${isEditor() ? `<button class="btn-primary btn-sm" id="add-contact-btn">+ 新增紀錄</button>` : ""}
+          </tbody>
+        </table>
       </div>
     </div>
-    <div id="contact-log-list"></div>
   `;
 
-  document.getElementById("contact-landowner-select").addEventListener("change", (e) => {
-    state.selectedContactLandownerId = Number(e.target.value);
-    loadContactLogList();
+  el.querySelectorAll("[data-contact-log]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.contactLog);
+      const owner = contactableLandowners.find((o) => o.id === id);
+      openContactLogModal(id, owner ? owner.name : "");
+    });
   });
-  const addBtn = document.getElementById("add-contact-btn");
-  if (addBtn) addBtn.addEventListener("click", () => openAddContactModal(state.selectedContactLandownerId));
-
-  await loadContactLogList();
 }
 
-async function loadContactLogList() {
+async function openContactLogModal(landownerId, name) {
+  openModal(`聯絡紀錄 · ${escapeHtml(name || "")}`, `<div id="contact-log-list"><div class="empty-state">載入中...</div></div>`, { width: "560px" });
+  await loadContactLogList(landownerId, name);
+}
+
+async function loadContactLogList(landownerId, name) {
   const pid = state.currentProjectId;
-  const lid = state.selectedContactLandownerId;
+  const lid = landownerId != null ? landownerId : state.selectedContactLandownerId;
   const listEl = document.getElementById("contact-log-list");
   if (!listEl) return;
   listEl.innerHTML = `<div class="empty-state">載入中...</div>`;
   const logs = await api(`/projects/${pid}/landowners/${lid}/contacts`);
-  if (!logs.length) {
-    listEl.innerHTML = `<div class="empty-state">尚無聯絡紀錄</div>`;
-    return;
-  }
-  listEl.innerHTML = `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>日期</th><th>方式</th><th>結果</th><th>備註</th><th>下次跟進</th></tr></thead>
-        <tbody>
-          ${logs
-      .map(
-        (c) => `<tr>
-                <td>${fmtDateTime(c.contact_date)}</td>
-                <td>${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</td>
-                <td><span class="consent-status-badge cs-${c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending"}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span></td>
-                <td>${escapeHtml(c.notes) || "-"}</td>
-                <td>${fmtDate(c.next_follow_up_date)}</td>
-              </tr>`
-      )
+  listEl.innerHTML = logs.length
+    ? `<div class="clm-list">
+        ${logs
+      .map((c) => {
+        const rk = c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending";
+        return `<div class="clm-item">
+              <div class="clm-item-head">
+                <span class="clm-date">${fmtDateTime(c.contact_date)}</span>
+                <span class="clm-method">${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span>
+                <span class="consent-status-badge cs-${rk}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span>
+              </div>
+              ${c.notes ? `<div class="clm-row"><span class="clm-label">備註</span><span>${escapeHtml(c.notes)}</span></div>` : ""}
+              ${c.next_follow_up_date ? `<div class="clm-row"><span class="clm-label">下次跟進</span><span>${fmtDate(c.next_follow_up_date)}</span></div>` : ""}
+            </div>`;
+      })
       .join("")}
-        </tbody>
-      </table>
-    </div>`;
+      </div>`
+    : `<div class="empty-state">尚無聯絡紀錄</div>`;
 }
 
-function openAddContactModal(landownerId) {
+function openAddContactModal(landownerId, afterSave) {
   const now = new Date();
   const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   openModal(
@@ -148,7 +147,12 @@ function openAddContactModal(landownerId) {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, { method: "POST", body: payload });
       closeModal();
       toast("聯絡紀錄已新增", "success");
-      renderTab("contacts");
+      if (typeof afterSave === "function") {
+        afterSave();
+      } else {
+        renderTab("contacts");
+        if (typeof syncProjectAggregates === "function") syncProjectAggregates();
+      }
     } catch (err) { }
   });
 }

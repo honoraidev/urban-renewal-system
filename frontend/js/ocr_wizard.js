@@ -37,6 +37,12 @@ function normalizeTitleDeedData(raw) {
       // share at different times/prices, each with their own 前次移轉現值或原規定地價.
       declared_value_per_sqm: o.declared_value_per_sqm ?? "",
       declared_value_period: o.declared_value_period || "",
+      // 「相關他項權利登記次序」- kept as a comma string; drives whether the roster
+      // export fills this owner's 土地他項權利部 columns (empty => leave blank).
+      related_encumbrance_orders: Array.isArray(o.related_encumbrance_orders)
+        ? o.related_encumbrance_orders.join(", ")
+        : (o.related_encumbrance_orders || ""),
+      _pooled: !!(o.is_pooled || o._pooled),
     };
   };
   const toBuildingOwnerRow = (o) => {
@@ -48,6 +54,7 @@ function normalizeTitleDeedData(raw) {
       ownership_numerator: o.ownership_numerator || 1,
       ownership_denominator: o.ownership_denominator || 1,
       address: cleanAddr(o.address),
+      _pooled: !!(o.is_pooled || o._pooled),
     };
   };
 
@@ -80,7 +87,18 @@ function normalizeTitleDeedData(raw) {
     floor: b.floor || "",
     total_area_sqm: b.total_area_sqm ?? "",
     floor_area_sqm: b.floor_area_sqm ?? "",
+    floors: (b.floors && b.floors.length
+      ? b.floors
+      : (b.floor || (b.floor_area_sqm ?? "") !== "" ? [{ floor: b.floor, area_sqm: b.floor_area_sqm }] : [])
+    ).map((f) => ({ floor: (f && f.floor) || "", area_sqm: f && f.area_sqm != null ? f.area_sqm : "" })),
+    accessory_use: b.accessory_use || "",
+    accessory_area_sqm: b.accessory_area_sqm ?? "",
+    accessories: (b.accessories && b.accessories.length
+      ? b.accessories
+      : (b.accessory_use || (b.accessory_area_sqm ?? "") !== "" ? [{ use: b.accessory_use, area_sqm: b.accessory_area_sqm }] : [])
+    ).map((a) => ({ use: (a && a.use) || "", area_sqm: a && a.area_sqm != null ? a.area_sqm : "" })),
     owners: (b.owners || []).map(toBuildingOwnerRow),
+    encumbrances: (b.encumbrances || []).map(toEncumbranceRow),
   }));
 
   const encumbrances = (raw.encumbrances || []).map(toEncumbranceRow);
@@ -148,12 +166,11 @@ function renderWizardStep0() {
     <div class="field" style="margin-top:6px">
       <label>謄本類別</label>
       <select id="wizard-deed-category-step0">
-        <option value="">自動偵測(依內文判斷)</option>
         <option value="第一類謄本">第一類謄本</option>
         <option value="第二類謄本">第二類謄本</option>
         <option value="第三類謄本">第三類謄本</option>
       </select>
-      <div class="helper-text">指定後即以此為準,不再依 OCR 內文自動判斷</div>
+      <div class="helper-text">請選擇這批謄本的類別,辨識即以此為準</div>
     </div>
     <div class="helper-text">若有多張照片或多頁,請用下方的 ▲▼ 調整順序,順序需與謄本頁面順序一致</div>
     <div id="wizard-ocr-progress-wrap" style="display:none;margin-top:14px">
@@ -161,7 +178,6 @@ function renderWizardStep0() {
       <div class="helper-text" id="wizard-ocr-progress-label" style="margin-top:4px;text-align:center"></div>
     </div>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-primary" id="wizard-start-ocr-btn">開始辨識</button>
     </div>`,
     { width: "560px" }
@@ -182,7 +198,10 @@ function renderWizardStep0() {
   }
   const deedCatStep0 = document.getElementById("wizard-deed-category-step0");
   if (deedCatStep0) {
-    deedCatStep0.value = titleDeedWizard.manualDeedCategory || "";
+    // No "auto-detect" option any more - a concrete category must always be chosen.
+    if (!titleDeedWizard.manualDeedCategory) titleDeedWizard.manualDeedCategory = "第二類謄本";
+    deedCatStep0.value = titleDeedWizard.manualDeedCategory;
+    titleDeedWizard.manualDeedCategory = deedCatStep0.value;
     deedCatStep0.addEventListener("change", (e) => {
       titleDeedWizard.manualDeedCategory = e.target.value;
     });
@@ -303,11 +322,18 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix
 
   const startedAt = Date.now();
   wrap.style.display = "";
+  const phaseFor = (pct) => {
+    if (pct < 12) return "正在上傳檔案並轉換頁面影像";
+    if (pct < 40) return "正在逐頁辨識文字 (OCR)";
+    if (pct < 68) return "正在解析地主、統編、地號、持分等欄位";
+    if (pct < 85) return "正在比對電子謄本規則並校正欄位";
+    return "正在彙整辨識結果";
+  };
   const timer = setInterval(() => {
     const elapsed = (Date.now() - startedAt) / 1000;
     const pct = 92 * (1 - Math.exp(-elapsed / tauSeconds));
     fill.style.width = `${pct}%`;
-    label.textContent = `${labelPrefix}...已等待 ${Math.floor(elapsed)} 秒,頁數多可能需要數分鐘`;
+    label.textContent = `${phaseFor(pct)}…(請勿關閉視窗)`;
   }, 250);
   return {
     finish() {
@@ -359,7 +385,7 @@ async function runTitleDeedOcr() {
 
     if (result.job.error_message) {
       titleDeedWizard.warning = result.job.error_message;
-      toast(result.job.error_message, "error");
+      if (/失敗|不完整/.test(result.job.error_message)) toast(result.job.error_message, "error");
     } else {
       titleDeedWizard.warning = null;
     }
@@ -512,9 +538,79 @@ function parcelSummaryHtml(p, mode = "owners") {
   return `<span>${escapeHtml(place || "(未填寫鄉鎮市區/地段)")} · 地號 ${escapeHtml(p.parcel_number || "-")} · ${countStr}</span>${catSelector}`;
 }
 
+const ACCESSORY_USE_OPTIONS = ["平台", "陽臺", "防空避難室"];
+
+function accessoryUseOptionsHtml(current) {
+  // OpenCC in the backend post-process turns 「平台」 into 「平臺」; fold it back so it
+  // matches the standard option instead of being kept as a stray extra choice.
+  const cur = (current || "").trim().replace(/平臺/g, "平台");
+  const opts = ACCESSORY_USE_OPTIONS.slice();
+  // Keep an OCR-read value that isn't one of the three standard options rather than
+  // silently dropping it.
+  if (cur && !opts.includes(cur)) opts.push(cur);
+  return (
+    `<option value=""${cur ? "" : " selected"}>（無）</option>` +
+    opts.map((o) => `<option value="${escapeHtml(o)}"${o === cur ? " selected" : ""}>${escapeHtml(o)}</option>`).join("")
+  );
+}
+
+const READONLY_BOX_STYLE =
+  "padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600";
+
+function accessoryRowHtml(a) {
+  a = a || {};
+  const use = (a.use || "").trim();
+  // 用途「（無）」時面積視為 0。
+  const area = use ? (a.area_sqm != null ? a.area_sqm : "") : (a.area_sqm != null && a.area_sqm !== "" ? a.area_sqm : 0);
+  return `<div class="field-row accessory-row" style="align-items:flex-end;margin-bottom:8px">
+    <div class="field" style="flex:1 1 150px;margin-bottom:0"><label>用途</label>
+      <select class="acc-use">${accessoryUseOptionsHtml(use)}</select></div>
+    <div class="field" style="flex:0 0 130px;margin-bottom:0"><label>面積(㎡)</label>
+      <input class="acc-area area-live" type="number" step="0.01" value="${escapeHtml(area)}" autocomplete="off"></div>
+    <button type="button" class="btn-link btn-sm acc-del" style="color:var(--danger);flex:0 0 auto;padding-bottom:9px">刪除</button>
+  </div>`;
+}
+
+const FLOOR_NAME_OPTIONS = [
+  "地下三層", "地下二層", "地下一層",
+  "一層", "二層", "三層", "四層", "五層", "六層", "七層",
+];
+
+function floorNameOptionsHtml(current) {
+  const cur = (current || "").trim();
+  const opts = FLOOR_NAME_OPTIONS.slice();
+  if (cur && !opts.includes(cur)) opts.push(cur); // keep an OCR value outside the list
+  return (
+    `<option value=""${cur ? "" : " selected"}>（未選）</option>` +
+    opts.map((o) => `<option value="${escapeHtml(o)}"${o === cur ? " selected" : ""}>${escapeHtml(o)}</option>`).join("") +
+    `<option value="__custom__">＋ 自訂層次…</option>`
+  );
+}
+
+function floorRowHtml(f) {
+  f = f || {};
+  return `<div class="field-row floor-row" style="align-items:flex-end;margin-bottom:8px">
+    <div class="field" style="flex:1 1 150px;margin-bottom:0"><label>樓層</label>
+      <select class="flr-name">${floorNameOptionsHtml(f.floor || "")}</select></div>
+    <div class="field" style="flex:0 0 130px;margin-bottom:0"><label>面積(㎡)</label>
+      <input class="flr-area area-live" type="number" step="0.01" value="${escapeHtml(f.area_sqm != null ? f.area_sqm : "")}" autocomplete="off"></div>
+    <button type="button" class="btn-link btn-sm flr-del" style="color:var(--danger);flex:0 0 auto;padding-bottom:9px">刪除</button>
+  </div>`;
+}
+
 function buildingSummaryHtml(b) {
   const catSelector = deedCategorySelectorHtml("wizard-building-owners", "bo");
-  return `<span>建號 ${escapeHtml(b.building_number || "-")} · ${escapeHtml(b.building_address || "(未填寫門牌)")} · ${b.owners.length} 位所有權人</span>${catSelector}`;
+  return `${catSelector}<span>建號 ${escapeHtml(b.building_number || "-")} · ${escapeHtml(b.building_address || "(未填寫門牌)")} · ${b.owners.length} 位所有權人</span>`;
+}
+
+// Plain-text (no markup) versions, used as card titles on the confirm step.
+function parcelSummaryLabel(p) {
+  const place = `${p.township || ""}${p.section || ""}${p.subsection || ""}`;
+  return `${place || "(未填寫鄉鎮市區/地段)"} · 地號 ${p.parcel_number || "-"} · ${(p.owners || []).length} 位所有權人`;
+}
+
+function buildingSummaryLabel(b) {
+  return `建號 ${b.building_number || "-"} · ${b.building_address || "(未填寫門牌)"} · ${(b.owners || []).length} 位所有權人`;
 }
 
 function ownerRowHtml(prefix, o, areaSqm) {
@@ -522,15 +618,20 @@ function ownerRowHtml(prefix, o, areaSqm) {
   const denominator = o.ownership_denominator || 1;
   let areaFieldsHtml = "";
   if (areaSqm) {
+    // For buildings, `areaSqm` is 權狀面積 (建物總面積 + 附屬建物面積). 持份權狀面積 =
+    // 權狀面積 × 權利範圍分子 / 分母; 坪 = ㎡ × 0.3025.
+    const isBldg = prefix === "bo";
+    const sqmLabel = isBldg ? "持份權狀面積(㎡)" : "持分面積(m²)";
+    const pingLabel = isBldg ? "持份權狀面積(坪)" : "持分面積(坪)";
     const ownedSqm = (areaSqm * numerator) / denominator;
     const ownedPing = ownedSqm * PING_PER_SQM;
     areaFieldsHtml = `
       <div class="field" style="flex:0 0 130px">
-        <label>持分面積(m²)</label>
+        <label>${sqmLabel}</label>
         <div class="${prefix}-area-sqm" style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedSqm.toFixed(2)}</div>
       </div>
       <div class="field" style="flex:0 0 130px">
-        <label>持分面積(坪)</label>
+        <label>${pingLabel}</label>
         <div class="${prefix}-area-ping" style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedPing.toFixed(3)}</div>
       </div>`;
   }
@@ -549,20 +650,20 @@ function ownerRowHtml(prefix, o, areaSqm) {
 
   return `
     <div class="field-row">
-      <div class="field" style="flex:0 0 88px"><label>登記次序</label><input class="${prefix}-order" value="${escapeHtml(o.registration_order)}" autocomplete="off"></div>
-      <div class="field" style="flex:2 1 180px"><label>所有權人姓名</label><input class="${prefix}-name" value="${escapeHtml(o.owner_name)}" autocomplete="off"></div>
-      <div class="field">
+      <div class="field" style="flex:0 0 72px"><label>登記次序</label><input class="${prefix}-order" value="${escapeHtml(o.registration_order)}" autocomplete="off"></div>
+      <div class="field" style="flex:1.3 1 118px"><label>所有權人姓名</label><input class="${prefix}-name" value="${escapeHtml(o.owner_name)}" autocomplete="off"></div>
+      <div class="field ${prefix}-idnum-wrap" style="flex:1.6 1 160px;display:${isThird ? "none" : "block"}">
+        <label>統一編號</label>
+        <input class="${prefix}-idnum" value="${escapeHtml(o.id_number)}" placeholder="例如 A123456789" autocomplete="off">
+      </div>
+      <div class="field" style="flex:0 0 auto">
         <label>權利範圍</label>
-        <div style="display:flex;align-items:center;gap:8px">
-          <input class="${prefix}-num" type="number" value="${numerator}" placeholder="分子" style="width:72px" autocomplete="off">
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="${prefix}-num" type="number" value="${numerator}" placeholder="分子" style="width:78px" autocomplete="off">
           <span style="color:var(--text-muted)">/</span>
-          <input class="${prefix}-den" type="number" value="${denominator}" placeholder="分母" style="width:72px" autocomplete="off">
+          <input class="${prefix}-den" type="number" value="${denominator}" placeholder="分母" style="width:104px" autocomplete="off">
         </div>
       </div>
-    </div>
-    <div class="field ${prefix}-idnum-wrap" style="display:${isThird ? "none" : "block"}">
-      <label>統一編號</label>
-      <input class="${prefix}-idnum" value="${escapeHtml(o.id_number)}" placeholder="例如 A123456789 (一類完整、二類隱匿)" autocomplete="off">
     </div>
     <div class="field"><label>戶籍地址</label><input class="${prefix}-address" value="${escapeHtml(o.address)}" autocomplete="off"></div>
     <div class="field-row">
@@ -594,6 +695,20 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
     }
   }
 
+  if (!owners.length) {
+    wrap.innerHTML = `<button type="button" class="btn-secondary btn-sm owner-add-first-btn">+ 新增共有人</button>`;
+    wrap.querySelector(".owner-add-first-btn").addEventListener("click", () => {
+      owners.push({
+        registration_order: "", owner_name: "", id_number: "",
+        ownership_numerator: 1, ownership_denominator: 1,
+        address: "", declared_value_per_sqm: "", declared_value_period: "",
+      });
+      renderOwnerRowsContainer(containerId, owners, prefix, areaSqm);
+      document.querySelector(`#${containerId} .wizard-row .${prefix}-name`)?.focus();
+    });
+    return;
+  }
+
   wrap.innerHTML = `
     <div class="pooled-ownership-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <span class="helper-text" style="margin:0">🔗 勾選 2 位以上「公同」共有人,系統會自動把整組權利範圍 ÷ 人數均分(取消勾選會還原)</span>
@@ -606,6 +721,24 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
       .join("")}`;
   wireYearMonthPickers(wrap);
   wireDeedCategorySelector();
+
+  // Live-recompute 持分/持份面積 as the 權利範圍 fraction is edited.
+  wrap.querySelectorAll(".wizard-row").forEach((row) => {
+    const numI = row.querySelector(`.${prefix}-num`);
+    const denI = row.querySelector(`.${prefix}-den`);
+    const sqmEl = row.querySelector(`.${prefix}-area-sqm`);
+    if (!numI || !denI || !sqmEl) return;
+    const pingEl = row.querySelector(`.${prefix}-area-ping`);
+    const recalc = () => {
+      const n = Number(numI.value) || 0;
+      const d = Number(denI.value) || 1;
+      const owned = areaSqm ? (areaSqm * n) / d : 0;
+      sqmEl.textContent = owned.toFixed(2);
+      if (pingEl) pingEl.textContent = (owned * PING_PER_SQM).toFixed(3);
+    };
+    numI.addEventListener("input", recalc);
+    denI.addEventListener("input", recalc);
+  });
 
   // Checking the 「公同」 box on 2+ owners auto-splits: each pooled owner's 權利範圍
   // becomes groupNum / (groupDen × pooledCount). The group total is remembered per
@@ -890,7 +1023,7 @@ function renderParcelDescriptionSubStep(idx) {
       </div>
     </form>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
       ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
@@ -931,6 +1064,10 @@ function renderParcelDescriptionSubStep(idx) {
     parcels.splice(idx, 1);
     advanceFromParcel(idx);
   });
+  document.getElementById("wizard-oneclick-btn").addEventListener("click", () => {
+    saveFields();
+    oneClickCreateTitleDeed();
+  });
 }
 
 function renderParcelOwnersSubStep(idx) {
@@ -943,7 +1080,6 @@ function renderParcelOwnersSubStep(idx) {
     <div class="helper-text" id="wizard-parcel-summary" style="margin-bottom:10px">${parcelSummaryHtml(p)}</div>
     <div id="wizard-land-owners" style="margin:6px 0"></div>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地他項權利部</button>
     </div>`,
@@ -975,10 +1111,8 @@ function renderParcelEncumbrancesSubStep(idx) {
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 3/3 土地他項權利部`)}
     <div class="helper-text" id="wizard-parcel-enc-summary" style="margin-bottom:10px">${parcelSummaryHtml(p, "encumbrances")}</div>
     <div id="wizard-parcel-encumbrances" style="margin:6px 0"></div>
-    <button type="button" class="btn-secondary btn-sm" id="wizard-add-parcel-encumbrance-btn">+ 新增他項權利</button>
     <div class="helper-text" style="margin-top:6px">若這筆地號沒有他項權利部,可直接略過。跨好幾筆地號的他項權利,留到最後「他項權利部」步驟處理即可</div>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆地號"}</button>
     </div>`,
@@ -986,18 +1120,6 @@ function renderParcelEncumbrancesSubStep(idx) {
   );
 
   renderEncumbranceRows("wizard-parcel-encumbrances", p.encumbrances);
-
-  document.getElementById("wizard-add-parcel-encumbrance-btn").addEventListener("click", () => {
-    p.encumbrances = readEncumbranceRows("wizard-parcel-encumbrances");
-    p.encumbrances.push({
-      registration_order: "",
-      applies_to_parcels: p.parcel_number || "",
-      right_type: "",
-      right_holder: "",
-      debtor_info: "",
-    });
-    renderEncumbranceRows("wizard-parcel-encumbrances", p.encumbrances);
-  });
 
   document.getElementById("wizard-prev-item-btn").addEventListener("click", () => {
     p.encumbrances = readEncumbranceRows("wizard-parcel-encumbrances");
@@ -1051,29 +1173,76 @@ function encumbranceRightTypeOptionsHtml(rawType) {
   `;
 }
 
-function encumbranceRowHtml(e) {
+function encParcelTokens(value) {
+  return String(value || "").split(/[\s,、]+/).filter(Boolean);
+}
+
+// 土地他項權利部用「對應地號」;建物他項權利部用「共同擔保建號」。
+function encLabels(containerId) {
+  const isBldg = String(containerId || "").includes("building");
+  return isBldg
+    ? { label: "共同擔保建號", add: "＋ 建號", prompt: "輸入建號 (例:01805-000)" }
+    : { label: "對應地號", add: "＋ 地號", prompt: "輸入地號 (例:0242-0000)" };
+}
+
+function encParcelsChipsInnerHtml(value, labels) {
+  const L = labels || encLabels();
+  return (
+    encParcelTokens(value)
+      .map(
+        (p) =>
+          `<span class="wizard-confirm-chip encumbrance" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:5px">${escapeHtml(p)}<button type="button" class="enc-parcel-del" data-val="${escapeHtml(p)}" title="移除" style="border:none;background:none;color:inherit;cursor:pointer;font-size:1.05rem;line-height:1;padding:0">×</button></span>`
+      )
+      .join("") +
+    `<button type="button" class="btn-secondary btn-sm enc-parcels-add" style="padding:3px 9px">${L.add}</button>`
+  );
+}
+
+function encumbranceRowHtml(e, labels) {
+  const L = labels || encLabels();
   const ratio = parseDebtorRatio(e.debtor_info);
   return `
-    <div class="field-row">
-      <div class="field"><label>登記次序</label><input class="enc-order" value="${escapeHtml(e.registration_order)}" autocomplete="off"></div>
-      <div class="field"><label>對應地號</label><input class="enc-parcels" value="${escapeHtml(e.applies_to_parcels)}" autocomplete="off"></div>
-    </div>
-    <div class="field-row">
-      <div class="field">
-        <label>權利種類</label>
-        <select class="enc-type">${encumbranceRightTypeOptionsHtml(e.right_type || "")}</select>
-      </div>
-      <div class="field"><label>他項權利人</label><input class="enc-holder" value="${escapeHtml(e.right_holder)}" autocomplete="off"></div>
-    </div>
     <div class="field">
-      <label>債務額比例</label>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input class="enc-debtor-num" type="number" value="${escapeHtml(ratio.numerator)}" placeholder="分子" style="width:90px" autocomplete="off">
-        <span style="color:var(--text-muted)">/</span>
-        <input class="enc-debtor-den" type="number" value="${escapeHtml(ratio.denominator)}" placeholder="分母" style="width:90px" autocomplete="off">
+      <label>${L.label}</label>
+      <input type="hidden" class="enc-parcels" value="${escapeHtml(e.applies_to_parcels)}">
+      <div class="enc-parcels-chips" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px">${encParcelsChipsInnerHtml(e.applies_to_parcels, L)}</div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex:0 0 110px"><label>登記次序</label><input class="enc-order" value="${escapeHtml(e.registration_order)}" autocomplete="off"></div>
+      <div class="field" style="flex:1 1 150px">
+        <label>權利種類</label>
+        <select class="enc-type" style="width:100%">${encumbranceRightTypeOptionsHtml(e.right_type || "")}</select>
       </div>
     </div>
-    <button type="button" class="btn-link btn-sm remove-wizard-row-btn">刪除此筆</button>`;
+    <div class="field-row">
+      <div class="field" style="flex:1 1 200px"><label>他項權利人</label><input class="enc-holder" value="${escapeHtml(e.right_holder)}" autocomplete="off"></div>
+      <div class="field" style="flex:0 0 auto">
+        <label>債務額比例</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="enc-debtor-num" type="number" value="${escapeHtml(ratio.numerator)}" placeholder="分子" style="width:70px" autocomplete="off">
+          <span style="color:var(--text-muted)">/</span>
+          <input class="enc-debtor-den" type="number" value="${escapeHtml(ratio.denominator)}" placeholder="分母" style="width:70px" autocomplete="off">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:8px;border-top:1px dashed var(--border-light, #e2e8f0)">
+      <button type="button" class="btn-link btn-sm remove-wizard-row-btn" style="color:var(--danger)">刪除此筆</button>
+      <button type="button" class="btn-secondary btn-sm enc-insert-row-btn">+ 新增他項權利</button>
+    </div>`;
+}
+
+function readEncumbranceRowsRaw(containerId) {
+  return [...document.querySelectorAll(`#${containerId} .wizard-row`)].map((row) => {
+    const numerator = (row.querySelector(".enc-debtor-num")?.value || "").trim();
+    const denominator = (row.querySelector(".enc-debtor-den")?.value || "").trim();
+    return {
+      registration_order: (row.querySelector(".enc-order")?.value || "").trim(),
+      applies_to_parcels: (row.querySelector(".enc-parcels")?.value || "").trim(),
+      right_type: (row.querySelector(".enc-type")?.value || "").trim(),
+      right_holder: (row.querySelector(".enc-holder")?.value || "").trim(),
+      debtor_info: numerator && denominator ? `${denominator}分之${numerator}` : "",
+    };
+  });
 }
 
 function renderEncumbranceRows(containerId, list) {
@@ -1086,15 +1255,76 @@ function renderEncumbranceRows(containerId, list) {
     if (p) summaryEl.innerHTML = parcelSummaryHtml(p, "encumbrances");
   }
 
-  wrap.innerHTML = list.map((e) => `<div class="record-row wizard-row">${encumbranceRowHtml(e)}</div>`).join("");
+  if (!list.length) {
+    wrap.innerHTML = `<button type="button" class="btn-secondary btn-sm enc-add-first-btn">+ 新增他項權利</button>`;
+    wrap.querySelector(".enc-add-first-btn").addEventListener("click", () => {
+      list.push({ registration_order: "", applies_to_parcels: "", right_type: "", right_holder: "", debtor_info: "" });
+      renderEncumbranceRows(containerId, list);
+      document.querySelector(`#${containerId} .wizard-row .enc-order`)?.focus();
+    });
+    return;
+  }
+
+  const L = encLabels(containerId);
+  wrap.innerHTML = list
+    .map((e, i) => `<div class="record-row wizard-row" data-index="${i}">${encumbranceRowHtml(e, L)}</div>`)
+    .join("");
+
+  const rowIndex = (target) => {
+    const row = target.closest(".wizard-row");
+    return [...wrap.querySelectorAll(".wizard-row")].indexOf(row);
+  };
+
+  wrap.querySelectorAll(".enc-parcels-chips").forEach((chips) => {
+    const fieldEl = chips.parentElement;
+    const hidden = fieldEl.querySelector(".enc-parcels");
+    const redraw = () => { chips.innerHTML = encParcelsChipsInnerHtml(hidden.value, L); };
+    chips.addEventListener("click", (ev) => {
+      const del = ev.target.closest(".enc-parcel-del");
+      const add = ev.target.closest(".enc-parcels-add");
+      if (del) {
+        hidden.value = encParcelTokens(hidden.value).filter((t) => t !== del.dataset.val).join(" ");
+        redraw();
+      } else if (add) {
+        const v = (prompt(L.prompt) || "").trim();
+        if (!v) return;
+        const toks = encParcelTokens(hidden.value);
+        if (!toks.includes(v)) toks.push(v);
+        hidden.value = toks.join(" ");
+        redraw();
+      }
+    });
+  });
+
   wrap.querySelectorAll(".remove-wizard-row-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const row = e.target.closest(".wizard-row");
-      const rows = [...wrap.querySelectorAll(".wizard-row")];
-      const index = rows.indexOf(row);
-      if (index !== -1) {
-        list.splice(index, 1);
-        renderEncumbranceRows(containerId, list);
+      const index = rowIndex(e.target);
+      if (index === -1) return;
+      const edited = readEncumbranceRowsRaw(containerId);
+      edited.forEach((v, i) => { if (list[i]) list[i] = { ...list[i], ...v }; });
+      list.splice(index, 1);
+      renderEncumbranceRows(containerId, list);
+    });
+  });
+
+  wrap.querySelectorAll(".enc-insert-row-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const index = rowIndex(e.target);
+      if (index === -1) return;
+      const edited = readEncumbranceRowsRaw(containerId);
+      edited.forEach((v, i) => { if (list[i]) list[i] = { ...list[i], ...v }; });
+      list.splice(index + 1, 0, {
+        registration_order: "",
+        applies_to_parcels: (list[index] && list[index].applies_to_parcels) || "",
+        right_type: "",
+        right_holder: "",
+        debtor_info: "",
+      });
+      renderEncumbranceRows(containerId, list);
+      const inserted = wrap.querySelector(`.wizard-row[data-index="${index + 1}"]`);
+      if (inserted) {
+        inserted.scrollIntoView({ behavior: "smooth", block: "center" });
+        inserted.querySelector(".enc-order")?.focus();
       }
     });
   });
@@ -1135,7 +1365,7 @@ function advanceFromBuilding(idx) {
 }
 
 function renderWizardStepBuildingEditor() {
-  const substeps = [renderBuildingDescriptionSubStep, renderBuildingOwnersSubStep];
+  const substeps = [renderBuildingDescriptionSubStep, renderBuildingOwnersSubStep, renderBuildingEncumbranceSubStep];
   substeps[titleDeedWizard.buildingSubStep || 0](titleDeedWizard.activeIndex);
 }
 
@@ -1145,27 +1375,37 @@ function renderBuildingDescriptionSubStep(idx) {
   openModal(
     "掃描謄本匯入",
     `
-    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/2 建物標示部`)}
+    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/3 建物標示部`)}
     <div style="margin-bottom:10px">
       <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的建物謄本檔案並辨識</button>
     </div>
     <form id="wizard-step-form" autocomplete="off">
       <div class="field-row">
-        <div class="field"><label>建號</label><input name="building_number" value="${escapeHtml(b.building_number)}" autocomplete="off"></div>
-        <div class="field"><label>建號門牌</label><input name="building_address" value="${escapeHtml(b.building_address)}" autocomplete="off"></div>
-      </div>
-      <div class="field-row">
         <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(b.parcel_number)}" autocomplete="off"></div>
-        <div class="field"><label>層數</label><input name="total_floors" value="${escapeHtml(b.total_floors)}" autocomplete="off"></div>
+        <div class="field"><label>建號</label><input name="building_number" value="${escapeHtml(b.building_number)}" autocomplete="off"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>層次</label><input name="floor" value="${escapeHtml(b.floor)}" autocomplete="off"></div>
-        <div class="field"><label>建物總面積(㎡)</label><input name="total_area_sqm" value="${escapeHtml(b.total_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
+        <div class="field"><label>建號門牌</label><input name="building_address" value="${escapeHtml(b.building_address)}" autocomplete="off"></div>
+        <div class="field" style="flex:0 0 110px"><label>層數</label><input name="total_floors" value="${escapeHtml(b.total_floors)}" autocomplete="off"></div>
+        <div class="field" style="flex:0 0 150px"><label>建物總面積(㎡)</label><div id="wizard-total-area" style="${READONLY_BOX_STYLE}">0.00</div></div>
       </div>
-      <div class="field"><label>層次面積(㎡)</label><input name="floor_area_sqm" value="${escapeHtml(b.floor_area_sqm)}" type="number" step="0.01" autocomplete="off"></div>
+      <div class="field">
+        <label>層次</label>
+        <div id="wizard-floor-rows"></div>
+        <button type="button" class="btn-secondary btn-sm" id="wizard-flr-add" style="margin-top:2px">＋ 層次</button>
+      </div>
+      <div class="field">
+        <label>附屬建物</label>
+        <div id="wizard-accessory-rows"></div>
+        <button type="button" class="btn-secondary btn-sm" id="wizard-acc-add" style="margin-top:2px">＋ 附屬建物</button>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>附屬建物總面積(㎡)</label><div id="wizard-acc-total" style="${READONLY_BOX_STYLE}">0.00</div></div>
+        <div class="field"><label>權狀面積(㎡)</label><div id="wizard-license-area" style="${READONLY_BOX_STYLE}">0.00</div></div>
+      </div>
     </form>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
       ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
@@ -1177,16 +1417,98 @@ function renderBuildingDescriptionSubStep(idx) {
     openWizardSingleRecordRescan("building", b, () => renderBuildingDescriptionSubStep(idx));
   });
 
+  const form = document.getElementById("wizard-step-form");
+  const accWrap = document.getElementById("wizard-accessory-rows");
+  const flrWrap = document.getElementById("wizard-floor-rows");
+
+  const domAccessories = () =>
+    [...accWrap.querySelectorAll(".accessory-row")].map((r) => ({
+      use: (r.querySelector(".acc-use").value || "").trim(),
+      area_sqm: r.querySelector(".acc-area").value || "",
+    }));
+  const domFloors = () =>
+    [...flrWrap.querySelectorAll(".floor-row")].map((r) => ({
+      floor: (r.querySelector(".flr-name").value || "").trim(),
+      area_sqm: r.querySelector(".flr-area").value || "",
+    }));
+
+  const sumFloorArea = () =>
+    [...flrWrap.querySelectorAll(".flr-area")].reduce((s, i) => s + (Number(i.value) || 0), 0);
+  const sumAccessoryArea = () =>
+    [...accWrap.querySelectorAll(".acc-area")].reduce((s, i) => s + (Number(i.value) || 0), 0);
+  const updateComputed = () => {
+    const total = sumFloorArea();
+    const accSum = sumAccessoryArea();
+    document.getElementById("wizard-total-area").textContent = total.toFixed(2);
+    document.getElementById("wizard-acc-total").textContent = accSum.toFixed(2);
+    document.getElementById("wizard-license-area").textContent = (total + accSum).toFixed(2);
+  };
+
+  const drawAccessories = (list) => {
+    accWrap.innerHTML = (list.length ? list : [{}]).map(accessoryRowHtml).join("");
+    accWrap.querySelectorAll(".acc-del").forEach((btn, i) => {
+      btn.addEventListener("click", () => {
+        const cur = domAccessories();
+        cur.splice(i, 1);
+        drawAccessories(cur);
+      });
+    });
+    accWrap.querySelectorAll(".accessory-row").forEach((row) => {
+      const useSel = row.querySelector(".acc-use");
+      const areaIn = row.querySelector(".acc-area");
+      useSel.addEventListener("change", () => {
+        if (!useSel.value.trim()) areaIn.value = "0";
+        else if (areaIn.value === "0" || areaIn.value === "") areaIn.value = "";
+        updateComputed();
+      });
+    });
+    updateComputed();
+  };
+  const drawFloors = (list) => {
+    flrWrap.innerHTML = (list.length ? list : [{}]).map(floorRowHtml).join("");
+    flrWrap.querySelectorAll(".flr-del").forEach((btn, i) => {
+      btn.addEventListener("click", () => {
+        const cur = domFloors();
+        cur.splice(i, 1);
+        drawFloors(cur);
+      });
+    });
+    flrWrap.querySelectorAll(".flr-name").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        if (sel.value !== "__custom__") return;
+        const v = (prompt("輸入層次名稱 (例:八層、地下四層、屋頂突出物)") || "").trim();
+        const cur = domFloors();
+        const idx = [...flrWrap.querySelectorAll(".flr-name")].indexOf(sel);
+        if (cur[idx]) cur[idx].floor = v;
+        drawFloors(cur);
+      });
+    });
+    updateComputed();
+  };
+  drawFloors(b.floors || []);
+  drawAccessories(b.accessories || []);
+  document.getElementById("wizard-acc-add").addEventListener("click", () => drawAccessories([...domAccessories(), {}]));
+  document.getElementById("wizard-flr-add").addEventListener("click", () => drawFloors([...domFloors(), {}]));
+  form.addEventListener("input", (e) => {
+    if (e.target.classList.contains("area-live") || e.target.name === "total_area_sqm") updateComputed();
+  });
+
   const saveFields = () => {
-    const fd = new FormData(document.getElementById("wizard-step-form"));
+    const fd = new FormData(form);
+    const accs = domAccessories().filter((a) => a.use);
+    const flrs = domFloors().filter((f) => f.floor || String(f.area_sqm) !== "");
     Object.assign(b, {
       building_number: (fd.get("building_number") || "").trim(),
       building_address: (fd.get("building_address") || "").trim(),
       parcel_number: (fd.get("parcel_number") || "").trim(),
       total_floors: (fd.get("total_floors") || "").trim(),
-      floor: (fd.get("floor") || "").trim(),
-      total_area_sqm: fd.get("total_area_sqm") || "",
-      floor_area_sqm: fd.get("floor_area_sqm") || "",
+      total_area_sqm: flrs.length ? Number(sumFloorArea().toFixed(2)) : "",
+      floors: flrs,
+      floor: flrs[0] ? flrs[0].floor : "",
+      floor_area_sqm: flrs[0] ? flrs[0].area_sqm : "",
+      accessories: accs,
+      accessory_use: accs[0] ? accs[0].use : "",
+      accessory_area_sqm: accs[0] ? accs[0].area_sqm : "",
     });
   };
 
@@ -1208,26 +1530,31 @@ function renderBuildingDescriptionSubStep(idx) {
     buildings.splice(idx, 1);
     advanceFromBuilding(idx);
   });
+  document.getElementById("wizard-oneclick-btn").addEventListener("click", () => {
+    saveFields();
+    oneClickCreateTitleDeed();
+  });
 }
 
 function renderBuildingOwnersSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
-  const isLast = idx === buildings.length - 1 || titleDeedWizard.returnToConfirm;
   openModal(
     "掃描謄本匯入",
     `
-    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 2/2 建物所有權部`)}
-    <div class="helper-text" id="wizard-building-summary" style="margin-bottom:10px">${buildingSummaryHtml(b)}</div>
+    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 2/3 建物所有權部`)}
+    <div class="helper-text" id="wizard-building-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>
     <div id="wizard-building-owners" style="margin:6px 0"></div>
     <div class="modal-footer">
-      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
-      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆建號"}</button>
+      <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物他項權利部</button>
     </div>`,
     { width: "620px" }
   );
-  const areaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || null;
+  // 權狀面積 = 建物總面積 + 所有附屬建物面積 (falls back to 層次面積 only when總面積 missing)
+  const accArea = (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
+  const deedAreaSqm = (Number(b.total_area_sqm) || 0) + accArea;
+  const areaSqm = deedAreaSqm || Number(b.floor_area_sqm) || null;
   renderOwnerRowsContainer("wizard-building-owners", b.owners, "bo", areaSqm);
 
   document.getElementById("wizard-prev-item-btn").addEventListener("click", () => {
@@ -1237,6 +1564,39 @@ function renderBuildingOwnersSubStep(idx) {
   });
   document.getElementById("wizard-next-item-btn").addEventListener("click", () => {
     b.owners = readOwnerRowsContainer("wizard-building-owners", "bo", b.owners);
+    titleDeedWizard.buildingSubStep = 2;
+    renderWizardStep();
+  });
+}
+
+function renderBuildingEncumbranceSubStep(idx) {
+  const buildings = titleDeedWizard.data.buildings;
+  const b = buildings[idx];
+  const isLast = idx === buildings.length - 1 || titleDeedWizard.returnToConfirm;
+  if (!b.encumbrances) b.encumbrances = [];
+  openModal(
+    "掃描謄本匯入",
+    `
+    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 3/3 建物他項權利部`)}
+    <div class="helper-text" id="wizard-building-enc-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>
+    <div id="wizard-building-encumbrances" style="margin:6px 0"></div>
+    <div class="helper-text" style="margin-top:6px">若這筆建號沒有他項權利部,可直接略過。</div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
+      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆建號"}</button>
+    </div>`,
+    { width: "620px" }
+  );
+
+  renderEncumbranceRows("wizard-building-encumbrances", b.encumbrances);
+
+  document.getElementById("wizard-prev-item-btn").addEventListener("click", () => {
+    b.encumbrances = readEncumbranceRows("wizard-building-encumbrances");
+    titleDeedWizard.buildingSubStep = 1;
+    renderWizardStep();
+  });
+  document.getElementById("wizard-next-item-btn").addEventListener("click", () => {
+    b.encumbrances = readEncumbranceRows("wizard-building-encumbrances");
     advanceFromBuilding(idx + 1);
   });
 }
@@ -1347,6 +1707,13 @@ function renderWizardStepConfirm() {
           </div>
           ${shareSumWarningHtml(b.owners)}
           ${suspiciousOwnerWarningHtml(b.owners, b)}
+          ${(b.encumbrances || []).length
+          ? `<div class="wizard-confirm-card-row">
+                <span class="wizard-confirm-card-label">他項權利</span>
+                <div class="wizard-confirm-chip-list">${(b.encumbrances || []).map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}</div>
+              </div>`
+          : ""
+        }
         </div>`
       )
       .join("")}`
@@ -1374,9 +1741,11 @@ function renderWizardStepConfirm() {
     ? `<div class="wizard-confirm-section-title">地號 → 建號 關聯預覽</div>${relationRowsHtml}`
     : "";
 
-  const backendWarningBannerHtml = titleDeedWizard.warning
-    ? `<div class="final-banner danger" style="margin-bottom:12px;background:#fde8e8;color:#9b1c1c;border:1px solid #f8b4b4;font-weight:600">⚠️ 辨識提示與完整性警示：${escapeHtml(titleDeedWizard.warning)}</div>`
-    : "";
+  // 只顯示「真的出錯」的訊息(例如某幾頁辨識失敗);規則直讀/欄位可疑之類的軟性提示不再顯示。
+  const backendWarningBannerHtml =
+    titleDeedWizard.warning && /失敗|不完整/.test(titleDeedWizard.warning)
+      ? `<div class="final-banner danger" style="margin-bottom:12px;background:#fde8e8;color:#9b1c1c;border:1px solid #f8b4b4;font-weight:600">⚠️ ${escapeHtml(titleDeedWizard.warning)}</div>`
+      : "";
 
   const noDataWarningHtml = (!d.parcels.length && !d.buildings.length)
     ? `<div class="final-banner danger" style="margin-bottom:16px;padding:12px;background:#fff5f5;border:1px solid #f8b4b4;border-radius:8px">
@@ -1450,7 +1819,16 @@ async function findOrCreateLandownerByOwner(owner, createdCache) {
   const pid = state.currentProjectId;
   const idKey = (owner.id_number || "").trim();
   const nameKey = owner.owner_name.trim();
-  const cacheKey = idKey || `name:${nameKey}`;
+  const addrKey = (owner.address || "").trim();
+  // 第二類謄本的統一編號被遮罩(「A220*****1」)、姓名也可能被遮罩(「鄭＊＊」)。
+  // 遮罩後的統編/姓名不是唯一鍵 - 同姓氏的不同人會長得一模一樣,若拿來比對就會把
+  // 兩個不同的人併成同一位地主,清冊上後面那位就抓到前一位的統編/地址。
+  const masked = (s) => /[*＊○●·﹡﹒]/.test(s || "");
+  const idUsable = !!idKey && !masked(idKey);
+  const nameUsable = !!nameKey && !masked(nameKey);
+  // 快取鍵:能用真統編就用統編;否則姓名/統編/地址三者一起當鍵,
+  // 三者不全一致就視為不同人(各自新建)。
+  const cacheKey = idUsable ? idKey : `nm:${nameKey}|id:${idKey}|ad:${addrKey}`;
   if (createdCache.has(cacheKey)) return createdCache.get(cacheKey);
 
   // Match against every existing landowner, not just ones that already have this
@@ -1464,8 +1842,23 @@ async function findOrCreateLandownerByOwner(owner, createdCache) {
   // building-only row with no shared landowner_id).
   const existingList = state.projectCache[pid].landowners;
   let existing = null;
-  if (idKey) existing = existingList.find((o) => o.id_number && o.id_number === idKey);
-  if (!existing) existing = existingList.find((o) => o.name === nameKey);
+  if (idUsable) {
+    // 有完整統一編號:只用統編比對(最可靠)。
+    existing = existingList.find((o) => o.id_number && o.id_number === idKey);
+  } else if (nameUsable) {
+    // 沒有可用統編、但姓名沒被遮罩:比對「同名且同樣沒有統編」的既有地主。
+    existing = existingList.find((o) => o.name === nameKey && !o.id_number);
+  } else {
+    // 統編與姓名都被遮罩(「鄭＊＊ / A220*****1」):必須姓名、(遮罩)統編、戶籍地址
+    // 三者完全一致才視為同一人,否則一律新建 - 避免同姓氏的不同人互相抓資料。
+    existing = existingList.find(
+      (o) =>
+        o.name === nameKey &&
+        (o.id_number || "") === idKey &&
+        (o.address || "").trim() === addrKey &&
+        (idKey || addrKey) !== "",
+    );
+  }
 
   let landownerId;
   if (existing) {
@@ -1521,8 +1914,15 @@ async function submitTitleDeedWizardInner() {
   }
 
   const btn = document.getElementById("wizard-confirm-btn");
-  btn.disabled = true;
-  btn.textContent = "建立中...";
+  const totalUnits = d.parcels.length + d.buildings.length;
+  let doneUnits = 0;
+  const setProgress = () => {
+    if (btn) btn.textContent = `建立中… ${doneUnits}/${totalUnits}`;
+  };
+  if (btn) {
+    btn.disabled = true;
+    setProgress();
+  }
   const pid = state.currentProjectId;
   const createdCache = new Map();
   const landRecordIdByParcelOwner = new Map();
@@ -1564,6 +1964,7 @@ async function submitTitleDeedWizardInner() {
             section: p.section || null,
             subsection: p.subsection || null,
             registration_order: owner.registration_order || null,
+            related_encumbrance_orders: (owner.related_encumbrance_orders || "").trim() || null,
             total_area_sqm: Number(p.area_sqm) || 0,
             ownership_numerator: numerator,
             ownership_denominator: denominator,
@@ -1575,19 +1976,24 @@ async function submitTitleDeedWizardInner() {
         if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);
         landRecordIdByParcelOwner.set(parcelOwnerKey(p.parcel_number, ownerIdentityKey(owner)), created.id);
       }
-      for (const enc of p.encumbrances || []) {
-        if (!enc.right_type && !enc.right_holder) continue;
-        await api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc });
-      }
+      await Promise.all(
+        (p.encumbrances || [])
+          .filter((enc) => enc.right_type || enc.right_holder)
+          .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
+      );
+      doneUnits++;
+      setProgress();
     }
 
-    for (const enc of d.encumbrances) {
-      if (!enc.right_type && !enc.right_holder) continue;
-      await api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc });
-    }
+    await Promise.all(
+      d.encumbrances
+        .filter((enc) => enc.right_type || enc.right_holder)
+        .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
+    );
 
     for (const b of d.buildings) {
       const floorAreaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0;
+      const auxAreaSqm = (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
       for (const owner of b.owners) {
         if (!owner.owner_name) continue;
         const landownerId = await findOrCreateLandownerByOwner(owner, createdCache);
@@ -1596,12 +2002,19 @@ async function submitTitleDeedWizardInner() {
           body: {
             land_record_id: landRecordIdByParcelOwner.get(parcelOwnerKey(b.parcel_number, ownerIdentityKey(owner))) || null,
             building_number: b.building_number || null,
+            parcel_number: b.parcel_number || null,
             address: b.building_address || null,
             floor: b.floor || null,
             total_floors: b.total_floors || null,
+            floors_detail: (b.floors || [])
+              .filter((f) => f.floor || String(f.area_sqm) !== "")
+              .map((f) => ({ floor: f.floor || "", area_sqm: Number(f.area_sqm) || 0 })),
+            accessories_detail: (b.accessories || [])
+              .filter((a) => a.use || String(a.area_sqm) !== "")
+              .map((a) => ({ use: a.use || "", area_sqm: Number(a.area_sqm) || 0 })),
             registration_order: owner.registration_order || null,
             structure_area_sqm: floorAreaSqm,
-            auxiliary_area_sqm: 0,
+            auxiliary_area_sqm: auxAreaSqm,
             common_area_sqm: 0,
             ownership_numerator: owner.ownership_numerator || 1,
             ownership_denominator: owner.ownership_denominator || 1,
@@ -1610,6 +2023,13 @@ async function submitTitleDeedWizardInner() {
         });
         if (b._sourceOcrJobId) sourceOcrJobIds.add(b._sourceOcrJobId);
       }
+      await Promise.all(
+        (b.encumbrances || [])
+          .filter((enc) => enc.right_type || enc.right_holder)
+          .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
+      );
+      doneUnits++;
+      setProgress();
     }
 
     const hadParcels = d.parcels.length > 0;
@@ -1623,9 +2043,24 @@ async function submitTitleDeedWizardInner() {
     }
     if (hadParcels) offerBuildingImportFollowUp();
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "建立";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "建立";
+    }
   }
+}
+
+// Skip the per-地號/建號 walkthrough: create every record straight from the current
+// (AI-parsed + whatever's been edited so far) data.
+async function oneClickCreateTitleDeed() {
+  const d = titleDeedWizard && titleDeedWizard.data;
+  if (!d || (!d.parcels.length && !d.buildings.length)) {
+    toast("沒有可建立的資料", "error");
+    return;
+  }
+  // 略過逐筆檢視,直接跳到「確認建立」那一步(仍需在該畫面按「建立」)。
+  titleDeedWizard.step = 4;
+  renderWizardStep();
 }
 
 function offerBuildingImportFollowUp() {

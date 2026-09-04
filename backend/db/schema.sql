@@ -106,6 +106,8 @@ CREATE TABLE land_records (
     section VARCHAR(100),
     subsection VARCHAR(100),
     registration_order VARCHAR(50),
+    -- 「相關他項權利登記次序」from the 所有權部 (comma-separated); blank = owner has no 他項權利
+    related_encumbrance_orders VARCHAR(255) NULL,
     total_area_sqm DECIMAL(12,2) NOT NULL DEFAULT 0,
     ownership_numerator INT NOT NULL DEFAULT 1,
     ownership_denominator INT NOT NULL DEFAULT 1,

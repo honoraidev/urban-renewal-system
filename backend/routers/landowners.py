@@ -3,7 +3,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
-from deps import get_current_user, require_project_editor, require_project_viewer
+from deps import EDIT_ROLES, LANDOWNER_ROLE, get_current_user, require_project_editor, require_project_viewer
 from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
 from models.contact_log import ContactLog
@@ -56,9 +56,34 @@ def _compute_building_totals(record: BuildingRecord) -> None:
 @router.get("", response_model=list[LandownerRead])
 def list_landowners(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_viewer),
 ):
-    return db.scalars(_with_records(select(Landowner).where(Landowner.project_id == project.id))).all()
+    stmt = _with_records(select(Landowner).where(Landowner.project_id == project.id))
+    if current_user.role == LANDOWNER_ROLE:
+        # 地主帳號:清單只回自己被綁定的那些列
+        stmt = stmt.where(Landowner.user_id == current_user.id)
+    return db.scalars(stmt).all()
+
+
+def _assert_landowner_self(current_user: User, landowner: Landowner) -> None:
+    """地主帳號只能存取 user_id = 自己 的那筆 Landowner;其他角色不受限。"""
+    if current_user.role == LANDOWNER_ROLE and landowner.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your own record")
+
+
+@router.get("/account-options")
+def list_landowner_account_options(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_editor),
+):
+    """給「編輯地主 → 綁定登入帳號」下拉用:所有 role=landowner 且啟用中的使用者。"""
+    rows = db.scalars(
+        select(User)
+        .where(User.role == LANDOWNER_ROLE, User.is_active == True)  # noqa: E712
+        .order_by(User.display_name)
+    ).all()
+    return [{"id": u.id, "display_name": u.display_name, "username": u.username} for u in rows]
 
 
 @router.post("", response_model=LandownerRead, status_code=status.HTTP_201_CREATED)
@@ -100,9 +125,12 @@ def create_landowner(
 def get_landowner(
     landowner_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_viewer),
 ):
-    return get_landowner_or_404(db, project.id, landowner_id)
+    landowner = get_landowner_or_404(db, project.id, landowner_id)
+    _assert_landowner_self(current_user, landowner)
+    return landowner
 
 
 @router.patch("/{landowner_id}", response_model=LandownerRead)
@@ -193,16 +221,41 @@ def create_land_record(
     return record
 
 
+_LTT_FIELDS = {
+    "ltt_original_value",
+    "ltt_original_value_period",
+    "ltt_current_value",
+    "ltt_holding_years",
+    "ltt_cpi_index",
+}
+
+
 @router.patch("/{landowner_id}/land-records/{record_id}", response_model=LandRecordRead)
 def update_land_record(
     landowner_id: int,
     record_id: int,
     payload: LandRecordUpdate,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_editor),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_viewer),
 ):
     record = get_land_record_or_404(db, project.id, landowner_id, record_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+
+    if current_user.role in EDIT_ROLES:
+        pass  # 一般編輯者:全欄位可改
+    elif current_user.role == LANDOWNER_ROLE:
+        # 地主帳號:只能改「自己那筆」的土增稅試算欄位,其他一律擋
+        owner = db.get(Landowner, landowner_id)
+        if owner is None or owner.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your own record")
+        bad = set(data) - _LTT_FIELDS
+        if bad:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"地主帳號僅能修改土增稅試算欄位")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+
+    for field, value in data.items():
         setattr(record, field, value)
     db.commit()
     db.refresh(record)

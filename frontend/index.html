@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260827_5">
+  <link rel="stylesheet" href="style.css?v=20260901_13">
 </head>
 
 <body>
@@ -38,6 +38,7 @@
           <label>密碼</label>
           <input type="password" id="login-password" autocomplete="current-password" required>
         </div>
+        <div id="login-error" class="login-error hidden"></div>
         <button type="submit" class="btn-primary" style="width:100%">登入</button>
       </form>
     </div>
@@ -65,6 +66,8 @@
   <!-- ============ APP ============ -->
   <div id="app" class="hidden">
     <div class="app-layout">
+      <button id="sb-toggle" type="button" aria-label="開啟選單" aria-expanded="false"><span class="sb-toggle-icon" aria-hidden="true">☰</span><span class="brand-dot"><img src="data:image/png;base64,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" alt="丞石建築"></span><span class="brand-text">都更管理系統</span></button>
+      <div id="sb-backdrop"></div>
       <nav class="sb">
         <div class="navbar">
           <div class="brand">
@@ -92,6 +95,7 @@
           <div class="avatar-menu">
             <button class="avatar-btn" id="avatar-btn" type="button" aria-haspopup="true" aria-expanded="false"
               aria-label="帳號選單"></button>
+            <span class="nav-user-name" id="nav-user-name"></span>
             <div class="avatar-dropdown hidden" id="avatar-dropdown">
               <div class="avatar-dropdown-header">
                 <div class="avatar-dropdown-name" id="dropdown-user-name"></div>
@@ -102,6 +106,8 @@
                   style="margin-right:6px">👥</span>使用者管理</button>
               <button class="avatar-dropdown-item nav-link hidden" data-nav="loginlogs" id="nav-loginlogs-btn"><span
                   style="margin-right:6px">📜</span>登入紀錄</button>
+              <button class="avatar-dropdown-item" id="nav-profile-btn"><span
+                  style="margin-right:6px">⚙️</span>編輯個人資料</button>
               <div class="avatar-dropdown-divider"></div>
               <button class="avatar-dropdown-item danger" id="logout-btn"><span
                   style="margin-right:6px">🚪</span>登出</button>
@@ -326,9 +332,11 @@
                   <div style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
                     依條件OCR資料自動匯出土地清冊，支援Excel格式匯出，可手動修正後使用。</div>
                 </div>
-                <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
                   <span
-                    style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;background:#fef3c7;color:#d97706;border:1px solid #fde68a">即將推出</span>
+                    style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">已上線</span>
+                  <button type="button" class="btn-primary btn-sm" id="btn-run-roster"
+                    style="background:#0d9488;border-color:#0d9488;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600">使用說明</button>
                 </div>
               </div>
 
@@ -412,23 +420,23 @@
   </div>
 
   <script src="js/state.js?v=20260826_1"></script>
-  <script src="js/utils.js?v=20260827_3"></script>
-  <script src="js/api.js?v=20260825_7"></script>
-  <script src="js/modals.js?v=20260825_7"></script>
-  <script src="js/auth.js?v=20260825_7"></script>
-  <script src="js/dashboard.js?v=20260825_7"></script>
-  <script src="js/sop.js?v=20260825_7"></script>
-  <script src="js/ocr_wizard.js?v=20260827_5"></script>
-  <script src="js/landowners.js?v=20260825_7"></script>
-  <script src="js/documents.js?v=20260825_7"></script>
-  <script src="js/contacts.js?v=20260825_7"></script>
+  <script src="js/utils.js?v=20260901_1"></script>
+  <script src="js/api.js?v=20260901_1"></script>
+  <script src="js/modals.js?v=20260831_1"></script>
+  <script src="js/auth.js?v=20260901_6"></script>
+  <script src="js/dashboard.js?v=20260901_1"></script>
+  <script src="js/sop.js?v=20260901_2"></script>
+  <script src="js/ocr_wizard.js?v=20260901_2"></script>
+  <script src="js/landowners.js?v=20260901_8"></script>
+  <script src="js/documents.js?v=20260901_1"></script>
+  <script src="js/contacts.js?v=20260901_7"></script>
   <script src="js/encumbrances.js?v=20260825_7"></script>
   <script src="js/expenses.js?v=20260825_7"></script>
   <script src="js/members.js?v=20260826_3"></script>
   <script src="js/resources.js?v=20260825_7"></script>
-  <script src="js/buildingview.js?v=20260825_7"></script>
-  <script src="js/land_value_tax.js?v=20260827_1"></script>
-  <script src="js/main.js?v=20260825_7"></script>
+  <script src="js/buildingview.js?v=20260901_2"></script>
+  <script src="js/land_value_tax.js?v=20260901_4"></script>
+  <script src="js/main.js?v=20260901_4"></script>
 </body>
 
 </html>

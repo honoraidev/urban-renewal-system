@@ -24,7 +24,9 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
     throw err;
   }
 
-  if (res.status === 401) {
+  // 401 於已登入狀態 = token 逾期 → 強制登出;登入 API 自己的 401(帳號/密碼錯誤)
+  // 不走這條,交給呼叫端顯示專屬訊息。
+  if (res.status === 401 && path !== "/auth/login") {
     if (!silent) toast("登入已逾期,請重新登入", "error");
     doLogout();
     throw new Error("unauthorized");
