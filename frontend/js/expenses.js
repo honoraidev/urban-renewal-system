@@ -335,41 +335,50 @@ function wireInvoiceScanner(formId) {
   const hasJsQR = typeof jsQR === "function";
   const canScan = detector || hasJsQR;
   let canvas = null;
+  let frames = 0;
 
-  // 從 <video> 或 ImageBitmap 取得發票資料(先 BarcodeDetector,再 jsQR)。
+  // 回傳 { raw, parsed } - raw 是掃到的字串(即使不是發票也給,方便判斷)。
   async function scanFrom(source, w, h) {
+    let raw = null;
     if (detector) {
       try {
         const codes = await detector.detect(source);
-        const p = codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean);
-        if (p) return p;
+        if (codes && codes.length) raw = codes[0].rawValue;
       } catch (e) {}
     }
-    if (hasJsQR && w && h) {
+    if (!raw && hasJsQR && w && h) {
+      // 大圖縮到寬度 1600 以內,jsQR 才跑得動
+      const scale = w > 1600 ? 1600 / w : 1;
+      const cw = Math.round(w * scale);
+      const ch = Math.round(h * scale);
       if (!canvas) canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = cw;
+      canvas.height = ch;
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(source, 0, 0, w, h);
+      ctx.drawImage(source, 0, 0, cw, ch);
       try {
-        const img = ctx.getImageData(0, 0, w, h);
-        const r = jsQR(img.data, w, h);
-        if (r && r.data) return parseTwInvoice(r.data);
+        const img = ctx.getImageData(0, 0, cw, ch);
+        const r = jsQR(img.data, cw, ch, { inversionAttempts: "attemptBoth" });
+        if (r && r.data) raw = r.data;
       } catch (e) {}
     }
-    return null;
+    return { raw, parsed: raw ? parseTwInvoice(raw) : null };
   }
 
-  const finish = (parsed, quiet) => {
-    if (!parsed) {
-      if (!quiet) toast("沒有辨識到發票 QR / 條碼,請對準或換張清楚的照片", "error");
-      return false;
+  const finish = (res, quiet) => {
+    if (res && res.parsed) {
+      applyInvoiceToForm(formId, res.parsed);
+      stopInvoiceScan();
+      panel.classList.add("hidden");
+      toast("已帶入發票資料，請確認金額與日期", "success");
+      return true;
     }
-    applyInvoiceToForm(formId, parsed);
-    stopInvoiceScan();
-    panel.classList.add("hidden");
-    toast("已帶入發票資料，請確認金額與日期", "success");
-    return true;
+    if (res && res.raw) {
+      hint.textContent = "掃到的不是電子發票 QR:" + String(res.raw).slice(0, 60);
+    } else if (!quiet) {
+      toast("沒有辨識到 QR,請拍近一點、只框住 QR", "error");
+    }
+    return false;
   };
 
   btn.addEventListener("click", async () => {
@@ -383,26 +392,34 @@ function wireInvoiceScanner(formId) {
       video.classList.add("hidden");
       return;
     }
-    hint.innerHTML = "對準發票<strong>左方 QR code</strong>。";
+    hint.innerHTML = "對準發票<strong>左方 QR code</strong>(填滿畫面一半以上)。";
     try {
       _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
       });
       video.srcObject = _invoiceScanStream;
       video.classList.remove("hidden");
       video.setAttribute("playsinline", "");
       await video.play();
+      frames = 0;
       const tick = async () => {
         if (!_invoiceScanStream) return;
         if (video.readyState >= 2 && video.videoWidth) {
-          const p = await scanFrom(video, video.videoWidth, video.videoHeight);
-          if (p && finish(p)) return;
+          frames++;
+          if (frames % 20 === 0) hint.textContent = `掃描中…(${frames} 幀,對準 QR)`;
+          const res = await scanFrom(video, video.videoWidth, video.videoHeight);
+          if (res.parsed && finish(res)) return;
+          if (res.raw) finish(res); // 顯示掃到什麼,但繼續掃
         }
         _invoiceScanRAF = requestAnimationFrame(tick);
       };
       _invoiceScanRAF = requestAnimationFrame(tick);
     } catch (e) {
-      hint.textContent = "無法開啟相機(需 HTTPS 並允許權限),請用下方「上傳發票照片」。";
+      hint.textContent = "無法開啟相機(需 HTTPS 並允許權限):" + (e && e.name || e);
       video.classList.add("hidden");
     }
   });
