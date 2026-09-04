@@ -12,6 +12,8 @@ from models.ocr import OcrJob, OcrMatchResult
 from models.ocr_job_document import OcrJobDocument
 from models.encumbrance import Encumbrance
 from models.login_log import LoginLog
+from models.activity_log import ActivityLog
+from models.calendar_event import CalendarEvent
 from models.company_document import CompanyDocument
 from models.regulation import Regulation
 from models.website import Website
@@ -35,6 +37,8 @@ __all__ = [
     "OcrJobDocument",
     "Encumbrance",
     "LoginLog",
+    "ActivityLog",
+    "CalendarEvent",
     "CompanyDocument",
     "Regulation",
     "Website",

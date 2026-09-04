@@ -1,149 +1,278 @@
 "use strict";
 
+const myWorkState = { month: null, data: null };
+
+function myWorkEnsureStyle() {
+  if (document.getElementById("mywork-style")) return;
+  const s = document.createElement("style");
+  s.id = "mywork-style";
+  s.textContent = `
+    .mw-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap:20px; align-items:start; }
+    @media (max-width: 980px){ .mw-grid { grid-template-columns: 1fr; } }
+    .mw-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
+    .mw-card h3 { margin:0 0 12px; font-size:15px; }
+    .mw-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .mw-cal-head .t { font-weight:700; font-size:15px; }
+    .mw-cal-nav button { border:1px solid var(--border,#e5e7eb); background:transparent; border-radius:8px; width:30px; height:30px; cursor:pointer; }
+    .mw-cal { display:grid; grid-template-columns: repeat(7,1fr); gap:4px; }
+    .mw-cal .dow { text-align:center; font-size:12px; color:var(--text-muted,#6b7280); padding:4px 0; }
+    .mw-day { min-height:74px; border:1px solid var(--border,#eee); border-radius:8px; padding:4px 5px; cursor:pointer; background:var(--bg,#fff); overflow:hidden; }
+    .mw-day:hover { border-color:var(--brand,#0d9488); }
+    .mw-day.other { opacity:.35; }
+    .mw-day.today { border-color:var(--brand,#0d9488); box-shadow:0 0 0 1px var(--brand,#0d9488) inset; }
+    .mw-day .dn { font-size:12px; font-weight:600; }
+    .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .mw-ev.proj { background:#dcfce7; color:#15803d; }
+    .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
+    .mw-tile { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:14px; background:var(--bg-card,#fff); margin-bottom:16px; }
+    .mw-tile .num { font-size:30px; font-weight:800; color:var(--brand,#0d9488); line-height:1; }
+    .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:10px; }
+    .mw-act:last-child { border-bottom:none; }
+    .mw-act .tm { color:var(--text-muted,#6b7280); white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+    .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
+  `;
+  document.head.appendChild(s);
+}
+
 async function goToMyWork() {
   setActiveNav("mywork");
   showView("view-mywork");
+  myWorkEnsureStyle();
+  if (!myWorkState.month) {
+    const d = new Date();
+    myWorkState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
   await loadMyWork();
 }
 
-function myWorkFollowUpTierClass(days) {
-  if (days == null || days >= 30) return "tier-urgent";
-  if (days >= 14) return "tier-warning";
-  return "tier-reminder";
-}
-
 async function loadMyWork() {
-  const statRow = document.getElementById("mywork-stat-row");
   const body = document.getElementById("mywork-body");
-  if (statRow) statRow.innerHTML = `<div class="empty-state">載入中...</div>`;
-  if (body) body.innerHTML = "";
-
-  let data;
+  if (body && !myWorkState.data) body.innerHTML = `<div class="empty-state">載入中...</div>`;
   try {
-    data = await api("/dashboard/my-work");
+    myWorkState.data = await api(`/dashboard/my-work?month=${myWorkState.month}`);
   } catch (e) {
-    if (statRow) statRow.innerHTML = "";
     if (body) body.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
   }
+  renderMyWork();
+}
 
-  const s = data.stats;
-  if (statRow) {
-    statRow.innerHTML = `
-      <div class="dashboard-stat-item accent-brand">
-        <div class="dashboard-stat-icon">📁</div>
-        <div><div class="dashboard-stat-num">${s.project_count}</div><div class="dashboard-stat-lbl">負責案件</div></div>
-      </div>
-      <div class="dashboard-stat-item accent-danger">
-        <div class="dashboard-stat-icon">🔴</div>
-        <div><div class="dashboard-stat-num">${s.urgent_count}</div><div class="dashboard-stat-lbl">緊急待聯絡</div></div>
-      </div>
-      <div class="dashboard-stat-item accent-info">
-        <div class="dashboard-stat-icon">🟡</div>
-        <div><div class="dashboard-stat-num">${s.warning_count}</div><div class="dashboard-stat-lbl">警示待聯絡</div></div>
-      </div>
-      <div class="dashboard-stat-item accent-success">
-        <div class="dashboard-stat-icon">🟢</div>
-        <div><div class="dashboard-stat-num">${s.reminder_count}</div><div class="dashboard-stat-lbl">提醒待聯絡</div></div>
-      </div>
-      <div class="dashboard-stat-item accent-brand">
-        <div class="dashboard-stat-icon">🤖</div>
-        <div><div class="dashboard-stat-num">${s.pending_ai_review_count}</div><div class="dashboard-stat-lbl">待檢視 OCR</div></div>
-      </div>`;
+function myWorkMonthShift(delta) {
+  const [y, m] = myWorkState.month.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  myWorkState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  loadMyWork();
+}
+
+function renderMyWork() {
+  const body = document.getElementById("mywork-body");
+  if (!body) return;
+  const d = myWorkState.data;
+
+  const eventsByDate = {};
+  (d.calendar_events || []).forEach((e) => {
+    (eventsByDate[e.event_date] = eventsByDate[e.event_date] || []).push(e);
+  });
+
+  const [y, m] = myWorkState.month.split("-").map(Number);
+  const first = new Date(y, m - 1, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const todayIso = d.today;
+
+  const cells = [];
+  for (let i = 0; i < startDow; i++) {
+    const dd = new Date(y, m - 1, 1 - (startDow - i));
+    cells.push({ date: dd, other: true });
+  }
+  for (let day = 1; day <= daysInMonth; day++) cells.push({ date: new Date(y, m - 1, day), other: false });
+  while (cells.length % 7 !== 0) {
+    const last = cells[cells.length - 1].date;
+    cells.push({ date: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1), other: true });
   }
 
-  if (!body) return;
+  const iso = (dt) =>
+    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 
-  const projectsHtml = (data.projects || []).length
-    ? `<div class="project-grid">
-        ${data.projects
-          .map(
-            (p) => `
-          <div class="card project-card" data-mywork-project="${p.id}" style="cursor:pointer">
-            <div class="project-card-top">
-              <h3 style="flex:1">${escapeHtml(p.name)}</h3>
-              ${p.city ? `<span class="mini-badge">${escapeHtml(p.city)}</span>` : ""}
-            </div>
-            <div class="project-card-stage">
-              <div class="project-stage-bar">
-                ${Array.from({ length: 10 }, (_, i) => `<span class="${i <= p.current_stage ? "filled" : ""}"></span>`).join("")}
-              </div>
-              <div class="helper-text">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
-            </div>
-            <div class="project-card-rings">
-              ${projectRingHtml(p.headcount_ratio, "人數同意")}
-              ${projectRingHtml(p.land_share_ratio, "土地同意")}
-              ${projectRingHtml(p.building_share_ratio, "建物同意")}
-            </div>
-            <div class="project-card-tiers">
-              <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>
-              <span class="tier-badge tier-warning">▲ 警示:${p.warning_count}</span>
-              <span class="tier-badge tier-urgent">▲ 緊急:${p.urgent_count}</span>
-            </div>
-          </div>`
-          )
-          .join("")}
-      </div>`
-    : `<div class="empty-state">目前沒有負責的案件</div>`;
+  const dow = ["日", "一", "二", "三", "四", "五", "六"];
+  const calCells = cells
+    .map((c) => {
+      const key = iso(c.date);
+      const evs = eventsByDate[key] || [];
+      const shown = evs
+        .slice(0, 2)
+        .map(
+          (e) =>
+            `<div class="mw-ev ${e.project_id ? "proj" : ""}" title="${escapeHtml(e.content)}">${escapeHtml(
+              e.content
+            )}</div>`
+        )
+        .join("");
+      const more = evs.length > 2 ? `<div class="mw-more">+${evs.length - 2}</div>` : "";
+      return `<div class="mw-day ${c.other ? "other" : ""} ${key === todayIso ? "today" : ""}" data-mw-day="${key}">
+        <div class="dn">${c.date.getDate()}</div>${shown}${more}
+      </div>`;
+    })
+    .join("");
 
-  const followUpsHtml = (data.follow_ups || []).length
-    ? `<div class="table-wrap">
-        <table>
-          <thead><tr><th>案件</th><th>地主</th><th>電話</th><th>聯絡狀態</th><th>最近聯絡</th><th>逾期天數</th></tr></thead>
-          <tbody>
-            ${data.follow_ups
-              .map(
-                (f) => `
-              <tr data-mywork-project="${f.project_id}" style="cursor:pointer">
-                <td>${escapeHtml(f.project_name)}</td>
-                <td>${escapeHtml(f.landowner_name)}</td>
-                <td>${escapeHtml(f.phone || "-")}</td>
-                <td>${escapeHtml(CONTACT_STATUS_LABEL[f.contact_status] || f.contact_status)}</td>
-                <td>${f.last_contact_date ? fmtDateTime(f.last_contact_date) : "從未聯絡"}</td>
-                <td><span class="tier-badge ${myWorkFollowUpTierClass(f.days_since_last_contact)}">${
-                  f.days_since_last_contact == null ? "—" : f.days_since_last_contact + " 天"
-                }</span></td>
-              </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>`
-    : `<div class="empty-state">沒有待聯絡的地主 🎉</div>`;
+  const followList = (d.today_followups || [])
+    .map((f) => `<div>· ${escapeHtml(f.landowner_name)}<span class="helper-text"> — ${escapeHtml(f.project_name)}</span></div>`)
+    .join("") || `<div class="helper-text">今天還沒有聯絡紀錄</div>`;
 
-  const recentHtml = (data.recent_contacts || []).length
-    ? `<div class="table-wrap">
-        <table>
-          <thead><tr><th>時間</th><th>案件</th><th>地主</th><th>方式</th><th>結果</th><th>備註</th></tr></thead>
-          <tbody>
-            ${data.recent_contacts
-              .map(
-                (c) => `
-              <tr data-mywork-project="${c.project_id}" style="cursor:pointer">
-                <td>${fmtDateTime(c.contact_date)}</td>
-                <td>${escapeHtml(c.project_name)}</td>
-                <td>${escapeHtml(c.landowner_name)}</td>
-                <td>${escapeHtml(CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method)}</td>
-                <td>${escapeHtml(CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result)}</td>
-                <td>${escapeHtml(c.notes || "-")}</td>
-              </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>`
-    : `<div class="empty-state">近期沒有你的聯絡紀錄</div>`;
+  const actList = (d.today_activities || []).length
+    ? d.today_activities
+        .map((a) => {
+          const t = new Date(/[Zz]|[+-]\d\d:?\d\d$/.test(a.created_at) ? a.created_at : a.created_at + "Z");
+          const hm = isNaN(t) ? "" : `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+          return `<div class="mw-act"><span class="tm">${hm}</span><span>${escapeHtml(a.action)}${
+            a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
+          }</span></div>`;
+        })
+        .join("")
+    : `<div class="helper-text">今天還沒有操作紀錄</div>`;
 
   body.innerHTML = `
-    <h3 style="margin:24px 0 10px">待聯絡地主(依逾期程度排序,最多 30 筆)</h3>
-    ${followUpsHtml}
-    <h3 style="margin:28px 0 10px">我負責的案件</h3>
-    ${projectsHtml}
-    <h3 style="margin:28px 0 10px">我的近期聯絡紀錄</h3>
-    ${recentHtml}`;
+    <div class="mw-grid">
+      <div class="mw-card">
+        <div class="mw-cal-head">
+          <div class="t">${y} 年 ${m} 月</div>
+          <div class="mw-cal-nav">
+            <button type="button" id="mw-prev">‹</button>
+            <button type="button" id="mw-today-btn" title="回到本月">·</button>
+            <button type="button" id="mw-next">›</button>
+          </div>
+        </div>
+        <div class="mw-cal">
+          ${dow.map((x) => `<div class="dow">${x}</div>`).join("")}
+          ${calCells}
+        </div>
+        <p class="helper-text" style="margin:10px 0 0">點任一天新增/編輯待辦。<span style="color:#15803d">■</span> 案件共用 <span style="color:#075985">■</span> 個人</p>
+      </div>
+      <div>
+        <div class="mw-tile">
+          <div class="num">${d.today_followup_count}</div>
+          <div>
+            <div style="font-weight:700">今日跟進地主</div>
+            <div class="helper-text">今天你新增聯絡紀錄的地主人數</div>
+          </div>
+        </div>
+        <div class="mw-card" style="margin-bottom:16px">
+          <h3>今日跟進名單</h3>
+          ${followList}
+        </div>
+        <div class="mw-card">
+          <h3>今日操作紀錄</h3>
+          ${actList}
+        </div>
+      </div>
+    </div>`;
 
-  body.querySelectorAll("[data-mywork-project]").forEach((el) => {
-    el.addEventListener("click", () => openProject(Number(el.dataset.myworkProject)));
+  document.getElementById("mw-prev").onclick = () => myWorkMonthShift(-1);
+  document.getElementById("mw-next").onclick = () => myWorkMonthShift(1);
+  document.getElementById("mw-today-btn").onclick = () => {
+    const n = new Date();
+    myWorkState.month = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+    loadMyWork();
+  };
+  body.querySelectorAll("[data-mw-day]").forEach((el) => {
+    el.addEventListener("click", () => openMyWorkDay(el.dataset.mwDay, eventsByDate[el.dataset.mwDay] || []));
+  });
+}
+
+function openMyWorkDay(dateIso, events) {
+  const opts = myWorkState.data.project_options || [];
+  const projectSelect = `
+    <select id="mw-ev-project" style="margin-bottom:8px">
+      <option value="">個人（只有自己看得到）</option>
+      ${opts.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}（案件成員共用）</option>`).join("")}
+    </select>`;
+
+  const existing = events
+    .map(
+      (e) => `
+    <div class="mw-daydetail-ev" data-ev-id="${e.id}">
+      <div class="mw-ev-content" style="white-space:pre-wrap">${escapeHtml(e.content)}</div>
+      <div class="meta">
+        <span>${e.project_name ? "🟢 " + escapeHtml(e.project_name) : "🔵 個人"}</span>
+        ${e.created_by_name ? `<span>· ${escapeHtml(e.created_by_name)}</span>` : ""}
+        ${
+          e.can_edit
+            ? `<a href="#" data-mw-edit="${e.id}">編輯</a><a href="#" data-mw-del="${e.id}" style="color:var(--danger,#dc2626)">刪除</a>`
+            : ""
+        }
+      </div>
+    </div>`
+    )
+    .join("");
+
+  openModal(
+    `${dateIso} 待辦`,
+    `
+    <div>
+      ${existing || `<p class="helper-text" style="margin-top:0">這天還沒有待辦</p>`}
+      <hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:12px 0">
+      <div class="field">
+        <label>新增待辦</label>
+        ${projectSelect}
+        <textarea id="mw-ev-text" rows="3" placeholder="這天要做什麼..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">關閉</button>
+        <button type="button" class="btn-primary" id="mw-ev-add">新增</button>
+      </div>
+    </div>`
+  );
+
+  document.getElementById("mw-ev-add").onclick = async () => {
+    const content = document.getElementById("mw-ev-text").value.trim();
+    if (!content) return;
+    const pidRaw = document.getElementById("mw-ev-project").value;
+    try {
+      await api("/dashboard/calendar", {
+        method: "POST",
+        body: { event_date: dateIso, content, project_id: pidRaw ? Number(pidRaw) : null },
+      });
+      toast("已新增", "success");
+      closeModal();
+      await loadMyWork();
+    } catch (e) {}
+  };
+
+  document.querySelectorAll("[data-mw-del]").forEach((a) => {
+    a.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (!confirm("確定刪除這則待辦?")) return;
+      try {
+        await api(`/dashboard/calendar/${a.dataset.mwDel}`, { method: "DELETE" });
+        toast("已刪除", "success");
+        closeModal();
+        await loadMyWork();
+      } catch (err) {}
+    });
+  });
+
+  document.querySelectorAll("[data-mw-edit]").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const wrap = a.closest(".mw-daydetail-ev");
+      const cur = events.find((x) => String(x.id) === a.dataset.mwEdit);
+      const box = wrap.querySelector(".mw-ev-content");
+      box.innerHTML = `<textarea rows="3" style="width:100%">${escapeHtml(cur.content)}</textarea>
+        <div style="margin-top:6px;display:flex;gap:8px">
+          <button type="button" class="btn-primary btn-sm" data-mw-save="${cur.id}">儲存</button>
+        </div>`;
+      box.querySelector("[data-mw-save]").addEventListener("click", async () => {
+        const val = box.querySelector("textarea").value.trim();
+        if (!val) return;
+        try {
+          await api(`/dashboard/calendar/${cur.id}`, { method: "PATCH", body: { content: val } });
+          toast("已更新", "success");
+          closeModal();
+          await loadMyWork();
+        } catch (err) {}
+      });
+    });
   });
 }
 
