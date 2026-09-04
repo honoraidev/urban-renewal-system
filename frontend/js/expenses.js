@@ -313,6 +313,8 @@ function applyInvoiceToForm(formId, parsed) {
 }
 
 // 綁定「掃描發票」按鈕。formId = 該表單 id,用來回填欄位。
+// 優先用瀏覽器內建 BarcodeDetector(可讀 QR + 一維條碼);不支援時(iOS Safari、
+// Firefox)退回打包在專案內的 jsQR,只讀 QR,但電子發票主要就是 QR。
 function wireInvoiceScanner(formId) {
   const btn = document.getElementById("scan-invoice-btn");
   const panel = document.getElementById("invoice-scan-panel");
@@ -322,25 +324,52 @@ function wireInvoiceScanner(formId) {
   const hint = document.getElementById("invoice-scan-hint");
   if (!btn || !panel) return;
 
-  const supported = "BarcodeDetector" in window;
   let detector = null;
-  if (supported) {
+  if ("BarcodeDetector" in window) {
     try {
       detector = new BarcodeDetector({ formats: ["qr_code", "code_39"] });
     } catch (e) {
       detector = null;
     }
   }
+  const hasJsQR = typeof jsQR === "function";
+  const canScan = detector || hasJsQR;
+  let canvas = null;
 
-  const finish = (parsed) => {
+  // 從 <video> 或 ImageBitmap 取得發票資料(先 BarcodeDetector,再 jsQR)。
+  async function scanFrom(source, w, h) {
+    if (detector) {
+      try {
+        const codes = await detector.detect(source);
+        const p = codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean);
+        if (p) return p;
+      } catch (e) {}
+    }
+    if (hasJsQR && w && h) {
+      if (!canvas) canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(source, 0, 0, w, h);
+      try {
+        const img = ctx.getImageData(0, 0, w, h);
+        const r = jsQR(img.data, w, h);
+        if (r && r.data) return parseTwInvoice(r.data);
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  const finish = (parsed, quiet) => {
     if (!parsed) {
-      toast("這張圖片沒有辨識到發票 QR / 條碼", "error");
-      return;
+      if (!quiet) toast("沒有辨識到發票 QR / 條碼,請對準或換張清楚的照片", "error");
+      return false;
     }
     applyInvoiceToForm(formId, parsed);
     stopInvoiceScan();
     panel.classList.add("hidden");
     toast("已帶入發票資料，請確認金額與日期", "success");
+    return true;
   };
 
   btn.addEventListener("click", async () => {
@@ -349,54 +378,57 @@ function wireInvoiceScanner(formId) {
       stopInvoiceScan();
       return;
     }
-    if (!detector) {
-      hint.textContent = "此瀏覽器不支援即時掃描，請改用 Chrome / Edge，或用下方「上傳發票照片」。";
+    if (!canScan) {
+      hint.textContent = "此瀏覽器無法掃描,請手動輸入。";
       video.classList.add("hidden");
       return;
     }
+    hint.innerHTML = "對準發票<strong>左方 QR code</strong>。";
     try {
       _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
       video.srcObject = _invoiceScanStream;
       video.classList.remove("hidden");
+      video.setAttribute("playsinline", "");
       await video.play();
       const tick = async () => {
         if (!_invoiceScanStream) return;
-        try {
-          const codes = await detector.detect(video);
-          const parsed = codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean);
-          if (parsed) return finish(parsed);
-        } catch (e) {}
+        if (video.readyState >= 2 && video.videoWidth) {
+          const p = await scanFrom(video, video.videoWidth, video.videoHeight);
+          if (p && finish(p)) return;
+        }
         _invoiceScanRAF = requestAnimationFrame(tick);
       };
       _invoiceScanRAF = requestAnimationFrame(tick);
     } catch (e) {
-      hint.textContent = "無法開啟相機，請用下方「上傳發票照片」。";
+      hint.textContent = "無法開啟相機(需 HTTPS 並允許權限),請用下方「上傳發票照片」。";
       video.classList.add("hidden");
     }
   });
 
-  if (closeBtn) closeBtn.addEventListener("click", () => {
-    stopInvoiceScan();
-    panel.classList.add("hidden");
-  });
+  if (closeBtn)
+    closeBtn.addEventListener("click", () => {
+      stopInvoiceScan();
+      panel.classList.add("hidden");
+    });
 
-  if (fileInput) fileInput.addEventListener("change", async () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (!f) return;
-    if (!detector) {
-      toast("此瀏覽器不支援條碼辨識，請改用 Chrome / Edge", "error");
-      return;
-    }
-    try {
-      const bitmap = await createImageBitmap(f);
-      const codes = await detector.detect(bitmap);
-      finish(codes.map((c) => parseTwInvoice(c.rawValue)).find(Boolean));
-    } catch (e) {
-      toast("圖片辨識失敗", "error");
-    }
-  });
+  if (fileInput)
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      if (!canScan) {
+        toast("此瀏覽器無法辨識條碼,請手動輸入", "error");
+        return;
+      }
+      try {
+        const bitmap = await createImageBitmap(f);
+        finish(await scanFrom(bitmap, bitmap.width, bitmap.height));
+        if (bitmap.close) bitmap.close();
+      } catch (e) {
+        toast("圖片辨識失敗", "error");
+      }
+    });
 }
 
 const INVOICE_SCAN_HTML = `
