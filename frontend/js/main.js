@@ -3,6 +3,7 @@
 function bootstrapApp() {
   initAuth();
   initDashboard();
+  initMyWork();
   initOcrWizard();
   initMembers();
   initResources();
@@ -30,6 +31,7 @@ function bootstrapApp() {
     btn.addEventListener("click", () => {
       closeAvatarDropdown();
       const target = btn.dataset.nav;
+      if (target === "mywork") goToMyWork();
       if (target === "dashboard") goToDashboard();
       if (target === "tools") goToTools();
       if (target === "users") goToUsers();

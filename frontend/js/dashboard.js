@@ -44,6 +44,7 @@ function alertTiers(alerts) {
 function showView(id) {
   [
     "view-dashboard",
+    "view-mywork",
     "view-new-project",
     "view-project-detail",
     "view-ocr-batch",

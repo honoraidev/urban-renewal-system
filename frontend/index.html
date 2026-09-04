@@ -79,6 +79,7 @@
         </div>
         <div class="sb-sec">總覽</div>
         <div class="nav-links">
+          <button class="nav-link" data-nav="mywork"><span style="margin-right:6px">🗂️</span>個人工作看板</button>
           <button class="nav-link" data-nav="dashboard"><span style="margin-right:6px">📊</span>都更案件進度總覽</button>
         </div>
         <div class="sb-sec">案件管理</div>
@@ -139,6 +140,19 @@
               </div>
             </div>
             <div id="project-grid" class="project-grid"></div>
+          </div>
+
+          <!-- 個人工作看板 -->
+          <div id="view-mywork" class="hidden">
+            <div class="page-header">
+              <div>
+                <h2>個人工作看板</h2>
+                <p class="helper-text" style="margin:2px 0 0">彙整你負責案件的待聯絡地主、進度與近期聯絡紀錄</p>
+              </div>
+              <button class="btn-secondary btn-sm" id="mywork-refresh-btn" type="button">🔄 重新整理</button>
+            </div>
+            <div class="dashboard-stat-row" id="mywork-stat-row"></div>
+            <div id="mywork-body"></div>
           </div>
 
           <!-- New project: built as a modal in goToNewProject() (dashboard.js) -->
@@ -425,6 +439,7 @@
   <script src="js/modals.js?v=20260831_1"></script>
   <script src="js/auth.js?v=20260901_6"></script>
   <script src="js/dashboard.js?v=20260901_1"></script>
+  <script src="js/mywork.js?v=20260904_1"></script>
   <script src="js/sop.js?v=20260901_2"></script>
   <script src="js/ocr_wizard.js?v=20260901_2"></script>
   <script src="js/landowners.js?v=20260901_8"></script>
