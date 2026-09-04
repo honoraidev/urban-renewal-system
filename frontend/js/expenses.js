@@ -340,12 +340,20 @@ function wireInvoiceScanner(formId) {
   let canvas = null;
   let frames = 0;
 
+  // 電子發票有「左 QR(有號碼/金額)」和「右 QR(以 ** 開頭,只有品項)」。
+  // 從一堆候選字串裡挑出左 QR。
+  const isLeftQr = (s) => /^[A-Z]{2}\d{8}/.test(s || "");
+  function pickBest(cands) {
+    const list = cands.filter(Boolean);
+    return list.find(isLeftQr) || list.find((s) => !s.startsWith("**")) || list[0] || null;
+  }
+
   // 一律先把(可裁切的)區域畫到 canvas,再交給 BarcodeDetector / jsQR。
-  // crop = {sx,sy,sw,sh} 只掃該區域(定位框內),大幅提高發票小 QR 的成功率。
+  // 因為兩個 QR 常同時入框,會分別掃「整框 / 左半 / 右半」再挑出左 QR。
   async function scanFrom(source, w, h, crop) {
     const r = crop || { sx: 0, sy: 0, sw: w, sh: h };
     if (!r.sw || !r.sh) return { raw: null, parsed: null };
-    const maxW = 1600;
+    const maxW = 1400;
     const scale = r.sw > maxW ? maxW / r.sw : 1;
     const cw = Math.max(1, Math.round(r.sw * scale));
     const ch = Math.max(1, Math.round(r.sh * scale));
@@ -358,20 +366,42 @@ function wireInvoiceScanner(formId) {
     } catch (e) {
       return { raw: null, parsed: null };
     }
-    let raw = null;
+
+    const cands = [];
     if (detector) {
       try {
         const codes = await detector.detect(canvas);
-        if (codes && codes.length) raw = codes[0].rawValue;
+        (codes || []).forEach((c) => cands.push(c.rawValue));
       } catch (e) {}
     }
-    if (!raw && hasJsQR) {
-      try {
-        const img = ctx.getImageData(0, 0, cw, ch);
-        const q = jsQR(img.data, cw, ch, { inversionAttempts: "attemptBoth" });
-        if (q && q.data) raw = q.data;
-      } catch (e) {}
+    if (hasJsQR && !cands.some(isLeftQr)) {
+      const full = ctx.getImageData(0, 0, cw, ch);
+      const regions = [
+        [0, 0, cw, ch],
+        [0, 0, Math.round(cw * 0.6), ch], // 左半(左 QR 較可能在這)
+        [Math.round(cw * 0.4), 0, Math.round(cw * 0.6), ch], // 右半
+      ];
+      for (const [rx, ry, rw, rh] of regions) {
+        try {
+          let data = full.data;
+          let dw = cw;
+          let dh = ch;
+          if (rx || ry || rw !== cw || rh !== ch) {
+            const sub = ctx.getImageData(rx, ry, rw, rh);
+            data = sub.data;
+            dw = rw;
+            dh = rh;
+          }
+          const q = jsQR(data, dw, dh, { inversionAttempts: "attemptBoth" });
+          if (q && q.data) {
+            cands.push(q.data);
+            if (isLeftQr(q.data)) break;
+          }
+        } catch (e) {}
+      }
     }
+
+    const raw = pickBest(cands);
     return { raw, parsed: raw ? parseTwInvoice(raw) : null };
   }
 
@@ -384,7 +414,9 @@ function wireInvoiceScanner(formId) {
       return true;
     }
     if (res && res.raw) {
-      hint.textContent = "掃到的不是電子發票 QR:" + String(res.raw).slice(0, 60);
+      hint.textContent = String(res.raw).startsWith("**")
+        ? "掃到的是右邊那個 QR,請把框對準發票「左邊」的 QR(有號碼那個)"
+        : "掃到的不是電子發票 QR:" + String(res.raw).slice(0, 40);
     } else if (!quiet) {
       toast("沒有辨識到 QR,請拍近一點、只框住 QR", "error");
     }
