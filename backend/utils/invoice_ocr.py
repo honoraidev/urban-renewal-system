@@ -149,18 +149,31 @@ def _extract_via_gemini(image_bytes: bytes) -> dict:
             "responseSchema": _GEMINI_SCHEMA,
         },
     }
-    try:
-        resp = httpx.post(url, json=payload, timeout=60.0)
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text
+    import time
+
+    resp = None
+    last_detail = ""
+    for attempt in range(3):
         try:
-            detail = exc.response.json().get("error", {}).get("message", detail)
-        except ValueError:
-            pass
-        raise InvoiceOcrError(f"呼叫 Gemini 失敗:{detail}") from exc
-    except httpx.HTTPError as exc:
-        raise InvoiceOcrError(f"呼叫 Gemini 失敗:{exc}") from exc
+            resp = httpx.post(url, json=payload, timeout=60.0)
+            if resp.status_code in (429, 500, 503):
+                last_detail = f"HTTP {resp.status_code}(服務忙碌)"
+                time.sleep(2 * (attempt + 1))
+                continue
+            resp.raise_for_status()
+            break
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            try:
+                detail = exc.response.json().get("error", {}).get("message", detail)
+            except ValueError:
+                pass
+            raise InvoiceOcrError(f"呼叫 Gemini 失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last_detail = str(exc)
+            time.sleep(1.5)
+    if resp is None or resp.status_code >= 400:
+        raise InvoiceOcrError(f"Gemini 暫時無法使用,請稍後再試({last_detail})")
 
     try:
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
