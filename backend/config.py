@@ -61,9 +61,10 @@ class Settings(BaseSettings):
     OCR_REMOTE_URL: str = ""
     OCR_REMOTE_SECRET: str = ""
 
-    # OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)或 "google_vision"
-    # (Google Cloud Vision DOCUMENT_TEXT_DETECTION,繁中很準;免費 1000 units/月,
-    #  超過約 $1.5/1000)。設 google_vision 就完全不跑本機 OCR。
+    # OCR 文字辨識引擎:"local"(RapidOCR/PaddleOCR,預設)、"google_vision"
+    # (Cloud Vision,需 GOOGLE_VISION_API_KEY)或 "remote"(逐頁轉發到 OCR_REMOTE_URL
+    # 的 ocr_service /ocr,通常跑在有 GPU 的機器)。電子謄本(有文字層 PDF)直接讀文字層,
+    # 不受此設定影響。
     OCR_TEXT_PROVIDER: str = "local"
     GOOGLE_VISION_API_KEY: str = ""
 

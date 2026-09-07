@@ -45,7 +45,7 @@ services:
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
-      # OCR 文字辨識:local(預設,RapidOCR)/ google_vision
+      # OCR 文字辨識:local(預設)/ google_vision / remote
       OCR_TEXT_PROVIDER: ${OCR_TEXT_PROVIDER:-local}
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY}
       # 謄本結構化擷取:openai(預設)/ gemini / qwen / bedrock

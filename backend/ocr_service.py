@@ -16,6 +16,9 @@ import io
 import os
 from contextlib import asynccontextmanager
 
+# 這支服務就是「本機 OCR」的提供者本身,絕不能再往外轉發(否則無限迴圈)。
+os.environ["OCR_FORCE_LOCAL"] = "1"
+
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile, status
 
 from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
@@ -69,3 +72,26 @@ async def invoice(
         return extract_invoice_fields(content, file.content_type)
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@app.post("/ocr")
+async def ocr_page(
+    file: UploadFile = File(...),
+    high_accuracy: bool = False,
+    x_ocr_secret: str | None = Header(default=None),
+):
+    """收一張(已 render 成圖的)謄本頁面,用本機 OCR 引擎(GPU 上是 PaddleOCR)回
+    純文字 + 平均信心。給 NAS 的 extract_title_deed 逐頁轉發用。"""
+    _check(x_ocr_secret)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="沒有收到影像")
+    from starlette.concurrency import run_in_threadpool
+
+    from utils.ocr import _ocr_page_text
+
+    try:
+        text, conf = await run_in_threadpool(_ocr_page_text, content, high_accuracy)
+        return {"text": text or "", "confidence": conf}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"OCR 失敗:{exc}") from exc

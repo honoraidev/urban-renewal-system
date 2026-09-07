@@ -2580,12 +2580,48 @@ def _parse_paddle_ocr_result(res) -> tuple[list[str], list[float]]:
 
 
 def _ocr_text_provider() -> str:
-    """OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)或 "google_vision"
-    (Google Cloud Vision DOCUMENT_TEXT_DETECTION,需 GOOGLE_VISION_API_KEY)。"""
-    if (getattr(settings, "OCR_TEXT_PROVIDER", "local") or "").lower() == "google_vision" \
-            and getattr(settings, "GOOGLE_VISION_API_KEY", ""):
+    """OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)、"google_vision"
+    (Cloud Vision,需 GOOGLE_VISION_API_KEY)或 "remote"(轉發到 OCR_REMOTE_URL 的
+    ocr_service /ocr,通常跑在有 GPU 的機器上)。OCR_FORCE_LOCAL=1 一律 local(給
+    ocr_service 自己用,避免無限轉發)。"""
+    if os.environ.get("OCR_FORCE_LOCAL") == "1":
+        return "local"
+    p = (getattr(settings, "OCR_TEXT_PROVIDER", "local") or "").lower()
+    if p == "google_vision" and getattr(settings, "GOOGLE_VISION_API_KEY", ""):
         return "google_vision"
+    if p == "remote" and getattr(settings, "OCR_REMOTE_URL", ""):
+        return "remote"
     return "local"
+
+
+def _remote_ocr_text(image_bytes: bytes, high_accuracy: bool = False) -> tuple[str, float | None]:
+    """把單頁影像 POST 到 ocr_service 的 /ocr,回 (文字, 信心)。"""
+    url = settings.OCR_REMOTE_URL.rstrip("/") + "/ocr"
+    last: OcrError | None = None
+    for attempt in (1, 2, 3):
+        try:
+            r = httpx.post(
+                url,
+                params={"high_accuracy": str(bool(high_accuracy)).lower()},
+                files={"file": ("page.png", image_bytes, "image/png")},
+                headers={"X-OCR-Secret": settings.OCR_REMOTE_SECRET},
+                timeout=120.0,
+            )
+            r.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:200]
+            if exc.response.status_code in (429, 500, 502, 503) and attempt < 3:
+                last = OcrError(f"遠端 OCR 失敗:{detail}")
+                time.sleep(2.0 * attempt)
+                continue
+            raise OcrError(f"遠端 OCR 失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last = OcrError(f"遠端 OCR 連線失敗:{exc}")
+            time.sleep(2.0)
+            continue
+        data = r.json()
+        return _normalize_ocr_text(data.get("text") or ""), data.get("confidence")
+    raise last or OcrError("遠端 OCR 失敗")
 
 
 def _google_vision_text(image_bytes: bytes) -> tuple[str, float | None]:
@@ -2641,11 +2677,17 @@ def _google_vision_text(image_bytes: bytes) -> tuple[str, float | None]:
 
 def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, float | None]:
     """Run the OCR engine on one rendered deed page and return text + mean confidence."""
-    if _ocr_text_provider() == "google_vision":
+    _prov = _ocr_text_provider()
+    if _prov == "google_vision":
         try:
             return _google_vision_text(content)
         except OcrError as exc:
             print(f"[_ocr_page_text] Google Vision failed, falling back to local OCR: {exc}", flush=True)
+    elif _prov == "remote":
+        try:
+            return _remote_ocr_text(content, high_accuracy)
+        except OcrError as exc:
+            print(f"[_ocr_page_text] 遠端 OCR failed, falling back to local OCR: {exc}", flush=True)
 
     img = Image.open(io.BytesIO(content)).convert("RGB")
     img_array = np.array(img)
