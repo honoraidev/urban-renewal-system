@@ -2067,11 +2067,9 @@ async function submitTitleDeedWizardInner() {
     closeModal();
     toast("謄本資料已匯入", "success");
     titleDeedWizard = null;
+    // 匯入後留在原本的分頁(清冊會自動刷新),不再自動跳到 OCR 批次詳情頁。
+    // 要看批次可從「文件」分頁的謄本匯入批次進入。
     await renderTab(state.activeTab);
-    if (sourceOcrJobIds.size === 1) {
-      await goToOcrBatch([...sourceOcrJobIds][0]);
-      return;
-    }
     if (hadParcels) offerBuildingImportFollowUp();
   } catch (err) {
     if (btn) {
