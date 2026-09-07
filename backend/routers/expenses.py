@@ -1,8 +1,10 @@
 import anyio
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from config import settings
 from database import get_db
 from deps import get_current_user, require_manager, require_project_editor, require_project_staff_viewer
 from models.expense import Expense, ExpenseCategory
@@ -46,12 +48,31 @@ async def scan_invoice(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案過大(上限 20MB)")
     try:
-        # 阻塞的重運算丟到 threadpool(限流 + 逾時),以免卡住 event loop / 觸發閘道逾時
-        with anyio.fail_after(_SCAN_INVOICE_TIMEOUT_S):
-            return await anyio.to_thread.run_sync(
-                extract_invoice_fields, content, file.content_type,
-                abandon_on_cancel=True, limiter=_SCAN_INVOICE_LIMITER,
-            )
+        async with _SCAN_INVOICE_LIMITER:
+            with anyio.fail_after(_SCAN_INVOICE_TIMEOUT_S):
+                if settings.OCR_REMOTE_URL:
+                    # 轉發到遠端 OCR 服務(ocr_service.py,跑在有 GPU 的機器上)。NAS
+                    # 本機完全不跑 PaddleOCR。httpx 是 async,不佔 threadpool。
+                    async with httpx.AsyncClient(timeout=_SCAN_INVOICE_TIMEOUT_S) as client:
+                        resp = await client.post(
+                            settings.OCR_REMOTE_URL.rstrip("/") + "/invoice",
+                            files={"file": (
+                                file.filename or "invoice",
+                                content,
+                                file.content_type or "application/octet-stream",
+                            )},
+                            headers={"X-OCR-Secret": settings.OCR_REMOTE_SECRET},
+                        )
+                    if resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+                        raise InvoiceOcrError(resp.json().get("detail") or "辨識失敗")
+                    resp.raise_for_status()
+                    return resp.json()
+                # 沒設遠端:本機跑(受 INVOICE_ALLOW_LOCAL_OCR 保護)。阻塞運算丟
+                # threadpool;外層 limiter 已限制併發,這裡不再另外傳 limiter。
+                return await anyio.to_thread.run_sync(
+                    extract_invoice_fields, content, file.content_type,
+                    abandon_on_cancel=True,
+                )
     except TimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -59,6 +80,12 @@ async def scan_invoice(
         ) from exc
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        print(f"[scan-invoice] 遠端 OCR 服務錯誤:{exc!r}", flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="遠端辨識服務暫時無法使用,請稍後再試或手動輸入",
+        ) from exc
     except Exception as exc:  # noqa: BLE001 - 回一個看得懂的訊息,別讓前端只看到 "Error"
         print("[scan-invoice] 未預期錯誤:\n" + traceback.format_exc(), flush=True)
         raise HTTPException(

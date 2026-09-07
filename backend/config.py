@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # 低記憶體機器(正式環境 NAS)會 OOM 打死整個服務。只有有 GPU 的機器才設 true。
     INVOICE_ALLOW_LOCAL_OCR: bool = False
 
+    # 遠端 OCR 服務(ocr_service.py,跑在有 GPU 的機器上)。設了 URL 之後,NAS 上的
+    # 發票辨識會把影像轉發過去、完全不在本機跑 OCR。空字串 = 不用遠端。
+    # 例:OCR_REMOTE_URL=http://gpu-box.tailXXXX.ts.net:8090
+    OCR_REMOTE_URL: str = ""
+    OCR_REMOTE_SECRET: str = ""
+
     # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
     OCR_PAGES_PER_CHUNK: int = 4
     OCR_CHUNK_OVERLAP: int = 2

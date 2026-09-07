@@ -42,6 +42,9 @@ services:
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
+      # 發票辨識轉發到有 GPU 的機器上的 ocr_service.py(NAS 本機不跑 PaddleOCR)
+      OCR_REMOTE_URL: ${OCR_REMOTE_URL}
+      OCR_REMOTE_SECRET: ${OCR_REMOTE_SECRET}
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
