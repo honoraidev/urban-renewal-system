@@ -28,6 +28,10 @@ async def scan_invoice(
     project: Project = Depends(require_project_editor),
 ):
     """把一張發票照片交給 AI 辨識,回傳可帶入支出表單的欄位(不寫入資料庫)。"""
+    import traceback
+
+    from starlette.concurrency import run_in_threadpool
+
     from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
 
     content = await file.read()
@@ -36,9 +40,16 @@ async def scan_invoice(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案過大(上限 20MB)")
     try:
-        return extract_invoice_fields(content, file.content_type)
+        # PaddleOCR 是阻塞的重運算,丟到 threadpool 以免卡住 event loop / 觸發閘道逾時
+        return await run_in_threadpool(extract_invoice_fields, content, file.content_type)
     except InvoiceOcrError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - 回一個看得懂的訊息,別讓前端只看到 "Error"
+        print("[scan-invoice] 未預期錯誤:\n" + traceback.format_exc(), flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"辨識時發生錯誤:{type(exc).__name__}: {exc}",
+        ) from exc
 
 
 def get_expense_or_404(db: Session, project_id: int, expense_id: int) -> Expense:
