@@ -638,6 +638,7 @@ async function renderTab(tab) {
   const renderers = {
     sop: renderSopTab,
     landowners: renderRegistrationsTab,
+    integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,
     relations: renderRelationsTab,
     contacts: renderContactsTab,

@@ -47,6 +47,90 @@ async function renderRegistrationsTab(el) {
   await renderLandownersTypeTab(document.getElementById("reg-sub-content"), mode);
 }
 
+// 「整合清冊」:一列 = 一位地主,土地 + 建物資料合併呈現。純檢視。
+function _shortDoorAddr(addr) {
+  if (!addr) return "";
+  let s = String(addr).trim();
+  // 「前面地址都不用」:切掉最後一個 路/街/大道/道/段 以前的所有內容,保留巷弄號樓
+  const idx = Math.max(s.lastIndexOf("大道"), s.lastIndexOf("路"), s.lastIndexOf("街"), s.lastIndexOf("道"), s.lastIndexOf("段"));
+  if (idx >= 0) s = s.slice(idx + (s.substr(idx, 2) === "大道" ? 2 : 1));
+  // 若還殘留「里/鄰」前綴,從第一個數字開始
+  const dm = s.match(/[0-9０-９].*$/);
+  return (dm ? dm[0] : s).trim();
+}
+
+async function renderIntegratedRosterTab(el) {
+  const pid = state.currentProjectId;
+  const [owners, alerts, contactSummary] = await Promise.all([
+    api(`/projects/${pid}/landowners`),
+    api(`/projects/${pid}/alerts`, { silent: true }).catch(() => []),
+    api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
+  ]);
+  const contactBy = new Map(contactSummary.map((c) => [c.landowner_id, c]));
+  const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
+
+  const fmt2 = (n) => (n || n === 0 ? Number(n).toFixed(2) : "-");
+  const uniqJoin = (arr) => [...new Set(arr.filter(Boolean))].join("、");
+
+  el.innerHTML = `
+    <div class="section-toolbar">
+      <h3>整合清冊 (${rows.length})</h3>
+      <input type="text" id="integrated-search" class="search-input-pill" style="max-width:280px" placeholder="搜尋姓名 / 地號 / 門牌...">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>編號</th><th>姓名</th><th>狀態</th><th>地號</th><th>建物門牌</th>
+          <th>土地(㎡)</th><th>土地(坪)</th><th>建物(㎡)</th><th>建物(坪)</th><th>拜訪紀錄</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map((o, i) => {
+    const lr = o.land_records || [];
+    const br = o.building_records || [];
+    const landSqm = lr.reduce((s, r) => s + (Number(r.owned_area_sqm) ||
+      (Number(r.total_area_sqm || 0) * (r.ownership_numerator || 1)) / (r.ownership_denominator || 1)), 0);
+    const bldSqm = br.reduce((s, r) => s + (Number(r.total_area_sqm || 0) * (r.ownership_numerator || 1)) / (r.ownership_denominator || 1), 0);
+    const c = contactBy.get(o.id);
+    const visit = c && c.last_contact_date
+      ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
+      : `<span style="color:var(--text-muted)">尚無</span>`;
+    const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
+    return `<tr data-hay="${escapeHtml(hay)}">
+            <td>${String(i + 1).padStart(3, "0")}</td>
+            <td>${escapeHtml(o.name)}</td>
+            <td><span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span></td>
+            <td>${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
+            <td>${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
+            <td>${fmt2(landSqm)}</td>
+            <td>${fmt2(landSqm * 0.3025)}</td>
+            <td>${fmt2(bldSqm)}</td>
+            <td>${fmt2(bldSqm * 0.3025)}</td>
+            <td>${visit} <button type="button" class="btn-link btn-sm" data-goto-contact="${o.id}">聯繫</button></td>
+          </tr>`;
+  }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+
+  const search = document.getElementById("integrated-search");
+  if (search) {
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      el.querySelectorAll("tbody tr").forEach((tr) => {
+        tr.classList.toggle("hidden", q && !(tr.dataset.hay || "").includes(q));
+      });
+    });
+  }
+  el.querySelectorAll("[data-goto-contact]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      state.selectedContactLandownerId = Number(b.dataset.gotoContact);
+      state.activeTab = "contacts";
+      document.querySelectorAll(".tab-btn[data-tab]").forEach((x) => x.classList.toggle("active", x.dataset.tab === "contacts"));
+      await renderTab("contacts");
+    });
+  });
+}
+
 async function renderLandownersTypeTab(el, type) {
   const pid = state.currentProjectId;
   const isLand = type === "land";
