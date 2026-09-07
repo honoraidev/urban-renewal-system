@@ -12,7 +12,9 @@ NAS 上的主後端(main:app)設了 OCR_REMOTE_URL 之後,會把發票影像 POS
 建議用 Tailscale IP 對外(--host 100.x.x.x),或至少確定 8090 只開在內網 / tailnet。
 """
 
+import io
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile, status
 
@@ -20,7 +22,27 @@ from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
 
 _SECRET = os.environ.get("OCR_SERVICE_SECRET", "")
 
-app = FastAPI(title="Urban Renewal OCR Service", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 開機就把 OCR 引擎(PaddleOCR / RapidOCR)初始化完 — 這步在有 GPU 的機器上
+    # 第一次要 1~3 分鐘。放在啟動時做,之後每個請求才會是秒級,不會卡住 NAS 的逾時。
+    try:
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 64), "white").save(buf, format="PNG")
+        try:
+            extract_invoice_fields(buf.getvalue(), "image/png")
+        except InvoiceOcrError:
+            pass  # 空白圖必然辨識失敗 — 我們只是要觸發引擎載入
+        print("[ocr_service] OCR engine warmed up.", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ocr_service] warmup skipped: {exc!r}", flush=True)
+    yield
+
+
+app = FastAPI(title="Urban Renewal OCR Service", version="1.0.0", lifespan=lifespan)
 
 
 def _check(secret: str | None) -> None:
