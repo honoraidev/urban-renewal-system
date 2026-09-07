@@ -2866,10 +2866,13 @@ def _ocr_chunk_pages(
 
 
 def _extraction_provider() -> str:
-    """謄本結構化擷取用哪個 LLM。OCR_LLM_PROVIDER=gemini 且有 GEMINI_API_KEY -> gemini,
-    否則 openai。OCR 文字辨識(PaddleOCR/RapidOCR)不受影響。"""
-    if (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower() == "gemini" and settings.GEMINI_API_KEY:
+    """謄本結構化擷取用哪個 LLM。OCR_LLM_PROVIDER + 對應金鑰決定;缺金鑰就退回 openai。
+    OCR 文字辨識(PaddleOCR/RapidOCR)不受影響。"""
+    p = (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower()
+    if p == "gemini" and settings.GEMINI_API_KEY:
         return "gemini"
+    if p == "bedrock" and getattr(settings, "AWS_BEARER_TOKEN_BEDROCK", ""):
+        return "bedrock"
     return "openai"
 
 
@@ -2991,6 +2994,88 @@ def _call_gemini_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[
     raise last_error or OcrError("呼叫 Gemini 服務失敗")
 
 
+def _call_bedrock_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[dict, float]:
+    """Amazon Bedrock(Converse API,tool use 逼結構化輸出)。用 AWS_BEARER_TOKEN_BEDROCK
+    做 Authorization: Bearer,不需要 SigV4 / boto3。預設模型 = Claude 3.5 Sonnet。"""
+    content: list = [{"text": f"{prompt}\n\n{pages_block}"}]
+    for i, (img_bytes, _mime) in enumerate(page_images or []):
+        if not img_bytes:
+            continue
+        try:
+            vision_bytes = downscale_for_preview(img_bytes, max_dimension=2200, quality=82)
+        except Exception:
+            vision_bytes = img_bytes
+        content.append({"text": f"----- 第 {i + 1} 頁原始影像(以此為準,OCR 文字僅供參考)-----"})
+        content.append({
+            "image": {
+                "format": "jpeg",
+                "source": {"bytes": base64.b64encode(vision_bytes).decode("ascii")},
+            }
+        })
+    body = {
+        "messages": [{"role": "user", "content": content}],
+        "inferenceConfig": {"temperature": 0, "maxTokens": 8192},
+        "toolConfig": {
+            "tools": [{
+                "toolSpec": {
+                    "name": "title_deed_extraction",
+                    "description": "回傳台灣土地/建物登記謄本的結構化擷取結果",
+                    "inputSchema": {"json": RESPONSE_SCHEMA},
+                }
+            }],
+            "toolChoice": {"tool": {"name": "title_deed_extraction"}},
+        },
+    }
+    region = getattr(settings, "BEDROCK_REGION", "") or "us-east-1"
+    model = getattr(settings, "BEDROCK_MODEL", "") or "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    url = f"https://bedrock-runtime.{region}.amazonaws.com/model/{model}/converse"
+    headers = {
+        "Authorization": f"Bearer {settings.AWS_BEARER_TOKEN_BEDROCK}",
+        "Content-Type": "application/json",
+    }
+    started_at = time.time()
+    last_error: OcrError | None = None
+    for attempt in (1, 2, 3):
+        try:
+            resp = httpx.post(url, headers=headers, json=body, timeout=OCR_OPENAI_TIMEOUT_SECONDS)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            try:
+                detail = exc.response.json().get("message", detail)
+            except ValueError:
+                pass
+            if exc.response.status_code in (429, 500, 503) and attempt < 3:
+                last_error = OcrError(f"呼叫 Bedrock 服務失敗:{detail}")
+                time.sleep(5.0 * attempt)
+                continue
+            raise OcrError(f"呼叫 Bedrock 服務失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last_error = OcrError(f"呼叫 Bedrock 服務失敗:{exc}")
+            continue
+
+        data = resp.json()
+        if data.get("stopReason") == "max_tokens":
+            last_error = OcrError("Bedrock 回傳內容被截斷(超過長度上限)")
+            continue
+        blocks = (((data.get("output") or {}).get("message") or {}).get("content")) or []
+        tool_input = next(
+            (b["toolUse"]["input"] for b in blocks if isinstance(b, dict) and b.get("toolUse")),
+            None,
+        )
+        if tool_input is None:
+            # 沒走 tool 時退回讀純文字 JSON
+            txt = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+            try:
+                tool_input = json.loads(txt)
+            except (json.JSONDecodeError, TypeError):
+                last_error = OcrError("Bedrock 未回傳結構化結果")
+                continue
+        return _finalize_extraction(tool_input, time.time() - started_at)
+
+    raise last_error or OcrError("呼叫 Bedrock 服務失敗")
+
+
 def _call_openai_for_chunk(
     page_texts: list[str],
     record_type: str = "both",
@@ -3034,8 +3119,11 @@ def _call_openai_for_chunk(
     elif validation_focus == "share_value":
         prompt += "\n\n【第二次校正重點：權利範圍與原規定地價】上一輪部分所有權人的「權利範圍」持分加總明顯不足 100%，或分數像是預設值，很可能漏讀或讀錯。請回到影像,對每一位所有權人找出其「獨立一行」的「權利範圍:X分之Y」(不是「歷次取得權利範圍」),完整、正確填入 ownership_numerator / ownership_denominator;同一筆地號所有『分別共有』人的持分加總應接近 1(公同共有除外)。同時逐一確認每位的「前次移轉現值或原規定地價」年月與金額有沒有讀到、有沒有誤抓成「當期申報地價」。不要沿用上一輪的錯誤數字。"
 
-    if _extraction_provider() == "gemini":
+    _prov = _extraction_provider()
+    if _prov == "gemini":
         return _call_gemini_for_chunk(prompt, pages_block, page_images)
+    if _prov == "bedrock":
+        return _call_bedrock_for_chunk(prompt, pages_block, page_images)
 
     # The local OCR engine only ever produces a flat stream of text - column alignment,
     # and therefore which 地址/持分/統編 belongs to which 所有權人, is lost. Sending the

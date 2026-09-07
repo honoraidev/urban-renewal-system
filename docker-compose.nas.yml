@@ -42,11 +42,14 @@ services:
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
-      # 謄本結構化擷取:openai(預設)或 gemini
+      # 謄本結構化擷取:openai(預設)/ gemini / bedrock
       OCR_LLM_PROVIDER: ${OCR_LLM_PROVIDER:-openai}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
       INVOICE_USE_GEMINI: ${INVOICE_USE_GEMINI:-false}
+      AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK}
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      BEDROCK_MODEL: ${BEDROCK_MODEL:-us.anthropic.claude-sonnet-4-20250514-v1:0}
       # 發票辨識轉發到有 GPU 的機器上的 ocr_service.py(NAS 本機不跑 PaddleOCR)
       OCR_REMOTE_URL: ${OCR_REMOTE_URL}
       OCR_REMOTE_SECRET: ${OCR_REMOTE_SECRET}
