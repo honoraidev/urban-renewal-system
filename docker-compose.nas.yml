@@ -42,7 +42,10 @@ services:
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
-      # 謄本結構化擷取:openai(預設)/ gemini / bedrock
+      # OCR 文字辨識:local(預設,RapidOCR)/ google_vision
+      OCR_TEXT_PROVIDER: ${OCR_TEXT_PROVIDER:-local}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY}
+      # 謄本結構化擷取:openai(預設)/ gemini / qwen / bedrock
       OCR_LLM_PROVIDER: ${OCR_LLM_PROVIDER:-openai}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}

@@ -2579,8 +2579,74 @@ def _parse_paddle_ocr_result(res) -> tuple[list[str], list[float]]:
     return texts, scores
 
 
+def _ocr_text_provider() -> str:
+    """OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)或 "google_vision"
+    (Google Cloud Vision DOCUMENT_TEXT_DETECTION,需 GOOGLE_VISION_API_KEY)。"""
+    if (getattr(settings, "OCR_TEXT_PROVIDER", "local") or "").lower() == "google_vision" \
+            and getattr(settings, "GOOGLE_VISION_API_KEY", ""):
+        return "google_vision"
+    return "local"
+
+
+def _google_vision_text(image_bytes: bytes) -> tuple[str, float | None]:
+    """Google Cloud Vision 全文 OCR(繁中優先)。回 (文字, 平均字信心)。"""
+    try:
+        vb = downscale_for_preview(image_bytes, max_dimension=3000, quality=88)
+    except Exception:
+        vb = image_bytes
+    payload = {
+        "requests": [{
+            "image": {"content": base64.b64encode(vb).decode("ascii")},
+            "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+            "imageContext": {"languageHints": ["zh-Hant", "zh"]},
+        }]
+    }
+    url = f"https://vision.googleapis.com/v1/images:annotate?key={settings.GOOGLE_VISION_API_KEY}"
+    last: OcrError | None = None
+    for attempt in (1, 2, 3):
+        try:
+            r = httpx.post(url, json=payload, timeout=60.0)
+            r.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            try:
+                detail = (exc.response.json().get("error") or {}).get("message", detail)
+            except ValueError:
+                pass
+            if exc.response.status_code in (429, 500, 503) and attempt < 3:
+                last = OcrError(f"Google Vision 失敗:{detail}")
+                time.sleep(3.0 * attempt)
+                continue
+            raise OcrError(f"Google Vision 失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last = OcrError(f"Google Vision 失敗:{exc}")
+            time.sleep(2.0)
+            continue
+        resp0 = (r.json().get("responses") or [{}])[0]
+        if resp0.get("error"):
+            raise OcrError(f"Google Vision 失敗:{resp0['error'].get('message')}")
+        fta = resp0.get("fullTextAnnotation") or {}
+        text = fta.get("text") or ""
+        confs = [
+            w["confidence"]
+            for p in fta.get("pages", []) or []
+            for b in p.get("blocks", []) or []
+            for para in b.get("paragraphs", []) or []
+            for w in para.get("words", []) or []
+            if isinstance(w.get("confidence"), (int, float))
+        ]
+        return _normalize_ocr_text(text), (sum(confs) / len(confs) if confs else None)
+    raise last or OcrError("Google Vision 失敗")
+
+
 def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, float | None]:
-    """Run PP-OCRv5 on one rendered deed page and return text + mean confidence."""
+    """Run the OCR engine on one rendered deed page and return text + mean confidence."""
+    if _ocr_text_provider() == "google_vision":
+        try:
+            return _google_vision_text(content)
+        except OcrError as exc:
+            print(f"[_ocr_page_text] Google Vision failed, falling back to local OCR: {exc}", flush=True)
+
     img = Image.open(io.BytesIO(content)).convert("RGB")
     img_array = np.array(img)
 

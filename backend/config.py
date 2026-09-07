@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     OCR_REMOTE_URL: str = ""
     OCR_REMOTE_SECRET: str = ""
 
+    # OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)或 "google_vision"
+    # (Google Cloud Vision DOCUMENT_TEXT_DETECTION,繁中很準;免費 1000 units/月,
+    #  超過約 $1.5/1000)。設 google_vision 就完全不跑本機 OCR。
+    OCR_TEXT_PROVIDER: str = "local"
+    GOOGLE_VISION_API_KEY: str = ""
+
     # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
     OCR_PAGES_PER_CHUNK: int = 4
     OCR_CHUNK_OVERLAP: int = 2
