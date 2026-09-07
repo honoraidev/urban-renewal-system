@@ -175,7 +175,7 @@ def _rule_extract(text: str) -> dict:
     }
 
 
-def _paddle_text(image_bytes: bytes) -> str:
+def _local_ocr_text(image_bytes: bytes) -> str:
     try:
         from utils.ocr import run_ocr
     except Exception as exc:  # pragma: no cover
@@ -287,9 +287,8 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
         except InvoiceOcrError:
             pass  # 落到下面:允許本機 OCR 就退回,否則直接報錯
 
-    # ③ 本機 PaddleOCR + 規則。預設「關閉」——PaddleOCR 在無 GPU / 低記憶體的機器
-    # (例如正式環境的 Synology NAS)會把記憶體吃爆、OOM 打死整個 process,連登入
-    # 都跟著掛掉。要用本機 OCR 的機器(有 GPU 的開發機)才設 INVOICE_ALLOW_LOCAL_OCR=true。
+    # ③ 本機 OCR(RapidOCR / ONNX CPU)+ 規則。可用 INVOICE_ALLOW_LOCAL_OCR=false
+    # 完全關掉(此時沒 QR 就直接報錯)。
     if not settings.INVOICE_ALLOW_LOCAL_OCR:
         raise InvoiceOcrError(
             "讀不到發票 QR code。請對準電子發票證明聯上的 QR code 再拍一次,"
@@ -298,7 +297,7 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
             else "讀不到 QR,Gemini 也暫時無法辨識,請稍後再試或手動輸入。"
         )
 
-    text = _paddle_text(image_bytes)
+    text = _local_ocr_text(image_bytes)
     if not text.strip():
         hint = "(Gemini 也讀不到)" if use_gemini else ""
         raise InvoiceOcrError(f"讀不到 QR{hint},OCR 也沒讀到文字。請拍清楚一點、對正、光線充足再試")

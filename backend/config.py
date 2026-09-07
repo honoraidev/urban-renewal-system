@@ -35,9 +35,9 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.6-flash"
     # 發票辨識 ③ 校正是否改用 Gemini(預設 False = 純規則)。
     INVOICE_USE_GEMINI: bool = False
-    # 是否允許發票辨識退回「本機 PaddleOCR」。預設 False:PaddleOCR 在無 GPU /
-    # 低記憶體機器(正式環境 NAS)會 OOM 打死整個服務。只有有 GPU 的機器才設 true。
-    INVOICE_ALLOW_LOCAL_OCR: bool = False
+    # 是否允許發票辨識用「本機 OCR」(這個 Docker image 裝的是 RapidOCR / ONNX CPU,
+    # 輕量、不會 OOM)。預設 True。設 False 則沒 QR 就直接回錯、完全不跑 OCR。
+    INVOICE_ALLOW_LOCAL_OCR: bool = True
 
     # 遠端 OCR 服務(ocr_service.py,跑在有 GPU 的機器上)。設了 URL 之後,NAS 上的
     # 發票辨識會把影像轉發過去、完全不在本機跑 OCR。空字串 = 不用遠端。
