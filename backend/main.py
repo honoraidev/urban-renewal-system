@@ -16,27 +16,40 @@ from utils.activity import describe_request
 _MUTATING_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
 
 
+def _auto_migrate() -> None:
+    """Best-effort schema top-ups for existing databases. Must NEVER raise - a failure
+    here previously crashed lifespan and made every request (incl. login) hang."""
+    try:
+        models.ActivityLog.__table__.create(bind=engine, checkfirst=True)
+        models.CalendarEvent.__table__.create(bind=engine, checkfirst=True)
+    except Exception as exc:
+        print(f"[auto_migrate] table create skipped: {exc}", flush=True)
+
+    from sqlalchemy import text as _sql_text
+
+    for _col, _ddl in (
+        ("untaxed_amount", "DECIMAL(12,2) NULL"),
+        ("tax_amount", "DECIMAL(12,2) NULL"),
+        ("seller_tax_id", "VARCHAR(20) NULL"),
+        ("buyer_tax_id", "VARCHAR(20) NULL"),
+    ):
+        try:
+            with engine.connect() as _conn:
+                _conn.execute(
+                    _sql_text(f"ALTER TABLE expenses ADD COLUMN IF NOT EXISTS {_col} {_ddl}")
+                )
+                _conn.commit()
+        except Exception as exc:
+            print(f"[auto_migrate] ALTER expenses {_col} skipped: {exc}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     wait_for_db()
-    # schema.sql is applied manually, but these two newer tables self-create so the
-    # 個人工作看板 works without a manual migration step on existing databases.
-    models.ActivityLog.__table__.create(bind=engine, checkfirst=True)
-    models.CalendarEvent.__table__.create(bind=engine, checkfirst=True)
-    # 發票辨識新增的 expenses 欄位 - 對既有資料庫做無痛補欄(MariaDB 10.5+ / 11.x)
-    from sqlalchemy import text as _sql_text
-
-    with engine.begin() as _conn:
-        for _col, _ddl in (
-            ("untaxed_amount", "DECIMAL(12,2) NULL"),
-            ("tax_amount", "DECIMAL(12,2) NULL"),
-            ("seller_tax_id", "VARCHAR(20) NULL"),
-            ("buyer_tax_id", "VARCHAR(20) NULL"),
-        ):
-            try:
-                _conn.execute(_sql_text(f"ALTER TABLE expenses ADD COLUMN IF NOT EXISTS {_col} {_ddl}"))
-            except Exception:
-                pass
+    try:
+        _auto_migrate()
+    except Exception as exc:
+        print(f"[lifespan] _auto_migrate failed (ignored): {exc}", flush=True)
     db = SessionLocal()
     try:
         ensure_admin_account(db)
