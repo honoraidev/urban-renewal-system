@@ -35,10 +35,16 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.6-flash"
     # 發票辨識 ③ 校正是否改用 Gemini(預設 False = 純規則)。
     INVOICE_USE_GEMINI: bool = False
-    # 謄本結構化擷取用哪個 LLM:"openai"(預設,gpt-4o*)、"gemini"(GEMINI_API_KEY)或
-    # "bedrock"(Amazon Bedrock,用 AWS_BEARER_TOKEN_BEDROCK)。只影響 OCR 文字之後的
-    # 「填 JSON」那一步,PaddleOCR/RapidOCR 文字辨識不受影響。
+    # 謄本結構化擷取用哪個 LLM:"openai"(預設,gpt-4o*)、"gemini"(GEMINI_API_KEY)、
+    # "qwen"(阿里雲 DashScope Qwen-VL,DASHSCOPE_API_KEY)或 "bedrock"(Amazon Bedrock,
+    # AWS 憑證)。只影響 OCR 文字之後的「填 JSON」那一步,PaddleOCR/RapidOCR 不受影響。
     OCR_LLM_PROVIDER: str = "openai"
+
+    # 阿里雲 DashScope(OCR_LLM_PROVIDER=qwen 時)。國際站 base URL 如下;中國站改成
+    # https://dashscope.aliyuncs.com/compatible-mode/v1 。qwen-vl-max 準度高、qwen-vl-plus 便宜。
+    DASHSCOPE_API_KEY: str = ""
+    DASHSCOPE_MODEL: str = "qwen-vl-max"
+    DASHSCOPE_BASE_URL: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 
     # Amazon Bedrock(OCR_LLM_PROVIDER=bedrock 時)。AWS_BEARER_TOKEN_BEDROCK 從環境變數
     # 讀(Bedrock API 金鑰,Authorization: Bearer)。

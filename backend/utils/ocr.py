@@ -2871,6 +2871,8 @@ def _extraction_provider() -> str:
     p = (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower()
     if p == "gemini" and settings.GEMINI_API_KEY:
         return "gemini"
+    if p == "qwen" and getattr(settings, "DASHSCOPE_API_KEY", ""):
+        return "qwen"
     if p == "bedrock":
         # 認證由 _call_bedrock_for_chunk 處理:優先 boto3(AWS 標準憑證鏈),
         # 沒有 boto3 就退回 AWS_BEARER_TOKEN_BEDROCK。
@@ -2994,6 +2996,85 @@ def _call_gemini_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[
         return _finalize_extraction(parsed, time.time() - started_at)
 
     raise last_error or OcrError("呼叫 Gemini 服務失敗")
+
+
+def _call_qwen_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[dict, float]:
+    """阿里雲 DashScope 的 Qwen-VL(OpenAI 相容端點)。qwen-vl 系列目前只支援
+    response_format=json_object(不吃 json_schema),靠 prompt 描述欄位。"""
+    content: list = [{
+        "type": "text",
+        "text": f"{prompt}\n\n{pages_block}\n\n請「只」輸出一個符合上述欄位說明的 JSON 物件,"
+                "不要加任何說明文字、不要用 markdown 程式碼框。",
+    }]
+    for i, (img_bytes, _mime) in enumerate(page_images or []):
+        if not img_bytes:
+            continue
+        try:
+            vb = downscale_for_preview(img_bytes, max_dimension=2200, quality=82)
+        except Exception:
+            vb = img_bytes
+        content.append({"type": "text", "text": f"----- 第 {i + 1} 頁原始影像(以此為準,OCR 文字僅供參考)-----"})
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(vb).decode('ascii')}"},
+        })
+    payload = {
+        "model": getattr(settings, "DASHSCOPE_MODEL", "") or "qwen-vl-max",
+        "messages": [{"role": "user", "content": content}],
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "max_tokens": 8192,
+    }
+    base = (getattr(settings, "DASHSCOPE_BASE_URL", "")
+            or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+    url = base.rstrip("/") + "/chat/completions"
+    headers = {"Authorization": f"Bearer {settings.DASHSCOPE_API_KEY}"}
+    started_at = time.time()
+    last_error: OcrError | None = None
+    for attempt in (1, 2, 3):
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=OCR_OPENAI_TIMEOUT_SECONDS)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            try:
+                detail = (exc.response.json().get("error") or {}).get("message", detail)
+            except ValueError:
+                pass
+            if exc.response.status_code in (429, 500, 503) and attempt < 3:
+                last_error = OcrError(f"呼叫 Qwen 服務失敗:{detail}")
+                time.sleep(5.0 * attempt)
+                continue
+            raise OcrError(f"呼叫 Qwen 服務失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last_error = OcrError(f"呼叫 Qwen 服務失敗:{exc}")
+            continue
+
+        data = resp.json()
+        choices = data.get("choices") or []
+        if not choices:
+            last_error = OcrError("Qwen 未回傳結果")
+            continue
+        if choices[0].get("finish_reason") == "length":
+            last_error = OcrError("Qwen 回傳內容被截斷(超過長度上限)")
+            continue
+        text = (choices[0].get("message") or {}).get("content") or ""
+        if isinstance(text, list):  # 少數版本 content 會是分段陣列
+            text = "".join(seg.get("text", "") for seg in text if isinstance(seg, dict))
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.S).strip()
+        if not text:
+            last_error = OcrError("Qwen 回傳內容為空")
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            last_error = OcrError(f"無法解析 Qwen 回傳的 JSON:{exc}")
+            continue
+        return _finalize_extraction(parsed, time.time() - started_at)
+
+    raise last_error or OcrError("呼叫 Qwen 服務失敗")
 
 
 _BEDROCK_TOOL_CONFIG = {
@@ -3174,6 +3255,8 @@ def _call_openai_for_chunk(
     _prov = _extraction_provider()
     if _prov == "gemini":
         return _call_gemini_for_chunk(prompt, pages_block, page_images)
+    if _prov == "qwen":
+        return _call_qwen_for_chunk(prompt, pages_block, page_images)
     if _prov == "bedrock":
         return _call_bedrock_for_chunk(prompt, pages_block, page_images)
 
