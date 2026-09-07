@@ -20,7 +20,6 @@ from deps import (
 from fastapi import Response
 
 from models.building_record import BuildingRecord
-from models.encumbrance import Encumbrance
 from models.land_record import LandRecord
 from models.landowner import Landowner
 from models.ocr import OcrJob
@@ -356,7 +355,8 @@ def download_roster_xlsx(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_staff_viewer),
 ):
-    """地主清冊 Excel(版面同「清冊範本」):土地標示/所有權/他項權利 + 對應建物。"""
+    """地主清冊 Excel(版面同「清冊範本」範本.pdf):土地標示/所有權 + 對應建物 +
+    建物所有權 + 共有建號。他項權利欄已依範本移除。"""
     from urllib.parse import quote
 
     from utils.roster_excel import build_roster_workbook
@@ -371,15 +371,12 @@ def download_roster_xlsx(
     building_records = list(
         db.scalars(select(BuildingRecord).where(BuildingRecord.project_id == project.id))
     )
-    encumbrances = list(
-        db.scalars(select(Encumbrance).where(Encumbrance.project_id == project.id))
-    )
     landowners_by_id = {
         o.id: o for o in db.scalars(select(Landowner).where(Landowner.project_id == project.id))
     }
 
     content = build_roster_workbook(
-        project, land_records, building_records, encumbrances, landowners_by_id
+        project, land_records, building_records, landowners_by_id
     )
     fname = f"{project.project_code}_地主清冊.xlsx"
     return Response(
