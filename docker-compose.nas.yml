@@ -49,7 +49,7 @@ services:
       INVOICE_USE_GEMINI: ${INVOICE_USE_GEMINI:-false}
       AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
-      BEDROCK_MODEL: ${BEDROCK_MODEL:-us.anthropic.claude-sonnet-4-20250514-v1:0}
+      BEDROCK_MODEL: ${BEDROCK_MODEL:-us.anthropic.claude-sonnet-4-6}
       # 發票辨識轉發到有 GPU 的機器上的 ocr_service.py(NAS 本機不跑 PaddleOCR)
       OCR_REMOTE_URL: ${OCR_REMOTE_URL}
       OCR_REMOTE_SECRET: ${OCR_REMOTE_SECRET}

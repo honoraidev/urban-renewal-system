@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # 讀(Bedrock API 金鑰,Authorization: Bearer)。
     AWS_BEARER_TOKEN_BEDROCK: str = ""
     BEDROCK_REGION: str = "us-east-1"
-    BEDROCK_MODEL: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    BEDROCK_MODEL: str = "us.anthropic.claude-sonnet-4-6"
     # 是否允許發票辨識用「本機 OCR」(這個 Docker image 裝的是 RapidOCR / ONNX CPU,
     # 輕量、不會 OOM)。預設 True。設 False 則沒 QR 就直接回錯、完全不跑 OCR。
     INVOICE_ALLOW_LOCAL_OCR: bool = True

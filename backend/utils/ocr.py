@@ -2871,7 +2871,9 @@ def _extraction_provider() -> str:
     p = (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower()
     if p == "gemini" and settings.GEMINI_API_KEY:
         return "gemini"
-    if p == "bedrock" and getattr(settings, "AWS_BEARER_TOKEN_BEDROCK", ""):
+    if p == "bedrock":
+        # 認證由 _call_bedrock_for_chunk 處理:優先 boto3(AWS 標準憑證鏈),
+        # 沒有 boto3 就退回 AWS_BEARER_TOKEN_BEDROCK。
         return "bedrock"
     return "openai"
 
@@ -2994,46 +2996,106 @@ def _call_gemini_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[
     raise last_error or OcrError("呼叫 Gemini 服務失敗")
 
 
-def _call_bedrock_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[dict, float]:
-    """Amazon Bedrock(Converse API,tool use 逼結構化輸出)。用 AWS_BEARER_TOKEN_BEDROCK
-    做 Authorization: Bearer,不需要 SigV4 / boto3。預設模型 = Claude 3.5 Sonnet。"""
-    content: list = [{"text": f"{prompt}\n\n{pages_block}"}]
+_BEDROCK_TOOL_CONFIG = {
+    "tools": [{
+        "toolSpec": {
+            "name": "title_deed_extraction",
+            "description": "回傳台灣土地/建物登記謄本的結構化擷取結果",
+            "inputSchema": {"json": RESPONSE_SCHEMA},
+        }
+    }],
+    "toolChoice": {"tool": {"name": "title_deed_extraction"}},
+}
+
+
+def _bedrock_vision_chunks(page_images) -> list[tuple[str, bytes]]:
+    out: list[tuple[str, bytes]] = []
     for i, (img_bytes, _mime) in enumerate(page_images or []):
         if not img_bytes:
             continue
         try:
-            vision_bytes = downscale_for_preview(img_bytes, max_dimension=2200, quality=82)
+            vb = downscale_for_preview(img_bytes, max_dimension=2200, quality=82)
         except Exception:
-            vision_bytes = img_bytes
-        content.append({"text": f"----- 第 {i + 1} 頁原始影像(以此為準,OCR 文字僅供參考)-----"})
-        content.append({
-            "image": {
-                "format": "jpeg",
-                "source": {"bytes": base64.b64encode(vision_bytes).decode("ascii")},
-            }
-        })
+            vb = img_bytes
+        out.append((f"----- 第 {i + 1} 頁原始影像(以此為準,OCR 文字僅供參考)-----", vb))
+    return out
+
+
+def _bedrock_pick_tool_input(blocks: list) -> dict | None:
+    ti = next(
+        (b["toolUse"]["input"] for b in blocks if isinstance(b, dict) and b.get("toolUse")),
+        None,
+    )
+    if ti is None:
+        txt = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+        try:
+            ti = json.loads(txt)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return ti
+
+
+def _call_bedrock_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[dict, float]:
+    """Amazon Bedrock(Converse API,tool use 逼結構化輸出)。優先用 boto3(AWS 標準憑證鏈
+    /profile),沒裝 boto3 才退回 AWS_BEARER_TOKEN_BEDROCK 的 Bearer HTTP 呼叫。"""
+    region = getattr(settings, "BEDROCK_REGION", "") or "us-east-1"
+    model = getattr(settings, "BEDROCK_MODEL", "") or "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    vision = _bedrock_vision_chunks(page_images)
+    started_at = time.time()
+
+    try:
+        import boto3  # noqa: F401
+        have_boto3 = True
+    except Exception:
+        have_boto3 = False
+
+    if have_boto3 and not settings.AWS_BEARER_TOKEN_BEDROCK:
+        import boto3
+        from botocore.config import Config as _BotoConfig
+
+        content: list = [{"text": f"{prompt}\n\n{pages_block}"}]
+        for label, vb in vision:
+            content.append({"text": label})
+            content.append({"image": {"format": "jpeg", "source": {"bytes": vb}}})  # boto3 = 原始 bytes
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=_BotoConfig(retries={"max_attempts": 3, "mode": "adaptive"},
+                               read_timeout=OCR_OPENAI_TIMEOUT_SECONDS),
+        )
+        try:
+            resp = client.converse(
+                modelId=model,
+                messages=[{"role": "user", "content": content}],
+                inferenceConfig={"temperature": 0, "maxTokens": 8192},
+                toolConfig=_BEDROCK_TOOL_CONFIG,
+            )
+        except Exception as exc:  # botocore.exceptions.ClientError 等
+            raise OcrError(f"呼叫 Bedrock 服務失敗:{exc}") from exc
+        if resp.get("stopReason") == "max_tokens":
+            raise OcrError("Bedrock 回傳內容被截斷(超過長度上限)")
+        ti = _bedrock_pick_tool_input(((resp.get("output") or {}).get("message") or {}).get("content") or [])
+        if ti is None:
+            raise OcrError("Bedrock 未回傳結構化結果")
+        return _finalize_extraction(ti, time.time() - started_at)
+
+    # ---- Bearer token 後援 ----
+    if not settings.AWS_BEARER_TOKEN_BEDROCK:
+        raise OcrError("Bedrock 未設定憑證(需要 AWS 憑證 + boto3,或 AWS_BEARER_TOKEN_BEDROCK)")
+    content = [{"text": f"{prompt}\n\n{pages_block}"}]
+    for label, vb in vision:
+        content.append({"text": label})
+        content.append({"image": {"format": "jpeg", "source": {"bytes": base64.b64encode(vb).decode("ascii")}}})
     body = {
         "messages": [{"role": "user", "content": content}],
         "inferenceConfig": {"temperature": 0, "maxTokens": 8192},
-        "toolConfig": {
-            "tools": [{
-                "toolSpec": {
-                    "name": "title_deed_extraction",
-                    "description": "回傳台灣土地/建物登記謄本的結構化擷取結果",
-                    "inputSchema": {"json": RESPONSE_SCHEMA},
-                }
-            }],
-            "toolChoice": {"tool": {"name": "title_deed_extraction"}},
-        },
+        "toolConfig": _BEDROCK_TOOL_CONFIG,
     }
-    region = getattr(settings, "BEDROCK_REGION", "") or "us-east-1"
-    model = getattr(settings, "BEDROCK_MODEL", "") or "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
     url = f"https://bedrock-runtime.{region}.amazonaws.com/model/{model}/converse"
     headers = {
         "Authorization": f"Bearer {settings.AWS_BEARER_TOKEN_BEDROCK}",
         "Content-Type": "application/json",
     }
-    started_at = time.time()
     last_error: OcrError | None = None
     for attempt in (1, 2, 3):
         try:
@@ -3053,25 +3115,15 @@ def _call_bedrock_for_chunk(prompt: str, pages_block: str, page_images) -> tuple
         except httpx.HTTPError as exc:
             last_error = OcrError(f"呼叫 Bedrock 服務失敗:{exc}")
             continue
-
         data = resp.json()
         if data.get("stopReason") == "max_tokens":
             last_error = OcrError("Bedrock 回傳內容被截斷(超過長度上限)")
             continue
-        blocks = (((data.get("output") or {}).get("message") or {}).get("content")) or []
-        tool_input = next(
-            (b["toolUse"]["input"] for b in blocks if isinstance(b, dict) and b.get("toolUse")),
-            None,
-        )
-        if tool_input is None:
-            # 沒走 tool 時退回讀純文字 JSON
-            txt = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
-            try:
-                tool_input = json.loads(txt)
-            except (json.JSONDecodeError, TypeError):
-                last_error = OcrError("Bedrock 未回傳結構化結果")
-                continue
-        return _finalize_extraction(tool_input, time.time() - started_at)
+        ti = _bedrock_pick_tool_input(((data.get("output") or {}).get("message") or {}).get("content") or [])
+        if ti is None:
+            last_error = OcrError("Bedrock 未回傳結構化結果")
+            continue
+        return _finalize_extraction(ti, time.time() - started_at)
 
     raise last_error or OcrError("呼叫 Bedrock 服務失敗")
 
