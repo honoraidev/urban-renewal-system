@@ -342,6 +342,46 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
 _backfill_owner_addresses = _backfill_owners_from_raw
 
 
+def _backfill_common_parts_from_raw(data: dict, page_texts: list[str] | None) -> dict:
+    """共有部分建號的「主建物資料:XXXXX建號 / 權利範圍:X分之Y」清單,模型常整段漏掉。
+    直接從原始 OCR 文字比對建號、補到對應的 building 上;raw 有、JSON 沒有才補。"""
+    raw = "\n".join(page_texts or [])
+    if not raw.strip() or "主建物資料" not in raw:
+        return data
+    try:
+        from utils.deed_parser import _BLDG_MAIN_SHARE_RE, _BLDG_MAIN_USE_RE
+    except Exception:
+        return data
+
+    for b in data.get("buildings") or []:
+        disp = str(b.get("building_number") or "").strip()
+        if not disp:
+            continue
+        m = re.search(re.escape(disp) + r"\s*建號", raw) or re.search(
+            re.sub(r"(\d)", r"\1\\s*", re.escape(disp)) + r"\s*建號", raw
+        )
+        if not m:
+            continue
+        tail = raw[m.start() + len(disp):]
+        nxt = re.search(r"建物登記第[一二三123]類|建\s*物\s*標\s*示\s*部", tail[200:])
+        block = tail[: (200 + nxt.start()) if nxt else 4000]
+        if "主建物資料" not in block:
+            continue
+        if not (b.get("main_use") or "").strip():
+            mu = _BLDG_MAIN_USE_RE.search(block)
+            if mu:
+                b["main_use"] = re.sub(r"\s+", "", mu.group(1))
+        if not (b.get("common_part_of") or []):
+            pairs = _BLDG_MAIN_SHARE_RE.findall(block)
+            if pairs:
+                # 「X分之Y」== Y/X
+                b["common_part_of"] = [
+                    {"main_building_number": bn, "numerator": int(y), "denominator": int(x)}
+                    for bn, x, y in pairs
+                ]
+    return data
+
+
 def _fix_ownership_fractions(result: dict) -> dict:
     """A single owner's 權利範圍 (ownership share) can never exceed the whole - numerator
     must be <= denominator. The prompt below already asks the model to self-correct a
@@ -1087,6 +1127,14 @@ land_parcels 的 area_sqm。
      - ownership_numerator:「權利範圍:」欄位的分子(不是「歷次取得權利範圍:」欄位)
      - ownership_denominator:「權利範圍:」欄位的分母(不是「歷次取得權利範圍:」欄位)
      - address:所有權人戶籍地址
+   - main_use:「主要用途:」欄位的文字(例如「住家用」「共有部分」);沒有就填 null。
+   - common_part_of(陣列):【只有當這筆建物的「主要用途」是「共有部分」時才填】。共有部分\
+建號(樓梯間/公共設施)的建物標示部裡會連續列出「主建物資料:○○段○○小段XXXXX-XXXX建號」以及\
+緊接的一行「權利範圍:X分之Y」,一筆主建物配一組。把每一組收成一個物件:
+     - main_building_number:那筆「主建物資料」的建號(XXXXX-XXXX)
+     - numerator:該「權利範圍:X分之Y」的 Y(分子)
+     - denominator:該「權利範圍:X分之Y」的 X(分母)
+     一般住家用建物的 common_part_of 一律填空陣列 []。
 
 找不到、看不清楚、或文件上沒有的欄位一律填 null(陣列則填空陣列 []),絕對不要用臆測值填補。"""
 
@@ -1218,6 +1266,20 @@ RESPONSE_SCHEMA = {
                     "accessory_use": _n("string"),
                     "accessory_area_sqm": _n("number"),
                     "owners": {"type": "array", "items": _BUILDING_OWNER_ITEM_SCHEMA},
+                    "main_use": _n("string"),
+                    "common_part_of": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "main_building_number": _n("string"),
+                                "numerator": _n("number"),
+                                "denominator": _n("number"),
+                            },
+                            "required": ["main_building_number", "numerator", "denominator"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
                 "required": [
                     "building_number",
@@ -1230,6 +1292,8 @@ RESPONSE_SCHEMA = {
                     "accessory_use",
                     "accessory_area_sqm",
                     "owners",
+                    "main_use",
+                    "common_part_of",
                 ],
                 "additionalProperties": False,
             },
@@ -1724,6 +1788,7 @@ def extract_title_deed(
         if rule_data and (rule_data.get("land_parcels") or rule_data.get("buildings")):
             data = _post_process_extracted_data(rule_data)
             data = _backfill_owner_addresses(data, [o for o in text_overrides if o])
+            data = _backfill_common_parts_from_raw(data, [o for o in text_overrides if o])
             data = _apply_recovered_addresses(data, recovered_addresses)
             probs = _validation_problems(data, [o for o in text_overrides if o])
             n_parcels = len(data.get("land_parcels") or [])
@@ -1985,6 +2050,7 @@ def extract_title_deed(
     # raw text (text-layer PDF or OCR) clearly has a 「住址：…」 line in that owner's
     # 登記次序 block, fill it from the text directly - no dependence on the model.
     data = _backfill_owner_addresses(data, all_page_texts)
+    data = _backfill_common_parts_from_raw(data, all_page_texts)
     data = _apply_recovered_addresses(data, recovered_addresses)
 
     final_problems = _validation_problems(data, all_page_texts)

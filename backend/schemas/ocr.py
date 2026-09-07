@@ -91,6 +91,14 @@ class BuildingOwnershipEntry(BaseModel):
     is_pooled: bool | None = None
 
 
+class CommonPartShare(BaseModel):
+    """共有部分建物標示部裡的一筆「主建物資料：XXXXX建號 / 權利範圍：X分之Y」。"""
+
+    main_building_number: str | None = None
+    numerator: int | None = None
+    denominator: int | None = None
+
+
 class BuildingAccessory(BaseModel):
     use: str | None = None
     area_sqm: float | None = None
@@ -115,6 +123,10 @@ class BuildingExtraction(BaseModel):
     accessories: list[BuildingAccessory] = []
     owners: list[BuildingOwnershipEntry] = []
     encumbrances: list[EncumbranceEntry] = []
+    # 主要用途。"共有部分" = 這是共有部分建號(公設/樓梯間),沒有建物所有權部。
+    main_use: str | None = None
+    # 只有共有部分建號會有:被哪些主建物分持(每筆:主建物建號 + 權利範圍分子/分母)。
+    common_part_of: list[CommonPartShare] = []
 
 
 class TitleDeedExtraction(BaseModel):

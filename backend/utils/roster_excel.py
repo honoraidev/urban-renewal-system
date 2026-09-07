@@ -124,12 +124,43 @@ def _ping(sqm) -> float | str:
     return round(n * PING_PER_SQM, 2) if n is not None else ""
 
 
+def _is_common_part(b) -> bool:
+    return (getattr(b, "main_use", None) or "").strip() == "共有部分" or bool(
+        getattr(b, "common_part_shares", None)
+    )
+
+
+def _common_share_map(common_records: list) -> dict:
+    """{ 主建物建號(純數字) -> [ (共有建號, 共有面積, 分子, 分母), … ] }。
+    一個主建物可能分持好幾筆共有部分。"""
+    out: dict[str, list] = {}
+    for cr in common_records:
+        common_no = (cr.building_number or "").strip()
+        common_area = _num(getattr(cr, "total_area_sqm", None)) or _num(
+            getattr(cr, "structure_area_sqm", None)
+        )
+        for sh in getattr(cr, "common_part_shares", None) or []:
+            if not isinstance(sh, dict):
+                continue
+            key = _digits(sh.get("building_number"))
+            num = sh.get("numerator")
+            den = sh.get("denominator")
+            if not key or not den:
+                continue
+            out.setdefault(key, []).append((common_no, common_area, num, den))
+    return out
+
+
 def build_roster_workbook(
     project,
     land_records: list,
     building_records: list,
     landowners_by_id: dict,
 ) -> bytes:
+    # 共有部分建號(main_use=="共有部分")不自己成列;拆出來做「主建物建號 -> 共有持分」對照表。
+    common_records = [b for b in building_records if _is_common_part(b)]
+    building_records = [b for b in building_records if not _is_common_part(b)]
+    common_by_flat = _common_share_map(common_records)
     # 去重:同一份謄本被匯入好幾次會產生重複的土地/建物登記,清冊裡就會看到同一個人
     # 重複好幾列。以(地號/建號, 登記次序, 所有權人)為鍵,只留第一筆。
     def _dedup(records, key_fn):
@@ -237,12 +268,28 @@ def build_roster_workbook(
     # 建物標示部欄位數(建號 … 防空避難室)
     _BLD_STD_LEN = 22
 
+    def _common_shares_for(b):
+        """回傳這個主建物分持的共有部分清單:[(共有建號, 共有面積, 分子, 分母, 持分面積㎡), …]。"""
+        if not b:
+            return []
+        rows = []
+        for common_no, common_area, num, den in common_by_flat.get(_digits(b.building_number), []):
+            share_sqm = round(float(common_area or 0) * (num or 0) / den, 2) if den else None
+            rows.append((common_no, _num(common_area), num, den, share_sqm))
+        return rows
+
     def _bld_std_cells(b):
         if not b:
             return [""] * _BLD_STD_LEN
         total = _num(b.total_area_sqm)
         aux = _num(b.auxiliary_area_sqm)
-        common_share = _num(b.common_area_sqm)  # 共有建號持分面積
+        # 共有建號持分面積 = Σ(各共有部分 總面積 × 該主建物權利範圍)。沒有共有部分資料時
+        # 退回舊的 common_area_sqm 欄位。
+        _shares = _common_shares_for(b)
+        if _shares:
+            common_share = round(sum(s[4] or 0 for s in _shares), 2)
+        else:
+            common_share = _num(b.common_area_sqm)
         licence = round((total or 0) + (aux or 0), 2)
 
         detail = [""] * 13  # 1F..7F / 平台 / 陽臺 / 騎樓 / 附屬平台 / 附屬陽臺 / 防空避難室
@@ -294,18 +341,28 @@ def build_roster_workbook(
         ]
 
     def _common_cells(b):
-        """共有建號群組。共有建號 / 共有面積 / 共有權利範圍(分子分母)目前資料模型未存,
-        先留空(待 OCR/模型擴充);持分面積先用建物的 common_area_sqm。"""
+        """共有建號群組。來源:共有部分建號的建物標示部「主建物資料 + 權利範圍」。
+        一個主建物分持多筆共有部分時:建號用「、」串接、共有面積與持分面積加總、
+        分子分母只在單筆時填。都沒有時退回舊的 common_area_sqm。"""
         if not b:
             return [""] * 6
-        share = _num(b.common_area_sqm)
+        shares = _common_shares_for(b)
+        if not shares:
+            fallback = _num(b.common_area_sqm)
+            return ["", "", "", "", fallback if fallback is not None else "", _ping(fallback)]
+        if len(shares) == 1:
+            no, area, num, den, share_sqm = shares[0]
+            return [no or "", area if area is not None else "", num, den,
+                    share_sqm if share_sqm is not None else "", _ping(share_sqm)]
+        total_area = round(sum(float(s[1] or 0) for s in shares), 2)
+        total_share = round(sum(float(s[4] or 0) for s in shares), 2)
         return [
-            "",  # 共有建號
-            "",  # 共有面積
-            "",  # 共有權利範圍(分子)
-            "",  # 共有權利範圍(分母)
-            share if share is not None else "",  # 持分面積(㎡)
-            _ping(share),  # 持分面積(坪)
+            "、".join(s[0] for s in shares if s[0]),
+            total_area,
+            "",  # 分子(多筆不填)
+            "",  # 分母(多筆不填)
+            total_share,
+            _ping(total_share),
         ]
 
     def _emit(row_values):

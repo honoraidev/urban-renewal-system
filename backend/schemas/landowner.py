@@ -76,6 +76,8 @@ class BuildingRecordCreate(BaseModel):
     common_area_sqm: float = 0
     ownership_numerator: int = Field(default=1, gt=0)
     ownership_denominator: int = Field(default=1, gt=0)
+    main_use: str | None = None
+    common_part_shares: list | None = None
 
 
 class BuildingRecordUpdate(BaseModel):
@@ -113,6 +115,8 @@ class BuildingRecordRead(BaseModel):
     ownership_numerator: int
     ownership_denominator: int
     ownership_share_pct: float
+    main_use: str | None = None
+    common_part_shares: list | None = None
 
     model_config = {"from_attributes": True}
 

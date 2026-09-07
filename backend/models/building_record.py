@@ -19,6 +19,12 @@ class BuildingRecord(Base):
     land_record_id: Mapped[int | None] = mapped_column(ForeignKey("land_records.id", ondelete="SET NULL"), nullable=True)
     source_ocr_job_id: Mapped[int | None] = mapped_column(ForeignKey("ocr_jobs.id", ondelete="SET NULL"), nullable=True)
     building_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # 主要用途(建物標示部)。"共有部分" 代表這是一筆共有部分建號(樓梯間/公設),
+    # 沒有建物所有權部、landowner_id 為 NULL,持分靠 common_part_shares 分給各主建物。
+    main_use: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 只在 main_use=="共有部分" 的 record 上有值:這筆共有部分被哪些主建物分持。
+    # [{"building_number": "01899-000", "numerator": 1252, "denominator": 10000}, …]
+    common_part_shares: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # 建物坐落地號 (from the deed's 「建物坐落地號」) - kept on the record itself so the
     # 地主清冊 can join a building to the right 地號 row even when land_record_id wasn't
     # resolved at import time.

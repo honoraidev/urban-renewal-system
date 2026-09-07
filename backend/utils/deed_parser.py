@@ -290,6 +290,14 @@ _BLDG_FLOOR_ROW_RE = re.compile(
 )
 _BLDG_FLOOR_STOP_RE = re.compile(r"建築完成日期|附屬建物|共有部分|權利範圍|建物他項權利部|建物所有權部")
 _ENC_COMMON_BLDG_RE = re.compile(r"共同擔保建號\s*[:：]\s*([^\n]+)")
+_BLDG_MAIN_USE_RE = re.compile(
+    r"主\s*要\s*用\s*途\s*[:：]\s*[*\s]*([一-鿿]{2,12})"
+)
+# 共有部分建物標示部裡的「主建物資料：…01899-000建號 / 權利範圍：10000分之1252」成對出現。
+_BLDG_MAIN_SHARE_RE = re.compile(
+    r"主\s*建\s*物\s*資\s*料\s*[:：][^\n]*?(\d{3,5}-\d{3,5})\s*建號"
+    r"[\s\S]{0,50}?權\s*利\s*範\s*圍\s*[:：][^0-9]{0,10}(\d+)\s*分\s*之\s*(\d+)"
+)
 
 
 def _parse_one_building(block: str) -> dict | None:
@@ -361,6 +369,18 @@ def _parse_one_building(block: str) -> dict | None:
     accessory_use = accessories[0]["use"] if accessories else ""
     accessory_area_sqm = accessories[0]["area_sqm"] if accessories else None
 
+    mu = _BLDG_MAIN_USE_RE.search(std_sec)
+    main_use = _clean(re.sub(r"\s+", "", mu.group(1))) if mu else ""
+    # 「X分之Y」== Y/X → numerator=Y(group3), denominator=X(group2)
+    common_part_of = [
+        {
+            "main_building_number": bn.translate(_FW_DIGITS),
+            "numerator": int(y),
+            "denominator": int(x),
+        }
+        for bn, x, y in _BLDG_MAIN_SHARE_RE.findall(std_sec)
+    ]
+
     owners = []
     if has_owner_section:
         owner_blocks = _split_blocks(owner_sec, _OWNER_BLOCK_RE)
@@ -408,6 +428,8 @@ def _parse_one_building(block: str) -> dict | None:
         "accessories": accessories,
         "owners": owners,
         "encumbrances": encumbrances,
+        "main_use": main_use,
+        "common_part_of": common_part_of,
     }
     return {"deed_category": deed_category, "building": building}
 

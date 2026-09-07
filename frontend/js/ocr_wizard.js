@@ -99,6 +99,14 @@ function normalizeTitleDeedData(raw) {
     ).map((a) => ({ use: (a && a.use) || "", area_sqm: a && a.area_sqm != null ? a.area_sqm : "" })),
     owners: (b.owners || []).map(toBuildingOwnerRow),
     encumbrances: (b.encumbrances || []).map(toEncumbranceRow),
+    main_use: b.main_use || "",
+    common_part_of: (b.common_part_of || [])
+      .filter((c) => c && c.main_building_number)
+      .map((c) => ({
+        main_building_number: c.main_building_number || "",
+        numerator: Number(c.numerator) || 0,
+        denominator: Number(c.denominator) || 0,
+      })),
   }));
 
   const encumbrances = (raw.encumbrances || []).map(toEncumbranceRow);
@@ -2018,6 +2026,29 @@ async function submitTitleDeedWizardInner() {
             common_area_sqm: 0,
             ownership_numerator: owner.ownership_numerator || 1,
             ownership_denominator: owner.ownership_denominator || 1,
+            source_ocr_job_id: b._sourceOcrJobId || null,
+          },
+        });
+        if (b._sourceOcrJobId) sourceOcrJobIds.add(b._sourceOcrJobId);
+      }
+      // 共有部分建號(公設/樓梯間):沒有所有權人,獨立建一筆 record,持分靠
+      // common_part_shares 分給各主建物,地主清冊據此填「共有建號」欄位。
+      if ((b.common_part_of || []).length || b.main_use === "共有部分") {
+        await api(`/projects/${pid}/building-parts`, {
+          method: "POST",
+          body: {
+            building_number: b.building_number || null,
+            parcel_number: b.parcel_number || null,
+            address: b.building_address || null,
+            total_floors: b.total_floors || null,
+            structure_area_sqm: Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0,
+            auxiliary_area_sqm: (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0),
+            main_use: b.main_use || "共有部分",
+            common_part_shares: (b.common_part_of || []).map((c) => ({
+              building_number: c.main_building_number || "",
+              numerator: Number(c.numerator) || 0,
+              denominator: Number(c.denominator) || 0,
+            })),
             source_ocr_job_id: b._sourceOcrJobId || null,
           },
         });

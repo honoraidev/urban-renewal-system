@@ -52,20 +52,22 @@ def _auto_migrate() -> None:
         except Exception as exc:
             print(f"[auto_migrate] DROP FK on {_tbl} skipped: {exc}", flush=True)
 
-    for _col, _ddl in (
-        ("untaxed_amount", "DECIMAL(12,2) NULL"),
-        ("tax_amount", "DECIMAL(12,2) NULL"),
-        ("seller_tax_id", "VARCHAR(20) NULL"),
-        ("buyer_tax_id", "VARCHAR(20) NULL"),
+    for _tbl, _col, _ddl in (
+        ("expenses", "untaxed_amount", "DECIMAL(12,2) NULL"),
+        ("expenses", "tax_amount", "DECIMAL(12,2) NULL"),
+        ("expenses", "seller_tax_id", "VARCHAR(20) NULL"),
+        ("expenses", "buyer_tax_id", "VARCHAR(20) NULL"),
+        ("building_records", "main_use", "VARCHAR(50) NULL"),
+        ("building_records", "common_part_shares", "JSON NULL"),
     ):
         try:
             with engine.connect() as _conn:
                 _conn.execute(
-                    _sql_text(f"ALTER TABLE expenses ADD COLUMN IF NOT EXISTS {_col} {_ddl}")
+                    _sql_text(f"ALTER TABLE {_tbl} ADD COLUMN IF NOT EXISTS {_col} {_ddl}")
                 )
                 _conn.commit()
         except Exception as exc:
-            print(f"[auto_migrate] ALTER expenses {_col} skipped: {exc}", flush=True)
+            print(f"[auto_migrate] ALTER {_tbl} {_col} skipped: {exc}", flush=True)
 
 
 @asynccontextmanager

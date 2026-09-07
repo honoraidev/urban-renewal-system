@@ -21,6 +21,7 @@ from fastapi import Response
 
 from models.building_record import BuildingRecord
 from models.land_record import LandRecord
+from schemas.landowner import BuildingRecordCreate
 from models.landowner import Landowner
 from models.ocr import OcrJob
 from models.project import Project, ProjectMember
@@ -348,6 +349,29 @@ def get_consent_ratio(
         stage = next((s for s in (4, 8, 9) if s >= project.current_stage), 9)
 
     return calculate_consent_ratio(db, project.id, stage)
+
+
+@router.post("/{project_id}/building-parts", status_code=status.HTTP_201_CREATED)
+def create_common_building_part(
+    payload: BuildingRecordCreate,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_editor),
+):
+    """建立一筆「共有部分建號」(公設/樓梯間)- 沒有地主、沒有建物所有權部,持分靠
+    common_part_shares 分給各主建物。地主清冊匯出時據此填「共有建號」欄位。"""
+    data = payload.model_dump()
+    data["main_use"] = data.get("main_use") or "共有部分"
+    rec = BuildingRecord(project_id=project.id, landowner_id=None, **data)
+    rec.total_area_sqm = (
+        float(rec.structure_area_sqm or 0)
+        + float(rec.auxiliary_area_sqm or 0)
+        + float(rec.common_area_sqm or 0)
+    )
+    rec.ownership_share_pct = 0
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return {"id": rec.id}
 
 
 @router.get("/{project_id}/roster.xlsx")
