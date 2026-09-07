@@ -101,7 +101,7 @@ async function renderBuildingViewTab(el) {
   const groups = applyBuildingViewSavedOrder(pid, payload.groups || []);
 
   if (!groups.length) {
-    el.innerHTML = `<div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「建物登記」頁籤匯入建物資料</div>`;
+    el.innerHTML = `<div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「登記資料 → 建物登記」匯入建物資料</div>`;
     return;
   }
 

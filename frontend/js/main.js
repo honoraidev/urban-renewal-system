@@ -59,7 +59,7 @@ function bootstrapApp() {
           <h4 style="margin:12px 0 8px;font-size:15px;color:var(--text-main);font-weight:700">📍 如何使用此功能：</h4>
           <ol style="margin:0 0 16px 20px;padding:0;font-size:14px;color:var(--text-muted);line-height:1.8">
             <li>請由左側選單進入任一<strong>「都更案件」</strong>。</li>
-            <li>切換至<strong>「土地登記」</strong>或<strong>「建物登記」</strong>頁籤。</li>
+            <li>切換至<strong>「登記資料」</strong>頁籤,再選<strong>土地登記</strong>或<strong>建物登記</strong>。</li>
             <li>點擊上方 <strong>「自動掃描謄本 (OCR)」</strong> 按鈕。</li>
             <li>上傳謄本 PDF 檔，系統將自動辨識地主姓名、持分、地號與面積並匯入清冊。</li>
           </ol>
