@@ -27,6 +27,20 @@ def _auto_migrate() -> None:
 
     from sqlalchemy import text as _sql_text
 
+    # Drop the FKs that deadlock login(): login_logs / activity_logs INSERTs take a
+    # shared lock on the users row that races with `UPDATE users SET last_login_at`
+    # (MySQL error 1213). Both are append-only audit logs - no FK needed.
+    for _tbl, _fk in (
+        ("login_logs", "fk_login_logs_user"),
+        ("activity_logs", "fk_activity_logs_user"),
+    ):
+        try:
+            with engine.connect() as _conn:
+                _conn.execute(_sql_text(f"ALTER TABLE {_tbl} DROP FOREIGN KEY IF EXISTS {_fk}"))
+                _conn.commit()
+        except Exception as exc:
+            print(f"[auto_migrate] DROP FK {_fk} skipped: {exc}", flush=True)
+
     for _col, _ddl in (
         ("untaxed_amount", "DECIMAL(12,2) NULL"),
         ("tax_amount", "DECIMAL(12,2) NULL"),

@@ -31,7 +31,10 @@ CREATE TABLE login_logs (
     action ENUM('login','logout') NOT NULL,
     occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ip_address VARCHAR(45),
-    CONSTRAINT fk_login_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    -- NO foreign key on user_id: an FK makes every login_logs INSERT take a shared
+    -- lock on the users row, which races with `UPDATE users SET last_login_at` in
+    -- login() and deadlocks (error 1213) under concurrent logins of the same user.
+    -- This is an append-only audit log; a dangling user_id is harmless.
     INDEX idx_login_logs_user (user_id),
     INDEX idx_login_logs_occurred (occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -357,7 +360,8 @@ CREATE TABLE activity_logs (
     action VARCHAR(120) NOT NULL,
     status_code INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_activity_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    -- NO foreign key on user_id: see login_logs above - FK-induced shared locks on
+    -- the users row deadlock with `UPDATE users SET last_login_at` in login().
     INDEX idx_activity_logs_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
