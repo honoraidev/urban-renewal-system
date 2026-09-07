@@ -185,10 +185,30 @@ def _paddle_text(image_bytes: bytes) -> str:
 
 # ============================================================ Gemini(預設關閉)
 
+def _downscale_for_upload(image_bytes: bytes, max_edge: int = 1600) -> bytes:
+    """縮圖 + 轉正(EXIF)再送 Gemini:單張發票長邊 1600px 已足夠辨識統編/號碼,
+    但能把圖片 token 從 ~1500 砍到 ~500、上傳也更快。失敗就原圖照送。"""
+    try:
+        from PIL import Image, ImageOps
+
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(image_bytes)))
+        img = img.convert("RGB")
+        if max(img.size) > max_edge:
+            ratio = max_edge / max(img.size)
+            img = img.resize((round(img.width * ratio), round(img.height * ratio)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except Exception:
+        return image_bytes
+
+
 def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-in only
     import time
 
     import httpx
+
+    image_bytes = _downscale_for_upload(image_bytes)
 
     prompt = (
         "台灣發票照片。只依實際印出的文字擷取:發票號碼、開立日期(民國換西元 YYYY-MM-DD)、"
