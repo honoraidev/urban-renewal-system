@@ -2482,6 +2482,12 @@ def _get_paddle_ocr_engine():
     existing RapidOCR path used by the NAS deployment.
     """
     global _PADDLE_OCR_ENGINE, _PADDLE_OCR_AVAILABLE
+    # OCR_ENGINE=rapidocr 時完全不碰 PaddleOCR — 某些 Windows 機器上 PaddleOCR 3.7 的
+    # PP-LCNet_x1_0_textline_ori 初始化會卡死(要 ccache/MSVC 做 JIT 編譯),直接改用
+    # RapidOCR(ONNX,有 onnxruntime-gpu 就走 GPU)。
+    if (os.environ.get("OCR_ENGINE", "") or "").lower() == "rapidocr":
+        _PADDLE_OCR_AVAILABLE = False
+        return None
     if _PADDLE_OCR_AVAILABLE is False:
         return None
     if _PADDLE_OCR_ENGINE is None:
