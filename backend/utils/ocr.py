@@ -1613,15 +1613,14 @@ def _pdf_text_layer_overrides(files: list[tuple[bytes, str | None]]) -> list[str
                 raw = ""
             compact = re.sub(r"\s+", "", raw)
             has_marker = re.search(r"地號|建號|登記次序|所有權|標示部|權利範圍", raw)
-            usable = has_marker and (
-                len(compact) >= TEXT_LAYER_MIN_CHARS
-                # A short continuation/tail page of an electronic 謄本 (e.g. a
-                # 共有部分 建號's 「本謄本依第二類提供…」 note) has a real text layer,
-                # just few characters. Its page furniture (列印時間 / 頁次 / 地政事務所)
-                # proves it is a rendered e-謄本 page, not a blank scan - accept it so
-                # one short page doesn't disqualify the whole document from the
-                # rule-based (no-OCR, no-OpenAI) fast path.
-                or (len(compact) >= 30 and re.search(r"列印時間|頁\s*次|地政事務所|登記機關", raw))
+            # 頁面家具(列印時間 / 頁次 / 地政事務所 / 謄本種類碼 / 本謄本…)證明這是一頁
+            # 已 render 的電子謄本,不是空白掃描頁。
+            furniture = re.search(r"列印時間|頁\s*次|地政事務所|登記機關|謄本種類碼|本謄本|電謄字", raw)
+            usable = (has_marker and len(compact) >= TEXT_LAYER_MIN_CHARS) or (
+                # 電子謄本的續頁 / 尾頁(「本謄本列印完畢」+ 一堆※注意法條)字數很少,
+                # 但仍是真的文字層。只要有頁面家具且不是完全空白就收,免得一頁短頁
+                # 就把整份數位謄本踢去跑 OCR(不同 pymupdf 版本抽字量會有差)。
+                furniture and len(compact) >= 10
             )
             if usable:
                 # Note: newer 電子謄本 omit every owner's 「住　址：…」 line from the text
@@ -1772,6 +1771,14 @@ def extract_title_deed(
     # regex parser first - it needs no OCR and no OpenAI call at all. It returns None
     # (and we fall through to the AI pipeline) on anything it is not fully sure about:
     # unexpected layout, or a coverage mismatch.
+    _n_text = sum(1 for o in text_overrides if o)
+    if text_overrides and not all(text_overrides):
+        _missing = [i + 1 for i, o in enumerate(text_overrides) if not o]
+        print(
+            f"[extract_title_deed] 文字層直讀跳過:{_n_text}/{len(text_overrides)} 頁有文字層,"
+            f"缺第 {_missing} 頁 → 走 OCR+AI",
+            flush=True,
+        )
     if text_overrides and all(text_overrides):
         joined_text = "\n\n".join(o for o in text_overrides if o)
         rule_data = None
