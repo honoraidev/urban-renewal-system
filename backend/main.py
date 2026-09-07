@@ -30,16 +30,27 @@ def _auto_migrate() -> None:
     # Drop the FKs that deadlock login(): login_logs / activity_logs INSERTs take a
     # shared lock on the users row that races with `UPDATE users SET last_login_at`
     # (MySQL error 1213). Both are append-only audit logs - no FK needed.
-    for _tbl, _fk in (
-        ("login_logs", "fk_login_logs_user"),
-        ("activity_logs", "fk_activity_logs_user"),
-    ):
+    for _tbl in ("login_logs", "activity_logs"):
         try:
             with engine.connect() as _conn:
-                _conn.execute(_sql_text(f"ALTER TABLE {_tbl} DROP FOREIGN KEY IF EXISTS {_fk}"))
+                _names = [
+                    r[0]
+                    for r in _conn.execute(
+                        _sql_text(
+                            "SELECT constraint_name FROM information_schema.key_column_usage "
+                            "WHERE table_schema = DATABASE() AND table_name = :t "
+                            "AND referenced_table_name = 'users'"
+                        ),
+                        {"t": _tbl},
+                    )
+                ]
+                for _fk in _names:
+                    _conn.execute(_sql_text(f"ALTER TABLE {_tbl} DROP FOREIGN KEY `{_fk}`"))
                 _conn.commit()
+                if _names:
+                    print(f"[auto_migrate] dropped FK on {_tbl}: {_names}", flush=True)
         except Exception as exc:
-            print(f"[auto_migrate] DROP FK {_fk} skipped: {exc}", flush=True)
+            print(f"[auto_migrate] DROP FK on {_tbl} skipped: {exc}", flush=True)
 
     for _col, _ddl in (
         ("untaxed_amount", "DECIMAL(12,2) NULL"),
