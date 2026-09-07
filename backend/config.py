@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.6-flash"
     # 發票辨識 ③ 校正是否改用 Gemini(預設 False = 純規則)。
     INVOICE_USE_GEMINI: bool = False
+    # 是否允許發票辨識退回「本機 PaddleOCR」。預設 False:PaddleOCR 在無 GPU /
+    # 低記憶體機器(正式環境 NAS)會 OOM 打死整個服務。只有有 GPU 的機器才設 true。
+    INVOICE_ALLOW_LOCAL_OCR: bool = False
 
     # Scanned-deed OCR tuning (no effect on text-layer 電子謄本, which skip OCR entirely).
     OCR_PAGES_PER_CHUNK: int = 4

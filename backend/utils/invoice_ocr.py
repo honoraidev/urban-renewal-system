@@ -277,8 +277,7 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
 
     use_gemini = bool(settings.INVOICE_USE_GEMINI and settings.GEMINI_API_KEY)
 
-    # ② 沒 QR:優先走 Gemini。本機 PaddleOCR 在無 GPU / 低記憶體的 NAS 上會 OOM
-    # 打死 worker 或卡住鎖,把整個服務(含登入)拖垮,所以設了金鑰就完全不碰它。
+    # ② 沒 QR:走 Gemini。
     if use_gemini:
         try:
             result = _extract_via_gemini(image_bytes)
@@ -286,9 +285,19 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
             result["ocr_text"] = ""
             return result
         except InvoiceOcrError:
-            pass  # Gemini 失敗才退回本機 OCR
+            pass  # 落到下面:允許本機 OCR 就退回,否則直接報錯
 
-    # ③ 本機 PaddleOCR + 規則(沒設 Gemini,或 Gemini 暫時不可用時的後援)
+    # ③ 本機 PaddleOCR + 規則。預設「關閉」——PaddleOCR 在無 GPU / 低記憶體的機器
+    # (例如正式環境的 Synology NAS)會把記憶體吃爆、OOM 打死整個 process,連登入
+    # 都跟著掛掉。要用本機 OCR 的機器(有 GPU 的開發機)才設 INVOICE_ALLOW_LOCAL_OCR=true。
+    if not settings.INVOICE_ALLOW_LOCAL_OCR:
+        raise InvoiceOcrError(
+            "讀不到發票 QR code。請對準電子發票證明聯上的 QR code 再拍一次,"
+            "或掃紙本發票下方的 QR;若沒有 QR,請手動輸入。"
+            if not use_gemini
+            else "讀不到 QR,Gemini 也暫時無法辨識,請稍後再試或手動輸入。"
+        )
+
     text = _paddle_text(image_bytes)
     if not text.strip():
         hint = "(Gemini 也讀不到)" if use_gemini else ""
