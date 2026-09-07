@@ -1,3 +1,4 @@
+import anyio
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -22,6 +23,13 @@ router = APIRouter(prefix="/projects/{project_id}/expenses", tags=["expenses"])
 category_router = APIRouter(prefix="/expense-categories", tags=["expense-categories"])
 
 
+# 發票辨識是重運算(本機 PaddleOCR)或外呼(Gemini),都可能慢或整個卡死。限制同時
+# 只跑 2 個、單次上限 90 秒,免得使用者連點把 threadpool 佔滿,連登入都排不到 worker
+# (實際發生過:PaddleOCR 在無 GPU 的 NAS 卡住,整站無回應直到 restart)。
+_SCAN_INVOICE_LIMITER = anyio.CapacityLimiter(2)
+_SCAN_INVOICE_TIMEOUT_S = 90
+
+
 @router.post("/scan-invoice")
 async def scan_invoice(
     file: UploadFile = File(...),
@@ -29,8 +37,6 @@ async def scan_invoice(
 ):
     """把一張發票照片交給 AI 辨識,回傳可帶入支出表單的欄位(不寫入資料庫)。"""
     import traceback
-
-    from starlette.concurrency import run_in_threadpool
 
     from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
 
@@ -40,8 +46,17 @@ async def scan_invoice(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案過大(上限 20MB)")
     try:
-        # PaddleOCR 是阻塞的重運算,丟到 threadpool 以免卡住 event loop / 觸發閘道逾時
-        return await run_in_threadpool(extract_invoice_fields, content, file.content_type)
+        # 阻塞的重運算丟到 threadpool(限流 + 逾時),以免卡住 event loop / 觸發閘道逾時
+        with anyio.fail_after(_SCAN_INVOICE_TIMEOUT_S):
+            return await anyio.to_thread.run_sync(
+                extract_invoice_fields, content, file.content_type,
+                abandon_on_cancel=True, limiter=_SCAN_INVOICE_LIMITER,
+            )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="辨識逾時,請稍後再試,或改掃電子發票證明聯上的 QR code",
+        ) from exc
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 - 回一個看得懂的訊息,別讓前端只看到 "Error"

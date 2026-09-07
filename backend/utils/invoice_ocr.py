@@ -249,26 +249,30 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
             raise InvoiceOcrError("PDF 無法轉圖,請改上傳照片")
         image_bytes = png
 
-    # ① QR
+    # ① QR(最準、零成本)
     qr = _try_qr(image_bytes)
     if qr:
         qr["ocr_text"] = ""
         return qr
 
-    # ② OCR
-    text = _paddle_text(image_bytes)
-    if not text.strip():
-        raise InvoiceOcrError("讀不到 QR,OCR 也沒讀到文字。請拍清楚一點、對正、光線充足再試")
+    use_gemini = bool(settings.INVOICE_USE_GEMINI and settings.GEMINI_API_KEY)
 
-    # ③ 校正
-    if settings.INVOICE_USE_GEMINI and settings.GEMINI_API_KEY:
+    # ② 沒 QR:優先走 Gemini。本機 PaddleOCR 在無 GPU / 低記憶體的 NAS 上會 OOM
+    # 打死 worker 或卡住鎖,把整個服務(含登入)拖垮,所以設了金鑰就完全不碰它。
+    if use_gemini:
         try:
             result = _extract_via_gemini(image_bytes)
             result.setdefault("untaxed_amount", None)
-            result["ocr_text"] = text[:4000]
+            result["ocr_text"] = ""
             return result
         except InvoiceOcrError:
-            pass  # 退回規則
+            pass  # Gemini 失敗才退回本機 OCR
+
+    # ③ 本機 PaddleOCR + 規則(沒設 Gemini,或 Gemini 暫時不可用時的後援)
+    text = _paddle_text(image_bytes)
+    if not text.strip():
+        hint = "(Gemini 也讀不到)" if use_gemini else ""
+        raise InvoiceOcrError(f"讀不到 QR{hint},OCR 也沒讀到文字。請拍清楚一點、對正、光線充足再試")
     result = _rule_extract(text)
     result["ocr_text"] = text[:4000]
     return result
