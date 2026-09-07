@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.6-flash"
     # 發票辨識 ③ 校正是否改用 Gemini(預設 False = 純規則)。
     INVOICE_USE_GEMINI: bool = False
+    # 謄本結構化擷取用哪個 LLM:"openai"(預設,gpt-4o*)或 "gemini"(用 GEMINI_API_KEY)。
+    # 只影響 OCR 文字之後的「填 JSON」那一步,PaddleOCR/RapidOCR 文字辨識不受影響。
+    OCR_LLM_PROVIDER: str = "openai"
     # 是否允許發票辨識用「本機 OCR」(這個 Docker image 裝的是 RapidOCR / ONNX CPU,
     # 輕量、不會 OOM)。預設 True。設 False 則沒 QR 就直接回錯、完全不跑 OCR。
     INVOICE_ALLOW_LOCAL_OCR: bool = True

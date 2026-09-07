@@ -1737,8 +1737,10 @@ def extract_title_deed(
     the data instead of discarding everything. Returns (data, warning_message_or_None).
     Every field is a suggestion for the user to review before saving, not an
     authoritative value."""
-    if not settings.OPENAI_API_KEY:
-        raise OcrError("尚未設定 OPENAI_API_KEY,請聯絡系統管理員設定 OCR 金鑰後再試")
+    if _extraction_provider() == "openai" and not settings.OPENAI_API_KEY:
+        raise OcrError(
+            "尚未設定 OCR 擷取用的 API 金鑰(OPENAI_API_KEY,或設 OCR_LLM_PROVIDER=gemini + GEMINI_API_KEY)"
+        )
     if not files:
         raise OcrError("沒有可供辨識的檔案")
 
@@ -2863,6 +2865,132 @@ def _ocr_chunk_pages(
     return page_texts, time.time() - started_at, len(weak_pages)
 
 
+def _extraction_provider() -> str:
+    """謄本結構化擷取用哪個 LLM。OCR_LLM_PROVIDER=gemini 且有 GEMINI_API_KEY -> gemini,
+    否則 openai。OCR 文字辨識(PaddleOCR/RapidOCR)不受影響。"""
+    if (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower() == "gemini" and settings.GEMINI_API_KEY:
+        return "gemini"
+    return "openai"
+
+
+def _to_gemini_schema(node):
+    """把 OpenAI 風格的 JSON Schema 轉成 Gemini responseSchema 能吃的形式:
+    type:["X","null"] -> type:"X" + nullable:true;拿掉 additionalProperties。"""
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if k == "additionalProperties":
+                continue
+            if k == "type" and isinstance(v, list):
+                non_null = [t for t in v if t != "null"]
+                out["type"] = non_null[0] if non_null else "string"
+                if "null" in v:
+                    out["nullable"] = True
+                continue
+            out[k] = _to_gemini_schema(v)
+        return out
+    if isinstance(node, list):
+        return [_to_gemini_schema(x) for x in node]
+    return node
+
+
+_GEMINI_RESPONSE_SCHEMA = _to_gemini_schema(RESPONSE_SCHEMA)
+
+
+def _finalize_extraction(parsed: dict, elapsed: float) -> tuple[dict, float]:
+    """OpenAI / Gemini 回傳的原始 JSON dict -> 跑後處理 + 還原 owner_name。"""
+    result = _post_process_extracted_data({
+        "land_parcels": parsed.get("land_parcels") or [],
+        "encumbrances": parsed.get("encumbrances") or [],
+        "buildings": parsed.get("buildings") or [],
+    })
+    # owner_name 不套 s2twp 繁化(理由見下),用模型原始輸出還原。
+    for parcel, raw_parcel in zip(result["land_parcels"], parsed.get("land_parcels") or []):
+        for owner, raw_owner in zip(parcel.get("owners", []), raw_parcel.get("owners", []) or []):
+            if raw_owner.get("owner_name"):
+                owner["owner_name"] = raw_owner["owner_name"]
+    for building, raw_building in zip(result["buildings"], parsed.get("buildings") or []):
+        for owner, raw_owner in zip(building.get("owners", []), raw_building.get("owners", []) or []):
+            if raw_owner.get("owner_name"):
+                owner["owner_name"] = raw_owner["owner_name"]
+    return result, elapsed
+
+
+def _call_gemini_for_chunk(prompt: str, pages_block: str, page_images) -> tuple[dict, float]:
+    parts: list = [{"text": f"{prompt}\n\n{pages_block}"}]
+    for i, (img_bytes, _mime) in enumerate(page_images or []):
+        if not img_bytes:
+            continue
+        try:
+            vision_bytes = downscale_for_preview(img_bytes, max_dimension=2200, quality=82)
+        except Exception:
+            vision_bytes = img_bytes
+        parts.append({"text": f"----- 第 {i + 1} 頁原始影像(以此為準,OCR 文字僅供參考)-----"})
+        parts.append({
+            "inline_data": {
+                "mime_type": "image/jpeg",
+                "data": base64.b64encode(vision_bytes).decode("ascii"),
+            }
+        })
+    payload = {
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "responseSchema": _GEMINI_RESPONSE_SCHEMA,
+            "maxOutputTokens": 32768,
+        },
+    }
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    started_at = time.time()
+    last_error: OcrError | None = None
+    for attempt in (1, 2, 3):
+        try:
+            resp = httpx.post(url, json=payload, timeout=OCR_OPENAI_TIMEOUT_SECONDS)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            try:
+                detail = exc.response.json().get("error", {}).get("message", detail)
+            except ValueError:
+                pass
+            if exc.response.status_code in (429, 500, 503) and attempt < 3:
+                last_error = OcrError(f"呼叫 Gemini 服務失敗:{detail}")
+                time.sleep(5.0 * attempt)
+                continue
+            raise OcrError(f"呼叫 Gemini 服務失敗:{detail}") from exc
+        except httpx.HTTPError as exc:
+            last_error = OcrError(f"呼叫 Gemini 服務失敗:{exc}")
+            continue
+
+        data = resp.json()
+        cands = data.get("candidates") or []
+        if not cands:
+            block = (data.get("promptFeedback") or {}).get("blockReason")
+            last_error = OcrError(f"Gemini 未回傳結果{f'(被擋:{block})' if block else ''}")
+            continue
+        if cands[0].get("finishReason") == "MAX_TOKENS":
+            last_error = OcrError("Gemini 回傳內容被截斷(超過長度上限)")
+            continue
+        text = "".join(
+            p.get("text", "") for p in ((cands[0].get("content") or {}).get("parts") or [])
+        )
+        if not text.strip():
+            last_error = OcrError("Gemini 回傳內容為空")
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            last_error = OcrError(f"無法解析 Gemini 回傳的 JSON:{exc}")
+            continue
+        return _finalize_extraction(parsed, time.time() - started_at)
+
+    raise last_error or OcrError("呼叫 Gemini 服務失敗")
+
+
 def _call_openai_for_chunk(
     page_texts: list[str],
     record_type: str = "both",
@@ -2905,6 +3033,9 @@ def _call_openai_for_chunk(
         prompt += "\n\n【第二次校正重點：所有權人住址】上一輪有所有權人的 address 是空的。請回到影像,對每一位所有權人找到其底下那一行「住　址:」(字中間可能有全形空白),把後面完整的地址填進 address;地址若換行才接完,要把下一行的門牌部分(如「48號二十八樓之2」)一起接起來,直到遇到「權利範圍:」「權狀字號:」「當期申報地價:」或下一筆「登記次序」為止。只要原文有「住　址:」這一行,address 就不可以留空、不可以是 null、不可以是「(空白)」;「(空白)」只屬於「其他登記事項」,不是住址。第二類謄本的住址通常完整印出(只有身分證字號被遮成 F220****6),不要因為是第二類就不填。"
     elif validation_focus == "share_value":
         prompt += "\n\n【第二次校正重點：權利範圍與原規定地價】上一輪部分所有權人的「權利範圍」持分加總明顯不足 100%，或分數像是預設值，很可能漏讀或讀錯。請回到影像,對每一位所有權人找出其「獨立一行」的「權利範圍:X分之Y」(不是「歷次取得權利範圍」),完整、正確填入 ownership_numerator / ownership_denominator;同一筆地號所有『分別共有』人的持分加總應接近 1(公同共有除外)。同時逐一確認每位的「前次移轉現值或原規定地價」年月與金額有沒有讀到、有沒有誤抓成「當期申報地價」。不要沿用上一輪的錯誤數字。"
+
+    if _extraction_provider() == "gemini":
+        return _call_gemini_for_chunk(prompt, pages_block, page_images)
 
     # The local OCR engine only ever produces a flat stream of text - column alignment,
     # and therefore which 地址/持分/統編 belongs to which 所有權人, is lost. Sending the
@@ -2997,28 +3128,10 @@ def _call_openai_for_chunk(
             last_error = OcrError(f"無法解析 OpenAI 回傳的 JSON:{exc}")
             continue
 
-        result = _post_process_extracted_data({
-            "land_parcels": parsed.get("land_parcels") or [],
-            "encumbrances": parsed.get("encumbrances") or [],
-            "buildings": parsed.get("buildings") or [],
-        })
         # Person names are deliberately exempted from the s2twp traditional-conversion
-        # backstop above - it's meant for addresses/place names/legal terms, where the
-        # mapping is unambiguous. A rare/uncommon character actually printed in someone's
-        # real name can coincide with s2twp's simplified->traditional dictionary and get
-        # silently "corrected" into a different (wrong) character, which is worse than
-        # leaving whatever the model itself already read. Restore each owner_name from
-        # the pre-conversion model output after every other field has gone through the
-        # normal cleanup passes.
-        for parcel, raw_parcel in zip(result["land_parcels"], parsed.get("land_parcels") or []):
-            for owner, raw_owner in zip(parcel.get("owners", []), raw_parcel.get("owners", []) or []):
-                if raw_owner.get("owner_name"):
-                    owner["owner_name"] = raw_owner["owner_name"]
-        for building, raw_building in zip(result["buildings"], parsed.get("buildings") or []):
-            for owner, raw_owner in zip(building.get("owners", []), raw_building.get("owners", []) or []):
-                if raw_owner.get("owner_name"):
-                    owner["owner_name"] = raw_owner["owner_name"]
-        return result, time.time() - openai_started_at
+        # backstop (it's for addresses/place names/legal terms); _finalize_extraction
+        # restores each owner_name from the pre-conversion model output.
+        return _finalize_extraction(parsed, time.time() - openai_started_at)
 
     raise last_error
 
