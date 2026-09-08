@@ -50,13 +50,17 @@ async function renderRegistrationsTab(el) {
 // 「整合清冊」:一列 = 一位地主,土地 + 建物資料合併呈現。純檢視。
 function _shortDoorAddr(addr) {
   if (!addr) return "";
-  let s = String(addr).trim();
-  // 「前面地址都不用」:切掉最後一個 路/街/大道/道/段 以前的所有內容,保留巷弄號樓
+  const s = String(addr).trim().replace(/[０-９]/g, (d) => "０１２３４５６７８９".indexOf(d));
+  // 只保留「弄」開始(含弄號)後面;沒有弄就從「號」的門牌數字開始。都沒有再退回原本
+  // 「切到路/街/段之後、從第一個數字起」的作法。
+  let m = s.match(/\d+\s*弄.*$/);
+  if (m) return m[0].replace(/\s+/g, "");
+  m = s.match(/\d+(?:\s*之\s*\d+)?\s*號.*$/);
+  if (m) return m[0].replace(/\s+/g, "");
   const idx = Math.max(s.lastIndexOf("大道"), s.lastIndexOf("路"), s.lastIndexOf("街"), s.lastIndexOf("道"), s.lastIndexOf("段"));
-  if (idx >= 0) s = s.slice(idx + (s.substr(idx, 2) === "大道" ? 2 : 1));
-  // 若還殘留「里/鄰」前綴,從第一個數字開始
-  const dm = s.match(/[0-9０-９].*$/);
-  return (dm ? dm[0] : s).trim();
+  const tail = idx >= 0 ? s.slice(idx + (s.substr(idx, 2) === "大道" ? 2 : 1)) : s;
+  const dm = tail.match(/[0-9].*$/);
+  return (dm ? dm[0] : tail).trim();
 }
 
 async function renderIntegratedRosterTab(el) {
