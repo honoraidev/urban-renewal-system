@@ -195,7 +195,10 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
         return data
     raw = raw.translate(_FULLWIDTH_DIGIT_MAP)
 
-    hdrs = list(re.finditer(r"([0-9]{3,5}-[0-9]{3,5})\s*地號", raw))
+    # 依頁首「XXXX-XXXX 地號」/「XXXXX-XXX 建號」把原文切段,每段配一個地/建號。
+    # 批次謄本的登記次序會跨地號/建號重複,一定要切段後「逐地號 / 逐建號」比對,
+    # 不能只靠整份文件的 global_map(那個 key 會撞在一起,建物尤其嚴重)。
+    hdrs = list(re.finditer(r"([0-9]{3,5}-[0-9]{3,5})\s*[地建]\s*號", raw))
     sections: list[tuple[str, str]] = []
     for idx, m in enumerate(hdrs):
         end = hdrs[idx + 1].start() if idx + 1 < len(hdrs) else len(raw)
@@ -370,7 +373,17 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
         _apply(parcel.get("owners"), fmap or global_map)
 
     for building in data.get("buildings", []) or []:
-        _apply(building.get("owners"), global_map or (sections and _field_map(sections[-1][1])) or {})
+        bn = re.sub(r"\D", "", str(building.get("building_number") or ""))
+        fmap = {}
+        for spn, stext in sections:
+            if not spn or not bn:
+                continue
+            if spn == bn or (len(bn) >= 4 and spn.endswith(bn)) or (len(spn) >= 4 and bn.endswith(spn)):
+                fmap = _field_map(stext)
+                break
+        if not fmap and len(sections) == 1:
+            fmap = _field_map(sections[0][1])
+        _apply(building.get("owners"), fmap or global_map)
 
     return data
 
