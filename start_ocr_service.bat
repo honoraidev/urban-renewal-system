@@ -1,14 +1,10 @@
 @echo off
-chcp 65001 >nul
+REM Remote OCR service for the NAS to forward invoice scans to. Runs on this GPU box.
+REM SECRET must match OCR_REMOTE_SECRET in the NAS .env.nas file.
 cd /d "%~dp0"
-
-REM ── 遠端 OCR 服務(給 NAS 轉發用)。跑在這台有 GPU 的機器上。 ─────────────
-REM SECRET 要和 NAS 的 .env.nas 裡 OCR_REMOTE_SECRET 一模一樣。
 set OCR_SERVICE_SECRET=Plb4JynfLZsGmIHV5h6z9pWr
 set INVOICE_ALLOW_LOCAL_OCR=true
-
-REM 一定要用 .venv_ocr_gpu 這個 venv 的 python(裡面才有 paddleocr / paddlepaddle-gpu)。
-REM 用完整路徑,不要靠 PATH,免得跑到系統的 python。
+REM PaddleOCR 3.7 on this Windows box hangs on init (PP-LCNet JIT compile); use RapidOCR.
+set OCR_ENGINE=rapidocr
 "%~dp0.venv_ocr_gpu\Scripts\python.exe" -m uvicorn ocr_service:app --host 0.0.0.0 --port 8090 --app-dir backend
-
 pause
