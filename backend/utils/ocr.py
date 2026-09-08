@@ -1580,11 +1580,13 @@ def _recover_burned_in_addresses(
                     continue
                 pj, x0, y0, x1, y1 = payload
                 try:
-                    # 放寬裁切邊界(右邊尤其容易吃掉最後一個字)+ 提高解析度 + 走高精度
-                    # OCR 引擎,盡量把住址少字 / 錯字壓低。單條住址很小,600dpi 也很快。
+                    # 放寬裁切邊界(右邊尤其容易吃掉最後一個字)+ 提高解析度,盡量把
+                    # 住址少字 / 錯字壓低。單條住址很小,600dpi 也很快。
+                    # 註:不要用 high_accuracy 引擎 — NAS / ocr_service 沒裝 rapidocr(v2),
+                    #     會 ImportError 回空字串,導致整份都掃不到住址。
                     clip = fitz.Rect(x0 - 8, y0 - 16, x1 + 60, y1 + 18)
                     png = doc[pj].get_pixmap(dpi=600, clip=clip).tobytes("png")
-                    text, _c = _ocr_page_text(png, high_accuracy=True)
+                    text, _c = _ocr_page_text(png)
                     m = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", _normalize_ocr_text(text or ""))
                     if m:
                         val = re.sub(r"\s+", "", m.group(1))
@@ -1618,7 +1620,7 @@ def _recover_burned_in_addresses(
                 continue
             try:
                 png = doc[pi].get_pixmap(dpi=400).tobytes("png")
-                text, _c = _ocr_page_text(png, high_accuracy=True)
+                text, _c = _ocr_page_text(png)
             except Exception as exc:
                 print(f"[_recover_burned_in_addresses] full-page OCR failed: {exc}", flush=True)
                 continue
