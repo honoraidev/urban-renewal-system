@@ -276,38 +276,8 @@ def upload_document(
     upload_filename = file.filename or "upload"
     content = file.file.read()
 
-    # Deduplication check: if a document with exact same doc_type and file_name exists, overwrite/update it
-    existing = db.scalar(
-        select(Document)
-        .where(
-            Document.project_id == project_id,
-            Document.doc_type == doc_type,
-            Document.file_name == upload_filename,
-        )
-        .order_by(Document.uploaded_at.desc())
-    )
-
-    if existing:
-        disk_path = existing.file_path
-        if not os.path.exists(disk_path):
-            disk_path, _ = build_upload_path(project.project_code, upload_filename)
-            existing.file_path = disk_path
-
-        with open(disk_path, "wb") as out:
-            out.write(content)
-
-        existing.file_size_bytes = len(content)
-        existing.mime_type = file.content_type
-        existing.uploaded_by = current_user.id
-        if description:
-            existing.description = description
-        if landowner_id:
-            existing.landowner_id = landowner_id
-
-        db.commit()
-        db.refresh(existing)
-        return existing
-
+    # 同名檔案不再覆蓋原檔 — 每次上傳都存成新的一筆，保留舊版做版本紀錄
+    # (前端文件清單會以檔名分組、把舊版收在 ▶ 展開列，且舊版不可下載)。
     disk_path, stored_name = build_upload_path(project.project_code, upload_filename)
     with open(disk_path, "wb") as out:
         out.write(content)
