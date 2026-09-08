@@ -356,15 +356,31 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix
       clearInterval(timer);
       wrap.style.display = "none";
     },
+    // 交給輪詢自己驅動進度條 / 文字(避免假進度跑完後看起來像卡住)
+    takeOver() {
+      clearInterval(timer);
+      return { fill, label };
+    },
   };
 }
 
 // 謄本辨識改為背景工作:POST 回 job(status=processing),這裡輪詢 GET ocr-jobs/{id}
 // 直到 completed / failed。回傳跟舊同步版一樣的 { job, data } 形狀。
-async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 30 * 60 * 1000 } = {}) {
+async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60 * 1000, progress = null } = {}) {
   const started = Date.now();
+  const ui = progress && progress.takeOver ? progress.takeOver() : null;
+  const mmss = (s) => `${Math.floor(s / 60)} 分 ${String(Math.floor(s % 60)).padStart(2, "0")} 秒`;
+  const paint = () => {
+    if (!ui) return;
+    const sec = (Date.now() - started) / 1000;
+    // 92% → 99% 隨時間緩慢推進,讓使用者看得出還在動
+    if (ui.fill) ui.fill.style.width = `${92 + 7 * (1 - Math.exp(-sec / 240))}%`;
+    if (ui.label) ui.label.textContent = `辨識進行中… 已 ${mmss(sec)}(大份謄本約需 5–10 分鐘,請勿關閉視窗)`;
+  };
+  paint();
   while (Date.now() - started < maxMs) {
     await new Promise((r) => setTimeout(r, intervalMs));
+    paint();
     let detail = null;
     try {
       detail = await api(`/projects/${pid}/ocr-jobs/${jobId}`, { silent: true });
@@ -377,7 +393,7 @@ async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 30 * 60
     }
   }
   return {
-    job: { id: jobId, status: "failed", error_message: "辨識逾時(超過 30 分鐘),請改用較少頁數分批匯入" },
+    job: { id: jobId, status: "failed", error_message: "辨識逾時(超過 45 分鐘),請改用較少頁數分批匯入" },
     data: null,
   };
 }
@@ -405,7 +421,7 @@ async function runTitleDeedOcr() {
     fd.append("record_type", titleDeedWizard.recordType);
     let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
     if (result && result.job && result.job.status === "processing") {
-      result = await pollTitleDeedJob(state.currentProjectId, result.job.id);
+      result = await pollTitleDeedJob(state.currentProjectId, result.job.id, { progress });
     }
 
     if (!result || !result.job || result.job.status !== "completed") {
@@ -935,7 +951,7 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       fd.append("record_type", recordType === "parcel" ? "land" : "building");
       let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
       if (result && result.job && result.job.status === "processing") {
-        result = await pollTitleDeedJob(state.currentProjectId, result.job.id);
+        result = await pollTitleDeedJob(state.currentProjectId, result.job.id, { progress });
       }
       if (!result || !result.job || result.job.status !== "completed") {
         toast((result && result.job && result.job.error_message) || "辨識失敗", "error");
