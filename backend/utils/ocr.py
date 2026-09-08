@@ -2467,133 +2467,8 @@ def _get_high_accuracy_ocr_engine():
     return _HIGH_ACCURACY_OCR_ENGINE
 
 
-_PADDLE_OCR_ENGINE = None
-_PADDLE_OCR_AVAILABLE = None
-_PADDLE_ENGINE_LOCK = Lock()
-_PADDLE_RUN_LOCK = Lock()
-
-
-def _get_paddle_ocr_engine():
-    """Create the PaddleOCR 3.x PP-OCRv5 pipeline once per process.
-
-    This project now uses PaddleOCR 3.7.x directly instead of the legacy 2.x
-    ``ocr()`` API. GPU selection is explicit so the dedicated OCR venv uses the
-    RTX 3060; if GPU initialization fails, the caller can fall back to the
-    existing RapidOCR path used by the NAS deployment.
-    """
-    global _PADDLE_OCR_ENGINE, _PADDLE_OCR_AVAILABLE
-    # OCR_ENGINE=rapidocr 時完全不碰 PaddleOCR — 某些 Windows 機器上 PaddleOCR 3.7 的
-    # PP-LCNet_x1_0_textline_ori 初始化會卡死(要 ccache/MSVC 做 JIT 編譯),直接改用
-    # RapidOCR(ONNX,有 onnxruntime-gpu 就走 GPU)。
-    if (os.environ.get("OCR_ENGINE", "") or "").lower() == "rapidocr":
-        _PADDLE_OCR_AVAILABLE = False
-        return None
-    if _PADDLE_OCR_AVAILABLE is False:
-        return None
-    if _PADDLE_OCR_ENGINE is None:
-        with _PADDLE_ENGINE_LOCK:
-            if _PADDLE_OCR_ENGINE is None and _PADDLE_OCR_AVAILABLE is not False:
-                try:
-                    from paddleocr import PaddleOCR
-
-                    _PADDLE_OCR_ENGINE = PaddleOCR(
-                        ocr_version="PP-OCRv5",
-                        lang="chinese_cht",
-                        device="gpu",
-                        use_doc_orientation_classify=False,
-                        use_doc_unwarping=False,
-                        use_textline_orientation=True,
-                        text_rec_score_thresh=0.0,
-                    )
-                    _PADDLE_OCR_AVAILABLE = True
-                    print(
-                        "[PaddleOCR] PP-OCRv5 / PaddleOCR 3.x initialized on GPU.",
-                        flush=True,
-                    )
-                except Exception as exc:
-                    _PADDLE_OCR_AVAILABLE = False
-                    print(f"[PaddleOCR] PP-OCRv5 unavailable ({exc}).", flush=True)
-                    return None
-    return _PADDLE_OCR_ENGINE
-
-def _parse_paddle_ocr_result(res) -> tuple[list[str], list[float]]:
-    """Extract text and recognition confidence from PaddleOCR 3.x results.
-
-    PaddleOCR 3.x returns Result objects whose ``json``/``res`` payload exposes
-    ``rec_texts`` and ``rec_scores``. Older list/dict output is retained only as a
-    defensive compatibility path.
-    """
-    texts: list[str] = []
-    scores: list[float] = []
-    if res is None:
-        return texts, scores
-
-    for page in res:
-        if page is None:
-            continue
-
-        data = None
-        try:
-            if hasattr(page, "json"):
-                data = page.json
-                if callable(data):
-                    data = data()
-            elif hasattr(page, "res"):
-                data = page.res
-        except Exception:
-            data = None
-
-        # PaddleOCR 3.7's Result.json() wraps everything one level deep under "res"
-        # ({"res": {"rec_texts": [...], "rec_scores": [...]}}); older/other builds put
-        # those keys at the top level. Unwrap so both shapes work.
-        if isinstance(data, dict) and isinstance(data.get("res"), dict) and "rec_texts" not in data:
-            data = data["res"]
-
-        if isinstance(data, dict):
-            rec_texts = data.get("rec_texts") or []
-            rec_scores = data.get("rec_scores") or []
-            for i, text in enumerate(rec_texts):
-                if text is None or str(text).strip() == "":
-                    continue
-                texts.append(str(text))
-                try:
-                    scores.append(float(rec_scores[i]) if i < len(rec_scores) else 1.0)
-                except (TypeError, ValueError):
-                    scores.append(1.0)
-            continue
-
-        if isinstance(page, dict):
-            rec_texts = page.get("rec_texts") or []
-            rec_scores = page.get("rec_scores") or []
-            for i, text in enumerate(rec_texts):
-                if text:
-                    texts.append(str(text))
-                    scores.append(float(rec_scores[i]) if i < len(rec_scores) else 1.0)
-            continue
-
-        # Legacy PaddleOCR list output, kept so the function remains tolerant if
-        # another deployment still returns the older structure.
-        if isinstance(page, (list, tuple)):
-            for line in page:
-                if not line or len(line) < 2:
-                    continue
-                payload = line[1]
-                if isinstance(payload, (list, tuple)) and len(payload) >= 2:
-                    text, score = payload[0], payload[1]
-                else:
-                    text, score = payload, 1.0
-                if text:
-                    texts.append(str(text))
-                    try:
-                        scores.append(float(score))
-                    except (TypeError, ValueError):
-                        scores.append(1.0)
-
-    return texts, scores
-
-
 def _ocr_text_provider() -> str:
-    """OCR 文字辨識引擎:"local"(PaddleOCR/RapidOCR,預設)、"google_vision"
+    """OCR 文字辨識引擎:"local"(RapidOCR,預設)、"google_vision"
     (Cloud Vision,需 GOOGLE_VISION_API_KEY)或 "remote"(轉發到 OCR_REMOTE_URL 的
     ocr_service /ocr,通常跑在有 GPU 的機器上)。OCR_FORCE_LOCAL=1 一律 local(給
     ocr_service 自己用,避免無限轉發)。"""
@@ -2705,22 +2580,6 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
     img = Image.open(io.BytesIO(content)).convert("RGB")
     img_array = np.array(img)
 
-    paddle_engine = _get_paddle_ocr_engine()
-    if paddle_engine is not None:
-        try:
-            # The PaddleOCR 3.x pipeline is GPU-bound. Keep the actual inference
-            # serialized to avoid CUDA/cuDNN contention on the 6 GB RTX 3060.
-            with _gpu_process_lock(), _GPU_OCR_LOCK, _PADDLE_RUN_LOCK:
-                result = paddle_engine.predict(img_array)
-            texts, scores = _parse_paddle_ocr_result(result)
-            if texts:
-                conf = sum(scores) / len(scores) if scores else None
-                return _normalize_ocr_text("\n".join(texts)), conf
-        except Exception as exc:
-            print(f"[_ocr_page_text] PP-OCRv5 execution failed ({exc})", flush=True)
-
-    # Compatibility fallback for the existing NAS deployment. This is only used if
-    # PaddleOCR 3.x cannot initialize or inference fails.
     try:
         engine = _get_high_accuracy_ocr_engine() if high_accuracy else _get_ocr_engine()
         if engine is None:
@@ -2730,13 +2589,13 @@ def _ocr_page_text(content: bytes, high_accuracy: bool = False) -> tuple[str, fl
         txts = res.txts if hasattr(res, "txts") else [line[1] for line in (res[0] if res else [])]
         return _normalize_ocr_text("\n".join(txts)), None
     except Exception as exc:
-        print(f"[_ocr_page_text] Fallback OCR execution failed ({exc})", flush=True)
+        print(f"[_ocr_page_text] RapidOCR execution failed ({exc})", flush=True)
 
     return "", 0.0
 
 
 def run_ocr(content: bytes) -> dict:
-    """Runs local PP-OCRv5 on image bytes and returns {'text': extracted_text}."""
+    """Runs local RapidOCR on image bytes and returns {'text': extracted_text}."""
     try:
         text, _conf = _ocr_page_text(content)
         return {"text": text or ""}
@@ -2764,14 +2623,9 @@ _HEADER_OCR_ENGINE = None
 
 
 def _get_header_ocr_engine():
-    """Reuse the PP-OCRv5 engine for header-strip detection.
-
-    The previous version created a second RapidOCR session here. With the new
-    PaddleOCR 3.x stack that would waste VRAM and, on Windows, would also require
-    a second OCR runtime. The header contains large title/parcel text, so using the
-    already-loaded PP-OCRv5 pipeline is both simpler and safer.
-    """
-    return _get_paddle_ocr_engine()
+    """Reuse the already-loaded RapidOCR engine for header-strip detection - the
+    header only has large title/parcel text, no need for a second OCR session."""
+    return _get_ocr_engine()
 
 
 # Full-width digits and various dash-like punctuation glyphs (fullwidth/em/en dash,
@@ -2836,18 +2690,18 @@ def _normalize_ocr_text(text: str) -> str:
 
 
 def _ocr_header_text(content: bytes) -> str:
-    """OCR the cropped page header with the shared PP-OCRv5 pipeline."""
+    """OCR the cropped page header with the shared RapidOCR engine."""
     img = Image.open(io.BytesIO(content)).convert("RGB")
     engine = _get_header_ocr_engine()
     if engine is None:
         return ""
     try:
-        with _gpu_process_lock(), _GPU_OCR_LOCK, _PADDLE_RUN_LOCK:
-            result = engine.predict(np.array(img))
-        texts, _scores = _parse_paddle_ocr_result(result)
-        return _normalize_ocr_text("\n".join(texts))
+        with _gpu_process_lock(), _GPU_OCR_LOCK:
+            res = engine(np.array(img))
+        txts = res.txts if hasattr(res, "txts") else [line[1] for line in (res[0] if res else [])]
+        return _normalize_ocr_text("\n".join(txts))
     except Exception as exc:
-        print(f"[_ocr_header_text] PP-OCRv5 header OCR failed ({exc})", flush=True)
+        print(f"[_ocr_header_text] RapidOCR header OCR failed ({exc})", flush=True)
         return ""
 
 
@@ -2988,7 +2842,7 @@ def _ocr_chunk_pages(
 
 def _extraction_provider() -> str:
     """謄本結構化擷取用哪個 LLM。OCR_LLM_PROVIDER + 對應金鑰決定;缺金鑰就退回 openai。
-    OCR 文字辨識(PaddleOCR/RapidOCR)不受影響。"""
+    OCR 文字辨識(RapidOCR)不受影響。"""
     p = (getattr(settings, "OCR_LLM_PROVIDER", "openai") or "").lower()
     if p == "gemini" and settings.GEMINI_API_KEY:
         return "gemini"

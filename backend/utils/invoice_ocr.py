@@ -1,4 +1,4 @@
-"""發票辨識管線:① 先試 QR(電子發票證明聯,最準)→ ② 讀不到再 PaddleOCR
+"""發票辨識管線:① 先試 QR(電子發票證明聯,最準)→ ② 讀不到再 RapidOCR
 → ③ 規則校正。回傳可帶入支出表單並存進 expenses 的欄位。完全本機執行、零費用。
 (GEMINI 那條路預設關閉,見 settings.INVOICE_USE_GEMINI。)"""
 
@@ -106,7 +106,7 @@ def _try_qr(image_bytes: bytes) -> dict | None:
     return None
 
 
-# ============================================================ ② + ③ PaddleOCR + 規則
+# ============================================================ ② + ③ RapidOCR + 規則
 
 _NUM_RE = re.compile(r"[A-Z]{2}[-\s]?\d{8}")
 _ROC_DATE_RE = re.compile(r"(?<!\d)(\d{2,3})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})")

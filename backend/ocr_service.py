@@ -1,7 +1,8 @@
 """獨立的 OCR 服務 — 跑在有 GPU / 足夠記憶體的機器上(不是 NAS)。
 
-NAS 上的主後端(main:app)設了 OCR_REMOTE_URL 之後,會把發票影像 POST 到這裡,
-本機完全不跑 PaddleOCR。這支服務不碰資料庫、不驗 JWT,只用一組共享密鑰擋外人。
+NAS 上的主後端(main:app)設了 OCR_REMOTE_URL / OCR_TEXT_PROVIDER=remote 之後,
+會把影像 POST 到這裡,NAS 本機不跑 OCR。這支服務不碰資料庫、不驗 JWT,只用一組
+共享密鑰擋外人。OCR 引擎:RapidOCR(ONNX,有 onnxruntime-gpu 就走 GPU)。
 
 啟動(在 GPU 機器上,專案的 backend/ 目錄):
 
@@ -28,7 +29,7 @@ _SECRET = os.environ.get("OCR_SERVICE_SECRET", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 開機就把 OCR 引擎(PaddleOCR / RapidOCR)初始化完 — 這步在有 GPU 的機器上
+    # 開機就把 OCR 引擎(RapidOCR)初始化完 — 這步在有 GPU 的機器上
     # 第一次要 1~3 分鐘。放在啟動時做,之後每個請求才會是秒級,不會卡住 NAS 的逾時。
     try:
         from PIL import Image
@@ -63,7 +64,7 @@ async def invoice(
     file: UploadFile = File(...),
     x_ocr_secret: str | None = Header(default=None),
 ):
-    """收發票影像,回傳可帶入支出表單的欄位(QR → PaddleOCR → 規則)。"""
+    """收發票影像,回傳可帶入支出表單的欄位(QR → RapidOCR → 規則)。"""
     _check(x_ocr_secret)
     content = await file.read()
     if not content:
@@ -80,7 +81,7 @@ async def ocr_page(
     high_accuracy: bool = False,
     x_ocr_secret: str | None = Header(default=None),
 ):
-    """收一張(已 render 成圖的)謄本頁面,用本機 OCR 引擎(GPU 上是 PaddleOCR)回
+    """收一張(已 render 成圖的)謄本頁面,用本機 OCR 引擎(RapidOCR)回
     純文字 + 平均信心。給 NAS 的 extract_title_deed 逐頁轉發用。"""
     _check(x_ocr_secret)
     content = await file.read()
