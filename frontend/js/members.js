@@ -232,20 +232,38 @@ function renderUsersTable() {
     return;
   }
 
+  const shortDT = (iso) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (isNaN(d)) return fmtDateTime(iso);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
   wrap.innerHTML = `
+    <style>
+      #users-table-wrap { overflow-x:auto; }
+      #users-table-wrap table { font-size:13px; border-collapse:collapse; width:100%; }
+      #users-table-wrap th, #users-table-wrap td { padding:8px 12px; white-space:nowrap; vertical-align:middle; }
+      #users-table-wrap td.u-wrap { white-space:normal; max-width:200px; }
+      #users-table-wrap tbody tr:hover { background:var(--bg-subtle,#f8fafc); }
+      #users-table-wrap .role-badge { white-space:nowrap; }
+      #users-table-wrap .actions-cell { text-align:right; }
+      #users-table-wrap .actions-cell .btn-sm { margin-left:4px; }
+    </style>
     <table>
-      <thead><tr><th>姓名</th><th>帳號</th><th>角色</th><th>部門</th><th>職位</th><th>Email</th><th>最後登入</th><th>狀態</th><th>操作</th></tr></thead>
+      <thead><tr><th>姓名</th><th>帳號</th><th>角色</th><th>部門</th><th>職位</th><th>Email</th><th>最後登入</th><th>狀態</th><th style="text-align:right">操作</th></tr></thead>
       <tbody>
         ${users
       .map(
         (u) => `<tr>
               <td>${escapeHtml(u.display_name)}</td>
-              <td>${escapeHtml(u.username)}</td>
+              <td class="project-code">${escapeHtml(u.username)}</td>
               <td><span class="role-badge ${u.role}">${roleLabel[u.role] || u.role}</span></td>
-              <td>${(u.departments || []).map(escapeHtml).join("、") || "-"}</td>
-              <td>${(u.titles || []).map(escapeHtml).join("、") || "-"}</td>
-              <td>${escapeHtml(u.email) || "-"}</td>
-              <td>${u.last_login_at ? fmtDateTime(u.last_login_at) : "-"}</td>
+              <td class="u-wrap">${(u.departments || []).map(escapeHtml).join("、") || "-"}</td>
+              <td class="u-wrap">${(u.titles || []).map(escapeHtml).join("、") || "-"}</td>
+              <td class="u-wrap">${escapeHtml(u.email) || "-"}</td>
+              <td>${shortDT(u.last_login_at)}</td>
               <td><span class="mini-badge ${u.is_active ? "gate-ok" : "alert"}">${u.is_active ? "啟用" : "停用"}</span></td>
               <td class="actions-cell">
                 <button class="btn-secondary btn-sm" data-edit-user="${u.id}">編輯</button>
