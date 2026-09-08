@@ -8,6 +8,19 @@ let inventoryCurDept = "全部";
 let inventorySearchQuery = "";
 
 const INVENTORY_STATUS_OPTIONS = ["正常", "報修", "報廢", "外借"];
+const INVENTORY_UNIT_OPTIONS = ["個", "台", "支", "組", "套", "箱", "包", "捲", "張", "本", "條", "副", "部", "顆", "瓶", "桶", "雙", "面", "塊", "公斤", "公尺"];
+
+// 部門候選:通用部門清單(members.js 的 DEPARTMENT_OPTIONS)+ 目前資料裡出現過的
+function _invDeptOptions() {
+  const canon = typeof DEPARTMENT_OPTIONS !== "undefined" ? DEPARTMENT_OPTIONS : [];
+  const known = inventoryCache.map((i) => (i.department || "").trim()).filter(Boolean);
+  return [...new Set([...canon, ...known])];
+}
+// 保管人 / 使用部門:部門清單 + 資料裡出現過的保管人
+function _invCustodianOptions() {
+  const known = inventoryCache.map((i) => (i.custodian || "").trim()).filter(Boolean);
+  return [...new Set([..._invDeptOptions(), ...known])];
+}
 const INVENTORY_STATUS_STYLE = {
   正常: "background:#dcfce7;color:#15803d;border:1px solid #bbf7d0",
   報修: "background:#fef3c7;color:#b45309;border:1px solid #fde68a",
@@ -16,14 +29,14 @@ const INVENTORY_STATUS_STYLE = {
 };
 
 const INVENTORY_FIELDS = [
-  { key: "department", label: "部門", required: true },
+  { key: "department", label: "部門", required: true, type: "dropdown", opts: _invDeptOptions },
   { key: "name", label: "物品名稱", required: true },
   { key: "category", label: "分類" },
   { key: "quantity", label: "數量", type: "number" },
-  { key: "unit", label: "單位" },
+  { key: "unit", label: "單位", type: "dropdown", opts: () => INVENTORY_UNIT_OPTIONS },
   { key: "location", label: "存放位置" },
   { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
-  { key: "custodian", label: "保管人 / 使用部門" },
+  { key: "custodian", label: "保管人 / 使用部門", type: "dropdown", opts: _invCustodianOptions },
   { key: "asset_no", label: "財產編號" },
   { key: "acquired_date", label: "取得日期", type: "date" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
@@ -158,7 +171,6 @@ function renderInventoryTable() {
 }
 
 function openInventoryFormModal(title, item) {
-  const knownDepts = [...new Set(inventoryCache.map((i) => (i.department || "").trim()).filter(Boolean))].sort();
   const curDeptDefault = item ? item.department || "" : inventoryCurDept === "全部" ? "" : inventoryCurDept;
 
   const fieldHtml = (f) => {
@@ -171,9 +183,15 @@ function openInventoryFormModal(title, item) {
       input = `<select name="${f.key}">${f.options
         .map((o) => `<option value="${escapeHtml(o)}" ${val === o ? "selected" : ""}>${escapeHtml(o)}</option>`)
         .join("")}</select>`;
-    } else if (f.key === "department") {
-      input = `<input name="department" list="inv-dept-list" required value="${escapeHtml(val || curDeptDefault)}" placeholder="例如:工務部">
-        <datalist id="inv-dept-list">${knownDepts.map((d) => `<option value="${escapeHtml(d)}">`).join("")}</datalist>`;
+    } else if (f.type === "dropdown") {
+      const optList = typeof f.opts === "function" ? f.opts() : f.opts || [];
+      const cur = f.key === "department" ? val || curDeptDefault : val;
+      const all = [...new Set([...(cur ? [cur] : []), ...optList])];
+      input = `<select name="${f.key}" ${f.required ? "required" : ""}>
+        ${f.required ? "" : `<option value="" ${cur === "" ? "selected" : ""}>（未指定）</option>`}
+        ${all.map((o) => `<option value="${escapeHtml(o)}" ${cur === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+        <option value="__new__">＋ 其他…</option>
+      </select>`;
     } else {
       const type = f.type === "date" ? "date" : f.type === "number" ? "number" : "text";
       const step = f.key === "unit_price" ? ' step="0.01"' : "";
@@ -196,12 +214,33 @@ function openInventoryFormModal(title, item) {
 
   openModal(title, body, { width: "720px" });
 
+  // 下拉選「＋ 其他…」→ 輸入新值,塞成選項並選起來
+  document.querySelectorAll("#inventory-form select").forEach((sel) => {
+    let prev = sel.value;
+    sel.addEventListener("change", () => {
+      if (sel.value === "__new__") {
+        const name = (prompt("輸入新項目:") || "").trim();
+        if (name) {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+          sel.value = name;
+        } else {
+          sel.value = prev;
+        }
+      }
+      prev = sel.value;
+    });
+  });
+
   document.getElementById("inventory-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = {};
     for (const f of INVENTORY_FIELDS) {
       let raw = (fd.get(f.key) ?? "").toString().trim();
+      if (raw === "__new__") raw = "";
       if (f.type === "number") {
         payload[f.key] = raw === "" ? (f.key === "quantity" ? 1 : null) : Number(raw);
       } else {
