@@ -96,15 +96,17 @@ async function renderIntegratedRosterTab(el) {
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
       <h3>整合清冊 (<span id="integ-count">${rows.length}</span>)</h3>
-      <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
-      ${ddHtml("integ-state-dd", "狀態", [
-        { v: "visited", t: "已拜訪" }, { v: "not_visited", t: "未拜訪" },
-        { v: "signed", t: "已簽約" }, { v: "not_signed", t: "未簽約" },
-      ])}
-      ${ddHtml("integ-visit-dd", "拜訪紀錄", [
-        { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
-        { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
-      ])}
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
+        <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
+        ${ddHtml("integ-state-dd", "狀態", [
+          { v: "visited", t: "已拜訪" }, { v: "not_visited", t: "未拜訪" },
+          { v: "signed", t: "已簽約" }, { v: "not_signed", t: "未簽約" },
+        ])}
+        ${ddHtml("integ-visit-dd", "拜訪紀錄", [
+          { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
+          { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
+        ])}
+      </div>
     </div>
     <div class="table-wrap">
       <table>
