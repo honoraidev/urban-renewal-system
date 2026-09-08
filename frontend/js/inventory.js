@@ -36,7 +36,7 @@ const INVENTORY_FIELDS = [
   { key: "unit", label: "單位", type: "dropdown", opts: () => INVENTORY_UNIT_OPTIONS },
   { key: "location", label: "存放位置" },
   { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
-  { key: "custodian", label: "保管人 / 使用部門", type: "dropdown", opts: _invCustodianOptions },
+  { key: "custodian", label: "保管人", type: "dropdown", opts: _invCustodianOptions },
   { key: "asset_no", label: "財產編號" },
   { key: "acquired_date", label: "取得日期", type: "date" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
