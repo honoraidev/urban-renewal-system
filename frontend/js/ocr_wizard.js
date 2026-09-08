@@ -369,13 +369,23 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix
 async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60 * 1000, progress = null } = {}) {
   const started = Date.now();
   const ui = progress && progress.takeOver ? progress.takeOver() : null;
-  const mmss = (s) => `${Math.floor(s / 60)} 分 ${String(Math.floor(s % 60)).padStart(2, "0")} 秒`;
+  // 後端目前只回 processing/completed/failed,沒有細分階段;依經過時間輪播「現在大概在做什麼」
+  // (不顯示秒數)。大份謄本各階段耗時很長,門檻抓寬一點。
+  const PHASES = [
+    [0, "正在轉換 PDF 頁面影像"],
+    [25, "正在逐頁辨識文字 (OCR)"],
+    [90, "正在解析地號、所有權人、持分等欄位"],
+    [150, "正在還原被遮罩的戶籍地址"],
+    [260, "正在用 AI 校正地址與欄位"],
+    [340, "正在彙整辨識結果"],
+  ];
   const paint = () => {
     if (!ui) return;
     const sec = (Date.now() - started) / 1000;
-    // 92% → 99% 隨時間緩慢推進,讓使用者看得出還在動
+    let phase = PHASES[0][1];
+    for (const [t, txt] of PHASES) if (sec >= t) phase = txt;
     if (ui.fill) ui.fill.style.width = `${92 + 7 * (1 - Math.exp(-sec / 240))}%`;
-    if (ui.label) ui.label.textContent = `辨識進行中… 已 ${mmss(sec)}(大份謄本約需 5–10 分鐘,請勿關閉視窗)`;
+    if (ui.label) ui.label.textContent = `${phase}…(請勿關閉視窗)`;
   };
   paint();
   while (Date.now() - started < maxMs) {
