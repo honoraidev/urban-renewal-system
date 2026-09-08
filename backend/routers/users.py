@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import require_manager, require_sys_admin
+from deps import get_current_user, require_manager, require_sys_admin
 from models.user import User
 from schemas.user import UserActiveUpdate, UserCreate, UserRead, UserUpdate
 from security import hash_password
@@ -28,6 +28,16 @@ def _active_sys_admin_count(db: Session, exclude_user_id: int | None = None) -> 
 @router.get("", response_model=list[UserRead])
 def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
     return db.scalars(select(User).order_by(User.created_at)).all()
+
+
+@router.get("/directory")
+def user_directory(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """輕量的「部門 → 人」名冊,任何登入者可讀(物品管制表的保管人/領用人選單用)。
+    只回姓名與所屬部門,不含帳號、角色等敏感欄位。"""
+    users = db.scalars(
+        select(User).where(User.is_active == True).order_by(User.display_name)  # noqa: E712
+    ).all()
+    return [{"display_name": u.display_name, "departments": u.departments or []} for u in users]
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -75,7 +85,7 @@ def update_user(
         if _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot change role: at least one active L1 (sys_admin) must remain",
+                detail="Cannot change role: at least one active L0 系統管理員 must remain",
             )
 
     if "password" in data:
@@ -103,7 +113,7 @@ def set_user_active(
     if not payload.is_active and user.role == "sys_admin" and _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot deactivate the last active L1 (sys_admin) account",
+            detail="Cannot deactivate the last active L0 系統管理員 account",
         )
 
     user.is_active = payload.is_active
@@ -123,7 +133,7 @@ def delete_user(
     if user.role == "sys_admin" and _active_sys_admin_count(db, exclude_user_id=user.id) < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete the last active L1 (sys_admin) account",
+            detail="Cannot delete the last active L0 系統管理員 account",
         )
 
     db.delete(user)

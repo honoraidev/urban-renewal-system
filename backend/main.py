@@ -65,6 +65,8 @@ def _auto_migrate() -> None:
         ("users", "title", "VARCHAR(100) NULL"),
         ("landowners", "visit_status", "VARCHAR(20) NOT NULL DEFAULT 'not_visited'"),
         ("landowners", "reply_status", "VARCHAR(20) NOT NULL DEFAULT 'not_replied'"),
+        ("inventory_items", "custodian_dept", "VARCHAR(100) NULL"),
+        ("inventory_items", "borrower_dept", "VARCHAR(100) NULL"),
     ):
         try:
             with engine.connect() as _conn:

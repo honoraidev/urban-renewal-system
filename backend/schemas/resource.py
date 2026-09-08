@@ -105,10 +105,12 @@ class InventoryItemBase(BaseModel):
     unit: str | None = None
     location: str | None = None
     status: str = "正常"
+    custodian_dept: str | None = None
     custodian: str | None = None
     asset_no: str | None = None
     acquired_date: str | None = None
     unit_price: float | None = None
+    borrower_dept: str | None = None
     borrower: str | None = None
     issued_date: str | None = None
     expected_return_date: str | None = None
@@ -128,10 +130,12 @@ class InventoryItemUpdate(BaseModel):
     unit: str | None = None
     location: str | None = None
     status: str | None = None
+    custodian_dept: str | None = None
     custodian: str | None = None
     asset_no: str | None = None
     acquired_date: str | None = None
     unit_price: float | None = None
+    borrower_dept: str | None = None
     borrower: str | None = None
     issued_date: str | None = None
     expected_return_date: str | None = None

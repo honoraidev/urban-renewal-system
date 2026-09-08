@@ -6,18 +6,25 @@
 let inventoryCache = [];
 let inventoryCurDept = "全部";
 let inventorySearchQuery = "";
+let inventoryUserDir = {}; // { 部門名稱: [員工姓名, ...] } — 保管人/領用人選單用
 
 const INVENTORY_STATUS_OPTIONS = ["正常", "報修", "報廢", "外借"];
-// 部門候選:通用部門清單(members.js 的 DEPARTMENT_OPTIONS)+ 目前資料裡出現過的
+// 部門候選:通用部門清單 + 員工名冊裡的部門 + 目前資料裡出現過的
 function _invDeptOptions() {
   const canon = typeof DEPARTMENT_OPTIONS !== "undefined" ? DEPARTMENT_OPTIONS : [];
-  const known = inventoryCache.map((i) => (i.department || "").trim()).filter(Boolean);
-  return [...new Set([...canon, ...known])];
+  const dir = Object.keys(inventoryUserDir);
+  const known = inventoryCache.flatMap((i) => [i.department, i.custodian_dept, i.borrower_dept]).map((s) => (s || "").trim()).filter(Boolean);
+  return [...new Set([...canon, ...dir, ...known])];
 }
-// 保管人 / 使用部門:部門清單 + 資料裡出現過的保管人
-function _invCustodianOptions() {
-  const known = inventoryCache.map((i) => (i.custodian || "").trim()).filter(Boolean);
-  return [...new Set([..._invDeptOptions(), ...known])];
+// 某部門的人:員工名冊為主,加上資料裡出現過、掛在這個部門的保管人/領用人
+function _invPeopleOf(dept) {
+  const d = (dept || "").trim();
+  const fromDir = inventoryUserDir[d] || [];
+  const fromData = inventoryCache
+    .flatMap((i) => [[i.custodian_dept, i.custodian], [i.borrower_dept, i.borrower]])
+    .filter(([dd, nn]) => (dd || "").trim() === d && (nn || "").trim())
+    .map(([, nn]) => nn.trim());
+  return [...new Set([...fromDir, ...fromData])];
 }
 const INVENTORY_STATUS_STYLE = {
   正常: "background:#dcfce7;color:#15803d;border:1px solid #bbf7d0",
@@ -33,11 +40,13 @@ const INVENTORY_FIELDS = [
   { key: "quantity", label: "數量", type: "number" },
   { key: "location", label: "存放位置" },
   { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
-  { key: "custodian", label: "保管人", type: "dropdown", opts: _invCustodianOptions },
+  { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions },
+  { key: "custodian", label: "保管人", type: "person", deptField: "custodian_dept" },
   { key: "asset_no", label: "財產編號" },
   { key: "acquired_date", label: "取得日期", type: "date" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
-  { key: "borrower", label: "領用人", section: "領用 / 歸還" },
+  { key: "borrower_dept", label: "領用人部門", type: "dropdown", opts: _invDeptOptions, section: "領用 / 歸還" },
+  { key: "borrower", label: "領用人", type: "person", deptField: "borrower_dept" },
   { key: "issued_date", label: "領用日期", type: "date" },
   { key: "expected_return_date", label: "預計歸還", type: "date" },
   { key: "returned_date", label: "實際歸還", type: "date" },
@@ -62,6 +71,19 @@ async function loadInventory() {
   } catch (err) {
     wrap.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
+  }
+  try {
+    const dir = (await api("/users/directory", { silent: true })) || [];
+    inventoryUserDir = {};
+    dir.forEach((u) => {
+      (u.departments || []).forEach((d) => {
+        const k = (d || "").trim();
+        if (!k) return;
+        (inventoryUserDir[k] = inventoryUserDir[k] || []).push(u.display_name);
+      });
+    });
+  } catch (e) {
+    inventoryUserDir = {};
   }
 
   const depts = [...new Set(inventoryCache.map((i) => (i.department || "").trim()).filter(Boolean))].sort();
@@ -189,6 +211,15 @@ function openInventoryFormModal(title, item) {
         ${all.map((o) => `<option value="${escapeHtml(o)}" ${cur === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
         <option value="__new__">＋ 其他…</option>
       </select>`;
+    } else if (f.type === "person") {
+      const dept = item ? item[f.deptField] || "" : "";
+      const people = _invPeopleOf(dept);
+      const all = [...new Set([...(val ? [val] : []), ...people])];
+      input = `<select name="${f.key}" data-person-of="${f.deptField}">
+        <option value="" ${val === "" ? "selected" : ""}>（無指定人）</option>
+        ${all.map((o) => `<option value="${escapeHtml(o)}" ${val === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+        <option value="__new__">＋ 其他…</option>
+      </select>`;
     } else {
       const type = f.type === "date" ? "date" : f.type === "number" ? "number" : "text";
       const step = f.key === "unit_price" ? ' step="0.01"' : "";
@@ -210,6 +241,21 @@ function openInventoryFormModal(title, item) {
     </form>`;
 
   openModal(title, body, { width: "720px" });
+
+  // 保管人/領用人:改部門就重建「該部門的人」下拉(保留「（無指定人）」)
+  document.querySelectorAll('#inventory-form select[data-person-of]').forEach((psel) => {
+    const dsel = document.querySelector(`#inventory-form select[name="${psel.dataset.personOf}"]`);
+    if (!dsel) return;
+    dsel.addEventListener("change", () => {
+      const cur = psel.value;
+      const people = _invPeopleOf(dsel.value === "__new__" ? "" : dsel.value);
+      psel.innerHTML =
+        `<option value="">（無指定人）</option>` +
+        people.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("") +
+        `<option value="__new__">＋ 其他…</option>`;
+      psel.value = people.includes(cur) ? cur : "";
+    });
+  });
 
   // 下拉選「＋ 其他…」→ 輸入新值,塞成選項並選起來
   document.querySelectorAll("#inventory-form select").forEach((sel) => {

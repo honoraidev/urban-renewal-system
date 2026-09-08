@@ -21,11 +21,13 @@ class InventoryItem(Base):
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="正常")
 
+    custodian_dept: Mapped[str | None] = mapped_column(String(100), nullable=True)
     custodian: Mapped[str | None] = mapped_column(String(100), nullable=True)
     asset_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     acquired_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
     unit_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
 
+    borrower_dept: Mapped[str | None] = mapped_column(String(100), nullable=True)
     borrower: Mapped[str | None] = mapped_column(String(100), nullable=True)
     issued_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
     expected_return_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
