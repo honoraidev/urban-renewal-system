@@ -8,8 +8,6 @@ let inventoryCurDept = "全部";
 let inventorySearchQuery = "";
 
 const INVENTORY_STATUS_OPTIONS = ["正常", "報修", "報廢", "外借"];
-const INVENTORY_UNIT_OPTIONS = ["個", "台", "支", "組", "套", "箱", "包", "捲", "張", "本", "條", "副", "部", "顆", "瓶", "桶", "雙", "面", "塊", "公斤", "公尺"];
-
 // 部門候選:通用部門清單(members.js 的 DEPARTMENT_OPTIONS)+ 目前資料裡出現過的
 function _invDeptOptions() {
   const canon = typeof DEPARTMENT_OPTIONS !== "undefined" ? DEPARTMENT_OPTIONS : [];
@@ -33,7 +31,6 @@ const INVENTORY_FIELDS = [
   { key: "name", label: "物品名稱", required: true },
   { key: "category", label: "分類" },
   { key: "quantity", label: "數量", type: "number" },
-  { key: "unit", label: "單位", type: "dropdown", opts: () => INVENTORY_UNIT_OPTIONS },
   { key: "location", label: "存放位置" },
   { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
   { key: "custodian", label: "保管人", type: "dropdown", opts: _invCustodianOptions },
@@ -126,7 +123,7 @@ function renderInventoryTable() {
       <table>
         <thead><tr>
           ${showDeptCol ? th("部門") : ""}
-          ${th("物品名稱")}${th("分類")}${th("數量")}${th("單位")}${th("存放位置")}${th("狀態")}
+          ${th("物品名稱")}${th("分類")}${th("數量")}${th("存放位置")}${th("狀態")}
           ${th("保管人")}${th("財產編號")}${th("領用人")}${th("領用日期")}${th("預計歸還")}${th("實際歸還")}${th("備註")}${th("操作")}
         </tr></thead>
         <tbody>
@@ -136,7 +133,7 @@ function renderInventoryTable() {
         return `<tr>
               ${showDeptCol ? td(i.department) : ""}
               <td style="font-weight:600;white-space:nowrap">${escapeHtml(i.name || "-")}</td>
-              ${td(i.category)}${td(i.quantity)}${td(i.unit)}${td(i.location)}
+              ${td(i.category)}${td(i.quantity)}${td(i.location)}
               <td><span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;${stStyle}">${escapeHtml(i.status || "正常")}</span></td>
               ${td(i.custodian)}${td(i.asset_no)}${td(i.borrower)}${td(i.issued_date)}${td(i.expected_return_date)}${td(i.returned_date)}
               <td style="max-width:200px;white-space:pre-wrap">${escapeHtml(i.notes || "-")}</td>
