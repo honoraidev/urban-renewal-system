@@ -76,6 +76,21 @@ def _auto_migrate() -> None:
         except Exception as exc:
             print(f"[auto_migrate] ALTER {_tbl} {_col} skipped: {exc}", flush=True)
 
+    # 謄本辨識現在跑在背景執行緒;若上次是重啟中斷,job 會永遠停在 processing。
+    # 開機時把卡超過 30 分鐘的 processing job 標成 failed,前端輪詢才不會一直等。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(
+                _sql_text(
+                    "UPDATE ocr_jobs SET status='failed', "
+                    "error_message='伺服器重啟中斷,請重新匯入', completed_at=NOW() "
+                    "WHERE status='processing' AND started_at < NOW() - INTERVAL 30 MINUTE"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] stale ocr_jobs sweep skipped: {exc}", flush=True)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

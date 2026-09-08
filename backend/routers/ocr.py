@@ -1,11 +1,12 @@
 import base64
+import threading
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import select, text as _sql_text
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import SessionLocal, get_db
 from deps import get_current_user, require_project_ocr_editor, require_project_viewer
 from models.building_record import BuildingRecord
 from models.document import Document
@@ -206,42 +207,28 @@ def extract_title_deed_job(
         newly_created_document_ids.add(document.id)
         db.add(OcrJobDocument(ocr_job_id=job.id, document_id=document.id, page_order=len(documents) - 1))
 
-    if not DEED_EXTRACT_SEMAPHORE.acquire(timeout=DEED_EXTRACT_WAIT_S):
-        job.status = "failed"
-        job.error_message = "系統目前有其他謄本正在辨識,請稍後再試一次"
-        job.completed_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(job)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="系統目前有其他謄本正在辨識,請稍後再試一次",
-        )
-    try:
-        file_payload = []
-        for doc in documents:
-            with open(doc.file_path, "rb") as f:
-                file_payload.append((f.read(), doc.mime_type))
-        parsed, warning = extract_title_deed(file_payload, record_type=record_type, high_accuracy=high_accuracy)
-    except (OcrError, OSError) as exc:
-        job.status = "failed"
-        job.error_message = str(exc)
-        job.completed_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(job)
-        return OcrExtractionResult(job=OcrJobRead.model_validate(job), data=None)
-    finally:
-        DEED_EXTRACT_SEMAPHORE.release()
+    # 大份謄本(上百頁)辨識要好幾分鐘,同步做會被前端 / 反向代理的逾時切斷 →
+    # 前端收不到結果、卡在「彙整中」。改成:這裡只把 job + 文件存好、馬上回 job_id,
+    # 實際辨識丟到背景執行緒,前端輪詢 GET /ocr-jobs/{id} 的 status 拿結果。
+    db.commit()
+    document_ids = [d.id for d in documents]
+    threading.Thread(
+        target=_run_title_deed_extraction,
+        args=(
+            job.id,
+            document_ids,
+            set(newly_created_document_ids),
+            record_type,
+            high_accuracy,
+        ),
+        daemon=True,
+    ).start()
+    db.refresh(job)
+    return OcrExtractionResult(job=OcrJobRead.model_validate(job), data=None)
 
-    match = OcrMatchResult(ocr_job_id=job.id, extracted_data=parsed)
-    db.add(match)
 
-    # Relabel the *description* of documents this call just saved to reflect what was
-    # actually found on them (地號/建號), instead of leaving it as generic "謄本掃描匯入"
-    # - file_name is deliberately left as whatever the user actually uploaded it as, not
-    # rewritten to a generated label (users want to recognize their own file names in the
-    # 文件 list). description stays a short summary even for a big ungrouped batch
-    # covering dozens of parcels/buildings - the full per-item list already lives in the
-    # structured land_records/building_records this job produces, this is just a label.
+def _relabel_job_documents(documents: list[Document], newly_created_ids: set[int], parsed: dict) -> None:
+    """把這次匯入新存的文件的 description 依實際辨識到的地號/建號改寫(檔名保留使用者原名)。"""
     if len(documents) == 1:
         labels = [f"地號{p['parcel_number']}" for p in parsed.get("land_parcels", []) if p.get("parcel_number")]
         labels += [f"建號{b['building_number']}" for b in parsed.get("buildings", []) if b.get("building_number")]
@@ -249,47 +236,93 @@ def extract_title_deed_job(
         if labels:
             summary_label = labels[0] if len(labels) == 1 else f"{labels[0]} 等 {len(labels)} 筆"
             doc = documents[0]
-            if doc.id in newly_created_document_ids:
+            if doc.id in newly_created_ids:
                 doc.description = f"謄本掃描匯入 - {summary_label}"
-    else:
-        # Multi-file batch: generate distinct summary labels per uploaded file
-        for doc in documents:
-            if doc.id not in newly_created_document_ids:
-                continue
+        return
+    for doc in documents:
+        if doc.id not in newly_created_ids:
+            continue
+        doc_text = ""
+        try:
+            import pymupdf as fitz
+            pdf = fitz.open(doc.file_path)
+            doc_text = "".join(page.get_text() for page in pdf)
+        except Exception:
+            pass
+        doc_labels = []
+        for p in parsed.get("land_parcels", []):
+            p_num = p.get("parcel_number")
+            if p_num and (p_num in doc_text or not doc_text):
+                doc_labels.append(f"地號{p_num}")
+        for b in parsed.get("buildings", []):
+            b_num = b.get("building_number")
+            if b_num and (b_num in doc_text or not doc_text):
+                doc_labels.append(f"建號{b_num}")
+        doc_labels = list(dict.fromkeys(doc_labels))
+        if doc_labels:
+            doc_summary = doc_labels[0] if len(doc_labels) == 1 else f"{doc_labels[0]} 等 {len(doc_labels)} 筆"
+            doc.description = f"謄本掃描匯入 - {doc_summary}"
+        else:
+            doc.description = "謄本掃描匯入"
 
-            doc_text = ""
-            try:
-                import pymupdf as fitz
-                pdf = fitz.open(doc.file_path)
-                doc_text = "".join(page.get_text() for page in pdf)
-            except Exception:
-                pass
 
-            doc_labels = []
-            for p in parsed.get("land_parcels", []):
-                p_num = p.get("parcel_number")
-                if p_num and (p_num in doc_text or not doc_text):
-                    doc_labels.append(f"地號{p_num}")
-            for b in parsed.get("buildings", []):
-                b_num = b.get("building_number")
-                if b_num and (b_num in doc_text or not doc_text):
-                    doc_labels.append(f"建號{b_num}")
+def _run_title_deed_extraction(
+    job_id: int,
+    document_ids: list[int],
+    newly_created_ids: set[int],
+    record_type: str,
+    high_accuracy: bool,
+) -> None:
+    """背景執行緒:跑 extract_title_deed,結果寫進 OcrMatchResult,更新 job.status。
+    自帶 DB session;絕不讓例外把執行緒吞掉(否則 job 永遠停在 processing)。"""
+    db = SessionLocal()
+    got_sem = False
+    try:
+        job = db.get(OcrJob, job_id)
+        if job is None:
+            return
+        documents = [d for d in (db.get(Document, did) for did in document_ids) if d is not None]
 
-            doc_labels = list(dict.fromkeys(doc_labels))
-            if doc_labels:
-                doc_summary = doc_labels[0] if len(doc_labels) == 1 else f"{doc_labels[0]} 等 {len(doc_labels)} 筆"
-                doc.description = f"謄本掃描匯入 - {doc_summary}"
-            else:
-                doc.description = "謄本掃描匯入"
+        got_sem = DEED_EXTRACT_SEMAPHORE.acquire(timeout=DEED_EXTRACT_WAIT_S)
+        if not got_sem:
+            job.status = "failed"
+            job.error_message = "系統目前有其他謄本正在辨識,請稍後再試一次"
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            return
+        try:
+            file_payload = []
+            for doc in documents:
+                with open(doc.file_path, "rb") as f:
+                    file_payload.append((f.read(), doc.mime_type))
+            parsed, warning = extract_title_deed(
+                file_payload, record_type=record_type, high_accuracy=high_accuracy
+            )
+        except (OcrError, OSError) as exc:
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            return
 
-    # Still "completed" - some pages were successfully extracted - but error_message
-    # carries a non-fatal warning when part of a multi-chunk batch failed, so the
-    # frontend can tell the user the result may be incomplete instead of silently
-    # under-reporting parcels/buildings.
-    job.status = "completed"
-    job.error_message = warning
-    job.completed_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(job)
-
-    return OcrExtractionResult(job=OcrJobRead.model_validate(job), data=TitleDeedExtraction(**parsed))
+        db.add(OcrMatchResult(ocr_job_id=job.id, extracted_data=parsed))
+        _relabel_job_documents(documents, newly_created_ids, parsed)
+        job.status = "completed"
+        job.error_message = warning
+        job.completed_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[title-deed job {job_id}] 未預期失敗:{exc!r}", flush=True)
+        try:
+            job = db.get(OcrJob, job_id)
+            if job is not None and job.status == "processing":
+                job.status = "failed"
+                job.error_message = f"辨識未預期失敗:{exc}"
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        if got_sem:
+            DEED_EXTRACT_SEMAPHORE.release()
+        db.close()

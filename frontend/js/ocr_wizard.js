@@ -180,7 +180,7 @@ function renderWizardStep0() {
       </select>
       <div class="helper-text">請選擇這批謄本的類別,辨識即以此為準</div>
     </div>
-    <div class="helper-text">若有多張照片或多頁,請用下方的 ▲▼ 調整順序,順序需與謄本頁面順序一致</div>
+    <div class="helper-text">若有多張照片或多檔案,請用 ▲▼ 調整順序,順序需與謄本頁面順序需一致</div>
     <div id="wizard-ocr-progress-wrap" style="display:none;margin-top:14px">
       <div class="progress-bar-track"><div class="progress-bar-fill" id="wizard-ocr-progress-fill" style="width:0%"></div></div>
       <div class="helper-text" id="wizard-ocr-progress-label" style="margin-top:4px;text-align:center"></div>
@@ -359,6 +359,29 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix
   };
 }
 
+// 謄本辨識改為背景工作:POST 回 job(status=processing),這裡輪詢 GET ocr-jobs/{id}
+// 直到 completed / failed。回傳跟舊同步版一樣的 { job, data } 形狀。
+async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 30 * 60 * 1000 } = {}) {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    await new Promise((r) => setTimeout(r, intervalMs));
+    let detail = null;
+    try {
+      detail = await api(`/projects/${pid}/ocr-jobs/${jobId}`, { silent: true });
+    } catch (e) {
+      continue; // 短暫網路/連線問題,繼續輪詢
+    }
+    if (!detail || !detail.job) continue;
+    if (detail.job.status === "completed" || detail.job.status === "failed") {
+      return { job: detail.job, data: detail.extracted_data || null };
+    }
+  }
+  return {
+    job: { id: jobId, status: "failed", error_message: "辨識逾時(超過 30 分鐘),請改用較少頁數分批匯入" },
+    data: null,
+  };
+}
+
 async function runTitleDeedOcr() {
   if (!titleDeedWizard.files.length) {
     toast("請先選擇至少一個檔案", "error");
@@ -380,7 +403,10 @@ async function runTitleDeedOcr() {
       fd.append("source_document_ids", f.sourceDocumentId ? String(f.sourceDocumentId) : "");
     });
     fd.append("record_type", titleDeedWizard.recordType);
-    const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+    let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+    if (result && result.job && result.job.status === "processing") {
+      result = await pollTitleDeedJob(state.currentProjectId, result.job.id);
+    }
 
     if (!result || !result.job || result.job.status !== "completed") {
       const errMsg = (result && result.job && result.job.error_message) || "辨識失敗,請確認檔案或聯絡管理員";
@@ -907,7 +933,15 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       const fd = new FormData();
       Array.from(input.files).forEach((f) => fd.append("files", f));
       fd.append("record_type", recordType === "parcel" ? "land" : "building");
-      const result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+      let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+      if (result && result.job && result.job.status === "processing") {
+        result = await pollTitleDeedJob(state.currentProjectId, result.job.id);
+      }
+      if (!result || !result.job || result.job.status !== "completed") {
+        toast((result && result.job && result.job.error_message) || "辨識失敗", "error");
+        if (progress) progress.stop();
+        return;
+      }
       const normalized = normalizeTitleDeedData(result.data);
       const list = recordType === "parcel" ? normalized.parcels : normalized.buildings;
       if (list.length) {
