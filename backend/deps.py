@@ -11,14 +11,15 @@ from security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-# L1/L2 - full access to every project, no ProjectMember row needed.
-MANAGE_ROLES = {"sys_admin", "manager"}
-# L1-L4 - can edit a project's general case data, but L3/L4 only for projects they're
-# assigned to via ProjectMember.
+# L0 系統管理員(DEMO) / L1 管理層 / L2 都更主管 - full access to every project,
+# no ProjectMember row needed. (ocr_staff 這個內部代號現在對應「L2 都更主管」。)
+MANAGE_ROLES = {"sys_admin", "manager", "ocr_staff"}
+# + L3 案件負責人 / L4 案件工作人員 - can edit a project's general case data, but only
+# for projects they're assigned to via ProjectMember.
 EDIT_ROLES = MANAGE_ROLES | {"case_owner", "case_staff"}
-# L1-L5 - can additionally use OCR/document-upload endpoints for their assigned projects.
-OCR_ROLES = EDIT_ROLES | {"ocr_staff"}
-# L7 地主 - read-only, and only ever their own linked Landowner rows (Landowner.user_id).
+# OCR/文件上傳端點 - 與 EDIT_ROLES 相同(ocr_staff 已在 MANAGE_ROLES 內)。
+OCR_ROLES = EDIT_ROLES
+# L6 地主 - read-only, and only ever their own linked Landowner rows (Landowner.user_id).
 LANDOWNER_ROLE = "landowner"
 
 
@@ -44,13 +45,13 @@ def get_current_user(
 
 def require_sys_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "sys_admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L1 (sys_admin) role required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0 系統管理員 role required")
     return user
 
 
 def require_manager(user: User = Depends(get_current_user)) -> User:
     if user.role not in MANAGE_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L1/L2 (sys_admin/manager) role required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2 管理層 role required")
     return user
 
 
@@ -155,5 +156,5 @@ def require_project_manager(
     """L1/L2-only project actions (force-complete, force-close, etc.) that still need a real project."""
     project = _get_project_or_404(db, project_id)
     if user.role not in MANAGE_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L1/L2 (sys_admin/manager) role required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2 管理層 role required")
     return project

@@ -140,8 +140,8 @@ async function openAddMemberModal(existingMembers) {
 }
 
 const USER_ROLE_GROUPS = [
-  { key: "admin", label: "Admin", icon: "🔑", roles: ["sys_admin", "manager"] },
-  { key: "staff", label: "開發人員", icon: "💼", roles: ["case_owner", "case_staff", "ocr_staff", "viewer"] },
+  { key: "admin", label: "管理層", icon: "🔑", roles: ["sys_admin", "manager", "ocr_staff"] },
+  { key: "staff", label: "開發人員", icon: "💼", roles: ["case_owner", "case_staff", "viewer"] },
   { key: "owner", label: "地主", icon: "🏠", roles: ["landowner"] },
 ];
 

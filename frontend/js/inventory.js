@@ -34,10 +34,10 @@ const INVENTORY_STATUS_STYLE = {
 };
 
 const INVENTORY_FIELDS = [
-  { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions, section: "保管" },
+  { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions, section: "保管 / 取得" },
   { key: "custodian", label: "保管人", type: "person", deptField: "custodian_dept" },
   { key: "asset_no", label: "財產編號" },
-  { key: "acquired_date", label: "取得日期", type: "date", section: "取得" },
+  { key: "acquired_date", label: "取得日期", type: "date" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
   { key: "name", label: "物品名稱", required: true, section: "基本資料 / 領用歸還" },
   { key: "category", label: "分類" },
@@ -58,6 +58,8 @@ async function goToInventory() {
   inventorySearchQuery = "";
   const searchInput = document.getElementById("inventory-search-input");
   if (searchInput) searchInput.value = "";
+  // 新增 / 編輯 / 刪除限 L0~L2(管理層);其餘唯讀
+  document.getElementById("new-inventory-btn")?.classList.toggle("hidden", !isManager());
   await loadInventory();
 }
 
@@ -147,7 +149,7 @@ function renderInventoryTable() {
         <thead><tr>
           ${showDeptCol ? th("保管人部門") : ""}
           ${th("物品名稱")}${th("分類")}${th("數量")}${th("存放位置")}${th("狀態")}
-          ${th("保管人")}${th("財產編號")}${th("領用人")}${th("領用日期")}${th("預計歸還")}${th("實際歸還")}${th("備註")}${th("操作")}
+          ${th("保管人")}${th("財產編號")}${th("領用人")}${th("領用日期")}${th("預計歸還")}${th("實際歸還")}${th("備註")}${isManager() ? th("操作") : ""}
         </tr></thead>
         <tbody>
           ${rows
@@ -160,10 +162,10 @@ function renderInventoryTable() {
               <td><span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;${stStyle}">${escapeHtml(i.status || "正常")}</span></td>
               ${td(i.custodian)}${td(i.asset_no)}${td(i.borrower)}${td(i.issued_date)}${td(i.expected_return_date)}${td(i.returned_date)}
               <td style="max-width:200px;white-space:pre-wrap">${escapeHtml(i.notes || "-")}</td>
-              <td class="actions-cell" style="white-space:nowrap">
+              ${isManager() ? `<td class="actions-cell" style="white-space:nowrap">
                 <button class="btn-secondary btn-sm" data-edit-inv="${i.id}">編輯</button>
                 <button class="btn-danger btn-sm" data-del-inv="${i.id}">刪除</button>
-              </td>
+              </td>` : ""}
             </tr>`;
       })
       .join("")}

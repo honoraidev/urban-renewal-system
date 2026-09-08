@@ -254,9 +254,10 @@ function isLandowner() {
   return state.user && state.user.role === "landowner";
 }
 
-// L1/L2: full cross-project management (delete/force actions, expense categories, member assignment).
+// L0/L1/L2 管理層(系統管理員 / 管理層 / 都更主管):全案件管理、刪除、
+// 費用類別、成員指派、物品管制表編輯等。
 function isManager() {
-  return state.user && ["sys_admin", "manager"].includes(state.user.role);
+  return state.user && ["sys_admin", "manager", "ocr_staff"].includes(state.user.role);
 }
 
 // L1 only: user account management, login logs.

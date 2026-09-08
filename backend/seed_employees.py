@@ -55,7 +55,7 @@ SRC = dict(
     charset="utf8mb4",
 )
 
-_LEAD_KEYWORDS = ("經理", "副理", "襄理", "協理", "主任", "組長", "主委", "副所長")
+_LEAD_KEYWORDS = ("經理", "副理", "襄理", "協理", "主任", "組長", "主委", "副所長", "所長")
 
 # chengshi_employees.department_id → 部門名稱(來源表只有 id,名稱取自組織清單)。
 DEPT_NAMES = {
@@ -72,29 +72,30 @@ DEPT_NAMES = {
 
 
 def role_for(employee_no: str, company_id: str, title: str, is_hr_admin: int) -> str:
-    """職稱 → 系統角色。規則見上方說明表。"""
-    try:
-        n = int(employee_no.split("-")[1])
-    except (IndexError, ValueError):
-        n = -1
-
-    if employee_no == "SYS-001":            # 董事長
-        return "sys_admin"
-    if employee_no in ("SYS-002", "SYS-010", "SYS-036", "SYS-079") or is_hr_admin:
-        return "manager"                     # 董事長特助 / 都更事業處執行長 / 數位管理部經理 / 人資
-    # 與都更無關 → 只給檢視:大可廣告(co3)全部、司機、誠泰園藝(SYS-085~096)
-    if company_id == "co3" or employee_no == "SYS-004" or 85 <= n <= 96:
-        return "viewer"
-    # 都更 / 土地開發 相關職務(含高級專員)一律 L3;高立瑜(AI負責人)個別指定 L3
-    if employee_no == "SYS-006" or "都更" in title or "土地開發" in title:
-        return "case_owner"
+    """職稱 → 系統角色(內部代號)。對應:
+        sys_admin  = L0 系統管理員(DEMO)  ← 只有 admin 帳號,員工不會是這個
+        manager    = L1 管理層            董事長 / 董事長特助 / 秘書
+        ocr_staff  = L2 都更主管          都更事業處執行長
+        case_owner = L3 案件負責人        都更高級專員 / 土地開發高級專員
+        case_staff = L4 案件工作人員      其他主管級(經理/副理/襄理/協理/主任/組長/主委/所長)
+        viewer     = L5 查詢/檢視人員     其餘所有員工
+    """
+    if employee_no in ("SYS-001", "SYS-002", "SYS-003"):   # 董事長 / 特助 / 秘書
+        return "manager"                                    # L1 管理層
+    if "都更事業處執行長" in title or title == "執行長":
+        return "ocr_staff"                                  # L2 都更主管
+    if "都更高級專員" in title or "土地開發高級專員" in title or employee_no == "SYS-006":
+        return "case_owner"                                 # L3 案件負責人
     if any(k in title for k in _LEAD_KEYWORDS):
-        return "case_owner"                  # 各級幹部
-    return "case_staff"                      # 其餘營造/行政/財會…的專員、工程師、行政…
+        return "case_staff"                                 # L4 其他主管級
+    return "viewer"                                         # L5 剩餘員工
 
 
 def main() -> None:
     commit = "--commit" in sys.argv
+    # 一次性:把既有 SYS-* 帳號的 role 依 role_for 重新套用(角色分層改制時用)。
+    # 不會動到非 SYS-* 帳號(admin 等)。
+    reassign = "--reassign-roles" in sys.argv
 
     conn = pymysql.connect(**SRC)
     try:
@@ -123,8 +124,11 @@ def main() -> None:
 
             exists = db.query(User).filter(User.username == username).first()
             if exists is not None:
-                # 已存在:只補「部門 / 職位」,不動 role / 密碼 / 顯示名稱(可能已被手動改過)
+                # 已存在:補「部門 / 職位」,不動密碼 / 顯示名稱。role 只在 --reassign-roles 時才覆蓋。
                 changed = []
+                if reassign and exists.role != role:
+                    changed.append(f"角色 {exists.role}→{role}")
+                    exists.role = role
                 if not exists.departments and depts:
                     exists.departments = depts
                     changed.append(f"部門={dept}")

@@ -300,7 +300,7 @@ def list_inventory_items(db: Session = Depends(get_db), current_user: User = Dep
 
 @router.post("/inventory-items", response_model=InventoryItemRead, status_code=status.HTTP_201_CREATED)
 def create_inventory_item(
-    payload: InventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    payload: InventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
 ):
     item = InventoryItem(**payload.model_dump())
     db.add(item)
@@ -314,7 +314,7 @@ def update_inventory_item(
     item_id: int,
     payload: InventoryItemUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manager),
 ):
     item = db.get(InventoryItem, item_id)
     if item is None:
@@ -328,7 +328,7 @@ def update_inventory_item(
 
 @router.delete("/inventory-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_inventory_item(
-    item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    item_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
 ):
     item = db.get(InventoryItem, item_id)
     if item is None:
