@@ -1556,7 +1556,9 @@ def _recover_burned_in_addresses(
                     continue
                 x0, y0, x1, y1 = b.get("bbox", (0, 0, 0, 0))
                 w, h = x1 - x0, y1 - y0
-                if w > 200 and 4 < h < 40 and w / max(h, 1) > 6:
+                # 放寬:住址 strip 在不同謄本的高度 / 寬度差異不小,收窄的門檻會漏掉幾張。
+                # 誤收的圖塊(章、logo)反正 OCR 不出「住址:」也不會綁定,無害。
+                if w > 120 and 3 < h < 60 and w / max(h, 1) > 4:
                     events.append((pi, y0, "strip", (pi, x0, y0, x1, y1)))
 
         if not needs_recovery:
