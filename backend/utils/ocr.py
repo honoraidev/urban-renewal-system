@@ -1621,12 +1621,14 @@ def _recover_burned_in_addresses(
         # nothing above recovers them. OCR each still-deficient page ONCE with the
         # local engine (no vision LLM) and walk it top-to-bottom the same way.
         order_pairs_by_page: dict[int, list[tuple[str, str]]] = {}
+        order_yx_by_key: dict[tuple[str, str], tuple[int, float]] = {}
         _p = ""
         for _pi, _y, kind, payload in events:  # already sorted above
             if kind == "parcel":
                 _p = payload
             elif kind == "order":
                 order_pairs_by_page.setdefault(_pi, []).append((_p, payload))
+                order_yx_by_key.setdefault((_p, payload), (_pi, _y))
         for pi in sorted(page_needs):
             wanted = [
                 k for k in order_pairs_by_page.get(pi, [])
@@ -1670,6 +1672,32 @@ def _recover_burned_in_addresses(
                     if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                         recovered[(cur_p, cur_o)] = val
                         cur_o = ""
+
+        # 第三步:整頁掃過還缺的,用該所有權人「登記次序」那行的 y 座標(來自文字層)
+        # 裁一條窄帶(涵蓋 所有權人→統編→住址 幾行),去紅印後高解析度單獨 OCR。
+        # 密頁 + 斜印下最容易漏的就是這幾筆,鎖定範圍再掃準度高很多。
+        for key in list(missing_pairs):
+            if key in recovered or key not in order_yx_by_key:
+                continue
+            pj, y0 = order_yx_by_key[key]
+            try:
+                clip = fitz.Rect(0, max(0, y0 - 2), doc[pj].rect.width, y0 + 100)
+                png = doc[pj].get_pixmap(dpi=600, clip=clip).tobytes("png")
+                text, _c = _ocr_page_text(_deink_red(png))
+            except Exception as exc:
+                print(f"[_recover_burned_in_addresses] band OCR failed: {exc}", flush=True)
+                continue
+            m = re.search(
+                r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)",
+                _normalize_ocr_text(text or ""),
+            )
+            if not m:
+                continue
+            val = re.sub(r"\s+", "", m.group(1))
+            val = _ADDR_STOP_RE.split(val)[0].strip("*＊ ")
+            if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
+                recovered[key] = val
+
     if recovered or recovered_names:
         print(
             f"[_recover_burned_in_addresses] recovered {len(recovered)} burned-in 住址"
