@@ -51,11 +51,11 @@ async function renderRegistrationsTab(el) {
 function _shortDoorAddr(addr) {
   if (!addr) return "";
   const s = String(addr).trim().replace(/[０-９]/g, (d) => "０１２３４５６７８９".indexOf(d));
-  // 只保留「弄」開始(含弄號)後面;沒有弄就從「號」的門牌數字開始。都沒有再退回原本
-  // 「切到路/街/段之後、從第一個數字起」的作法。
-  let m = s.match(/\d+\s*弄.*$/);
+  // 只保留「弄」開始到第一個「號」為止(含號);沒有弄就取「N(之N)號」。
+  // 樓層、「房屋地下X層」等號碼後面的東西一律不要 → 同一門牌會被 uniqJoin 去重。
+  let m = s.match(/\d+\s*弄.*?號/);
   if (m) return m[0].replace(/\s+/g, "");
-  m = s.match(/\d+(?:\s*之\s*\d+)?\s*號.*$/);
+  m = s.match(/\d+(?:\s*之\s*\d+)?\s*號/);
   if (m) return m[0].replace(/\s+/g, "");
   const idx = Math.max(s.lastIndexOf("大道"), s.lastIndexOf("路"), s.lastIndexOf("街"), s.lastIndexOf("道"), s.lastIndexOf("段"));
   const tail = idx >= 0 ? s.slice(idx + (s.substr(idx, 2) === "大道" ? 2 : 1)) : s;
@@ -142,7 +142,7 @@ async function renderIntegratedRosterTab(el) {
             <td style="white-space:nowrap">
               <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
               ${visit}
-              <button type="button" class="btn-link btn-sm" data-goto-contact="${o.id}">聯繫</button>
+              ${isEditor() ? `<button type="button" class="btn-secondary btn-sm" data-edit-integ="${o.id}">編輯</button>` : ""}
             </td>
           </tr>`;
   }).join("")}
@@ -171,13 +171,8 @@ async function renderIntegratedRosterTab(el) {
   };
   document.getElementById("integrated-search")?.addEventListener("input", applyIntegratedFilter);
   el.querySelectorAll(".integ-filter input").forEach((cb) => cb.addEventListener("change", applyIntegratedFilter));
-  el.querySelectorAll("[data-goto-contact]").forEach((b) => {
-    b.addEventListener("click", async () => {
-      state.selectedContactLandownerId = Number(b.dataset.gotoContact);
-      state.activeTab = "contacts";
-      document.querySelectorAll(".tab-btn[data-tab]").forEach((x) => x.classList.toggle("active", x.dataset.tab === "contacts"));
-      await renderTab("contacts");
-    });
+  el.querySelectorAll("[data-edit-integ]").forEach((b) => {
+    b.addEventListener("click", () => openEditLandownerModal(Number(b.dataset.editInteg)));
   });
 }
 
