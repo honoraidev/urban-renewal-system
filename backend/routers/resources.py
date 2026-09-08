@@ -9,6 +9,7 @@ from database import get_db
 from deps import get_current_user, require_manager
 from models.company_document import CompanyDocument
 from models.faq_item import FaqItem
+from models.inventory_item import InventoryItem
 from models.regulation import Regulation
 from models.user import User
 from models.website import Website
@@ -17,6 +18,9 @@ from schemas.resource import (
     FaqItemCreate,
     FaqItemRead,
     FaqItemUpdate,
+    InventoryItemCreate,
+    InventoryItemRead,
+    InventoryItemUpdate,
     RegulationCreate,
     RegulationRead,
     RegulationUpdate,
@@ -281,5 +285,53 @@ def delete_faq_item(faq_id: int, db: Session = Depends(get_db), current_user: Us
     item = db.get(FaqItem, faq_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FAQ item not found")
+    db.delete(item)
+    db.commit()
+
+
+# ================= 部門物品管制表 (inventory) =================
+
+@router.get("/inventory-items", response_model=list[InventoryItemRead])
+def list_inventory_items(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.scalars(
+        select(InventoryItem).order_by(InventoryItem.department, InventoryItem.category, InventoryItem.id)
+    ).all()
+
+
+@router.post("/inventory-items", response_model=InventoryItemRead, status_code=status.HTTP_201_CREATED)
+def create_inventory_item(
+    payload: InventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    item = InventoryItem(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/inventory-items/{item_id}", response_model=InventoryItemRead)
+def update_inventory_item(
+    item_id: int,
+    payload: InventoryItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = db.get(InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory item not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/inventory-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_inventory_item(
+    item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    item = db.get(InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory item not found")
     db.delete(item)
     db.commit()

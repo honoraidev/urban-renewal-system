@@ -54,6 +54,7 @@ function showView(id) {
     "view-regulations",
     "view-websites",
     "view-faq",
+    "view-inventory",
     "view-tools",
   ].forEach((v) => {
     const el = document.getElementById(v);

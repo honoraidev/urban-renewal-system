@@ -7,6 +7,7 @@ function bootstrapApp() {
   initOcrWizard();
   initMembers();
   initResources();
+  initInventory();
 
   // 手機版側欄抽屜 (☰) - 桌機沒有 #sb-toggle 就不動作
   const sb = document.querySelector(".sb");
@@ -40,6 +41,7 @@ function bootstrapApp() {
       if (target === "regulations") goToRegulations();
       if (target === "websites") goToWebsites();
       if (target === "faq") goToFaq();
+      if (target === "inventory") goToInventory();
     });
   });
 

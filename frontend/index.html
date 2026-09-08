@@ -91,6 +91,7 @@
           <button class="nav-link" data-nav="regulations"><span style="margin-right:6px">⚖️</span>相關法規</button>
           <button class="nav-link" data-nav="websites"><span style="margin-right:6px">🌐</span>相關網站</button>
           <button class="nav-link" data-nav="faq"><span style="margin-right:6px">💬</span>知識庫</button>
+          <button class="nav-link" data-nav="inventory"><span style="margin-right:6px">📦</span>部門物品管制表</button>
         </div>
         <div class="nav-user">
           <div class="avatar-menu">
@@ -304,6 +305,26 @@
             <div id="faq-list"></div>
           </div>
 
+          <!-- 部門物品管制表 -->
+          <div id="view-inventory" class="hidden">
+            <div class="page-header"
+              style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:20px;flex:1;min-width:280px">
+                <h2 style="margin:0;white-space:nowrap">部門物品管制表</h2>
+                <div class="search-box" style="max-width:360px">
+                  <span class="search-box-icon">🔍</span>
+                  <input type="text" id="inventory-search-input" class="search-input-pill"
+                    placeholder="搜尋物品、保管人、財產編號...">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
+              </div>
+            </div>
+            <div class="faq-cat-bar" id="inventory-dept-bar"></div>
+            <div id="inventory-table-wrap"></div>
+          </div>
+
           <!-- 功能區 -->
           <div id="view-tools" class="hidden">
             <div class="page-header" style="margin-bottom:8px">
@@ -420,7 +441,7 @@
   <script src="js/api.js?v=20260901_1"></script>
   <script src="js/modals.js?v=20260831_1"></script>
   <script src="js/auth.js?v=20260901_6"></script>
-  <script src="js/dashboard.js?v=20260907_2"></script>
+  <script src="js/dashboard.js?v=20260908_1"></script>
   <script src="js/mywork.js?v=20260904_2"></script>
   <script src="js/sop.js?v=20260901_2"></script>
   <script src="js/ocr_wizard.js?v=20260907_1"></script>
@@ -431,9 +452,10 @@
   <script src="js/expenses.js?v=20260904_9"></script>
   <script src="js/members.js?v=20260826_3"></script>
   <script src="js/resources.js?v=20260825_7"></script>
+  <script src="js/inventory.js?v=20260908_1"></script>
   <script src="js/buildingview.js?v=20260907_1"></script>
   <script src="js/land_value_tax.js?v=20260901_4"></script>
-  <script src="js/main.js?v=20260907_1"></script>
+  <script src="js/main.js?v=20260908_1"></script>
 </body>
 
 </html>

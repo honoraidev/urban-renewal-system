@@ -93,3 +93,55 @@ class FaqItemRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ================= 部門物品管制表 (inventory) =================
+
+class InventoryItemBase(BaseModel):
+    department: str = ""
+    name: str
+    category: str | None = None
+    quantity: int = 1
+    unit: str | None = None
+    location: str | None = None
+    status: str = "正常"
+    custodian: str | None = None
+    asset_no: str | None = None
+    acquired_date: str | None = None
+    unit_price: float | None = None
+    borrower: str | None = None
+    issued_date: str | None = None
+    expected_return_date: str | None = None
+    returned_date: str | None = None
+    notes: str | None = None
+
+
+class InventoryItemCreate(InventoryItemBase):
+    pass
+
+
+class InventoryItemUpdate(BaseModel):
+    department: str | None = None
+    name: str | None = None
+    category: str | None = None
+    quantity: int | None = None
+    unit: str | None = None
+    location: str | None = None
+    status: str | None = None
+    custodian: str | None = None
+    asset_no: str | None = None
+    acquired_date: str | None = None
+    unit_price: float | None = None
+    borrower: str | None = None
+    issued_date: str | None = None
+    expected_return_date: str | None = None
+    returned_date: str | None = None
+    notes: str | None = None
+
+
+class InventoryItemRead(InventoryItemBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

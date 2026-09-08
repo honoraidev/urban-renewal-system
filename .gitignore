@@ -4,3 +4,6 @@ uploads/
 __pycache__/
 *.pyc
 .venv/
+.venv_ocr_gpu/
+node_modules/
+*.log

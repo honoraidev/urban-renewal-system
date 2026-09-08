@@ -18,6 +18,7 @@ from models.company_document import CompanyDocument
 from models.regulation import Regulation
 from models.website import Website
 from models.faq_item import FaqItem
+from models.inventory_item import InventoryItem
 
 __all__ = [
     "User",
@@ -43,4 +44,5 @@ __all__ = [
     "Regulation",
     "Website",
     "FaqItem",
+    "InventoryItem",
 ]

@@ -22,6 +22,7 @@ def _auto_migrate() -> None:
     try:
         models.ActivityLog.__table__.create(bind=engine, checkfirst=True)
         models.CalendarEvent.__table__.create(bind=engine, checkfirst=True)
+        models.InventoryItem.__table__.create(bind=engine, checkfirst=True)
     except Exception as exc:
         print(f"[auto_migrate] table create skipped: {exc}", flush=True)
 
