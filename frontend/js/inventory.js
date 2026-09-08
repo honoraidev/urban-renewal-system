@@ -34,23 +34,22 @@ const INVENTORY_STATUS_STYLE = {
 };
 
 const INVENTORY_FIELDS = [
-  { key: "department", label: "部門", required: true, type: "dropdown", opts: _invDeptOptions },
-  { key: "name", label: "物品名稱", required: true },
+  { key: "name", label: "物品名稱", required: true, section: "基本資料" },
   { key: "category", label: "分類" },
   { key: "quantity", label: "數量", type: "number" },
   { key: "location", label: "存放位置" },
   { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
-  { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions },
+  { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions, section: "保管" },
   { key: "custodian", label: "保管人", type: "person", deptField: "custodian_dept" },
   { key: "asset_no", label: "財產編號" },
-  { key: "acquired_date", label: "取得日期", type: "date" },
+  { key: "acquired_date", label: "取得日期", type: "date", section: "取得" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
   { key: "borrower_dept", label: "領用人部門", type: "dropdown", opts: _invDeptOptions, section: "領用 / 歸還" },
   { key: "borrower", label: "領用人", type: "person", deptField: "borrower_dept" },
   { key: "issued_date", label: "領用日期", type: "date" },
   { key: "expected_return_date", label: "預計歸還", type: "date" },
   { key: "returned_date", label: "實際歸還", type: "date" },
-  { key: "notes", label: "備註", type: "textarea" },
+  { key: "notes", label: "備註", type: "textarea", section: "備註", full: true },
 ];
 
 async function goToInventory() {
@@ -86,17 +85,17 @@ async function loadInventory() {
     inventoryUserDir = {};
   }
 
-  const depts = [...new Set(inventoryCache.map((i) => (i.department || "").trim()).filter(Boolean))].sort();
-  if (inventoryCurDept !== "全部" && !depts.includes(inventoryCurDept)) inventoryCurDept = "全部";
+  const _dep = (i) => (i.custodian_dept || "").trim();
+  const depts = [...new Set(inventoryCache.map(_dep).filter(Boolean))].sort();
+  if (inventoryCurDept !== "全部" && inventoryCurDept !== "未分部門" && !depts.includes(inventoryCurDept)) inventoryCurDept = "全部";
+  const hasUnassigned = inventoryCache.some((i) => !_dep(i));
   const bar = document.getElementById("inventory-dept-bar");
   if (bar) {
-    bar.innerHTML = ["全部", ...depts]
-      .map(
-        (d) =>
-          `<button class="fb ${inventoryCurDept === d ? "act" : ""}" data-inv-dept="${escapeHtml(d)}">${escapeHtml(
-            d
-          )}${d === "全部" ? "" : ` (${inventoryCache.filter((i) => (i.department || "").trim() === d).length})`}</button>`
-      )
+    bar.innerHTML = ["全部", ...depts, ...(hasUnassigned ? ["未分部門"] : [])]
+      .map((d) => {
+        const cnt = d === "全部" ? "" : ` (${inventoryCache.filter((i) => (d === "未分部門" ? !_dep(i) : _dep(i) === d)).length})`;
+        return `<button class="fb ${inventoryCurDept === d ? "act" : ""}" data-inv-dept="${escapeHtml(d)}">${escapeHtml(d)}${cnt}</button>`;
+      })
       .join("");
     bar.querySelectorAll("[data-inv-dept]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -125,7 +124,9 @@ function renderInventoryTable() {
   const showDeptCol = inventoryCurDept === "全部";
 
   const rows = inventoryCache.filter((i) => {
-    if (inventoryCurDept !== "全部" && (i.department || "").trim() !== inventoryCurDept) return false;
+    const dep = (i.custodian_dept || "").trim();
+    if (inventoryCurDept === "未分部門" && dep) return false;
+    if (inventoryCurDept !== "全部" && inventoryCurDept !== "未分部門" && dep !== inventoryCurDept) return false;
     if (!q) return true;
     return [i.name, i.category, i.location, i.custodian, i.asset_no, i.borrower, i.notes]
       .map((v) => (v || "").toLowerCase())
@@ -144,7 +145,7 @@ function renderInventoryTable() {
     <div class="table-wrap" style="overflow-x:auto">
       <table>
         <thead><tr>
-          ${showDeptCol ? th("部門") : ""}
+          ${showDeptCol ? th("保管人部門") : ""}
           ${th("物品名稱")}${th("分類")}${th("數量")}${th("存放位置")}${th("狀態")}
           ${th("保管人")}${th("財產編號")}${th("領用人")}${th("領用日期")}${th("預計歸還")}${th("實際歸還")}${th("備註")}${th("操作")}
         </tr></thead>
@@ -153,7 +154,7 @@ function renderInventoryTable() {
       .map((i) => {
         const stStyle = INVENTORY_STATUS_STYLE[i.status] || INVENTORY_STATUS_STYLE["正常"];
         return `<tr>
-              ${showDeptCol ? td(i.department) : ""}
+              ${showDeptCol ? td(i.custodian_dept) : ""}
               <td style="font-weight:600;white-space:nowrap">${escapeHtml(i.name || "-")}</td>
               ${td(i.category)}${td(i.quantity)}${td(i.location)}
               <td><span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;${stStyle}">${escapeHtml(i.status || "正常")}</span></td>
@@ -204,7 +205,7 @@ function openInventoryFormModal(title, item) {
         .join("")}</select>`;
     } else if (f.type === "dropdown") {
       const optList = typeof f.opts === "function" ? f.opts() : f.opts || [];
-      const cur = f.key === "department" ? val || curDeptDefault : val;
+      const cur = f.key === "custodian_dept" ? val || curDeptDefault : val;
       const all = [...new Set([...(cur ? [cur] : []), ...optList])];
       input = `<select name="${f.key}" ${f.required ? "required" : ""}>
         ${f.required ? "" : `<option value="" ${cur === "" ? "selected" : ""}>（未指定）</option>`}
@@ -225,22 +226,49 @@ function openInventoryFormModal(title, item) {
       const step = f.key === "unit_price" ? ' step="0.01"' : "";
       input = `<input type="${type}"${step} name="${f.key}" ${f.required ? "required" : ""} value="${escapeHtml(val)}">`;
     }
-    return `<div class="field" style="flex:1 1 220px"><label>${f.label}${f.required ? " *" : ""}</label>${input}</div>`;
+    return `<div class="field inv-field${f.full ? " inv-field-full" : ""}"><label>${f.label}${f.required ? " *" : ""}</label>${input}</div>`;
   };
 
-  let body = `<form id="inventory-form"><div style="display:flex;flex-wrap:wrap;gap:12px">`;
+  // 依 section 分組
+  const sections = [];
   INVENTORY_FIELDS.forEach((f) => {
-    if (f.section) body += `</div><div style="font-weight:700;font-size:13px;color:var(--text-muted);margin:8px 0 4px">${f.section}</div><div style="display:flex;flex-wrap:wrap;gap:12px">`;
-    body += fieldHtml(f);
+    if (f.section || !sections.length) sections.push({ title: f.section || "", fields: [] });
+    sections[sections.length - 1].fields.push(f);
   });
-  body += `</div>
+
+  const body = `
+    <style>
+      #inventory-form .inv-sec { background:var(--bg-subtle,#f8fafc); border:1px solid var(--border); border-radius:12px; padding:14px 16px 4px; margin-bottom:14px; }
+      #inventory-form .inv-sec-title { font-weight:700; font-size:13px; color:var(--brand,#0d9488); margin:0 0 10px; letter-spacing:.02em; }
+      #inventory-form .inv-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
+      #inventory-form .inv-field { margin:0 0 12px; }
+      #inventory-form .inv-field-full { grid-column:1 / -1; }
+      #inventory-form .inv-field label { display:block; font-size:12.5px; font-weight:600; color:var(--text-muted); margin-bottom:5px; }
+      #inventory-form .inv-field input, #inventory-form .inv-field select, #inventory-form .inv-field textarea {
+        width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border); border-radius:8px;
+        font-size:14px; background:var(--bg-card,#fff); transition:border-color .12s, box-shadow .12s;
+      }
+      #inventory-form .inv-field input:focus, #inventory-form .inv-field select:focus, #inventory-form .inv-field textarea:focus {
+        outline:none; border-color:var(--brand,#0d9488); box-shadow:0 0 0 3px rgba(13,148,136,.12);
+      }
+      @media (max-width:560px){ #inventory-form .inv-grid { grid-template-columns:1fr; } }
+    </style>
+    <form id="inventory-form">
+      ${sections
+        .map(
+          (s) => `<div class="inv-sec">
+            ${s.title ? `<p class="inv-sec-title">${escapeHtml(s.title)}</p>` : ""}
+            <div class="inv-grid">${s.fields.map(fieldHtml).join("")}</div>
+          </div>`
+        )
+        .join("")}
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
     </form>`;
 
-  openModal(title, body, { width: "720px" });
+  openModal(title, body, { width: "680px" });
 
   // 保管人/領用人:改部門就重建「該部門的人」下拉(保留「（無指定人）」)
   document.querySelectorAll('#inventory-form select[data-person-of]').forEach((psel) => {
