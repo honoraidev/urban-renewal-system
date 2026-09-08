@@ -1451,6 +1451,22 @@ _PAGE_ADDR_LINE_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*(
 _PAGE_PARCEL_HDR_RE = re.compile(r"(\d{3,5})\s*-\s*(\d{3,5})\s*[地建]\s*[號琥唬]")
 
 
+def _deink_red(png_bytes: bytes) -> bytes:
+    """電子謄本每頁有一條斜的紅色「地政事務所」浮水印,常壓在住址那行上,OCR 讀不出來。
+    把「紅色明顯大於綠/藍」的像素刷白(黑字 R≈G≈B 不受影響),再交給 OCR。失敗就原圖。"""
+    try:
+        img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+        arr = np.asarray(img).astype(np.int16)
+        r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+        red_mask = (r - np.maximum(g, b) > 35) & (r > 90)
+        arr[red_mask] = 255
+        out = io.BytesIO()
+        Image.fromarray(arr.astype(np.uint8)).save(out, format="PNG")
+        return out.getvalue()
+    except Exception:
+        return png_bytes
+
+
 def _recover_burned_in_addresses(
     files: list[tuple[bytes, str | None]],
 ) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str]]:
@@ -1589,7 +1605,7 @@ def _recover_burned_in_addresses(
                     #     會 ImportError 回空字串,導致整份都掃不到住址。
                     clip = fitz.Rect(x0 - 8, y0 - 16, x1 + 60, y1 + 18)
                     png = doc[pj].get_pixmap(dpi=600, clip=clip).tobytes("png")
-                    text, _c = _ocr_page_text(png)
+                    text, _c = _ocr_page_text(_deink_red(png))
                     m = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", _normalize_ocr_text(text or ""))
                     if m:
                         val = re.sub(r"\s+", "", m.group(1))
@@ -1623,7 +1639,7 @@ def _recover_burned_in_addresses(
                 continue
             try:
                 png = doc[pi].get_pixmap(dpi=400).tobytes("png")
-                text, _c = _ocr_page_text(png)
+                text, _c = _ocr_page_text(_deink_red(png))
             except Exception as exc:
                 print(f"[_recover_burned_in_addresses] full-page OCR failed: {exc}", flush=True)
                 continue
