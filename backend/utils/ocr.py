@@ -1690,6 +1690,98 @@ def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]
     return data
 
 
+_ADDR_AI_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "addresses": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"i": {"type": "integer"}, "address": {"type": "string"}},
+                "required": ["i", "address"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["addresses"],
+    "additionalProperties": False,
+}
+
+_ADDR_AI_PROMPT = (
+    "以下是同一份台灣土地/建物謄本裡所有權人的「戶籍地址」清單,每行前面有編號。"
+    "標記 (OCR) 的是從影像辨識來的,可能有缺字、錯字或多字;沒標記的是從文件文字層"
+    "直接讀出、視為正確,只當參考(同一棟樓/同門牌常共用「路/段/巷/弄」)。\n"
+    "請只校正標 (OCR) 的那幾筆:補回缺字、修正字形誤認(例:信羲區→信義區、巿→市)、"
+    "拿掉雜訊,維持台灣門牌格式(例:臺北市信義區三張里6鄰松山路391巷3弄11號2樓)。"
+    "遮罩符號(＊)原樣保留;無法判斷就照原字輸出,絕不可臆造門牌號碼。\n"
+    "只回傳需要更動的那幾筆:{\"addresses\":[{\"i\":<編號>,\"address\":<校正後地址>}]}"
+)
+
+
+def _ai_correct_recovered_addresses(
+    data: dict, recovered: dict[tuple[str, str], str]
+) -> dict:
+    """把「被燒進圖片、靠 OCR 救回」的戶籍地址丟給 LLM 做一次校正(補缺字/修錯字),
+    同一份謄本裡文字層直讀的乾淨地址當參考。只有設了 OPENAI_API_KEY 才啟用;失敗、
+    沒 key、沒有 OCR 來源的地址時,一律原樣返回。一次一個 text 呼叫,不逐頁。"""
+    if not recovered or not getattr(settings, "OPENAI_API_KEY", ""):
+        return data
+    rec_keys = set(recovered.keys()) | {(rp.lstrip("0"), ro.lstrip("0") or "0") for rp, ro in recovered}
+
+    entries: list[tuple[dict, bool]] = []  # (owner, is_ocr_sourced)
+    containers = [
+        (p, p.get("parcel_number")) for p in (data.get("land_parcels", []) or [])
+    ] + [
+        (b, b.get("building_number")) for b in (data.get("buildings", []) or [])
+    ]
+    for holder, ident in containers:
+        pdig = re.sub(r"\D", "", str(ident or ""))
+        for owner in holder.get("owners", []) or []:
+            addr = (owner.get("address") or "").strip()
+            if not addr or addr.strip("()（） ").lower() in _BLANK_ADDRESS_TOKENS:
+                continue
+            odig = re.sub(r"\D", "", str(owner.get("registration_order") or "")).lstrip("0") or "0"
+            is_ocr = (pdig, odig) in rec_keys or (pdig.lstrip("0"), odig) in rec_keys
+            entries.append((owner, is_ocr))
+
+    ocr_positions = [i for i, (_o, is_ocr) in enumerate(entries) if is_ocr]
+    if not ocr_positions:
+        return data
+
+    lines = [
+        f"{i}. {'(OCR) ' if is_ocr else ''}{o.get('address')}"
+        for i, (o, is_ocr) in enumerate(entries)
+    ]
+    payload = {
+        "model": settings.OPENAI_MODEL,
+        "messages": [{"role": "user", "content": _ADDR_AI_PROMPT + "\n\n" + "\n".join(lines)}],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "address_correction", "strict": True, "schema": _ADDR_AI_SCHEMA},
+        },
+        "temperature": 0,
+    }
+    try:
+        out = _call_openai_structured(payload)
+    except OcrError as exc:
+        print(f"[extract_title_deed] 地址 AI 校正跳過:{exc}", flush=True)
+        return data
+
+    corr = {
+        c["i"]: (c.get("address") or "").strip()
+        for c in (out.get("addresses") or [])
+        if isinstance(c.get("i"), int)
+    }
+    fixed = 0
+    for i in ocr_positions:
+        new_addr = corr.get(i)
+        if new_addr and new_addr != entries[i][0].get("address"):
+            entries[i][0]["address"] = _clean_address(new_addr)
+            fixed += 1
+    print(f"[extract_title_deed] 地址 AI 校正:{fixed}/{len(ocr_positions)} 筆有更動", flush=True)
+    return data
+
+
 def _apply_recovered_names(data: dict, recovered_names: dict[tuple[str, str], str]) -> dict:
     """Fill any owner_name that came back with no CJK character (「＊＊＊」 / blank) from
     the burned-in name recovery map, matched STRICTLY by (地號, 登記次序)."""
@@ -1928,6 +2020,7 @@ def extract_title_deed(
             data = _backfill_common_parts_from_raw(data, [o for o in text_overrides if o])
             data = _apply_recovered_addresses(data, recovered_addresses)
             data = _apply_recovered_names(data, recovered_names)
+            data = _ai_correct_recovered_addresses(data, recovered_addresses)
             probs = _validation_problems(data, [o for o in text_overrides if o])
             n_parcels = len(data.get("land_parcels") or [])
             n_bldgs = len(data.get("buildings") or [])
@@ -2191,6 +2284,7 @@ def extract_title_deed(
     data = _backfill_common_parts_from_raw(data, all_page_texts)
     data = _apply_recovered_addresses(data, recovered_addresses)
     data = _apply_recovered_names(data, recovered_names)
+    data = _ai_correct_recovered_addresses(data, recovered_addresses)
 
     final_problems = _validation_problems(data, all_page_texts)
     if final_problems:
