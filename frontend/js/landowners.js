@@ -174,6 +174,16 @@ async function renderIntegratedRosterTab(el) {
   };
   document.getElementById("integrated-search")?.addEventListener("input", applyIntegratedFilter);
   el.querySelectorAll(".integ-filter input").forEach((cb) => cb.addEventListener("change", applyIntegratedFilter));
+  // 一次只開一個篩選面板,避免兩個面板重疊
+  const integDetails = [...el.querySelectorAll("details.integ-filter")];
+  integDetails.forEach((d) => {
+    d.addEventListener("toggle", () => {
+      if (d.open) integDetails.forEach((o) => { if (o !== d) o.open = false; });
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
+  });
   el.querySelectorAll("[data-edit-integ]").forEach((b) => {
     b.addEventListener("click", () => openEditLandownerModal(Number(b.dataset.editInteg)));
   });
