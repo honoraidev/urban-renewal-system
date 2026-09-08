@@ -76,10 +76,35 @@ async function renderIntegratedRosterTab(el) {
   const fmt2 = (n) => (n || n === 0 ? Number(n).toFixed(2) : "-");
   const uniqJoin = (arr) => [...new Set(arr.filter(Boolean))].join("、");
 
+  // 「已連繫 / 待聯繫」由 contact_status + 逾期推導(一列可同時是已連繫又待聯繫)
+  const contactTokens = (o) => {
+    const c = contactBy.get(o.id);
+    const t = [];
+    if (["contacted", "agreed", "declined"].includes(o.contact_status)) t.push("linked");
+    if (o.contact_status === "not_contacted" || (c && c.is_overdue)) t.push("pending");
+    return t;
+  };
+
+  const ddHtml = (id, label, opts) => `
+    <details class="integ-filter" style="position:relative">
+      <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);white-space:nowrap;font-size:13px">${label} ▾</summary>
+      <div id="${id}" style="position:absolute;z-index:20;margin-top:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
+        ${opts.map((o) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${o.v}" style="width:auto">${o.t}</label>`).join("")}
+      </div>
+    </details>`;
+
   el.innerHTML = `
-    <div class="section-toolbar">
-      <h3>整合清冊 (${rows.length})</h3>
-      <input type="text" id="integrated-search" class="search-input-pill" style="max-width:280px" placeholder="搜尋姓名 / 地號 / 門牌...">
+    <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
+      <h3>整合清冊 (<span id="integ-count">${rows.length}</span>)</h3>
+      <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
+      ${ddHtml("integ-state-dd", "狀態", [
+        { v: "visited", t: "已拜訪" }, { v: "not_visited", t: "未拜訪" },
+        { v: "signed", t: "已簽約" }, { v: "not_signed", t: "未簽約" },
+      ])}
+      ${ddHtml("integ-visit-dd", "拜訪紀錄", [
+        { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
+        { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
+      ])}
     </div>
     <div class="table-wrap">
       <table>
@@ -99,32 +124,53 @@ async function renderIntegratedRosterTab(el) {
       ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
       : `<span style="color:var(--text-muted)">尚無</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
-    return `<tr data-hay="${escapeHtml(hay)}">
+    const stateTok = `${o.visit_status} ${o.agreement_status}`;
+    const visitTok = `${o.reply_status} ${contactTokens(o).join(" ")}`;
+    return `<tr data-hay="${escapeHtml(hay)}" data-state-tok="${stateTok}" data-visit-tok="${visitTok}">
             <td>${String(i + 1).padStart(3, "0")}</td>
             <td>${escapeHtml(o.name)}</td>
-            <td><span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span></td>
+            <td style="white-space:nowrap">
+              <span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span>
+              <span class="mini-badge ${o.visit_status === "visited" ? "gate-ok" : ""}" style="margin-left:4px">${VISIT_STATUS_LABEL[o.visit_status] || "未拜訪"}</span>
+            </td>
             <td>${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
             <td>${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
             <td>${fmt2(landSqm)}</td>
             <td>${fmt2(landSqm * 0.3025)}</td>
             <td>${fmt2(bldSqm)}</td>
             <td>${fmt2(bldSqm * 0.3025)}</td>
-            <td>${visit} <button type="button" class="btn-link btn-sm" data-goto-contact="${o.id}">聯繫</button></td>
+            <td style="white-space:nowrap">
+              <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
+              ${visit}
+              <button type="button" class="btn-link btn-sm" data-goto-contact="${o.id}">聯繫</button>
+            </td>
           </tr>`;
   }).join("")}
         </tbody>
       </table>
     </div>`;
 
-  const search = document.getElementById("integrated-search");
-  if (search) {
-    search.addEventListener("input", () => {
-      const q = search.value.trim().toLowerCase();
-      el.querySelectorAll("tbody tr").forEach((tr) => {
-        tr.classList.toggle("hidden", q && !(tr.dataset.hay || "").includes(q));
-      });
+  const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
+  const applyIntegratedFilter = () => {
+    const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
+    const st = checked("integ-state-dd");
+    const vt = checked("integ-visit-dd");
+    let shown = 0;
+    el.querySelectorAll("tbody tr").forEach((tr) => {
+      const okSearch = !q || (tr.dataset.hay || "").includes(q);
+      const rowSt = (tr.dataset.stateTok || "").split(" ");
+      const rowVt = (tr.dataset.visitTok || "").split(" ");
+      const okSt = !st.length || st.some((x) => rowSt.includes(x));
+      const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
+      const show = okSearch && okSt && okVt;
+      tr.classList.toggle("hidden", !show);
+      if (show) shown++;
     });
-  }
+    const cnt = document.getElementById("integ-count");
+    if (cnt) cnt.textContent = shown;
+  };
+  document.getElementById("integrated-search")?.addEventListener("input", applyIntegratedFilter);
+  el.querySelectorAll(".integ-filter input").forEach((cb) => cb.addEventListener("change", applyIntegratedFilter));
   el.querySelectorAll("[data-goto-contact]").forEach((b) => {
     b.addEventListener("click", async () => {
       state.selectedContactLandownerId = Number(b.dataset.gotoContact);
@@ -805,6 +851,22 @@ function openEditLandownerModal(landownerId) {
           </select>
         </div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>拜訪狀態</label>
+          <select name="visit_status">
+            ${Object.entries(VISIT_STATUS_LABEL)
+              .map(([k, v]) => `<option value="${k}" ${(owner.visit_status || "not_visited") === k ? "selected" : ""}>${v}</option>`)
+              .join("")}
+          </select>
+        </div>
+        <div class="field"><label>回覆狀態</label>
+          <select name="reply_status">
+            ${Object.entries(REPLY_STATUS_LABEL)
+              .map(([k, v]) => `<option value="${k}" ${(owner.reply_status || "not_replied") === k ? "selected" : ""}>${v}</option>`)
+              .join("")}
+          </select>
+        </div>
+      </div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
       <div class="field">
         <label>綁定登入帳號(限地主帳號,可讓該地主自行登入查看本筆)</label>
@@ -883,6 +945,8 @@ function openEditLandownerModal(landownerId) {
       phone: data.phone || null,
       contact_status: data.contact_status,
       agreement_status: data.agreement_status,
+      visit_status: data.visit_status,
+      reply_status: data.reply_status,
       address: data.address || null,
       user_id: data.user_id ? Number(data.user_id) : null,
     };

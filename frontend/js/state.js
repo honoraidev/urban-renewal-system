@@ -17,6 +17,8 @@ const state = {
 
 const CONTACT_STATUS_LABEL = { not_contacted: "未聯絡", contacted: "已聯絡", declined: "婉拒", agreed: "同意" };
 const AGREEMENT_STATUS_LABEL = { not_signed: "未簽約", signed: "已簽約" };
+const VISIT_STATUS_LABEL = { visited: "已拜訪", not_visited: "未拜訪" };
+const REPLY_STATUS_LABEL = { replied: "已回覆", not_replied: "未回覆" };
 const CONSENT_STATUS_LABEL = { pending: "待確認", agreed: "同意", opposed: "反對" };
 const PROJECT_STATUS_LABEL = { active: "進行中", closed: "已結案", suspended: "暫停" };
 
@@ -84,11 +86,11 @@ const CONTACT_RESULT_LABEL = { no_answer: "未接聽", agreed: "同意", opposed
 const OCR_JOB_STATUS_LABEL = { pending: "等待中", processing: "辨識中", completed: "已完成", failed: "失敗" };
 
 const ROLE_LABEL = {
-  sys_admin: "L1 系統管理員",
-  manager: "L2 都更主管",
+  sys_admin: "L0 系統管理員(DEMO)",
+  manager: "L1 管理層",
+  ocr_staff: "L2 都更主管",
   case_owner: "L3 案件負責人",
   case_staff: "L4 案件工作人員",
-  ocr_staff: "L5 資料/OCR人員",
-  viewer: "L6 查詢/檢視人員",
-  landowner: "L7 地主",
+  viewer: "L5 查詢/檢視人員",
+  landowner: "L6 地主",
 };

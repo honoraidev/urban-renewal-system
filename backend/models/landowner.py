@@ -25,6 +25,9 @@ class Landowner(Base):
     # "did they actually sign") - a landowner can be contacted/agreed verbally long before
     # a contract is signed, or vice versa in an edge case, so these shouldn't be the same field.
     agreement_status: Mapped[str] = mapped_column(String(20), nullable=False, default="not_signed")
+    # 拜訪 / 回覆狀態:純人工標記,跟 contact_status(有沒有聯絡到)獨立。
+    visit_status: Mapped[str] = mapped_column(String(20), nullable=False, default="not_visited")
+    reply_status: Mapped[str] = mapped_column(String(20), nullable=False, default="not_replied")
     # Human-facing display code (e.g. "2026-001-003") - assigned once at creation from a
     # per-project counter, stored rather than computed on the fly so it stays stable even
     # if earlier landowners in the project are later deleted (no renumbering).

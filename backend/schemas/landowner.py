@@ -139,6 +139,8 @@ class LandownerUpdate(BaseModel):
     address: str | None = None
     contact_status: str | None = Field(default=None, pattern="^(not_contacted|contacted|declined|agreed)$")
     agreement_status: str | None = Field(default=None, pattern="^(not_signed|signed)$")
+    visit_status: str | None = Field(default=None, pattern="^(visited|not_visited)$")
+    reply_status: str | None = Field(default=None, pattern="^(replied|not_replied)$")
     is_representative: bool | None = None
     notes: str | None = None
     user_id: int | None = None
@@ -157,6 +159,8 @@ class LandownerRead(BaseModel):
     address: str | None = None
     contact_status: str
     agreement_status: str
+    visit_status: str = "not_visited"
+    reply_status: str = "not_replied"
     roster_code: str | None = None
     is_representative: bool
     notes: str | None = None
