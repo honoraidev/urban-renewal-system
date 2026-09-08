@@ -1495,6 +1495,29 @@ def _vision_read_address(png_bytes: bytes) -> str:
     return _clean_address((out.get("address") or "").strip())
 
 
+def _owner_band_png(doc, pj: int, y0: float, dpi: int) -> bytes:
+    """裁某位所有權人「登記次序」那行起算的窄帶(涵蓋 所有權人→統編→住址)。
+    若這行靠近頁尾(區塊跨頁,住址被擠到下一頁開頭),把下一頁頂端的帶子也接上去 ——
+    0302 這種 50 人的謄本,漏的幾乎都是跨頁那幾筆。"""
+    page = doc[pj]
+    ph = page.rect.height
+    pw = page.rect.width
+    pix = page.get_pixmap(dpi=dpi, clip=fitz.Rect(0, max(0, y0 - 2), pw, min(ph, y0 + 110)))
+    if y0 + 110 <= ph - 30 or pj + 1 >= doc.page_count:
+        return pix.tobytes("png")
+    nxt = doc[pj + 1]
+    npx = nxt.get_pixmap(dpi=dpi, clip=fitz.Rect(0, 55, nxt.rect.width, 200))
+    top = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+    bottom = Image.open(io.BytesIO(npx.tobytes("png"))).convert("RGB")
+    w = max(top.width, bottom.width)
+    canvas = Image.new("RGB", (w, top.height + bottom.height), "white")
+    canvas.paste(top, (0, 0))
+    canvas.paste(bottom, (0, top.height))
+    out = io.BytesIO()
+    canvas.save(out, format="PNG")
+    return out.getvalue()
+
+
 def _deink_red(png_bytes: bytes) -> bytes:
     """電子謄本每頁有一條斜的紅色「地政事務所」浮水印,常壓在住址那行上,OCR 讀不出來。
     把「紅色明顯大於綠/藍」的像素刷白(黑字 R≈G≈B 不受影響),再交給 OCR。失敗就原圖。"""
@@ -1726,8 +1749,7 @@ def _recover_burned_in_addresses(
                 continue
             pj, y0 = order_yx_by_key[key]
             try:
-                clip = fitz.Rect(0, max(0, y0 - 2), doc[pj].rect.width, y0 + 100)
-                png = doc[pj].get_pixmap(dpi=600, clip=clip).tobytes("png")
+                png = _owner_band_png(doc, pj, y0, 600)
                 text, _c = _ocr_page_text(_deink_red(png))
             except Exception as exc:
                 print(f"[_recover_burned_in_addresses] band OCR failed: {exc}", flush=True)
@@ -1759,8 +1781,7 @@ def _recover_burned_in_addresses(
                     break
                 pj, y0 = order_yx_by_key[key]
                 try:
-                    clip = fitz.Rect(0, max(0, y0 - 2), doc[pj].rect.width, y0 + 100)
-                    png = doc[pj].get_pixmap(dpi=400, clip=clip).tobytes("png")
+                    png = _owner_band_png(doc, pj, y0, 400)
                     _vision_n[0] += 1
                     addr = _vision_read_address(_deink_red(png))
                 except Exception as exc:  # noqa: BLE001
