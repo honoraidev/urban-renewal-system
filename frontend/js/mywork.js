@@ -29,6 +29,12 @@ function myWorkEnsureStyle() {
     .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:10px; }
     .mw-act:last-child { border-bottom:none; }
     .mw-act .tm { color:var(--text-muted,#6b7280); white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .mw-board h3 { display:flex; align-items:center; gap:6px; }
+    .mw-board .mw-board-body { }
+    #mw-act-rest { border-top:1px solid var(--border,#f1f5f9); margin-top:4px; }
+    .mw-act-toggle { margin-top:8px; width:100%; text-align:center; background:var(--bg-subtle,#f8fafc); border:1px solid var(--border,#e5e7eb);
+      border-radius:8px; padding:6px 0; font-size:12.5px; color:var(--brand,#0d9488); cursor:pointer; font-weight:600; }
+    .mw-act-toggle:hover { background:#eef2f7; }
     .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
     .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
   `;
@@ -120,17 +126,22 @@ function renderMyWork() {
     .map((f) => `<div>· ${escapeHtml(f.landowner_name)}<span class="helper-text"> — ${escapeHtml(f.project_name)}</span></div>`)
     .join("") || `<div class="helper-text">今天還沒有聯絡紀錄</div>`;
 
-  const actList = (d.today_activities || []).length
-    ? d.today_activities
-        .map((a) => {
-          const t = new Date(/[Zz]|[+-]\d\d:?\d\d$/.test(a.created_at) ? a.created_at : a.created_at + "Z");
-          const hm = isNaN(t) ? "" : `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-          return `<div class="mw-act"><span class="tm">${hm}</span><span>${escapeHtml(a.action)}${
-            a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
-          }</span></div>`;
-        })
-        .join("")
-    : `<div class="helper-text">今天還沒有操作紀錄</div>`;
+  const _acts = d.today_activities || [];
+  const _actRow = (a) => {
+    const t = new Date(/[Zz]|[+-]\d\d:?\d\d$/.test(a.created_at) ? a.created_at : a.created_at + "Z");
+    const hm = isNaN(t) ? "" : `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+    return `<div class="mw-act"><span class="tm">${hm}</span><span>${escapeHtml(a.action)}${
+      a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
+    }</span></div>`;
+  };
+  const _ACT_FIRST = 4;
+  const actList = !_acts.length
+    ? `<div class="helper-text">今天還沒有操作紀錄</div>`
+    : `${_acts.slice(0, _ACT_FIRST).map(_actRow).join("")}
+       ${_acts.length > _ACT_FIRST
+        ? `<div id="mw-act-rest" hidden>${_acts.slice(_ACT_FIRST).map(_actRow).join("")}</div>
+           <button type="button" class="mw-act-toggle" id="mw-act-toggle">展開全部 (${_acts.length}) ▾</button>`
+        : ""}`;
 
   body.innerHTML = `
     <div class="mw-grid">
@@ -161,9 +172,9 @@ function renderMyWork() {
           <h3>今日跟進名單</h3>
           ${followList}
         </div>
-        <div class="mw-card">
-          <h3>今日操作紀錄</h3>
-          ${actList}
+        <div class="mw-card mw-board">
+          <h3>📋 今日操作紀錄</h3>
+          <div class="mw-board-body">${actList}</div>
         </div>
       </div>
     </div>`;
@@ -178,6 +189,16 @@ function renderMyWork() {
   body.querySelectorAll("[data-mw-day]").forEach((el) => {
     el.addEventListener("click", () => openMyWorkDay(el.dataset.mwDay, eventsByDate[el.dataset.mwDay] || []));
   });
+
+  const actToggle = document.getElementById("mw-act-toggle");
+  if (actToggle) {
+    actToggle.addEventListener("click", () => {
+      const rest = document.getElementById("mw-act-rest");
+      const open = rest.hidden;
+      rest.hidden = !open;
+      actToggle.textContent = open ? "收合 ▴" : `展開全部 (${_acts.length}) ▾`;
+    });
+  }
 }
 
 function openMyWorkDay(dateIso, events) {
