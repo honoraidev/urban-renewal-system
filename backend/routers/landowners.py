@@ -206,6 +206,17 @@ def get_land_record_or_404(db: Session, project_id: int, landowner_id: int, reco
     return record
 
 
+def assert_land_record_in_project(db: Session, project_id: int, record_id: int) -> None:
+    """建物 record 的 land_record_id 只是指向同案件的某筆土地 record 的方便指標,
+    不要求跟建物掛在同一個 landowner 底下(同一個人在土地/建物常被去重成不同
+    landowner row,舊的逐 landowner 檢查會誤報 Land record not found)。"""
+    exists = db.scalar(
+        select(LandRecord.id).where(LandRecord.id == record_id, LandRecord.project_id == project_id)
+    )
+    if exists is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Land record not found")
+
+
 @router.post("/{landowner_id}/land-records", response_model=LandRecordRead, status_code=status.HTTP_201_CREATED)
 def create_land_record(
     landowner_id: int,
@@ -298,7 +309,7 @@ def create_building_record(
 ):
     get_landowner_or_404(db, project.id, landowner_id)
     if payload.land_record_id is not None:
-        get_land_record_or_404(db, project.id, landowner_id, payload.land_record_id)
+        assert_land_record_in_project(db, project.id, payload.land_record_id)
     record = BuildingRecord(project_id=project.id, landowner_id=landowner_id, **payload.model_dump())
     _compute_building_totals(record)
     db.add(record)
@@ -318,7 +329,7 @@ def update_building_record(
     record = get_building_record_or_404(db, project.id, landowner_id, record_id)
     updates = payload.model_dump(exclude_unset=True)
     if updates.get("land_record_id") is not None:
-        get_land_record_or_404(db, project.id, landowner_id, updates["land_record_id"])
+        assert_land_record_in_project(db, project.id, updates["land_record_id"])
     for field, value in updates.items():
         setattr(record, field, value)
     _compute_building_totals(record)

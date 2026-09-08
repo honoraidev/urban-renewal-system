@@ -1655,13 +1655,16 @@ def _recover_burned_in_addresses(
 
 
 def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]) -> dict:
-    """Fill any still-blank owner 戶籍地址 from the burned-in-strip recovery map,
-    matched by (地號, 登記次序) and then by 登記次序 alone."""
+    """Fill any still-blank owner 戶籍地址 from the burned-in recovery map, matched
+    STRICTLY by (地號, 登記次序). The earlier「只用登記次序」fallback bound one parcel's
+    owner-1 address onto another parcel's owner-1 (常見:中華民國/政府機關 住址本來就
+    是「（空白）」卻被塞了別筆的地址),已移除。"""
     if not recovered:
         return data
-    by_order: dict[str, list[str]] = {}
-    for (_p, o), v in recovered.items():
-        by_order.setdefault(o, []).append(v)
+    # 地號比對時去掉前導零,容忍「0438-0007」vs「438-7」這種寫法差異。
+    norm_recovered: dict[tuple[str, str], str] = {}
+    for (rp, ro), v in recovered.items():
+        norm_recovered[(rp.lstrip("0"), ro.lstrip("0") or "0")] = v
     containers = [
         (p, p.get("parcel_number")) for p in (data.get("land_parcels", []) or [])
     ] + [
@@ -1674,11 +1677,7 @@ def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]
             if cur and cur.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                 continue
             odig = re.sub(r"\D", "", str(owner.get("registration_order") or "")).lstrip("0") or "0"
-            hit = recovered.get((pdig, odig))
-            if not hit:
-                cands = by_order.get(odig) or []
-                if len(cands) == 1:
-                    hit = cands[0]
+            hit = recovered.get((pdig, odig)) or norm_recovered.get((pdig.lstrip("0"), odig))
             if hit:
                 owner["address"] = _clean_address(hit)
     return data
@@ -1686,12 +1685,12 @@ def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]
 
 def _apply_recovered_names(data: dict, recovered_names: dict[tuple[str, str], str]) -> dict:
     """Fill any owner_name that came back with no CJK character (「＊＊＊」 / blank) from
-    the burned-in name recovery map, matched by (地號, 登記次序) then by 登記次序 alone."""
+    the burned-in name recovery map, matched STRICTLY by (地號, 登記次序)."""
     if not recovered_names:
         return data
-    by_order: dict[str, list[str]] = {}
-    for (_p, o), v in recovered_names.items():
-        by_order.setdefault(o, []).append(v)
+    norm_recovered: dict[tuple[str, str], str] = {}
+    for (rp, ro), v in recovered_names.items():
+        norm_recovered[(rp.lstrip("0"), ro.lstrip("0") or "0")] = v
     containers = [
         (p, p.get("parcel_number")) for p in (data.get("land_parcels", []) or [])
     ] + [
@@ -1704,11 +1703,7 @@ def _apply_recovered_names(data: dict, recovered_names: dict[tuple[str, str], st
             if _cjk.search(str(owner.get("owner_name") or "")):
                 continue
             odig = re.sub(r"\D", "", str(owner.get("registration_order") or "")).lstrip("0") or "0"
-            hit = recovered_names.get((pdig, odig))
-            if not hit:
-                cands = by_order.get(odig) or []
-                if len(cands) == 1:
-                    hit = cands[0]
+            hit = recovered_names.get((pdig, odig)) or norm_recovered.get((pdig.lstrip("0"), odig))
             if hit:
                 owner["owner_name"] = hit
     return data
