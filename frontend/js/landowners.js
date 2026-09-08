@@ -87,8 +87,8 @@ async function renderIntegratedRosterTab(el) {
 
   const ddHtml = (id, label, opts) => `
     <details class="integ-filter" style="position:relative">
-      <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);white-space:nowrap;font-size:13px">${label} ▾</summary>
-      <div id="${id}" style="position:absolute;z-index:20;margin-top:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
+      <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">${label} ▾</summary>
+      <div id="${id}" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
         ${opts.map((o) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${o.v}" style="width:auto">${o.t}</label>`).join("")}
       </div>
     </details>`;
@@ -491,7 +491,7 @@ function parcelOwnerRowHtml() {
 function addParcelOwnerRow(container, totalAreaInput, prefill = {}) {
   const row = document.createElement("div");
   row.className = "po-row record-row";
-  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--bg-card)";
+  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--surface)";
   row.innerHTML = parcelOwnerRowHtml();
 
   if (prefill.registration_order) row.querySelector(".po-reg-order").value = prefill.registration_order;
@@ -664,7 +664,7 @@ function buildingOwnerRowHtml() {
 function addBuildingOwnerRow(container, getTotalArea, prefill = {}) {
   const row = document.createElement("div");
   row.className = "bo-row record-row";
-  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--bg-card)";
+  row.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--surface)";
   row.innerHTML = buildingOwnerRowHtml();
 
   if (prefill.registration_order) row.querySelector(".bo-reg-order").value = prefill.registration_order;
