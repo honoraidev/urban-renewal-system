@@ -1451,6 +1451,50 @@ _PAGE_ADDR_LINE_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*(
 _PAGE_PARCEL_HDR_RE = re.compile(r"(\d{3,5})\s*-\s*(\d{3,5})\s*[地建]\s*[號琥唬]")
 
 
+_VISION_ADDR_CAP = 20  # 一份謄本最多用 vision 讀幾筆住址(其餘留給人工補)
+
+_VISION_ADDR_SCHEMA = {
+    "type": "object",
+    "properties": {"address": {"type": "string"}},
+    "required": ["address"],
+    "additionalProperties": False,
+}
+_VISION_ADDR_PROMPT = (
+    "這是台灣土地/建物謄本裡某位所有權人的一小塊區域。請只讀出「住址：」後面那一行"
+    "的完整地址(台灣門牌格式,如 臺北市內湖區西康里6鄰內湖路一段47巷8弄34之2號)。"
+    "遮罩符號(＊)原樣保留;讀不到或該行是「(空白)」就回空字串。不要臆造門牌號碼。"
+    '只回 {"address":"<地址>"}。'
+)
+
+
+def _vision_read_address(png_bytes: bytes) -> str:
+    """把單一所有權人區塊的窄帶圖交給 vision LLM 讀「住址」那行。只在 RapidOCR 讀不出來
+    時當最後手段用。失敗回空字串。"""
+    b64 = base64.b64encode(png_bytes).decode("ascii")
+    payload = {
+        "model": settings.OPENAI_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": _VISION_ADDR_PROMPT},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                ],
+            }
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "addr", "strict": True, "schema": _VISION_ADDR_SCHEMA},
+        },
+        "temperature": 0,
+    }
+    try:
+        out = _call_openai_structured(payload)
+    except OcrError:
+        return ""
+    return _clean_address((out.get("address") or "").strip())
+
+
 def _deink_red(png_bytes: bytes) -> bytes:
     """電子謄本每頁有一條斜的紅色「地政事務所」浮水印,常壓在住址那行上,OCR 讀不出來。
     把「紅色明顯大於綠/藍」的像素刷白(黑字 R≈G≈B 不受影響),再交給 OCR。失敗就原圖。"""
@@ -1489,6 +1533,7 @@ def _recover_burned_in_addresses(
     recovered: dict[tuple[str, str], str] = {}
     recovered_names: dict[tuple[str, str], str] = {}
     _CJK_RE = re.compile(r"[一-鿿]")
+    _vision_n = [0]  # 整份謄本用 vision 讀住址的次數(有上限,控成本)
     for content, mime_type in files:
         is_pdf = (mime_type or "").lower() == "application/pdf" or content[:5] == b"%PDF-"
         if not is_pdf:
@@ -1697,6 +1742,28 @@ def _recover_burned_in_addresses(
             val = _ADDR_STOP_RE.split(val)[0].strip("*＊ ")
             if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                 recovered[key] = val
+
+        # 第四步:RapidOCR 三關都讀不出來的(斜印壓住址那行),把窄帶圖直接交給
+        # vision LLM 讀。只有設 OPENAI_API_KEY 才啟用,且每份最多問 _VISION_ADDR_CAP 次。
+        still_missing = [
+            k for k in missing_pairs
+            if k not in recovered and k in order_yx_by_key
+        ]
+        if still_missing and getattr(settings, "OPENAI_API_KEY", ""):
+            for key in still_missing:
+                if _vision_n[0] >= _VISION_ADDR_CAP:
+                    break
+                pj, y0 = order_yx_by_key[key]
+                try:
+                    clip = fitz.Rect(0, max(0, y0 - 2), doc[pj].rect.width, y0 + 100)
+                    png = doc[pj].get_pixmap(dpi=400, clip=clip).tobytes("png")
+                    _vision_n[0] += 1
+                    addr = _vision_read_address(_deink_red(png))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[_recover_burned_in_addresses] vision 住址 failed: {exc}", flush=True)
+                    continue
+                if addr and addr.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
+                    recovered[key] = addr
 
     if recovered or recovered_names:
         print(
