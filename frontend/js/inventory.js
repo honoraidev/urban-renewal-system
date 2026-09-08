@@ -34,17 +34,17 @@ const INVENTORY_STATUS_STYLE = {
 };
 
 const INVENTORY_FIELDS = [
-  { key: "name", label: "物品名稱", required: true, section: "基本資料" },
-  { key: "category", label: "分類" },
-  { key: "quantity", label: "數量", type: "number" },
-  { key: "location", label: "存放位置" },
-  { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
   { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions, section: "保管" },
   { key: "custodian", label: "保管人", type: "person", deptField: "custodian_dept" },
   { key: "asset_no", label: "財產編號" },
   { key: "acquired_date", label: "取得日期", type: "date", section: "取得" },
   { key: "unit_price", label: "單價 / 金額", type: "number" },
-  { key: "borrower_dept", label: "領用人部門", type: "dropdown", opts: _invDeptOptions, section: "領用 / 歸還" },
+  { key: "name", label: "物品名稱", required: true, section: "基本資料 / 領用歸還" },
+  { key: "category", label: "分類" },
+  { key: "quantity", label: "數量", type: "number" },
+  { key: "location", label: "存放位置" },
+  { key: "status", label: "狀態", type: "select", options: INVENTORY_STATUS_OPTIONS },
+  { key: "borrower_dept", label: "領用人部門", type: "dropdown", opts: _invDeptOptions },
   { key: "borrower", label: "領用人", type: "person", deptField: "borrower_dept" },
   { key: "issued_date", label: "領用日期", type: "date" },
   { key: "expected_return_date", label: "預計歸還", type: "date" },
