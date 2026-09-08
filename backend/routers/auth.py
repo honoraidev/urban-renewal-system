@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -32,9 +33,16 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="account_deactivated")
 
+    # last_login_at 與登入紀錄都只是輔助資訊。users 那列若剛好被別的交易鎖住
+    # (1205 Lock wait timeout / 1213 deadlock),絕不能讓登入整個失敗或卡 50 秒 ——
+    # 設短 timeout,失敗就放棄這兩筆、照樣發 token。
     user.last_login_at = datetime.now(timezone.utc)
     _record_login_event(db, user.id, "login", _client_ip(request))
-    db.commit()
+    try:
+        db.execute(text("SET SESSION innodb_lock_wait_timeout = 3"))
+        db.commit()
+    except OperationalError:
+        db.rollback()
 
     token = create_access_token(user.id, user.role)
     return TokenResponse(access_token=token)

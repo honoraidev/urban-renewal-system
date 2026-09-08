@@ -66,6 +66,9 @@ def _auto_migrate() -> None:
     ):
         try:
             with engine.connect() as _conn:
+                # 若某條長交易正鎖著這張表,ALTER 會卡到 lock timeout(預設 50s)並拖住
+                # 整個啟動;設短一點,卡住就跳過(欄位多半早就存在,IF NOT EXISTS 是 no-op)。
+                _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
                 _conn.execute(
                     _sql_text(f"ALTER TABLE {_tbl} ADD COLUMN IF NOT EXISTS {_col} {_ddl}")
                 )
