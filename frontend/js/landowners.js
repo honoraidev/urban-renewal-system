@@ -395,7 +395,22 @@ async function renderLandownersTypeTab(el, type) {
   const addBtn = document.getElementById("add-landowner-btn");
   if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
   const scanBtn = document.getElementById("scan-title-deed-btn");
-  if (scanBtn) scanBtn.addEventListener("click", isLand ? openTitleDeedWizard : openBuildingTitleDeedWizard);
+  if (scanBtn) {
+    // 防呆:建物登記要先有土地資料(建號要比對地號)。整個案件都沒有任何土地
+    // record 時,擋下建物匯入並提示。
+    const hasLandRecords = !isLand && allLandowners.some((o) => (o.land_records || []).length > 0);
+    if (!isLand && !hasLandRecords) {
+      scanBtn.style.opacity = "0.55";
+      scanBtn.style.cursor = "not-allowed";
+      scanBtn.title = "請先完成「土地登記匯入」,才能匯入建物登記";
+      scanBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        toast("請先匯入土地登記 —— 建物的地號需要比對土地資料", "error");
+      });
+    } else {
+      scanBtn.addEventListener("click", isLand ? openTitleDeedWizard : openBuildingTitleDeedWizard);
+    }
+  }
 
   el.querySelectorAll("[data-add-land]").forEach((btn) => {
     btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
