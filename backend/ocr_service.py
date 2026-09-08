@@ -29,18 +29,20 @@ _SECRET = os.environ.get("OCR_SERVICE_SECRET", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 開機就把 OCR 引擎(RapidOCR)初始化完 — 這步在有 GPU 的機器上
-    # 第一次要 1~3 分鐘。放在啟動時做,之後每個請求才會是秒級,不會卡住 NAS 的逾時。
+    # 開機就把 RapidOCR 引擎初始化完。第一次很慢(GPU 上 onnxruntime 要建 + 快取
+    # TensorRT engine,可能 2~4 分鐘),放在啟動時做,之後每頁 ~1 秒,不會卡住 NAS 逾時。
     try:
+        import time as _t
+
         from PIL import Image
 
+        from utils.ocr import _ocr_page_text
+
         buf = io.BytesIO()
-        Image.new("RGB", (64, 64), "white").save(buf, format="PNG")
-        try:
-            extract_invoice_fields(buf.getvalue(), "image/png")
-        except InvoiceOcrError:
-            pass  # 空白圖必然辨識失敗 — 我們只是要觸發引擎載入
-        print("[ocr_service] OCR engine warmed up.", flush=True)
+        Image.new("RGB", (48, 320), "white").save(buf, format="PNG")
+        _w0 = _t.time()
+        _ocr_page_text(buf.getvalue())  # 觸發 RapidOCR / CUDA / TRT 建置
+        print(f"[ocr_service] OCR engine warmed up in {_t.time() - _w0:.0f}s.", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"[ocr_service] warmup skipped: {exc!r}", flush=True)
     yield

@@ -22,6 +22,32 @@ import httpx
 import numpy as np
 from opencc import OpenCC
 from PIL import Image
+
+
+def _add_nvidia_dll_dirs() -> None:
+    """Windows + onnxruntime-gpu: 讓 onnxruntime 找得到 pip 裝的 nvidia-*-cu12 wheel
+    裡的 cudnn64_9.dll / cudart64_12.dll / cublas… 否則 CUDAExecutionProvider 建立
+    失敗、靜默退回 CPU(謄本 OCR 從 ~1s/頁變 ~4s/頁)。NAS(Linux)不受影響。"""
+    if os.name != "nt":
+        return
+    try:
+        import nvidia  # noqa: F401
+    except Exception:
+        return
+    base = os.path.join(os.path.dirname(__import__("nvidia").__file__))
+    for sub in ("cudnn", "cuda_runtime", "cublas", "cufft", "curand",
+                "cusolver", "cusparse", "nvjitlink", "cuda_nvrtc"):
+        d = os.path.join(base, sub, "bin")
+        if os.path.isdir(d):
+            try:
+                os.add_dll_directory(d)
+                os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+            except (OSError, AttributeError):
+                pass
+
+
+_add_nvidia_dll_dirs()
+
 try:
     from rapidocr_onnxruntime import RapidOCR
 except ImportError:
