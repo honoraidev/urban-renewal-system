@@ -110,8 +110,16 @@ def _clean_address(addr: str) -> str:
     addr = addr.translate(_FULLWIDTH_DIGIT_MAP).strip().strip("*＊").strip()
     if addr.strip("()（） ").lower() in _BLANK_ADDRESS_TOKENS or not addr:
         return ""
-    # 1. Standardize '臺' -> '台', '裏'/'裡' -> '里', '楼' -> '樓'
+    # 1. Standardize '臺' -> '台', '裏'/'裡' -> '里', '楼' -> '樓',以及 OCR 常把繁體
+    #    地名認成字形相近的簡體字(內湖 -> 内湖、三重區 -> 三重区…),逐字校回繁體。
     addr = addr.replace("臺", "台").replace("裏", "里").replace("裡", "里").replace("楼", "樓")
+    _S2T_ADDR = {
+        "内": "內", "号": "號", "区": "區", "湾": "灣", "县": "縣",
+        "镇": "鎮", "乡": "鄉", "邻": "鄰", "东": "東",
+        "兴": "興", "荣": "榮", "义": "義", "龙": "龍", "凤": "鳳",
+        "华": "華", "园": "園", "宁": "寧", "国": "國", "长": "長",
+    }
+    addr = addr.translate({ord(k): v for k, v in _S2T_ADDR.items()})
 
     # 2. Section numbers (段) use Chinese numerals (e.g. 5段 -> 五段, 1段 -> 一段)
     cn_num_map_rev = {"1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六", "7": "七", "8": "八", "9": "九", "10": "十"}
