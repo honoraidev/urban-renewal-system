@@ -24,7 +24,14 @@ from schemas.ocr import (
     TitleDeedExtraction,
 )
 from utils.file_storage import build_upload_path
-from utils.ocr import OcrError, _flatten_to_pages, detect_page_groups, extract_title_deed
+from utils.ocr import (
+    DEED_EXTRACT_SEMAPHORE,
+    DEED_EXTRACT_WAIT_S,
+    OcrError,
+    _flatten_to_pages,
+    detect_page_groups,
+    extract_title_deed,
+)
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["ocr"])
 
@@ -199,6 +206,16 @@ def extract_title_deed_job(
         newly_created_document_ids.add(document.id)
         db.add(OcrJobDocument(ocr_job_id=job.id, document_id=document.id, page_order=len(documents) - 1))
 
+    if not DEED_EXTRACT_SEMAPHORE.acquire(timeout=DEED_EXTRACT_WAIT_S):
+        job.status = "failed"
+        job.error_message = "系統目前有其他謄本正在辨識,請稍後再試一次"
+        job.completed_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(job)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="系統目前有其他謄本正在辨識,請稍後再試一次",
+        )
     try:
         file_payload = []
         for doc in documents:
@@ -212,6 +229,8 @@ def extract_title_deed_job(
         db.commit()
         db.refresh(job)
         return OcrExtractionResult(job=OcrJobRead.model_validate(job), data=None)
+    finally:
+        DEED_EXTRACT_SEMAPHORE.release()
 
     match = OcrMatchResult(ocr_job_id=job.id, extracted_data=parsed)
     db.add(match)

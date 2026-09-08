@@ -12,6 +12,8 @@ from models.project import Project
 from models.user import User
 from schemas.ocr import BuildingCaseDetectResult, BuildingGroupMatch, CaseDetectResult, CasePagePreview
 from utils.ocr import (
+    DEED_EXTRACT_SEMAPHORE,
+    DEED_EXTRACT_WAIT_S,
     OcrError,
     _flatten_to_pages,
     _HEADER_OCR_WORKERS,
@@ -185,8 +187,15 @@ def extract_building_group(
         pages = _flatten_to_pages(file_payload)
     except OcrError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if not DEED_EXTRACT_SEMAPHORE.acquire(timeout=DEED_EXTRACT_WAIT_S):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="系統目前有其他謄本正在辨識,請稍後再試一次",
+        )
     try:
         data, warning = extract_title_deed(pages, record_type="building")
     except OcrError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    finally:
+        DEED_EXTRACT_SEMAPHORE.release()
     return {"building": data["buildings"][0] if data["buildings"] else None, "warning": warning}

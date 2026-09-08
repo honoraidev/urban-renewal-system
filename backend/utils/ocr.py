@@ -2394,6 +2394,16 @@ _HEADER_OCR_WORKERS = min(os.cpu_count() or 2, 8)
 # only the actual inference is serialized, not the whole per-page pipeline.
 _GPU_OCR_LOCK = Lock()
 
+# 謄本結構化擷取(extract_title_deed)是重活:掃描件每頁要跑 OCR,一份可能好幾分鐘。
+# 呼叫它的 endpoint 都是同步 def,跑在 anyio 執行緒池(預設 40 條)裡。沒有上限的話,
+# 多人同時匯掃描謄本會把執行緒池佔滿,連登入都會卡住(實際發生過)。用一個
+# BoundedSemaphore 限制「同時最多 2 份謄本在跑擷取」,其餘排隊;等超過
+# DEED_EXTRACT_WAIT_S 還輪不到,呼叫端應回可讀的忙碌訊息而非無限堆積。
+from threading import BoundedSemaphore
+
+DEED_EXTRACT_SEMAPHORE = BoundedSemaphore(2)
+DEED_EXTRACT_WAIT_S = 300
+
 # _GPU_OCR_LOCK above only synchronizes threads within this one Python process -
 # uvicorn's --reload spawns a separate reloader process, and any ad-hoc `docker exec
 # python ...` script (e.g. for debugging) is a separate process too. Two processes
