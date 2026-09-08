@@ -1467,18 +1467,36 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
         # boundary, so this must be matched globally, not per page.
         events: list[tuple[int, float, str, object]] = []  # (page_idx, y, kind, payload)
         needs_recovery = False
-        page_needs: set[int] = set()  # page indices whose 住址 lines are missing
+        page_needs: set[int] = set()  # page indices with >=1 owner block missing its 住址
+        # (地號, 登記次序) pairs whose 住址 line is absent from the text layer. Newer
+        # 電子謄本 only burn a natural person's REAL 住址 into the page as an image; a
+        # masked 住址 (…＊＊＊) or a 他項權利部 銀行 住址 stays as text. So "page has a
+        # 住址 line somewhere" is not enough - a page can carry a bank's 住址 in text
+        # and still be missing every owner's. Segment the text layer into owner blocks
+        # and check each one individually.
+        missing_pairs: set[tuple[str, str]] = set()
+        _ADDR_IN_BLOCK_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]\s*\S")
+        _SECTION_CUT_RE = re.compile(r"他\s*項\s*權\s*利\s*部|本\s*謄\s*本\s*列\s*印\s*完\s*畢|續\s*次\s*頁")
         for pi, page in enumerate(doc):
             try:
                 raw = page.get_text("text") or ""
             except Exception:
                 raw = ""
             norm_tl = _normalize_ocr_text(raw)
-            has_owner = re.search(r"所有權人\s*[:：]\s*\S", norm_tl)
-            has_addr = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]", norm_tl)
-            if has_owner and not has_addr and "第三類" not in norm_tl:
-                needs_recovery = True
-                page_needs.add(pi)
+            if "第三類" not in norm_tl and re.search(r"所有權人\s*[:：]\s*\S", norm_tl):
+                _pm = _PAGE_PARCEL_HDR_RE.search(norm_tl)
+                _page_parcel = (_pm.group(1) + _pm.group(2)) if _pm else ""
+                _marks = list(_PAGE_OWNER_MARKER_RE.finditer(norm_tl))
+                for _mi, _mk in enumerate(_marks):
+                    _blk = norm_tl[_mk.end(): _marks[_mi + 1].start() if _mi + 1 < len(_marks) else len(norm_tl)]
+                    _cut = _SECTION_CUT_RE.search(_blk)
+                    if _cut:
+                        _blk = _blk[: _cut.start()]
+                    if not _ADDR_IN_BLOCK_RE.search(_blk):
+                        _pair = (_page_parcel, _mk.group(1).lstrip("0") or "0")
+                        missing_pairs.add(_pair)
+                        needs_recovery = True
+                        page_needs.add(pi)
             try:
                 tld = page.get_text("dict")
             except Exception:
@@ -1524,7 +1542,12 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
                 cur_parcel = payload
             elif kind == "order":
                 cur_order = payload
-            elif kind == "strip" and cur_order and (cur_parcel, cur_order) not in recovered:
+            elif (
+                kind == "strip"
+                and cur_order
+                and (cur_parcel, cur_order) in missing_pairs
+                and (cur_parcel, cur_order) not in recovered
+            ):
                 if (cur_parcel, cur_order) == done_order:
                     continue
                 pj, x0, y0, x1, y1 = payload
@@ -1554,7 +1577,10 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
             elif kind == "order":
                 order_pairs_by_page.setdefault(_pi, []).append((_p, payload))
         for pi in sorted(page_needs):
-            wanted = [k for k in order_pairs_by_page.get(pi, []) if k not in recovered]
+            wanted = [
+                k for k in order_pairs_by_page.get(pi, [])
+                if k in missing_pairs and k not in recovered
+            ]
             if not wanted:
                 continue
             try:
