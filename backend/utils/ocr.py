@@ -120,6 +120,7 @@ def _clean_address(addr: str) -> str:
         "华": "華", "园": "園", "宁": "寧", "国": "國", "长": "長",
         # OCR 常見字形誤認
         "叚": "段", "衖": "巷", "衕": "巷", "俚": "里", "裏": "里",
+        "羲": "義", "叅": "參", "巿": "市",
     }
     addr = addr.translate({ord(k): v for k, v in _S2T_ADDR.items()})
 
