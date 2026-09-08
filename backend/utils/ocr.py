@@ -118,6 +118,8 @@ def _clean_address(addr: str) -> str:
         "镇": "鎮", "乡": "鄉", "邻": "鄰", "东": "東",
         "兴": "興", "荣": "榮", "义": "義", "龙": "龍", "凤": "鳳",
         "华": "華", "园": "園", "宁": "寧", "国": "國", "长": "長",
+        # OCR 常見字形誤認
+        "叚": "段", "衖": "巷", "衕": "巷", "俚": "里", "裏": "里",
     }
     addr = addr.translate({ord(k): v for k, v in _S2T_ADDR.items()})
 
@@ -1578,9 +1580,11 @@ def _recover_burned_in_addresses(
                     continue
                 pj, x0, y0, x1, y1 = payload
                 try:
-                    clip = fitz.Rect(x0 - 2, y0 - 10, x1 + 2, y1 + 12)
-                    png = doc[pj].get_pixmap(dpi=400, clip=clip).tobytes("png")
-                    text, _c = _ocr_page_text(png)
+                    # 放寬裁切邊界(右邊尤其容易吃掉最後一個字)+ 提高解析度 + 走高精度
+                    # OCR 引擎,盡量把住址少字 / 錯字壓低。單條住址很小,600dpi 也很快。
+                    clip = fitz.Rect(x0 - 8, y0 - 16, x1 + 60, y1 + 18)
+                    png = doc[pj].get_pixmap(dpi=600, clip=clip).tobytes("png")
+                    text, _c = _ocr_page_text(png, high_accuracy=True)
                     m = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", _normalize_ocr_text(text or ""))
                     if m:
                         val = re.sub(r"\s+", "", m.group(1))
@@ -1613,8 +1617,8 @@ def _recover_burned_in_addresses(
             if not wanted:
                 continue
             try:
-                png = doc[pi].get_pixmap(dpi=300).tobytes("png")
-                text, _c = _ocr_page_text(png)
+                png = doc[pi].get_pixmap(dpi=400).tobytes("png")
+                text, _c = _ocr_page_text(png, high_accuracy=True)
             except Exception as exc:
                 print(f"[_recover_burned_in_addresses] full-page OCR failed: {exc}", flush=True)
                 continue
