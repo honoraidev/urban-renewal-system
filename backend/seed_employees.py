@@ -119,7 +119,7 @@ def main() -> None:
             by_role[role] = by_role.get(role, 0) + 1
             dept = DEPT_NAMES.get(e["department_id"])
             depts = [dept] if dept else None
-            title = e["title"] or None
+            titles = [e["title"]] if e["title"] else None
 
             exists = db.query(User).filter(User.username == username).first()
             if exists is not None:
@@ -128,9 +128,9 @@ def main() -> None:
                 if not exists.departments and depts:
                     exists.departments = depts
                     changed.append(f"部門={dept}")
-                if not exists.title and title:
-                    exists.title = title
-                    changed.append(f"職位={title}")
+                if not exists.titles and titles:
+                    exists.titles = titles
+                    changed.append(f"職位={titles[0]}")
                 if changed:
                     updated += 1
                     print(f"  upd   {username:10} {e['name']:6} {', '.join(changed)}")
@@ -147,7 +147,7 @@ def main() -> None:
                         display_name=e["name"],
                         role=role,
                         departments=depts,
-                        title=title,
+                        titles=titles,
                         is_active=True,
                     )
                 )

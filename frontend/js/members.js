@@ -223,7 +223,7 @@ function renderUsersTable() {
   const q = usersState.search.toLowerCase();
   const users = usersState.all.filter((u) => {
     if (usersState.group !== "all" && roleGroupKey(u.role) !== usersState.group) return false;
-    if (q && !`${u.display_name} ${u.username} ${(u.departments || []).join(" ")} ${u.title || ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${u.display_name} ${u.username} ${(u.departments || []).join(" ")} ${(u.titles || []).join(" ")}`.toLowerCase().includes(q)) return false;
     return true;
   });
 
@@ -243,7 +243,7 @@ function renderUsersTable() {
               <td>${escapeHtml(u.username)}</td>
               <td><span class="role-badge ${u.role}">${roleLabel[u.role] || u.role}</span></td>
               <td>${(u.departments || []).map(escapeHtml).join("、") || "-"}</td>
-              <td>${escapeHtml(u.title) || "-"}</td>
+              <td>${(u.titles || []).map(escapeHtml).join("、") || "-"}</td>
               <td>${escapeHtml(u.email) || "-"}</td>
               <td>${u.last_login_at ? fmtDateTime(u.last_login_at) : "-"}</td>
               <td><span class="mini-badge ${u.is_active ? "gate-ok" : "alert"}">${u.is_active ? "啟用" : "停用"}</span></td>
@@ -283,63 +283,69 @@ function renderUsersTable() {
   });
 }
 
-// 常見部門(datalist 用;使用者也可自行輸入其他)。
+// 常見部門 / 職位(datalist 用;使用者也可自行輸入其他)。
 const DEPARTMENT_OPTIONS = [
   "董事長室", "顧問室", "AI部", "都更事業處", "都更部", "整合行銷部", "業務開發處", "業務部",
   "售後服務部", "財務會計處", "人資部與法務部", "總務部與資訊部", "數位管理部", "採購發包部",
   "成本控制部", "機電部", "工務部（43工務組）", "圖說管理部", "甜點餐飲處", "吧檯部", "甜點部",
   "銷售處", "70銷售組", "43銷售組", "900銷售組", "桃園都更事業處", "園藝顧問室", "園藝部",
 ];
+const TITLE_OPTIONS = [
+  "董事長", "執行長", "協理", "經理", "副理", "襄理", "主任", "組長", "資深專員", "高級專員",
+  "專員", "工程師", "助理", "行政", "秘書", "顧問", "實習生",
+];
 
-// 部門多選 chip 欄位。selected 為字串陣列。
-function deptChipFieldHtml(selected) {
+// 通用「多選 chip」欄位。key 用來區分同一表單裡的多個 chip 欄位。
+function chipFieldHtml(key, label, selected, options) {
   const sel = Array.isArray(selected) ? selected : [];
-  const knownFromUsers = new Set();
-  (usersState.all || []).forEach((u) => (u.departments || []).forEach((d) => knownFromUsers.add(d)));
-  const opts = [...new Set([...DEPARTMENT_OPTIONS, ...knownFromUsers])];
+  const known = new Set();
+  (usersState.all || []).forEach((u) => ((key === "departments" ? u.departments : u.titles) || []).forEach((v) => known.add(v)));
+  const opts = [...new Set([...options, ...known])];
   return `
     <div class="field">
-      <label>部門(可多選,可自行輸入)</label>
-      <div class="dept-chip-field" style="border:1px solid var(--border);border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-        <span class="dept-chips" style="display:flex;flex-wrap:wrap;gap:6px">${sel.map(deptChipHtml).join("")}</span>
-        <input class="dept-chip-input" list="dept-datalist" placeholder="輸入或選擇後按 Enter"
+      <label>${label}</label>
+      <div class="chip-field" data-chip="${key}" style="border:1px solid var(--border);border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <span class="chips" style="display:flex;flex-wrap:wrap;gap:6px">${sel.map((v) => chipHtml(v)).join("")}</span>
+        <input class="chip-input" list="chip-dl-${key}" placeholder="輸入或選擇後按 Enter"
           style="border:none;outline:none;flex:1;min-width:140px;background:transparent;padding:4px">
       </div>
-      <datalist id="dept-datalist">${opts.map((o) => `<option value="${escapeHtml(o)}">`).join("")}</datalist>
+      <datalist id="chip-dl-${key}">${opts.map((o) => `<option value="${escapeHtml(o)}">`).join("")}</datalist>
     </div>`;
 }
 
-function deptChipHtml(name) {
-  return `<span class="dept-chip" data-val="${escapeHtml(name)}" style="display:inline-flex;align-items:center;gap:4px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:2px 8px;font-size:12px">
-    ${escapeHtml(name)}<button type="button" class="dept-chip-x" style="border:none;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0">×</button></span>`;
+function chipHtml(name) {
+  return `<span class="chip" data-val="${escapeHtml(name)}" style="display:inline-flex;align-items:center;gap:4px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:2px 8px;font-size:12px">
+    ${escapeHtml(name)}<button type="button" class="chip-x" style="border:none;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0">×</button></span>`;
 }
 
-function wireDeptChipField(root) {
-  const field = root.querySelector(".dept-chip-field");
-  if (!field) return;
-  const chips = field.querySelector(".dept-chips");
-  const input = field.querySelector(".dept-chip-input");
-  const add = (raw) => {
-    const v = (raw || "").trim();
-    if (!v) return;
-    const has = [...chips.querySelectorAll(".dept-chip")].some((c) => c.dataset.val === v);
-    if (!has) chips.insertAdjacentHTML("beforeend", deptChipHtml(v));
-    input.value = "";
-  };
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(input.value); }
-    if (e.key === "Backspace" && !input.value) chips.querySelector(".dept-chip:last-child")?.remove();
-  });
-  input.addEventListener("blur", () => add(input.value));
-  input.addEventListener("change", () => add(input.value));
-  field.addEventListener("click", (e) => {
-    if (e.target.classList.contains("dept-chip-x")) e.target.closest(".dept-chip").remove();
-    else input.focus();
+function wireChipFields(root) {
+  root.querySelectorAll(".chip-field").forEach((field) => {
+    const chips = field.querySelector(".chips");
+    const input = field.querySelector(".chip-input");
+    const add = (raw) => {
+      const v = (raw || "").trim();
+      if (!v) return;
+      if (![...chips.querySelectorAll(".chip")].some((c) => c.dataset.val === v)) {
+        chips.insertAdjacentHTML("beforeend", chipHtml(v));
+      }
+      input.value = "";
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(input.value); }
+      if (e.key === "Backspace" && !input.value) chips.querySelector(".chip:last-child")?.remove();
+    });
+    input.addEventListener("blur", () => add(input.value));
+    input.addEventListener("change", () => add(input.value));
+    field.addEventListener("click", (e) => {
+      if (e.target.classList.contains("chip-x")) e.target.closest(".chip").remove();
+      else input.focus();
+    });
   });
 }
 
-function readDeptChips(root) {
-  return [...root.querySelectorAll(".dept-chip")].map((c) => c.dataset.val);
+function readChips(root, key) {
+  const field = root.querySelector(`.chip-field[data-chip="${key}"]`);
+  return field ? [...field.querySelectorAll(".chip")].map((c) => c.dataset.val) : [];
 }
 
 function openEditUserModal(user) {
@@ -358,8 +364,8 @@ function openEditUserModal(user) {
       .join("")}
         </select>
       </div>
-      ${deptChipFieldHtml(user.departments)}
-      <div class="field"><label>職位</label><input name="title" value="${escapeHtml(user.title) || ""}" autocomplete="off"></div>
+      ${chipFieldHtml("departments", "部門(可多選,可自行輸入)", user.departments, DEPARTMENT_OPTIONS)}
+      ${chipFieldHtml("titles", "職位(可多選,可自行輸入)", user.titles, TITLE_OPTIONS)}
       <div class="field"><label>重設密碼 (若不修改請留空)</label><input type="password" name="password" autocomplete="new-password"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -367,7 +373,7 @@ function openEditUserModal(user) {
       </div>
     </form>`
   );
-  wireDeptChipField(document.getElementById("edit-user-form"));
+  wireChipFields(document.getElementById("edit-user-form"));
 
   document.getElementById("edit-user-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -376,8 +382,8 @@ function openEditUserModal(user) {
       display_name: fd.get("display_name"),
       email: fd.get("email") || null,
       role: fd.get("role"),
-      departments: readDeptChips(e.target),
-      title: (fd.get("title") || "").trim() || null,
+      departments: readChips(e.target, "departments"),
+      titles: readChips(e.target, "titles"),
     };
     const password = fd.get("password");
     if (password) payload.password = password;
@@ -488,22 +494,22 @@ function openCreateUserModal() {
       .join("")}
         </select>
       </div>
-      ${deptChipFieldHtml([])}
-      <div class="field"><label>職位</label><input name="title" autocomplete="off"></div>
+      ${chipFieldHtml("departments", "部門(可多選,可自行輸入)", [], DEPARTMENT_OPTIONS)}
+      ${chipFieldHtml("titles", "職位(可多選,可自行輸入)", [], TITLE_OPTIONS)}
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">建立帳號</button>
       </div>
     </form>`
   );
-  wireDeptChipField(document.getElementById("create-user-form"));
+  wireChipFields(document.getElementById("create-user-form"));
 
   document.getElementById("create-user-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
-    payload.departments = readDeptChips(e.target);
-    payload.title = (payload.title || "").trim() || null;
+    payload.departments = readChips(e.target, "departments");
+    payload.titles = readChips(e.target, "titles");
     try {
       await api("/users", { method: "POST", body: payload });
       closeModal();

@@ -11,7 +11,7 @@ class UserCreate(BaseModel):
     email: str | None = None
     phone: str | None = None
     departments: list[str] | None = None
-    title: str | None = None
+    titles: list[str] | None = None
 
 
 class UserUpdate(BaseModel):
@@ -21,7 +21,7 @@ class UserUpdate(BaseModel):
     phone: str | None = None
     password: str | None = Field(default=None, min_length=4, max_length=72)
     departments: list[str] | None = None
-    title: str | None = None
+    titles: list[str] | None = None
 
 
 class UserActiveUpdate(BaseModel):
@@ -36,7 +36,7 @@ class UserRead(BaseModel):
     email: str | None = None
     phone: str | None = None
     departments: list[str] | None = None
-    title: str | None = None
+    titles: list[str] | None = None
     is_active: bool
     last_login_at: datetime | None = None
     created_at: datetime

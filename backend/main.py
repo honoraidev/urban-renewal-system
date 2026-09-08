@@ -61,6 +61,7 @@ def _auto_migrate() -> None:
         ("building_records", "main_use", "VARCHAR(50) NULL"),
         ("building_records", "common_part_shares", "JSON NULL"),
         ("users", "departments", "JSON NULL"),
+        ("users", "titles", "JSON NULL"),
         ("users", "title", "VARCHAR(100) NULL"),
     ):
         try:

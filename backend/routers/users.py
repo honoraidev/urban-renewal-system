@@ -48,7 +48,7 @@ def create_user(
         email=payload.email,
         phone=payload.phone,
         departments=payload.departments or None,
-        title=payload.title,
+        titles=payload.titles or None,
     )
     db.add(user)
     db.commit()
