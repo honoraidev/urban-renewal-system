@@ -142,7 +142,8 @@ async function renderIntegratedRosterTab(el) {
             <td style="white-space:nowrap">
               <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
               ${visit}
-              ${isEditor() ? `<button type="button" class="btn-secondary btn-sm" data-edit-integ="${o.id}">編輯</button>` : ""}
+              ${isEditor() ? `<button type="button" class="btn-secondary btn-sm" data-edit-integ="${o.id}">編輯</button>
+              <button type="button" class="btn-danger btn-sm" data-delete-integ="${o.id}">刪除</button>` : ""}
             </td>
           </tr>`;
   }).join("")}
@@ -173,6 +174,9 @@ async function renderIntegratedRosterTab(el) {
   el.querySelectorAll(".integ-filter input").forEach((cb) => cb.addEventListener("change", applyIntegratedFilter));
   el.querySelectorAll("[data-edit-integ]").forEach((b) => {
     b.addEventListener("click", () => openEditLandownerModal(Number(b.dataset.editInteg)));
+  });
+  el.querySelectorAll("[data-delete-integ]").forEach((b) => {
+    b.addEventListener("click", () => deleteLandowner(Number(b.dataset.deleteInteg)));
   });
 }
 
@@ -257,11 +261,6 @@ async function renderLandownersTypeTab(el, type) {
             : `<span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span>`
           }</td>
               <td class="actions-cell">
-                ${isEditor()
-            ? `<button class="btn-secondary btn-sm" data-edit="${o.id}">編輯</button>
-                       <button class="btn-danger btn-sm" data-delete="${o.id}">刪除</button>`
-            : ""
-          }
                 <button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
               </td>
             </tr>
