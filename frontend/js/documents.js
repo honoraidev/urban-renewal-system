@@ -4,9 +4,10 @@
 // shown as the main row (可下載); older versions collapse under a ▶ toggle and are
 // view-only (不可下載).
 function renderDocRows(docs) {
+  // 同檔名即視為同一份文件的不同版本（不分文件類型 — 同一份謄本可能先後被歸為土地/建物登記謄本）。
   const groups = new Map();
   docs.forEach((d) => {
-    const key = `${d.doc_type}::${d.file_name}`;
+    const key = d.file_name;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(d);
   });
