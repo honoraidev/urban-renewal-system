@@ -10,6 +10,8 @@ class UserCreate(BaseModel):
     role: str = Field(pattern="^(sys_admin|manager|case_owner|case_staff|ocr_staff|viewer|landowner)$")
     email: str | None = None
     phone: str | None = None
+    departments: list[str] | None = None
+    title: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -18,6 +20,8 @@ class UserUpdate(BaseModel):
     email: str | None = None
     phone: str | None = None
     password: str | None = Field(default=None, min_length=4, max_length=72)
+    departments: list[str] | None = None
+    title: str | None = None
 
 
 class UserActiveUpdate(BaseModel):
@@ -31,6 +35,8 @@ class UserRead(BaseModel):
     role: str
     email: str | None = None
     phone: str | None = None
+    departments: list[str] | None = None
+    title: str | None = None
     is_active: bool
     last_login_at: datetime | None = None
     created_at: datetime

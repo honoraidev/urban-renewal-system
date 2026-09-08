@@ -57,6 +57,19 @@ SRC = dict(
 
 _LEAD_KEYWORDS = ("經理", "副理", "襄理", "協理", "主任", "組長", "主委", "副所長")
 
+# chengshi_employees.department_id → 部門名稱(來源表只有 id,名稱取自組織清單)。
+DEPT_NAMES = {
+    "co1-d01": "董事長室", "co1-d02": "顧問室", "co1-d03": "AI部", "co1-d04": "都更事業處",
+    "co1-d05": "都更部", "co1-d06": "整合行銷部", "co1-d07": "業務開發處", "co1-d08": "業務部",
+    "co1-d09": "售後服務部", "co1-d10": "財務會計處", "co1-d11": "人資部與法務部",
+    "co1-d12": "總務部與資訊部", "co1-d13": "數位管理部",
+    "co2-d14": "採購發包部", "co2-d15": "成本控制部", "co2-d16": "機電部",
+    "co2-d17": "工務部（43工務組）", "co2-d18": "圖說管理部",
+    "co3-d19": "甜點餐飲處", "co3-d20": "吧檯部", "co3-d21": "甜點部", "co3-d22": "銷售處",
+    "co3-d23": "70銷售組", "co3-d24": "43銷售組", "co3-d25": "900銷售組",
+    "co4-d26": "桃園都更事業處", "co4-d27": "園藝顧問室", "co4-d28": "園藝部",
+}
+
 
 def role_for(employee_no: str, company_id: str, title: str, is_hr_admin: int) -> str:
     """職稱 → 系統角色。規則見上方說明表。"""
@@ -87,7 +100,7 @@ def main() -> None:
     try:
         with conn.cursor(pymysql.cursors.DictCursor) as cur:
             cur.execute(
-                "SELECT employee_no, name, title, company_id, is_hr_admin "
+                "SELECT employee_no, name, title, company_id, department_id, is_hr_admin "
                 "FROM chengshi_employees ORDER BY employee_no"
             )
             employees = cur.fetchall()
@@ -95,7 +108,7 @@ def main() -> None:
         conn.close()
 
     db = SessionLocal()
-    created = skipped = 0
+    created = updated = 0
     by_role: dict[str, int] = {}
     try:
         for e in employees:
@@ -104,14 +117,28 @@ def main() -> None:
                 continue
             role = role_for(username, e["company_id"], e["title"] or "", e["is_hr_admin"])
             by_role[role] = by_role.get(role, 0) + 1
+            dept = DEPT_NAMES.get(e["department_id"])
+            depts = [dept] if dept else None
+            title = e["title"] or None
 
             exists = db.query(User).filter(User.username == username).first()
             if exists is not None:
-                skipped += 1
-                print(f"  skip  {username:10} {e['name']}  (帳號已存在)")
+                # 已存在:只補「部門 / 職位」,不動 role / 密碼 / 顯示名稱(可能已被手動改過)
+                changed = []
+                if not exists.departments and depts:
+                    exists.departments = depts
+                    changed.append(f"部門={dept}")
+                if not exists.title and title:
+                    exists.title = title
+                    changed.append(f"職位={title}")
+                if changed:
+                    updated += 1
+                    print(f"  upd   {username:10} {e['name']:6} {', '.join(changed)}")
+                else:
+                    print(f"  skip  {username:10} {e['name']}  (已有部門/職位)")
                 continue
 
-            print(f"  new   {username:10} {e['name']:6} {e['title']:14} -> {role}")
+            print(f"  new   {username:10} {e['name']:6} {(e['title'] or ''):14} {dept or '-':10} -> {role}")
             if commit:
                 db.add(
                     User(
@@ -119,6 +146,8 @@ def main() -> None:
                         password_hash=hash_password(username),
                         display_name=e["name"],
                         role=role,
+                        departments=depts,
+                        title=title,
                         is_active=True,
                     )
                 )
@@ -131,9 +160,9 @@ def main() -> None:
 
     print("\n角色分布:", ", ".join(f"{k}={v}" for k, v in sorted(by_role.items())))
     if commit:
-        print(f"完成:新增 {created} 筆、跳過 {skipped} 筆(已存在)。")
+        print(f"完成:新增 {created} 筆、補部門/職位 {updated} 筆。")
     else:
-        print(f"(預覽)將新增約 {len(employees) - skipped} 筆、跳過 {skipped} 筆。加 --commit 才會實際寫入。")
+        print("(預覽)未寫入。加 --commit 才會實際寫入。")
 
 
 if __name__ == "__main__":

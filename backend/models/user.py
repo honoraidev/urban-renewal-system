@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Boolean, Text, func
+from sqlalchemy import JSON, DateTime, String, Boolean, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -14,6 +14,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(10), nullable=False, default="case_staff")
+    # 部門(可多個)與職位。純標記用途,不影響權限(權限只看 role)。
+    departments: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(100), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # 頭像:縮圖後的 data:image/* base64 URI(前端已壓到 ~128px);None = 用預設人頭圖示

@@ -60,6 +60,8 @@ def _auto_migrate() -> None:
         ("expenses", "buyer_tax_id", "VARCHAR(20) NULL"),
         ("building_records", "main_use", "VARCHAR(50) NULL"),
         ("building_records", "common_part_shares", "JSON NULL"),
+        ("users", "departments", "JSON NULL"),
+        ("users", "title", "VARCHAR(100) NULL"),
     ):
         try:
             with engine.connect() as _conn:
