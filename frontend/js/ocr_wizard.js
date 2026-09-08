@@ -719,7 +719,7 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
 
   wrap.innerHTML = `
     <div class="pooled-ownership-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <span class="helper-text" style="margin:0">🔗 勾選 2 位以上「公同」共有人,系統會自動把整組權利範圍 ÷ 人數均分(取消勾選會還原)</span>
+      <span class="helper-text" style="margin:0">🔗 謄本「權利範圍」有「公同共有」字樣者會自動勾選「公同」;可自行勾選或取消。權利範圍請依謄本自行填寫。</span>
     </div>
     ${owners
       .map(
@@ -748,75 +748,21 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
     denI.addEventListener("input", recalc);
   });
 
-  // Checking the 「公同」 box on 2+ owners auto-splits: each pooled owner's 權利範圍
-  // becomes groupNum / (groupDen × pooledCount). The group total is remembered per
-  // owner in _pooledOrig so unchecking (or adding another) recomputes correctly and
-  // unchecking fully restores the original fraction.
+  // 「公同」勾選框現在就是一個單純的旗標:使用者想勾誰就勾誰(單獨一位也留著),
+  // 不再自動去動權利範圍。權利範圍一律依謄本自行填。勾選狀態就是 _pooled 的唯一來源,
+  // 匯入時 _pooled 的所有權人 notes 會標「公同共有」。
   const recomputePooled = () => {
     const latest = readOwnerRowsContainer(containerId, prefix, owners);
     owners.length = 0;
     owners.push(...latest);
 
-    const checkedIdx = [...wrap.querySelectorAll(`.${prefix}-pooled-check`)]
-      .map((c, i) => (c.checked ? i : -1))
-      .filter((i) => i >= 0);
-
-    // Restore + unmark any row that is no longer checked.
+    const checks = [...wrap.querySelectorAll(`.${prefix}-pooled-check`)];
     owners.forEach((o, i) => {
-      if (!checkedIdx.includes(i) && o._pooled) {
-        if (o._pooledOrig) {
-          o.ownership_numerator = o._pooledOrig.num;
-          o.ownership_denominator = o._pooledOrig.den;
-        }
-        delete o._pooled;
-        delete o._pooledOrig;
-      }
+      if (checks[i] && checks[i].checked) o._pooled = true;
+      else { delete o._pooled; delete o._pooledOrig; }
     });
 
-    if (checkedIdx.length === 1) {
-      const o = owners[checkedIdx[0]];
-      if (o._pooledOrig) {
-        o.ownership_numerator = o._pooledOrig.num;
-        o.ownership_denominator = o._pooledOrig.den;
-      }
-      delete o._pooled;
-      delete o._pooledOrig;
-      renderOwnerRowsContainer(containerId, owners, prefix, areaSqm);
-      return;
-    }
-    if (checkedIdx.length < 1) {
-      renderOwnerRowsContainer(containerId, owners, prefix, areaSqm);
-      return;
-    }
-
-    // Group total 權利範圍: an already-pooled row remembers it; otherwise a freshly
-    // checked row's current fraction is the group total.
-    let g = null;
-    for (const i of checkedIdx) {
-      if (owners[i]._pooledOrig) { g = { ...owners[i]._pooledOrig }; break; }
-    }
-    if (!g) {
-      for (const i of checkedIdx) {
-        if (!owners[i]._pooled) {
-          g = { num: Number(owners[i].ownership_numerator) || 1, den: Number(owners[i].ownership_denominator) || 1 };
-          break;
-        }
-      }
-    }
-    if (!g) {
-      const f = owners[checkedIdx[0]];
-      g = { num: Number(f.ownership_numerator) || 1, den: Number(f.ownership_denominator) || 1 };
-    }
-
-    const gDen = g.den * checkedIdx.length;
-    checkedIdx.forEach((i) => {
-      if (!owners[i]._pooledOrig) owners[i]._pooledOrig = { num: g.num, den: g.den };
-      owners[i]._pooled = true;
-      owners[i].ownership_numerator = g.num;
-      owners[i].ownership_denominator = gDen;
-    });
     renderOwnerRowsContainer(containerId, owners, prefix, areaSqm);
-    toast(`已將 ${checkedIdx.length} 位公同共有人各設為 ${g.num}/${gDen}`, "success");
   };
 
   wrap.querySelectorAll(`.${prefix}-pooled-check`).forEach((cb) => {
@@ -1878,7 +1824,7 @@ async function findOrCreateLandownerByOwner(owner, createdCache) {
         name: nameKey,
         id_number: idKey || null,
         address: owner.address || null,
-        notes: owner._pooled ? "公同共有(謄本掃描匯入,權利範圍已依人數均分)" : null,
+        notes: owner._pooled ? "公同共有(謄本掃描匯入)" : null,
         land_records: [],
         building_records: [],
       },
