@@ -1745,11 +1745,15 @@ def _recover_burned_in_addresses(
 
         # 第四步:RapidOCR 三關都讀不出來的(斜印壓住址那行),把窄帶圖直接交給
         # vision LLM 讀。只有設 OPENAI_API_KEY 才啟用,且每份最多問 _VISION_ADDR_CAP 次。
-        still_missing = [
-            k for k in missing_pairs
-            if k not in recovered and k in order_yx_by_key
-        ]
-        if still_missing and getattr(settings, "OPENAI_API_KEY", ""):
+        still_missing_all = [k for k in missing_pairs if k not in recovered]
+        still_missing = [k for k in still_missing_all if k in order_yx_by_key]
+        _has_key = bool(getattr(settings, "OPENAI_API_KEY", ""))
+        print(
+            f"[_recover_burned_in_addresses] 三關後仍缺 {len(still_missing_all)} 筆"
+            f"(有座標可 vision {len(still_missing)} 筆);OPENAI_API_KEY={'有' if _has_key else '無'}",
+            flush=True,
+        )
+        if still_missing and _has_key:
             for key in still_missing:
                 if _vision_n[0] >= _VISION_ADDR_CAP:
                     break
@@ -1764,6 +1768,9 @@ def _recover_burned_in_addresses(
                     continue
                 if addr and addr.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                     recovered[key] = addr
+                    print(f"[_recover_burned_in_addresses] vision 補回 {key} -> {addr}", flush=True)
+                else:
+                    print(f"[_recover_burned_in_addresses] vision 讀不出 {key}(回:{addr!r})", flush=True)
 
     if recovered or recovered_names:
         print(
