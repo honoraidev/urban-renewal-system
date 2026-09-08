@@ -1,5 +1,59 @@
 "use strict";
 
+// Same filename + type = same document; keep every upload as a version. Newest is
+// shown as the main row (可下載); older versions collapse under a ▶ toggle and are
+// view-only (不可下載).
+function renderDocRows(docs) {
+  const groups = new Map();
+  docs.forEach((d) => {
+    const key = `${d.doc_type}::${d.file_name}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(d);
+  });
+
+  const rows = [];
+  for (const list of groups.values()) {
+    list.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    const total = list.length;
+    const latest = list[0];
+    const hasHistory = total > 1;
+
+    rows.push(`<tr class="doc-main-row"${hasHistory ? ` data-doc-group="${latest.id}"` : ""}>
+        <td>
+          ${hasHistory ? `<button class="doc-ver-toggle" data-doc-toggle="${latest.id}" title="展開歷史版本">▶</button>` : ""}
+          ${escapeHtml(latest.file_name)}
+          ${hasHistory ? `<span class="doc-ver-tag">最新版 (共 ${total} 版)</span>` : ""}
+        </td>
+        <td>${DOC_TYPE_LABEL[latest.doc_type] || latest.doc_type}</td>
+        <td>${(latest.file_size_bytes / 1024).toFixed(1)} KB</td>
+        <td>${fmtDateTime(latest.uploaded_at)}</td>
+        <td>${escapeHtml(latest.description) || "-"}</td>
+        <td class="actions-cell">
+          <button class="btn-secondary btn-sm" data-download="${latest.id}" data-filename="${escapeHtml(latest.file_name)}">下載</button>
+          ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${latest.id}">刪除</button>` : ""}
+        </td>
+      </tr>`);
+
+    list.slice(1).forEach((d, idx) => {
+      const verNo = total - 1 - idx; // 第 N 版, 由新到舊遞減
+      rows.push(`<tr class="doc-ver-row" data-doc-child="${latest.id}" hidden>
+          <td style="padding-left:32px;color:var(--text-secondary)">
+            <span class="doc-ver-tag">第 ${verNo} 版</span> ${escapeHtml(d.file_name)}
+          </td>
+          <td>${DOC_TYPE_LABEL[d.doc_type] || d.doc_type}</td>
+          <td>${(d.file_size_bytes / 1024).toFixed(1)} KB</td>
+          <td>${fmtDateTime(d.uploaded_at)}</td>
+          <td>${escapeHtml(d.description) || "-"}</td>
+          <td class="actions-cell">
+            <span class="helper-text">舊版・不可下載</span>
+            ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
+          </td>
+        </tr>`);
+    });
+  }
+  return rows.join("");
+}
+
 async function renderDocumentsTab(el) {
   const pid = state.currentProjectId;
   const docs = await api(`/projects/${pid}/documents`);
@@ -39,21 +93,7 @@ async function renderDocumentsTab(el) {
             <table class="docs-table">
               <thead><tr><th>檔名</th><th>類型</th><th>大小</th><th>上傳時間</th><th>說明</th><th>操作</th></tr></thead>
               <tbody>
-                ${docs
-        .map(
-          (d) => `<tr>
-                      <td>${escapeHtml(d.file_name)}</td>
-                      <td>${DOC_TYPE_LABEL[d.doc_type] || d.doc_type}</td>
-                      <td>${(d.file_size_bytes / 1024).toFixed(1)} KB</td>
-                      <td>${fmtDateTime(d.uploaded_at)}</td>
-                      <td>${escapeHtml(d.description) || "-"}</td>
-                      <td class="actions-cell">
-                        <button class="btn-secondary btn-sm" data-download="${d.id}" data-filename="${escapeHtml(d.file_name)}">下載</button>
-                        ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
-                      </td>
-                    </tr>`
-        )
-        .join("")}
+                ${renderDocRows(docs)}
               </tbody>
             </table>
           </div>`
@@ -75,6 +115,16 @@ async function renderDocumentsTab(el) {
 
   const cleanupBannerBtn = document.getElementById("cleanup-duplicates-banner-btn");
   if (cleanupBannerBtn) cleanupBannerBtn.addEventListener("click", doCleanup);
+
+  el.querySelectorAll("[data-doc-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const gid = btn.dataset.docToggle;
+      const kids = el.querySelectorAll(`[data-doc-child="${gid}"]`);
+      const show = kids.length && kids[0].hidden;
+      kids.forEach((r) => (r.hidden = !show));
+      btn.textContent = show ? "▼" : "▶";
+    });
+  });
 
   el.querySelectorAll("[data-download]").forEach((btn) => {
     btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.download), btn.dataset.filename));
