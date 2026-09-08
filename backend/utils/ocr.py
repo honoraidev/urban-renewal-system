@@ -1440,7 +1440,9 @@ _PAGE_ADDR_LINE_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*(
 _PAGE_PARCEL_HDR_RE = re.compile(r"(\d{3,5})\s*-\s*(\d{3,5})\s*[地建]\s*[號琥唬]")
 
 
-def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[tuple[str, str], str]:
+def _recover_burned_in_addresses(
+    files: list[tuple[bytes, str | None]],
+) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str]]:
     """Newer 電子謄本 burn every owner's 「住　址：…」 line into the page as a raster
     strip that never reaches the text layer, so a pure text-layer read leaves every
     戶籍地址 blank. For each such page, render + OCR it once and walk the recognised
@@ -1448,9 +1450,18 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
     「登記次序：XXXX」, and bind the first 住址 line after each marker to that
     (地號, 登記次序). Each address is tied to the 登記次序 printed right above it on
     the SAME page, so page-boundary straddling and a missed strip never shift another
-    owner's address. Returns {(parcel_digits, order_digits): address}. No vision call.
+    owner's address. No vision call.
+
+    The 所有權人 name gets the same treatment: on a few 謄本 even the masked name
+    (「施＊＊」) is burned in, so the text layer yields only 「＊＊＊」 or a blank. When an
+    owner block's name carries no CJK character at all, that page is OCR'd and the
+    「所有權人：…」 line rebound the same way.
+
+    Returns ({(parcel, order): address}, {(parcel, order): name}).
     """
     recovered: dict[tuple[str, str], str] = {}
+    recovered_names: dict[tuple[str, str], str] = {}
+    _CJK_RE = re.compile(r"[一-鿿]")
     for content, mime_type in files:
         is_pdf = (mime_type or "").lower() == "application/pdf" or content[:5] == b"%PDF-"
         if not is_pdf:
@@ -1475,7 +1486,9 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
         # and still be missing every owner's. Segment the text layer into owner blocks
         # and check each one individually.
         missing_pairs: set[tuple[str, str]] = set()
+        missing_name_pairs: set[tuple[str, str]] = set()
         _ADDR_IN_BLOCK_RE = re.compile(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]\s*\S")
+        _OWNER_NAME_IN_BLOCK_RE = re.compile(r"所\s*有\s*權\s*人\s*[:：]\s*([^\n]*)")
         _SECTION_CUT_RE = re.compile(r"他\s*項\s*權\s*利\s*部|本\s*謄\s*本\s*列\s*印\s*完\s*畢|續\s*次\s*頁")
         for pi, page in enumerate(doc):
             try:
@@ -1492,9 +1505,14 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
                     _cut = _SECTION_CUT_RE.search(_blk)
                     if _cut:
                         _blk = _blk[: _cut.start()]
+                    _pair = (_page_parcel, _mk.group(1).lstrip("0") or "0")
                     if not _ADDR_IN_BLOCK_RE.search(_blk):
-                        _pair = (_page_parcel, _mk.group(1).lstrip("0") or "0")
                         missing_pairs.add(_pair)
+                        needs_recovery = True
+                        page_needs.add(pi)
+                    _nm = _OWNER_NAME_IN_BLOCK_RE.search(_blk)
+                    if _nm is not None and not _CJK_RE.search(_nm.group(1)):
+                        missing_name_pairs.add(_pair)
                         needs_recovery = True
                         page_needs.add(pi)
             try:
@@ -1579,7 +1597,10 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
         for pi in sorted(page_needs):
             wanted = [
                 k for k in order_pairs_by_page.get(pi, [])
-                if k in missing_pairs and k not in recovered
+                if (
+                    (k in missing_pairs and k not in recovered)
+                    or (k in missing_name_pairs and k not in recovered_names)
+                )
             ]
             if not wanted:
                 continue
@@ -1598,6 +1619,17 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
                 if mk:
                     cur_o = mk.group(1).lstrip("0") or "0"
                     continue
+                nm = re.search(r"所\s*有\s*權\s*人\s*[:：]\s*([^\n]+)", ln)
+                if (
+                    nm
+                    and cur_o
+                    and (cur_p, cur_o) in missing_name_pairs
+                    and (cur_p, cur_o) not in recovered_names
+                ):
+                    nval = re.sub(r"[\s]+", "", nm.group(1))
+                    nval = _ADDR_STOP_RE.split(nval)[0].strip()
+                    if _CJK_RE.search(nval) and len(nval) <= 12:
+                        recovered_names[(cur_p, cur_o)] = nval
                 am = re.search(r"[住佳往][ 　\t]{0,4}[址趾]\s*[:：]?\s*([^\n]+)", ln)
                 if am and cur_o and (cur_p, cur_o) not in recovered:
                     val = re.sub(r"\s+", "", am.group(1))
@@ -1605,9 +1637,13 @@ def _recover_burned_in_addresses(files: list[tuple[bytes, str | None]]) -> dict[
                     if val and val.strip("()（） ").lower() not in _BLANK_ADDRESS_TOKENS:
                         recovered[(cur_p, cur_o)] = val
                         cur_o = ""
-    if recovered:
-        print(f"[_recover_burned_in_addresses] recovered {len(recovered)} burned-in 住址", flush=True)
-    return recovered
+    if recovered or recovered_names:
+        print(
+            f"[_recover_burned_in_addresses] recovered {len(recovered)} burned-in 住址"
+            f" / {len(recovered_names)} burned-in 姓名",
+            flush=True,
+        )
+    return recovered, recovered_names
 
 
 def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]) -> dict:
@@ -1637,6 +1673,36 @@ def _apply_recovered_addresses(data: dict, recovered: dict[tuple[str, str], str]
                     hit = cands[0]
             if hit:
                 owner["address"] = _clean_address(hit)
+    return data
+
+
+def _apply_recovered_names(data: dict, recovered_names: dict[tuple[str, str], str]) -> dict:
+    """Fill any owner_name that came back with no CJK character (「＊＊＊」 / blank) from
+    the burned-in name recovery map, matched by (地號, 登記次序) then by 登記次序 alone."""
+    if not recovered_names:
+        return data
+    by_order: dict[str, list[str]] = {}
+    for (_p, o), v in recovered_names.items():
+        by_order.setdefault(o, []).append(v)
+    containers = [
+        (p, p.get("parcel_number")) for p in (data.get("land_parcels", []) or [])
+    ] + [
+        (b, b.get("building_number")) for b in (data.get("buildings", []) or [])
+    ]
+    _cjk = re.compile(r"[一-鿿]")
+    for holder, ident in containers:
+        pdig = re.sub(r"\D", "", str(ident or ""))
+        for owner in holder.get("owners", []) or []:
+            if _cjk.search(str(owner.get("owner_name") or "")):
+                continue
+            odig = re.sub(r"\D", "", str(owner.get("registration_order") or "")).lstrip("0") or "0"
+            hit = recovered_names.get((pdig, odig))
+            if not hit:
+                cands = by_order.get(odig) or []
+                if len(cands) == 1:
+                    hit = cands[0]
+            if hit:
+                owner["owner_name"] = hit
     return data
 
 
@@ -1814,10 +1880,10 @@ def extract_title_deed(
     # and the AI path can fill them in. Cheap: OCRs only the address-deficient pages,
     # never calls the vision model.
     try:
-        recovered_addresses = _recover_burned_in_addresses(files)
+        recovered_addresses, recovered_names = _recover_burned_in_addresses(files)
     except Exception as exc:
         print(f"[extract_title_deed] burned-in address recovery failed: {exc}", flush=True)
-        recovered_addresses = {}
+        recovered_addresses, recovered_names = {}, {}
 
     # When EVERY page has a usable text layer (a pure electronic 土地/建物謄本), try the
     # regex parser first - it needs no OCR and no OpenAI call at all. It returns None
@@ -1851,6 +1917,7 @@ def extract_title_deed(
             data = _backfill_owner_addresses(data, [o for o in text_overrides if o])
             data = _backfill_common_parts_from_raw(data, [o for o in text_overrides if o])
             data = _apply_recovered_addresses(data, recovered_addresses)
+            data = _apply_recovered_names(data, recovered_names)
             probs = _validation_problems(data, [o for o in text_overrides if o])
             n_parcels = len(data.get("land_parcels") or [])
             n_bldgs = len(data.get("buildings") or [])
@@ -2113,6 +2180,7 @@ def extract_title_deed(
     data = _backfill_owner_addresses(data, all_page_texts)
     data = _backfill_common_parts_from_raw(data, all_page_texts)
     data = _apply_recovered_addresses(data, recovered_addresses)
+    data = _apply_recovered_names(data, recovered_names)
 
     final_problems = _validation_problems(data, all_page_texts)
     if final_problems:
