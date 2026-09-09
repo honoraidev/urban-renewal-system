@@ -299,15 +299,12 @@ def build_roster_workbook(
             common_share = round(sum(s[4] or 0 for s in _shares), 2)
         else:
             common_share = _num(b.common_area_sqm)
-        # 權狀面積 = 主建物 + 附屬建物 + 共有部分持分。
-        # b.total_area_sqm(「建物總面積」欄)現在的定義是「謄本印的總面積,原樣照登」
-        # (見 ocr_wizard.js 匯入時把 structure_area_sqm 用「謄本總面積-附屬建物」回推,
-        # 讓 total = structure+auxiliary+common 重新加總後剛好等於謄本印的數字,不含
-        # 額外疊加) —— 有些謄本格式的「總面積」本身就已經含附屬建物、有些不含,但
-        # 統一之後 total 一律等於謄本印出的原始總面積,不保證已經含附屬建物。權狀面積
-        # 是不同的概念(主建物+附屬建物+共有部分持分,不管謄本總面積欄位本身有沒有算
-        # 附屬建物),所以這裡固定加回 aux 一次,再加共有部分持分。
-        licence = round((total or 0) + (aux or 0) + (common_share or 0), 2)
+        # 建物總面積(total = b.total_area_sqm)已經是 _compute_building_totals() 算出的
+        # structure_area_sqm + auxiliary_area_sqm + common_area_sqm,也就是「主建物+
+        # 附屬建物」。權狀面積 = 建物總面積 + 共有部分持分(共有部分持分是另外從共有
+        # 建號分算出來的,不在 total 裡);不能再 +aux 一次,不然附屬建物面積會被算
+        # 兩次。
+        licence = round((total or 0) + (common_share or 0), 2)
 
         detail = [""] * 13  # 1F..7F / 平台 / 陽臺 / 騎樓 / 附屬平台 / 附屬陽臺 / 防空避難室
         for f in getattr(b, "floors_detail", None) or []:
