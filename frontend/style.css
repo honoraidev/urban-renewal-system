@@ -481,15 +481,10 @@
   .back-link { background: none; color: var(--text-muted); font-weight: 600; padding: 4px 0; margin-bottom: 12px; }
   .back-link:hover { color: var(--brand-dark); opacity: 1; }
   /* 案件詳情頁最上面:左邊是返回/狀態/標題,右邊並排放「公告 / 進度通知」卡片 - 窄
-     螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。align-items 用預設
-     stretch(不要 start)讓左邊卡片跟右邊公告卡片一樣高,視覺上是兩張對齊的卡片,
-     不會因為公告內容比較長而在左邊留一大塊空白背景。 */
-  .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 460px) 1fr; gap: 20px; margin-bottom: 4px; }
+     螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。 */
+  .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 400px) 1fr; gap: 20px; align-items: start; margin-bottom: 4px; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
-  .pd-top-left {
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px 20px; display: flex; flex-direction: column;
-  }
+  .pd-top-left { display: flex; flex-direction: column; }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .pd-top-left .back-link { margin-bottom: 0; }
   .pd-top-left .project-header { margin-bottom: 0; }

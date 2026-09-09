@@ -11,20 +11,21 @@ function boardEnsureStyle() {
   const s = document.createElement("style");
   s.id = "board-style";
   s.textContent = `
-    .board-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
-    .board-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; }
-    .board-card-head h3 { margin:0; font-size:15px; display:flex; align-items:center; gap:6px; }
-    .board-scroll { max-height:76px; overflow-y:auto; }
-    .board-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px; }
-    .board-row { display:flex; justify-content:space-between; gap:12px; padding:7px 0;
-      border-bottom:1px solid var(--border,#f1f5f9); align-items:flex-start; font-size:13px; }
+    .board-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:12px; padding:10px 14px; }
+    .board-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:10px; }
+    .board-card-head h3 { margin:0; font-size:13.5px; display:flex; align-items:center; gap:5px; }
+    .board-card-head .btn-sm { padding:4px 10px; font-size:12px; }
+    .board-scroll { max-height:64px; overflow-y:auto; }
+    .board-more { margin-top:3px; text-align:center; font-size:11px; color:var(--text-muted,#6b7280); min-height:13px; }
+    .board-row { display:flex; justify-content:space-between; gap:10px; padding:5px 0;
+      border-bottom:1px solid var(--border,#f1f5f9); align-items:flex-start; font-size:12px; }
     .board-row:last-child { border-bottom:none; }
-    .board-row-main { display:flex; align-items:flex-start; gap:8px; min-width:0; }
-    .board-row-tag { flex:0 0 auto; font-size:11px; font-weight:700; padding:2px 7px; border-radius:10px; white-space:nowrap; }
+    .board-row-main { display:flex; align-items:flex-start; gap:6px; min-width:0; }
+    .board-row-tag { flex:0 0 auto; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; white-space:nowrap; }
     .board-row-tag.tag-note { background:rgba(13,148,136,.12); color:#0d9488; }
     .board-row-tag.tag-auto { background:var(--surface-2,#f1f5f9); color:var(--text-muted,#6b7280); }
     .board-row-text { word-break:break-word; }
-    .board-row-meta { flex:0 0 auto; text-align:right; font-size:11.5px; color:var(--text-muted,#6b7280); white-space:nowrap; }
+    .board-row-meta { flex:0 0 auto; text-align:right; font-size:11px; color:var(--text-muted,#6b7280); white-space:nowrap; }
     .board-row-meta button { margin-left:6px; }
   `;
   document.head.appendChild(s);
