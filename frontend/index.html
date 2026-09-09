@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260908_1">
+  <link rel="stylesheet" href="style.css?v=20260909_2">
 </head>
 
 <body>
@@ -160,19 +160,23 @@
 
           <!-- Project detail -->
           <div id="view-project-detail" class="hidden">
-            <button class="back-link" id="back-to-dashboard">← 返回</button>
-            <div class="project-header">
-              <div>
-                <h2 id="pd-name"></h2>
-                <div class="sub" id="pd-sub"></div>
+            <div class="pd-top-grid">
+              <div class="pd-top-left">
+                <button class="back-link" id="back-to-dashboard">← 返回</button>
+                <div class="project-header">
+                  <div>
+                    <h2 id="pd-name"></h2>
+                    <div class="sub" id="pd-sub"></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div id="pd-status-badge"></div>
+                    <div id="pd-header-actions"></div>
+                  </div>
+                </div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px">
-                <div id="pd-status-badge"></div>
-                <div id="pd-header-actions"></div>
-              </div>
+              <div id="pd-board-card"></div>
             </div>
-            <div id="pd-sop-summary" style="margin-bottom:4px"></div>
-            <div id="pd-board-card" style="margin-bottom:16px"></div>
+            <div id="pd-sop-summary" style="margin-bottom:16px"></div>
             <div class="tab-bar">
               <button class="tab-btn active" data-tab="sop">SOP 進度</button>
               <button class="tab-btn" data-tab="landowners">登記資料</button>
