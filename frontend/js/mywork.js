@@ -190,6 +190,12 @@ function renderMyWork() {
   const actMore = document.getElementById("mw-act-more");
   if (actScroll && actMore) {
     const updateActMore = () => {
+      // 捲到底了就直接算 0 則 —— 逐列用 offsetTop 比對在小數縮放(125%/150% 等瀏覽器
+      // 縮放比例)下常常會因為 1px 內的誤差,捲到底了還是把最後一列算成「還沒看到」。
+      if (actScroll.scrollTop + actScroll.clientHeight >= actScroll.scrollHeight - 2) {
+        actMore.textContent = "";
+        return;
+      }
       const bottom = actScroll.scrollTop + actScroll.clientHeight;
       const remaining = [...actScroll.children].filter((row) => row.offsetTop + row.offsetHeight > bottom + 1).length;
       actMore.textContent = remaining > 0 ? `↓ 以下還有 ${remaining} 則` : "";

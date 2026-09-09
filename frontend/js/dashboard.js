@@ -93,15 +93,27 @@ async function restoreLastView() {
   } catch (e) {
     saved = null;
   }
-  if (!saved || !saved.view) {
-    goToDashboard();
+
+  // 側欄「案件管理」清單只有 loadDashboard() 會填(renderSidebarProjects)。以前
+  // 每次重整一定先進總覽,側欄一定會被建好;現在改成直接復原到其他畫面時,如果不
+  // 順便補跑這個,側欄案件清單會整個是空的,要點回總覽才會出現。loadDashboard()
+  // 本身不會切換可見畫面/側欄導覽反白(那是 goToDashboard() 才做的事),所以就算
+  // 等一下要顯示的是別的畫面,先跑這個也不會讓畫面閃到總覽。
+  try {
+    await loadDashboard();
+  } catch (e) { /* 個別畫面自己會處理載入失敗,這裡失敗不影響後面的畫面復原 */ }
+
+  if (!saved || !saved.view || saved.view === "view-dashboard") {
+    setActiveNav("dashboard");
+    showView("view-dashboard");
     return;
   }
   try {
     switch (saved.view) {
       case "view-project-detail":
         if (!saved.projectId) {
-          goToDashboard();
+          setActiveNav("dashboard");
+          showView("view-dashboard");
           break;
         }
         await openProject(saved.projectId);
@@ -143,7 +155,8 @@ async function restoreLastView() {
         break;
       default:
         // "view-new-project" / "view-ocr-batch" 這類過渡畫面沒有可復原的內容,回首頁。
-        goToDashboard();
+        setActiveNav("dashboard");
+        showView("view-dashboard");
     }
   } catch (e) {
     goToDashboard();
