@@ -11,6 +11,8 @@ between the 「（NNNN）登記次序」 markers and the records it managed to e
 
 import re
 
+from utils.ocr import _clean_address
+
 _FW_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
 
 # One 地號 per 「土地登記第X類謄本（地號全部）」 title page.
@@ -72,7 +74,9 @@ _BLANK_TOKENS = {
 
 
 def _clean(v: str) -> str:
-    return (v or "").translate(_FW_DIGITS).strip().strip("*＊").strip()
+    # 不 strip("*＊") —— 第二類謄本的統編/地址遮罩(如 A1＊＊＊＊＊＊5)星號在頭尾
+    # 也是遮罩本身的一部分,原樣照貼,不當成雜訊去掉。
+    return (v or "").translate(_FW_DIGITS).strip()
 
 
 def _first(rx: re.Pattern, text: str):
@@ -93,7 +97,11 @@ def _parse_owner(order_disp: str, block: str) -> dict | None:
     addr_m = _ADDR_RE.search(block)
     if addr_m:
         raw_addr = re.sub(r"\s+", "", addr_m.group(1).strip())
-        addr = _clean(raw_addr)
+        # 電子謄本文字層本來就是乾淨的,不用 OCR,但政府系統印出來的地址常常是
+        # 「臺北市」而不是「台北市」—— 跟 OCR/AI 那條路徑(_clean_address)套用同一套
+        # 繁體字/台灣門牌格式正規化,兩條路徑出來的地址才會一致,不會同一個案子有的
+        # 地主是「臺」有的是「台」。
+        addr = _clean_address(raw_addr)
         if addr.strip("()（） ").lower() in _BLANK_TOKENS:
             addr = ""
     else:

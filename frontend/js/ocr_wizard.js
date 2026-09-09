@@ -322,7 +322,7 @@ function renderWizardFileList() {
   });
 }
 
-function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 20, labelPrefix = "偵測中") {
+function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 45, labelPrefix = "偵測中") {
   const wrap = document.getElementById(wrapId);
   const fill = document.getElementById(fillId);
   const label = document.getElementById(labelId);
@@ -420,7 +420,9 @@ async function runTitleDeedOcr() {
     "wizard-ocr-progress-wrap",
     "wizard-ocr-progress-fill",
     "wizard-ocr-progress-label",
-    Math.max(20, titleDeedWizard.files.length * 3)
+    // 實際辨識常常要 2~10 分鐘,tau 太小(舊值 20 秒起跳)前 20 秒就衝到快 60%,
+    // 看起來像「一下子跳很快」跟實際進度對不上 —— 拉長到 60 秒起跳,爬升明顯放緩。
+    Math.max(60, titleDeedWizard.files.length * 8)
   );
   try {
     const fd = new FormData();
@@ -953,7 +955,7 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       btn.insertAdjacentElement("afterend", wrap);
     }
     var progress = btn
-      ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label", 20, "重新辨識中")
+      ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label", 40, "重新辨識中")
       : null;
     try {
       const fd = new FormData();

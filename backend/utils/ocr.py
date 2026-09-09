@@ -107,7 +107,9 @@ _BLANK_ADDRESS_TOKENS = {
 def _clean_address(addr: str) -> str:
     if not addr or not isinstance(addr, str):
         return addr
-    addr = addr.translate(_FULLWIDTH_DIGIT_MAP).strip().strip("*＊").strip()
+    # 不能 strip("*＊") —— 第二類謄本的遮罩地址常常整段就是「＊＊市＊＊區...」,星號在
+    # 開頭/結尾也是真實遮罩的一部分,原樣照貼,不要被當成雜訊剝掉。
+    addr = addr.translate(_FULLWIDTH_DIGIT_MAP).strip()
     if addr.strip("()（） ").lower() in _BLANK_ADDRESS_TOKENS or not addr:
         return ""
     # 1. Standardize '臺' -> '台', '裏'/'裡' -> '里', '楼' -> '樓',以及 OCR 常把繁體
