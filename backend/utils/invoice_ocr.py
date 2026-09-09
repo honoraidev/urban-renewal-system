@@ -1,6 +1,13 @@
-"""發票辨識管線:① 先試 QR(電子發票證明聯,最準)→ ② 讀不到再 RapidOCR
-→ ③ 規則校正。回傳可帶入支出表單並存進 expenses 的欄位。完全本機執行、零費用。
-(GEMINI 那條路預設關閉,見 settings.INVOICE_USE_GEMINI。)"""
+"""發票辨識管線,支援電子發票證明聯 / 統一發票三聯式 / 二聯式:
+  ① 先找 QR code(電子發票證明聯左 QR,最準)→ 解碼直接取得發票資訊,invoice_type="electronic"
+  ② QR 讀不到(通常是紙本統一發票沒有 QR,或 QR 模糊)→ 再用 RapidOCR 整張辨識文字
+  ③ OCR 文字出來後,用規則判斷是三聯式還是二聯式(_classify_invoice_type):
+       看到「統一發票」+ 讀到買受人統編 → triplicate 三聯式
+       看到「二聯式」或沒有買受人統編    → duplicate 二聯式
+       兩者都判斷不出來                  → unknown
+回傳可帶入支出表單並存進 expenses 的欄位,含 invoice_type。完全本機執行、零費用。
+(GEMINI 那條路預設關閉,見 settings.INVOICE_USE_GEMINI;開啟時一樣只在沒有 QR 才會用到,
+且會請 Gemini 一併回傳 invoice_type。)"""
 
 import base64
 import io
@@ -102,8 +109,37 @@ def _try_qr(image_bytes: bytes) -> dict | None:
     for s in _decode_qr_strings(image_bytes):
         parsed = _parse_einvoice_left_qr(s.strip())
         if parsed:
+            parsed["invoice_type"] = "electronic"
             return parsed
     return None
+
+
+# ============================================================ 發票類型分類(③ OCR 之後)
+
+INVOICE_TYPE_LABEL = {
+    "electronic": "電子發票",
+    "triplicate": "統一發票(三聯式)",
+    "duplicate": "統一發票(二聯式)",
+    "unknown": "無法判斷",
+}
+
+
+def _classify_invoice_type(text: str, has_buyer_tax_id: bool) -> str:
+    """③ OCR 之後用文字內容判斷紙本發票是三聯式還是二聯式(電子發票在有 QR 時
+    已於 ① 直接判定,不會走到這裡)。規則:
+      - 文字含「二聯式」→ 二聯式
+      - 文字含「三聯式」→ 三聯式
+      - 文字含「統一發票」但沒有明確聯式字樣 → 看有沒有讀到買受人統編來判斷
+        (三聯式一定要開買方統編,二聯式通常不用)
+      - 都沒讀到就回 unknown,不強行猜。"""
+    flat = text.replace(" ", "").replace("　", "")
+    if "二聯式" in flat:
+        return "duplicate"
+    if "三聯式" in flat:
+        return "triplicate"
+    if "統一發票" in flat:
+        return "triplicate" if has_buyer_tax_id else "duplicate"
+    return "unknown"
 
 
 # ============================================================ ② + ③ RapidOCR + 規則
@@ -162,6 +198,7 @@ def _rule_extract(text: str) -> dict:
 
     sm = _SELLER_TAXID_RE.search(flat)
     bm = _BUYER_TAXID_RE.search(flat)
+    buyer_tax_id = bm.group(2) if bm else None
     return {
         "invoice_number": invoice_number,
         "invoice_date": _parse_date(text) or _parse_date(flat),
@@ -169,9 +206,10 @@ def _rule_extract(text: str) -> dict:
         "untaxed_amount": untaxed,
         "tax_amount": tax,
         "seller_tax_id": sm.group(2) if sm else None,
-        "buyer_tax_id": bm.group(2) if bm else None,
+        "buyer_tax_id": buyer_tax_id,
         "seller_name": None,
         "source": "ocr",
+        "invoice_type": _classify_invoice_type(text, bool(buyer_tax_id)),
     }
 
 
@@ -211,8 +249,10 @@ def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-i
     image_bytes = _downscale_for_upload(image_bytes)
 
     prompt = (
-        "台灣發票照片。只依實際印出的文字擷取:發票號碼、開立日期(民國換西元 YYYY-MM-DD)、"
-        "未稅金額、營業稅額、含稅總計、賣方統編、買方統編。讀不到填 null。金額回整數。"
+        "台灣發票照片(此照片沒有可解碼的 QR code,是紙本統一發票或 QR 已模糊)。只依實際印出的文字擷取:"
+        "發票號碼、開立日期(民國換西元 YYYY-MM-DD)、未稅金額、營業稅額、含稅總計、賣方統編、買方統編。"
+        "讀不到填 null。金額回整數。另外判斷 invoice_type:看到「二聯式」或沒有買方統編填 duplicate;"
+        "看到「三聯式」或「統一發票」且有買方統編填 triplicate;都判斷不出來填 unknown。"
     )
     schema = {
         "type": "object",
@@ -224,10 +264,11 @@ def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-i
             "total_amount": {"type": "integer", "nullable": True},
             "seller_tax_id": {"type": "string", "nullable": True},
             "buyer_tax_id": {"type": "string", "nullable": True},
+            "invoice_type": {"type": "string", "enum": ["triplicate", "duplicate", "unknown"]},
         },
         "required": [
             "invoice_number", "invoice_date", "untaxed_amount", "tax_amount",
-            "total_amount", "seller_tax_id", "buyer_tax_id",
+            "total_amount", "seller_tax_id", "buyer_tax_id", "invoice_type",
         ],
     }
     url = (
@@ -255,6 +296,7 @@ def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-i
     parsed["invoice_number"] = (parsed.get("invoice_number") or "").upper().replace("-", "") or None
     parsed["source"] = "gemini"
     parsed["seller_name"] = None
+    parsed["invoice_type"] = parsed.get("invoice_type") or "unknown"
     return parsed
 
 

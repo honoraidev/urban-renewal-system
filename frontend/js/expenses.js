@@ -255,6 +255,13 @@ async function renderExpensesTab(el) {
 
 // ---- 發票辨識(拍照 → 後端 AI OCR)-------------------------------------------
 
+const INVOICE_TYPE_LABEL = {
+  electronic: "電子發票",
+  triplicate: "統一發票三聯式",
+  duplicate: "統一發票二聯式",
+  unknown: "",
+};
+
 let _invoiceScanStream = null;
 
 function stopInvoiceScan() {
@@ -367,8 +374,12 @@ function wireInvoiceScanner(formId) {
       applyInvoiceToForm(formId, parsed);
       stopInvoiceScan();
       panel.classList.add("hidden");
-      const src = r.source === "qr" ? "QR" : "OCR";
-      toast(`已由 ${src} 帶入${r.total_amount != null ? "(總計 $" + r.total_amount + ")" : ""},請確認`, "success");
+      const src = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
+      const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
+      toast(
+        `已由 ${src} 帶入${typeLabel ? `(${typeLabel})` : ""}${r.total_amount != null ? " · 總計 $" + r.total_amount : ""},請確認`,
+        "success"
+      );
     } catch (e) {
       if (extra) extra.textContent = "辨識失敗:" + (e && e.message ? e.message : e);
     } finally {
