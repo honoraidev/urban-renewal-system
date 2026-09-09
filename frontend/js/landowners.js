@@ -111,7 +111,7 @@ async function renderIntegratedRosterTab(el) {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>編號</th><th>姓名</th><th>狀態</th><th>地號</th><th>建物門牌</th>
+          <th>編號</th><th>建物門牌</th><th>地號</th><th>姓名</th><th>狀態</th>
           <th>土地(㎡)</th><th>土地(坪)</th><th>建物(㎡)</th><th>建物(坪)</th><th>拜訪紀錄</th>
         </tr></thead>
         <tbody>
@@ -130,13 +130,13 @@ async function renderIntegratedRosterTab(el) {
     const visitTok = `${o.reply_status} ${contactTokens(o).join(" ")}`;
     return `<tr data-hay="${escapeHtml(hay)}" data-state-tok="${stateTok}" data-visit-tok="${visitTok}">
             <td>${String(i + 1).padStart(3, "0")}</td>
+            <td>${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
+            <td>${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
             <td>${escapeHtml(o.name)}</td>
             <td style="white-space:nowrap">
               <span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span>
               <span class="mini-badge ${o.visit_status === "visited" ? "gate-ok" : ""}" style="margin-left:4px">${VISIT_STATUS_LABEL[o.visit_status] || "未拜訪"}</span>
             </td>
-            <td>${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
-            <td>${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
             <td>${fmt2(landSqm)}</td>
             <td>${fmt2(landSqm * 0.3025)}</td>
             <td>${fmt2(bldSqm)}</td>
