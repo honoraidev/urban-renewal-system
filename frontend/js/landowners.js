@@ -944,10 +944,10 @@ function openEditLandownerModal(landownerId) {
       <div class="field">
         <label>拜訪 / 簽約狀態(未拜訪不能選已簽約)</label>
         <div id="lo-status-group" style="display:flex;flex-wrap:wrap;gap:8px 22px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="visit" value="visited" ${owner.visit_status === "visited" ? "checked" : ""} style="width:auto">已拜訪</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="visit" value="not_visited" ${(owner.visit_status || "not_visited") === "not_visited" ? "checked" : ""} style="width:auto">未拜訪</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="agreement" value="signed" ${owner.agreement_status === "signed" ? "checked" : ""} style="width:auto">已簽約</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="agreement" value="not_signed" ${(owner.agreement_status || "not_signed") === "not_signed" ? "checked" : ""} style="width:auto">未簽約</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-visit-status" data-sg="visit" value="visited" ${owner.visit_status === "visited" ? "checked" : ""} style="width:auto">已拜訪</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-visit-status" data-sg="visit" value="not_visited" ${(owner.visit_status || "not_visited") === "not_visited" ? "checked" : ""} style="width:auto">未拜訪</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-agreement-status" data-sg="agreement" value="signed" ${owner.agreement_status === "signed" ? "checked" : ""} style="width:auto">已簽約</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-agreement-status" data-sg="agreement" value="not_signed" ${(owner.agreement_status || "not_signed") === "not_signed" ? "checked" : ""} style="width:auto">未簽約</label>
         </div>
       </div>
       <div class="field"><label>回覆狀態</label>
@@ -999,9 +999,10 @@ function openEditLandownerModal(landownerId) {
   const contactFields = document.getElementById("lo-contact-fields");
   contactToggle.addEventListener("change", () => contactFields.classList.toggle("hidden", !contactToggle.checked));
 
-  // 拜訪 / 簽約狀態複選群組:each group(visit / agreement)裡永遠只能有一個勾選
-  // (同一組點了另一個就把原本那個取消),並且防呆 —— 未拜訪時不能勾已簽約,已經
-  // 是已簽約的狀態下改選未拜訪,會自動把簽約狀態退回未簽約。
+  // 拜訪 / 簽約狀態:each group(visit / agreement)用 radio 讓瀏覽器原生保證「一定
+  // 剛好選一個」——之前用 checkbox 自己模擬互斥,點已經選定的那個時 checkbox 原生
+  // 行為是先取消勾選再被我們的程式碼強制勾回去,使用者會覺得「按了沒反應/按不
+  // 了」;radio 點已選定的選項本來就什麼事都不會發生,不會有這種卡住的錯覺。
   const statusGroup = document.getElementById("lo-status-group");
   const visitBoxes = [...statusGroup.querySelectorAll('[data-sg="visit"]')];
   const agreementBoxes = [...statusGroup.querySelectorAll('[data-sg="agreement"]')];
@@ -1018,20 +1019,7 @@ function openEditLandownerModal(landownerId) {
       notSignedBox.checked = true;
     }
   };
-  const wireExclusiveGroup = (boxes) => {
-    boxes.forEach((cb) => {
-      cb.addEventListener("change", () => {
-        if (cb.checked) {
-          boxes.forEach((o) => { if (o !== cb) o.checked = false; });
-        } else {
-          cb.checked = true; // 兩個都取消勾選沒有意義,狀態一定要有一邊是選定的
-        }
-        syncStatusGuard();
-      });
-    });
-  };
-  wireExclusiveGroup(visitBoxes);
-  wireExclusiveGroup(agreementBoxes);
+  [...visitBoxes, ...agreementBoxes].forEach((rb) => rb.addEventListener("change", syncStatusGuard));
   syncStatusGuard();
 
   // 綁定登入帳號下拉:載入所有地主角色帳號
