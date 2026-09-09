@@ -356,10 +356,12 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 45, labelPrefix
       clearInterval(timer);
       wrap.style.display = "none";
     },
-    // 交給輪詢自己驅動進度條 / 文字(避免假進度跑完後看起來像卡住)
+    // 交給輪詢自己驅動進度條 / 文字(避免假進度跑完後看起來像卡住)。把 startedAt
+    // 一起交出去,輪詢那邊才能接著同一條時間軸算百分比,不會一接手就從某個固定
+    // 底線(例如 92%)重新起跳,造成畫面上「一下子跳到後面」的錯覺。
     takeOver() {
       clearInterval(timer);
-      return { fill, label };
+      return { fill, label, startedAt };
     },
   };
 }
@@ -367,8 +369,11 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 45, labelPrefix
 // 謄本辨識改為背景工作:POST 回 job(status=processing),這裡輪詢 GET ocr-jobs/{id}
 // 直到 completed / failed。回傳跟舊同步版一樣的 { job, data } 形狀。
 async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60 * 1000, progress = null } = {}) {
-  const started = Date.now();
   const ui = progress && progress.takeOver ? progress.takeOver() : null;
+  // 時間軸接著假進度條那邊算,不要重新歸零 —— 不然一接手就會從某個固定底線(例如
+  // 92%)重新起跳,畫面上看起來像「一下子跳到後面」。沒有假進度條可接(例如沒傳
+  // progress)才退回現在起算。
+  const started = (ui && ui.startedAt) || Date.now();
   // 後端目前只回 processing/completed/failed,沒有細分階段;依經過時間輪播「現在大概在做什麼」
   // (不顯示秒數)。大份謄本各階段耗時很長,門檻抓寬一點。
   const PHASES = [
@@ -384,7 +389,9 @@ async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60
     const sec = (Date.now() - started) / 1000;
     let phase = PHASES[0][1];
     for (const [t, txt] of PHASES) if (sec >= t) phase = txt;
-    if (ui.fill) ui.fill.style.width = `${92 + 7 * (1 - Math.exp(-sec / 240))}%`;
+    // 單一條連續曲線,從 0 一路爬到接近 100%,不再跟假進度條那段分開算、接手時銜
+    // 接不上。tau 拉到 200 秒,大份謄本常常要跑好幾分鐘,爬升速度才不會看起來突兀。
+    if (ui.fill) ui.fill.style.width = `${97 * (1 - Math.exp(-sec / 200))}%`;
     if (ui.label) ui.label.textContent = `${phase}…(請勿關閉視窗)`;
   };
   paint();
