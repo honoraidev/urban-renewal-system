@@ -313,8 +313,7 @@ function invoiceScanEnsureStyle() {
       color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer; }
     .isc-menu-btn span { font-size:22px; }
     .isc-menu-btn:hover { border-color:#0d9488; background:rgba(13,148,136,.06); opacity:1; }
-    #invoice-scan-panel { border:1px solid var(--border); border-radius:12px; padding:12px;
-      margin-bottom:16px; background:var(--bg-subtle); }
+    #invoice-scan-panel { padding:12px; margin-bottom:16px; }
     #invoice-scan-hint { font-size:13px; color:var(--text-muted); margin-bottom:8px; min-height:18px; }
     .isc-loading { display:flex; flex-direction:column; align-items:center; justify-content:center;
       gap:12px; padding:26px 12px 10px; font-size:14.5px; font-weight:700; color:var(--text); text-align:center; }
