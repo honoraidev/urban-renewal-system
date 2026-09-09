@@ -8,9 +8,11 @@ NAS 上的主後端(main:app)設了 OCR_REMOTE_URL / OCR_TEXT_PROVIDER=remote �
 
     set OCR_SERVICE_SECRET=<隨機字串,和 NAS 的 OCR_REMOTE_SECRET 一樣>
     set INVOICE_ALLOW_LOCAL_OCR=true
-    uvicorn ocr_service:app --host 0.0.0.0 --port 8090
+    uvicorn ocr_service:app --host 0.0.0.0 --port 8091
 
-建議用 Tailscale IP 對外(--host 100.x.x.x),或至少確定 8090 只開在內網 / tailnet。
+建議用 Tailscale IP 對外(--host 100.x.x.x),或至少確定 8091 只開在內網 / tailnet。
+(port 選 8091 是因為 8090 這台機器上被本機 docker-compose 的 nginx 佔用,見
+ docker-compose.yml 的 "8090:80" — 兩個服務都想用 8090 會互踩。)
 """
 
 import io
