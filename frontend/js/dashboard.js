@@ -60,6 +60,94 @@ function showView(id) {
     const el = document.getElementById(v);
     if (el) el.classList.toggle("hidden", v !== id);
   });
+  persistViewState(id);
+}
+
+// 記住目前停在哪個畫面(頁面 + 案件 + 分頁),重新整理瀏覽器後 loadCurrentUser() 會
+// 用這個復原,不用每次重整都被彈回「都更案件進度總覽」。存 sessionStorage(跟登入
+// token 同壽命,關掉分頁/瀏覽器就清掉,不會留著別人下次打開還停在你看過的案件)。
+function persistViewState(viewId) {
+  try {
+    const snapshot = { view: viewId };
+    if (viewId === "view-project-detail" && state.currentProjectId) {
+      snapshot.projectId = state.currentProjectId;
+      snapshot.tab = state.activeTab || "sop";
+    }
+    sessionStorage.setItem("lastView", JSON.stringify(snapshot));
+  } catch (e) { /* sessionStorage 不可用(私密瀏覽等)就算了,不影響功能 */ }
+}
+
+// 案件詳情頁在 openProject() 呼叫 showView() 當下,state.activeTab 還沒定案(稍後
+// 才會設成 "sop" 或由 renderTab() 內部改寫),所以每次分頁實際渲染完成後(見
+// renderTab() 尾端)都要再存一次,快照才會是使用者最後停留的那個分頁。
+function persistCurrentTabState() {
+  if (!document.getElementById("view-project-detail")?.classList.contains("hidden")) {
+    persistViewState("view-project-detail");
+  }
+}
+
+async function restoreLastView() {
+  let saved = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem("lastView") || "null");
+  } catch (e) {
+    saved = null;
+  }
+  if (!saved || !saved.view) {
+    goToDashboard();
+    return;
+  }
+  try {
+    switch (saved.view) {
+      case "view-project-detail":
+        if (!saved.projectId) {
+          goToDashboard();
+          break;
+        }
+        await openProject(saved.projectId);
+        if (saved.tab && saved.tab !== "sop") {
+          const tabBtn = document.querySelector(`.tab-btn[data-tab="${saved.tab}"]`);
+          if (tabBtn && !tabBtn.classList.contains("hidden")) {
+            document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === tabBtn));
+            state.activeTab = saved.tab;
+            await renderTab(saved.tab);
+          }
+        }
+        break;
+      case "view-mywork":
+        await goToMyWork();
+        break;
+      case "view-users":
+        await goToUsers();
+        break;
+      case "view-loginlogs":
+        await goToLoginLogs();
+        break;
+      case "view-companydocs":
+        await goToCompanyDocs();
+        break;
+      case "view-regulations":
+        await goToRegulations();
+        break;
+      case "view-websites":
+        await goToWebsites();
+        break;
+      case "view-faq":
+        await goToFaq();
+        break;
+      case "view-inventory":
+        await goToInventory();
+        break;
+      case "view-tools":
+        goToTools();
+        break;
+      default:
+        // "view-new-project" / "view-ocr-batch" 這類過渡畫面沒有可復原的內容,回首頁。
+        goToDashboard();
+    }
+  } catch (e) {
+    goToDashboard();
+  }
 }
 
 function goToTools() {
@@ -633,9 +721,12 @@ async function renderTab(tab) {
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
   if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
     tab = "sop";
-    state.activeTab = "sop";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "sop"));
   }
+  // 有些呼叫端(例如各分頁自己動作完後 renderTab("expenses") 導回列表)不會先手動
+  // 同步 state.activeTab,這裡統一補上,讓它永遠等於實際渲染出來的分頁 - 重整還原
+  // 進度(persistCurrentTabState)才讀得到準確值。
+  state.activeTab = tab;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
     sop: renderSopTab,
@@ -663,6 +754,7 @@ async function renderTab(tab) {
   // 支出、上傳文件…)完成後都會呼叫 renderTab() 導回列表,這樣公告卡片才會跟著看到
   // 最新一筆自動紀錄,不用使用者手動整理頁面才看得到。
   renderProjectBoardCard();
+  persistCurrentTabState();
 }
 
 function initDashboard() {
