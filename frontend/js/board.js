@@ -16,7 +16,8 @@ function boardEnsureStyle() {
     .board-card-head h3 { margin:0; font-size:15px; display:flex; align-items:center; gap:6px; }
     .board-card-head .btn-sm { padding:5px 12px; font-size:13px; }
     .board-scroll { max-height:76px; overflow-y:auto; }
-    .board-more { margin-top:4px; text-align:center; font-size:12.5px; color:var(--text-muted,#6b7280); min-height:14px; }
+    .board-more { margin-top:4px; text-align:center; font-size:12.5px; color:var(--text-muted,#6b7280); min-height:14px;
+      white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
     .board-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0;
       border-bottom:1px solid var(--border,#f1f5f9); align-items:flex-start; font-size:13.5px; }
     .board-row:last-child { border-bottom:none; }

@@ -32,7 +32,8 @@ function myWorkEnsureStyle() {
     .mw-board h3 { display:flex; align-items:center; gap:6px; }
     .mw-board .mw-board-body { }
     .mw-act-scroll { max-height:172px; overflow-y:auto; }
-    .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px; }
+    .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px;
+      white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
     .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
     .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
   `;
