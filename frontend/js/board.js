@@ -12,9 +12,8 @@ function boardEnsureStyle() {
   s.id = "board-style";
   s.textContent = `
     .board-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
-    .board-card h3 { margin:0 0 10px; font-size:15px; display:flex; align-items:center; gap:6px; }
-    .board-add-form { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
-    .board-add-form input[type="text"] { flex:1; min-width:220px; }
+    .board-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; }
+    .board-card-head h3 { margin:0; font-size:15px; display:flex; align-items:center; gap:6px; }
     .board-scroll { max-height:76px; overflow-y:auto; }
     .board-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px; }
     .board-row { display:flex; justify-content:space-between; gap:12px; padding:7px 0;
@@ -69,8 +68,6 @@ async function renderProjectBoardCard() {
     ...feed.map((a) => ({ kind: "auto", id: a.id, time: a.created_at, text: a.action, who: a.user_name })),
   ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
-  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-
   const listHtml = !merged.length
     ? `<div class="helper-text">尚無公告或異動紀錄</div>`
     : `<div class="board-scroll" id="board-scroll">${merged.map(_boardRowHtml).join("")}</div>
@@ -78,15 +75,10 @@ async function renderProjectBoardCard() {
 
   mount.innerHTML = `
     <div class="board-card">
-      <h3>🔔 公告 / 進度通知</h3>
-      ${isEditor()
-        ? `<form id="board-note-form" class="board-add-form">
-             <input type="datetime-local" name="occurred_at" value="${nowLocal}" style="flex:0 0 180px">
-             <input type="text" name="content" placeholder="輸入跟進事項…例:已致電陳先生確認同意書進度" required>
-             <button type="submit" class="btn-primary btn-sm" style="background:#0d9488;border-color:#0d9488">＋ 新增</button>
-           </form>`
-        : ""
-      }
+      <div class="board-card-head">
+        <h3>🔔 公告 / 進度通知</h3>
+        ${isEditor() ? `<button type="button" class="btn-primary btn-sm" id="board-add-btn" style="background:#0d9488;border-color:#0d9488">＋ 新增</button>` : ""}
+      </div>
       ${listHtml}
     </div>
   `;
@@ -103,24 +95,8 @@ async function renderProjectBoardCard() {
     updateMore();
   }
 
-  const form = document.getElementById("board-note-form");
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const occurred = fd.get("occurred_at");
-      try {
-        await api(`/projects/${pid}/notes`, {
-          method: "POST",
-          body: {
-            content: fd.get("content"),
-            occurred_at: occurred ? new Date(occurred).toISOString() : null,
-          },
-        });
-        renderProjectBoardCard();
-      } catch (err) { }
-    });
-  }
+  const addBtn = document.getElementById("board-add-btn");
+  if (addBtn) addBtn.addEventListener("click", () => openAddNoteModal(pid));
 
   mount.querySelectorAll("[data-del-note]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -130,5 +106,38 @@ async function renderProjectBoardCard() {
         renderProjectBoardCard();
       } catch (err) { }
     });
+  });
+}
+
+function openAddNoteModal(pid) {
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  openModal(
+    "新增公告",
+    `
+    <form id="board-note-form">
+      <div class="field"><label>時間</label><input type="datetime-local" name="occurred_at" value="${nowLocal}" required></div>
+      <div class="field"><label>內容</label><textarea name="content" rows="3" placeholder="例:已致電陳先生確認同意書進度" required></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">新增</button>
+      </div>
+    </form>`,
+    { width: "440px" }
+  );
+  document.getElementById("board-note-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const occurred = fd.get("occurred_at");
+    try {
+      await api(`/projects/${pid}/notes`, {
+        method: "POST",
+        body: {
+          content: fd.get("content"),
+          occurred_at: occurred ? new Date(occurred).toISOString() : null,
+        },
+      });
+      closeModal();
+      renderProjectBoardCard();
+    } catch (err) { }
   });
 }
