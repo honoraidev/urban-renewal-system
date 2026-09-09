@@ -499,7 +499,10 @@
   .back-link:hover { color: var(--brand-dark); opacity: 1; }
   /* 案件詳情頁最上面:左邊是返回/狀態/標題,右邊並排放「公告 / 進度通知」卡片 - 窄
      螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。 */
-  .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 460px) minmax(260px, 460px); justify-content: space-between; gap: 20px; align-items: stretch; margin-bottom: 4px; }
+  /* 左欄用 minmax(420px, 460px) 而不是 minmax(280px, 460px) —— 下限拉高到接近上限,
+     不然 grid 的 track 只會照內容(max-content)決定寬度,標題文字沒那麼長時左欄會
+     縮到比 460px 窄很多,旁邊留一大塊空白才接到右邊卡片。 */
+  .pd-top-grid { display: grid; grid-template-columns: minmax(420px, 460px) minmax(260px, 460px); justify-content: space-between; gap: 20px; align-items: stretch; margin-bottom: 4px; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; }
