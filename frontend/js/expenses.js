@@ -319,8 +319,14 @@ function invoiceScanEnsureStyle() {
     @keyframes isc-pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
     #scan-invoice-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
       padding:13px 16px; font-size:15px; font-weight:700; border-radius:12px;
-      background:#0d9488; color:#fff; border:none; margin-bottom:14px; }
+      background:#0d9488; color:#fff; border:none; margin-bottom:10px; }
     #scan-invoice-btn:hover { background:#0b7d73; opacity:1; }
+    #invoice-scan-menu { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px; }
+    .isc-menu-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+      padding:12px 6px; border-radius:12px; border:1px solid var(--border); background:var(--surface);
+      color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer; }
+    .isc-menu-btn span { font-size:22px; }
+    .isc-menu-btn:hover { border-color:#0d9488; background:rgba(13,148,136,.06); opacity:1; }
     #invoice-scan-panel { border:1px solid var(--border); border-radius:12px; padding:12px;
       margin-bottom:16px; background:var(--bg-subtle); }
     #invoice-scan-hint { font-size:13px; color:var(--text-muted); margin-bottom:8px; min-height:18px; }
@@ -345,15 +351,19 @@ function invoiceScanEnsureStyle() {
 // 綁定發票辨識按鈕。formId = 該表單 id,用來回填欄位。整張發票拍照後交後端本機 OCR 辨識。
 function wireInvoiceScanner(formId) {
   const btn = document.getElementById("scan-invoice-btn");
+  const menu = document.getElementById("invoice-scan-menu");
   const panel = document.getElementById("invoice-scan-panel");
   const video = document.getElementById("invoice-scan-video");
-  const fileInput = document.getElementById("invoice-scan-file");
+  const photoInput = document.getElementById("invoice-photo-input");
+  const fileInput = document.getElementById("invoice-file-input");
   const closeBtn = document.getElementById("invoice-scan-close");
   const shotBtn = document.getElementById("invoice-shot-btn");
   const hint = document.getElementById("invoice-scan-hint");
   const extra = document.getElementById("invoice-scan-extra");
   if (!btn || !panel) return;
   invoiceScanEnsureStyle();
+
+  const closeMenu = () => menu && menu.classList.add("hidden");
 
   // LINE 內建瀏覽器等 in-app webview 常在切換畫面(例如按下快門的瞬間)把相機串流
   // 暫停,這時 video.videoWidth 可能還是 0 —— 不要直接放棄,輪詢等一下再試。
@@ -475,15 +485,54 @@ function wireInvoiceScanner(formId) {
     }
   }
 
-  btn.addEventListener("click", async () => {
-    panel.classList.toggle("hidden");
-    if (panel.classList.contains("hidden")) {
+  // 主按鈕:面板開著就整個收起來;沒開就彈出「拍照 / 選擇相片 / 選擇檔案」三選一選單。
+  btn.addEventListener("click", () => {
+    if (!panel.classList.contains("hidden")) {
       stopInvoiceScan();
+      panel.classList.add("hidden");
+      closeMenu();
       return;
     }
+    menu.classList.toggle("hidden");
+  });
+
+  const startCamera = async () => {
+    closeMenu();
+    if (shotBtn) shotBtn.classList.remove("hidden");
+    panel.classList.remove("hidden");
     if (extra) extra.textContent = "";
     await openCamera();
-  });
+  };
+
+  const runFromFile = (file) => {
+    closeMenu();
+    if (!file) return;
+    if (shotBtn) shotBtn.classList.add("hidden"); // 靜態圖片/PDF,沒有相機快門可按
+    panel.classList.remove("hidden");
+    hint.textContent = "已選擇檔案,辨識中…";
+    const stage = document.getElementById("invoice-scan-stage");
+    if (stage) stage.classList.add("hidden");
+    if (extra) extra.textContent = "";
+    aiRecognize(file, { auto: false });
+  };
+
+  const menuCamera = document.getElementById("invoice-menu-camera");
+  const menuPhoto = document.getElementById("invoice-menu-photo");
+  const menuFile = document.getElementById("invoice-menu-file");
+  if (menuCamera) menuCamera.addEventListener("click", startCamera);
+  if (menuPhoto) menuPhoto.addEventListener("click", () => photoInput && photoInput.click());
+  if (menuFile) menuFile.addEventListener("click", () => fileInput && fileInput.click());
+
+  if (photoInput)
+    photoInput.addEventListener("change", () => {
+      runFromFile(photoInput.files && photoInput.files[0]);
+      photoInput.value = "";
+    });
+  if (fileInput)
+    fileInput.addEventListener("change", () => {
+      runFromFile(fileInput.files && fileInput.files[0]);
+      fileInput.value = "";
+    });
 
   if (shotBtn)
     shotBtn.addEventListener("click", async () => {
@@ -507,18 +556,19 @@ function wireInvoiceScanner(formId) {
     closeBtn.addEventListener("click", () => {
       stopInvoiceScan();
       panel.classList.add("hidden");
-    });
-
-  if (fileInput)
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files && fileInput.files[0];
-      if (f) aiRecognize(f);
-      fileInput.value = "";
+      closeMenu();
     });
 }
 
 const INVOICE_SCAN_HTML = `
-  <button type="button" id="scan-invoice-btn">📷 掃描發票 — 對準鏡頭自動辨識</button>
+  <button type="button" id="scan-invoice-btn">📷 掃描發票</button>
+  <div id="invoice-scan-menu" class="hidden">
+    <button type="button" class="isc-menu-btn" id="invoice-menu-camera"><span>📸</span>拍照</button>
+    <button type="button" class="isc-menu-btn" id="invoice-menu-photo"><span>🖼️</span>選擇相片</button>
+    <button type="button" class="isc-menu-btn" id="invoice-menu-file"><span>📁</span>選擇檔案</button>
+  </div>
+  <input type="file" id="invoice-photo-input" accept="image/*" style="display:none">
+  <input type="file" id="invoice-file-input" accept="image/*,application/pdf" style="display:none">
   <div id="invoice-scan-panel" class="hidden">
     <div id="invoice-scan-hint">把整張發票放進框內、對正、填滿框 — 對到焦會自動拍照辨識,不用按快門。</div>
     <div id="invoice-scan-stage" class="hidden">
@@ -530,7 +580,6 @@ const INVOICE_SCAN_HTML = `
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 立即拍照</button>
-      <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片 / PDF<input type="file" accept="image/*,application/pdf" id="invoice-scan-file" style="display:none"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
     </div>
     <div id="invoice-scan-extra" class="helper-text" style="margin-top:6px"></div>
