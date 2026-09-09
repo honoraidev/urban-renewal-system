@@ -491,8 +491,8 @@
      SOP 進度列的正中間,不會因為右邊公告卡片較高而整塊貼在最上面。 */
   .pd-top-left .project-header { flex: 1; align-items: center; margin-bottom: 0; }
   .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .project-header h2 { margin: 0 0 4px; font-size: 21.5px; font-weight: 800; }
-  .project-header .sub { color: var(--text-muted); font-size: 14.5px; }
+  .project-header h2 { margin: 0 0 6px; font-size: 27px; font-weight: 800; }
+  .project-header .sub { color: var(--text-muted); font-size: 16.5px; }
   .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
   .tab-btn {
     background: none; color: var(--text-muted); font-weight: 600; padding: 10px 16px;
