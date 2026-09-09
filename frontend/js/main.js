@@ -62,8 +62,9 @@ function bootstrapApp() {
           <ol style="margin:0 0 16px 20px;padding:0;font-size:14px;color:var(--text-muted);line-height:1.8">
             <li>請由左側選單進入任一<strong>「都更案件」</strong>。</li>
             <li>切換至<strong>「登記資料」</strong>頁籤,再選<strong>土地登記</strong>或<strong>建物登記</strong>。</li>
-            <li>點擊上方 <strong>「自動掃描謄本 (OCR)」</strong> 按鈕。</li>
-            <li>上傳謄本 PDF 檔，系統將自動辨識地主姓名、持分、地號與面積並匯入清冊。</li>
+            <li>點擊上方 <strong>「自動掃描謄本 (OCR)」</strong> 按鈕,上傳謄本 PDF 檔。</li>
+            <li>電子謄本<strong>直接抽取文字</strong>;掃描件或抽取不到的空缺欄位,系統會自動<strong>用 OCR 補掃</strong>,再<strong>用 AI 校正比對</strong>還原正確地址與欄位。</li>
+            <li>自動辨識地號、建號、所有權人、持分、面積、他項權利與戶籍地址,一鍵匯入產出初版登記清冊。</li>
           </ol>
           
           <div class="modal-footer" style="margin-top:20px">
