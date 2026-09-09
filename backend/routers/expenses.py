@@ -121,8 +121,24 @@ async def scan_invoice_batch(
             raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案總大小過大(上限 60MB)")
         payload.append((f.filename or "invoice", content, f.content_type))
 
-    # 檔案數愈多要跑的辨識愈多,逾時上限跟著放寬(但總量還是有上限,別讓一批卡死 worker)。
-    timeout_s = min(600, 30 + 20 * len(payload))
+    # 逾時上限要照「實際要辨識幾張」放寬,不能只看上傳了幾個檔案 —— 一份多頁 PDF
+    # 在 extract_invoices_multi 裡是逐頁跑的,每頁走 AI(Gemini)辨識最多可以等到
+    # 60 秒,4 頁的 PDF 之前只給 50 秒(30 + 20*1 個檔案)幾乎一定逾時。改成用「頁數」
+    # 估總單位數,每單位抓 45 秒(但總量還是有上限,別讓一批卡死 worker)。
+    def _unit_count(content: bytes, content_type: str | None) -> int:
+        is_pdf = (content_type or "").lower().endswith("pdf") or content[:5] == b"%PDF-"
+        if not is_pdf:
+            return 1
+        try:
+            import pymupdf as fitz
+
+            with fitz.open(stream=content, filetype="pdf") as doc:
+                return max(1, doc.page_count)
+        except Exception:
+            return 1
+
+    total_units = sum(_unit_count(content, ctype) for _, content, ctype in payload)
+    timeout_s = min(600, 30 + 45 * max(len(payload), total_units))
     results: list[dict] = []
     try:
         async with _SCAN_INVOICE_LIMITER:
