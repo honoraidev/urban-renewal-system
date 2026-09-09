@@ -73,8 +73,12 @@ async def invoice(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="沒有收到影像")
+    from starlette.concurrency import run_in_threadpool
+
     try:
-        return extract_invoice_fields(content, file.content_type)
+        # extract_invoice_fields 是同步阻塞運算(OCR),別佔住 event loop,不然多人同
+        # 時掃描時,QR 秒解那個人也要排隊等前一個 OCR 跑完。
+        return await run_in_threadpool(extract_invoice_fields, content, file.content_type)
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 

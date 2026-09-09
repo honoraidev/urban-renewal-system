@@ -360,7 +360,8 @@ function wireInvoiceScanner(formId) {
     c.width = video.videoWidth;
     c.height = video.videoHeight;
     c.getContext("2d").drawImage(video, 0, 0);
-    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.92));
+    // 0.85 而非 0.92:上傳檔案小一截、編碼也快一點,發票是印刷大字,文字辨識不受影響。
+    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.85));
   }
 
   // 回傳是否成功帶入欄位 — 讓自動連拍迴圈知道要不要再拍一次。
@@ -377,7 +378,7 @@ function wireInvoiceScanner(formId) {
       toast("請先進入案件", "error");
       return false;
     }
-    if (extra) extra.textContent = auto ? `自動辨識中…(第 ${_invoiceAutoAttempts} 次,約 3~5 秒)` : "辨識中…約需 3~8 秒";
+    if (extra) extra.textContent = auto ? `自動辨識中…(第 ${_invoiceAutoAttempts} 次)` : "辨識中…";
     if (shotBtn) shotBtn.disabled = true;
     const fd = new FormData();
     fd.append("file", blob, "invoice.jpg");
@@ -423,7 +424,7 @@ function wireInvoiceScanner(formId) {
     const blob = await grabStill();
     if (!blob) {
       if (_invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
-        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 400);
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 250);
       } else if (extra) {
         extra.textContent = "沒有抓到相機畫面,請按「立即拍照」再試,或改用上傳照片。";
       }
@@ -432,7 +433,7 @@ function wireInvoiceScanner(formId) {
     const ok = await aiRecognize(blob, { auto: true });
     if (!ok && _invoiceScanStream) {
       if (_invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
-        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 900);
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 500);
       } else if (extra) {
         extra.textContent = "自動掃描沒讀到欄位,請按「立即拍照」重試,並確認發票對正、填滿框、光線充足。";
       }
@@ -444,15 +445,17 @@ function wireInvoiceScanner(formId) {
     if (stage) stage.classList.remove("hidden");
     hint.textContent = "把整張發票放進框內、對正、填滿框 — 對到焦會自動拍照辨識,不用按快門。";
     try {
+      // 1280x720 就夠讀發票印刷字了 — 比 1920x1080 少快 60% 的像素,拍照編碼、上傳、
+      // 伺服器端 OCR 都跟著變快,肉眼看不出解析度差異。
       _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       video.srcObject = _invoiceScanStream;
       video.setAttribute("playsinline", "");
       await video.play();
       if (_invoiceAutoTimer) clearTimeout(_invoiceAutoTimer);
       _invoiceAutoAttempts = 0;
-      _invoiceAutoTimer = setTimeout(autoCaptureLoop, 550); // 給一點時間讓相機自動對焦
+      _invoiceAutoTimer = setTimeout(autoCaptureLoop, 350); // 給一點時間讓相機自動對焦
     } catch (e) {
       hint.textContent = "無法開啟相機(需 HTTPS 並允許權限):" + ((e && e.name) || e) + "。可改用「上傳發票照片」。";
       if (stage) stage.classList.add("hidden");
@@ -483,7 +486,7 @@ function wireInvoiceScanner(formId) {
       const ok = await aiRecognize(blob, { auto: false });
       // 手動這次沒抓到也沒關係,自動連拍繼續接手,不用使用者一直按
       if (!ok && _invoiceScanStream && _invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
-        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 900);
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 500);
       }
     });
 

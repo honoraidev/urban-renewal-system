@@ -339,7 +339,10 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
             else "讀不到 QR,Gemini 也暫時無法辨識,請稍後再試或手動輸入。"
         )
 
-    text = _local_ocr_text(image_bytes)
+    # 手機鏡頭吐出來的原圖常是 1920x1080 以上,整張丟給 RapidOCR 偵測+辨識的時間
+    # 跟像素數成正比。發票上的字夠大,縮到長邊 1600px(跟 Gemini 那條路一樣的門檻,
+    # 已驗證統編/號碼還讀得到)可以明顯縮短這一步,且不影響下面的規則抽取。
+    text = _local_ocr_text(_downscale_for_upload(image_bytes))
     if not text.strip():
         hint = "(Gemini 也讀不到)" if use_gemini else ""
         raise InvoiceOcrError(f"讀不到 QR{hint},OCR 也沒讀到文字。請拍清楚一點、對正、光線充足再試")
