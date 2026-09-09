@@ -626,8 +626,10 @@ function wireInvoiceScanner(formId, categories) {
               <button type="button" class="btn-secondary btn-sm" id="q-step-add" style="margin-right:auto">+ 新增一筆</button>
               <button type="button" class="btn-danger btn-sm" id="q-step-delete">刪除此筆</button>
               ${idx > 0 ? `<button type="button" class="btn-secondary btn-sm" id="q-step-prev">上一筆</button>` : ""}
-              <button type="submit" class="btn-primary btn-sm" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
             </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
           </div>
         </form>`;
 
