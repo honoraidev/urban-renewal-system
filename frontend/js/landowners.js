@@ -941,37 +941,21 @@ function openEditLandownerModal(landownerId) {
         <div class="field"><label>統一編號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}" placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"></div>
         <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>聯絡狀態</label>
-          <select name="contact_status">
-            ${Object.entries(CONTACT_STATUS_LABEL)
-              .map(([k, v]) => `<option value="${k}" ${owner.contact_status === k ? "selected" : ""}>${v}</option>`)
-              .join("")}
-          </select>
-        </div>
-        <div class="field"><label>意願狀態</label>
-          <select name="agreement_status">
-            ${Object.entries(AGREEMENT_STATUS_LABEL)
-              .map(([k, v]) => `<option value="${k}" ${owner.agreement_status === k ? "selected" : ""}>${v}</option>`)
-              .join("")}
-          </select>
+      <div class="field">
+        <label>拜訪 / 簽約狀態(未拜訪不能選已簽約)</label>
+        <div id="lo-status-group" style="display:flex;flex-wrap:wrap;gap:8px 22px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="visit" value="visited" ${owner.visit_status === "visited" ? "checked" : ""} style="width:auto">已拜訪</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="visit" value="not_visited" ${(owner.visit_status || "not_visited") === "not_visited" ? "checked" : ""} style="width:auto">未拜訪</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="agreement" value="signed" ${owner.agreement_status === "signed" ? "checked" : ""} style="width:auto">已簽約</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="checkbox" data-sg="agreement" value="not_signed" ${(owner.agreement_status || "not_signed") === "not_signed" ? "checked" : ""} style="width:auto">未簽約</label>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>拜訪狀態</label>
-          <select name="visit_status">
-            ${Object.entries(VISIT_STATUS_LABEL)
-              .map(([k, v]) => `<option value="${k}" ${(owner.visit_status || "not_visited") === k ? "selected" : ""}>${v}</option>`)
-              .join("")}
-          </select>
-        </div>
-        <div class="field"><label>回覆狀態</label>
-          <select name="reply_status">
-            ${Object.entries(REPLY_STATUS_LABEL)
-              .map(([k, v]) => `<option value="${k}" ${(owner.reply_status || "not_replied") === k ? "selected" : ""}>${v}</option>`)
-              .join("")}
-          </select>
-        </div>
+      <div class="field"><label>回覆狀態</label>
+        <select name="reply_status">
+          ${Object.entries(REPLY_STATUS_LABEL)
+            .map(([k, v]) => `<option value="${k}" ${(owner.reply_status || "not_replied") === k ? "selected" : ""}>${v}</option>`)
+            .join("")}
+        </select>
       </div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
       <div class="field">
@@ -994,7 +978,7 @@ function openEditLandownerModal(landownerId) {
             </div>
           </div>
           <div class="field-row">
-            <div class="field"><label>聯絡結果</label>
+            <div class="field"><label>聯絡結果(會一併更新地主的聯絡狀態)</label>
               <select name="c_contact_result" id="lo-c-result">
                 ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
               </select>
@@ -1014,6 +998,41 @@ function openEditLandownerModal(landownerId) {
   const contactToggle = document.getElementById("lo-add-contact-toggle");
   const contactFields = document.getElementById("lo-contact-fields");
   contactToggle.addEventListener("change", () => contactFields.classList.toggle("hidden", !contactToggle.checked));
+
+  // 拜訪 / 簽約狀態複選群組:each group(visit / agreement)裡永遠只能有一個勾選
+  // (同一組點了另一個就把原本那個取消),並且防呆 —— 未拜訪時不能勾已簽約,已經
+  // 是已簽約的狀態下改選未拜訪,會自動把簽約狀態退回未簽約。
+  const statusGroup = document.getElementById("lo-status-group");
+  const visitBoxes = [...statusGroup.querySelectorAll('[data-sg="visit"]')];
+  const agreementBoxes = [...statusGroup.querySelectorAll('[data-sg="agreement"]')];
+  const signedBox = statusGroup.querySelector('[data-sg="agreement"][value="signed"]');
+  const notSignedBox = statusGroup.querySelector('[data-sg="agreement"][value="not_signed"]');
+  const notVisitedBox = statusGroup.querySelector('[data-sg="visit"][value="not_visited"]');
+  const syncStatusGuard = () => {
+    const isNotVisited = notVisitedBox.checked;
+    signedBox.disabled = isNotVisited;
+    signedBox.parentElement.style.opacity = isNotVisited ? "0.5" : "1";
+    signedBox.parentElement.style.cursor = isNotVisited ? "not-allowed" : "pointer";
+    if (isNotVisited && signedBox.checked) {
+      signedBox.checked = false;
+      notSignedBox.checked = true;
+    }
+  };
+  const wireExclusiveGroup = (boxes) => {
+    boxes.forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) {
+          boxes.forEach((o) => { if (o !== cb) o.checked = false; });
+        } else {
+          cb.checked = true; // 兩個都取消勾選沒有意義,狀態一定要有一邊是選定的
+        }
+        syncStatusGuard();
+      });
+    });
+  };
+  wireExclusiveGroup(visitBoxes);
+  wireExclusiveGroup(agreementBoxes);
+  syncStatusGuard();
 
   // 綁定登入帳號下拉:載入所有地主角色帳號
   (async () => {
@@ -1045,13 +1064,14 @@ function openEditLandownerModal(landownerId) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
+    // 聯絡狀態不再讓人手動改 —— 有新增聯絡紀錄時,後端會照這筆的「聯絡結果」自動
+    // 更新聯絡狀態(見 routers/contacts.py create_contact),這裡不用也不能送這個欄位。
     const payload = {
       name: data.name,
       id_number: data.id_number || null,
       phone: data.phone || null,
-      contact_status: data.contact_status,
-      agreement_status: data.agreement_status,
-      visit_status: data.visit_status,
+      agreement_status: agreementBoxes.find((b) => b.checked)?.value || "not_signed",
+      visit_status: visitBoxes.find((b) => b.checked)?.value || "not_visited",
       reply_status: data.reply_status,
       address: data.address || null,
       user_id: data.user_id ? Number(data.user_id) : null,
