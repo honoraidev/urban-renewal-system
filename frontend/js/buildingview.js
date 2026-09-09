@@ -89,6 +89,55 @@ function buildingViewGroupCardHtml(g) {
     </div>`;
 }
 
+// 純土地地主(有土地登記、沒有任何建物登記)——樓棟視圖是照建物門牌分格畫的,這種
+// 地主原本完全不會出現在畫面任何地方。跟門牌格子共用同一套「共有人」列樣式
+// (.bv-owner-row 等),差別是多顯示地號、且點名字一樣能開他的編輯視窗。
+function buildingViewLandOnlyOwnerRowHtml(o) {
+  const nm = escapeHtml(o.name) || "-";
+  const initial = (o.name || "?").trim().charAt(0) || "?";
+  const st = o.consent_status === "agreed" ? "status-active" : o.consent_status === "opposed" ? "status-suspended" : "status-closed";
+  const phone = (o.phone || "").trim();
+  const parcels = [...new Set(o.parcels || [])].join("、") || "-";
+  return `
+    <div class="bv-owner-row">
+      <span class="bv-owner-avatar">${escapeHtml(initial)}</span>
+      <div class="bv-owner-main">
+        <a href="#" data-bv-open-owner="${o.landowner_id}" class="bv-owner-name">${nm}<span class="bv-owner-go">查看 ›</span></a>
+        <div class="bv-owner-phone ${phone ? "" : "is-empty"}">🗺️ 地號:${escapeHtml(parcels)}</div>
+        <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
+      </div>
+      <span class="status-badge ${st}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
+    </div>`;
+}
+
+function buildingViewLandOnlySectionHtml(owners) {
+  if (!owners || !owners.length) return "";
+  return `
+    <div class="card bv-group" style="margin-top:16px">
+      <div class="bv-group-header">
+        <span class="bv-group-title">🗺️ 純土地地主(無建物登記)</span>
+        <span class="bv-group-meta">${owners.length} 人</span>
+      </div>
+      <div class="bv-owner-list" style="padding:12px 16px">
+        ${owners.map(buildingViewLandOnlyOwnerRowHtml).join("")}
+      </div>
+    </div>`;
+}
+
+function wireLandOnlyOwnerLinks(el) {
+  el.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
+    a.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const landownerId = Number(a.dataset.bvOpenOwner);
+      const pid = state.currentProjectId;
+      if (!state.projectCache[pid].landowners) {
+        state.projectCache[pid].landowners = await api(`/projects/${pid}/landowners`);
+      }
+      openEditLandownerModal(landownerId);
+    });
+  });
+}
+
 async function renderBuildingViewTab(el) {
   const pid = state.currentProjectId;
   let payload;
@@ -99,9 +148,15 @@ async function renderBuildingViewTab(el) {
     return;
   }
   const groups = applyBuildingViewSavedOrder(pid, payload.groups || []);
+  const landOnlyOwners = payload.land_only_owners || [];
 
   if (!groups.length) {
-    el.innerHTML = `<div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「登記資料 → 建物登記」匯入建物資料</div>`;
+    el.innerHTML = `
+      <div class="section-toolbar"><h3>樓棟視圖</h3></div>
+      <div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「登記資料 → 建物登記」匯入建物資料</div>
+      ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
+    `;
+    wireLandOnlyOwnerLinks(el);
     return;
   }
 
@@ -111,7 +166,9 @@ async function renderBuildingViewTab(el) {
       <span class="helper-text">💡 拖曳區塊可調整順序</span>
     </div>
     <div id="bv-groups" class="bv-groups-grid">${groups.map(buildingViewGroupCardHtml).join("")}</div>
+    ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
   `;
+  wireLandOnlyOwnerLinks(el);
 
   const groupsByKey = new Map(groups.map((g) => [g.key, g]));
   const container = document.getElementById("bv-groups");
