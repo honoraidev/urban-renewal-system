@@ -365,13 +365,17 @@ function wireInvoiceScanner(formId, categories) {
   };
   // 掃描面板(拍照 / 逐筆審核)跟底下手動填寫的表單只留一個 —— 面板開著就把原本的
   // 表單藏起來,不然畫面上會同時看到兩份「支出資訊」,使用者搞不清楚要填哪個。
+  // 「📷 掃描發票」按鈕也一起藏起來,正在掃描/審核時不需要它,結束(關閉面板)才
+  // 讓它重新出現讓使用者可以再次啟動掃描。
   const showPanel = () => {
     panel.classList.remove("hidden");
     if (underForm) underForm.classList.add("hidden");
+    if (btn) btn.classList.add("hidden");
   };
   const hidePanel = () => {
     panel.classList.add("hidden");
     if (underForm) underForm.classList.remove("hidden");
+    if (btn) btn.classList.remove("hidden");
   };
 
   // LINE 內建瀏覽器等 in-app webview 常在切換畫面(例如按下快門的瞬間)把相機串流
