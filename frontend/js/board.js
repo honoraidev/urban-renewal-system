@@ -32,11 +32,29 @@ function boardEnsureStyle() {
   document.head.appendChild(s);
 }
 
+// 系統自動紀錄的動作文字(來自後端 describe_request)照關鍵字挑對應的圖示,不要
+// 全部都用同一顆 🔄——一看圖示大概就知道是新增/刪除/修改還是其他類型的操作。
+function _activityIcon(text) {
+  const t = text || "";
+  if (/刪除|移除|清除/.test(t)) return "🗑️";
+  if (/新增|建立|加入/.test(t)) return "➕";
+  if (/修改|更新|編輯|重新命名/.test(t)) return "✏️";
+  if (/上傳/.test(t)) return "📤";
+  if (/下載|匯出/.test(t)) return "📥";
+  if (/掃描|辨識|匯入/.test(t)) return "📷";
+  if (/確認|勾選|查核|同意書/.test(t)) return "✅";
+  if (/人員|成員|帳號/.test(t)) return "👤";
+  if (/登入|登出/.test(t)) return "🔑";
+  if (/結案|強制/.test(t)) return "🔒";
+  return "🔄";
+}
+
 function _boardRowHtml(item) {
   const isNote = item.kind === "note";
+  const icon = isNote ? "📝" : _activityIcon(item.text);
   return `<div class="board-row">
     <div class="board-row-main">
-      <span class="board-row-tag ${isNote ? "tag-note" : "tag-auto"}">${isNote ? "📝" : "🔄"}</span>
+      <span class="board-row-tag ${isNote ? "tag-note" : "tag-auto"}">${icon}</span>
       <span class="board-row-text">${escapeHtml(item.text)}</span>
     </div>
     <div class="board-row-meta">
