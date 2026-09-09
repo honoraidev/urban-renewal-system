@@ -65,12 +65,16 @@ function _shortDoorAddr(addr) {
 
 async function renderIntegratedRosterTab(el) {
   const pid = state.currentProjectId;
-  const [owners, alerts, contactSummary] = await Promise.all([
+  const [owners, alerts, contactSummary, sop] = await Promise.all([
     api(`/projects/${pid}/landowners`),
     api(`/projects/${pid}/alerts`, { silent: true }).catch(() => []),
     api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
+    api(`/projects/${pid}/sop`, { silent: true }).catch(() => null),
   ]);
   const contactBy = new Map(contactSummary.map((c) => [c.landowner_id, c]));
+  // SOP 第1關「確認地主清冊正確」的確認鈕搬到這裡(整合清冊工具列右側)—— 這裡才
+  // 是實際盤點地主清冊的地方,SOP 頁只留狀態文字,不重複放按鈕。
+  const rosterConfirmed = !!sop?.stages?.["1"]?.data?.checklist?.landowner_roster_confirmed;
   const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
 
   const fmt2 = (n) => (n || n === 0 ? Number(n).toFixed(2) : "-");
@@ -107,6 +111,10 @@ async function renderIntegratedRosterTab(el) {
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
       </div>
+      ${isEditor()
+      ? `<button type="button" class="btn-${rosterConfirmed ? "secondary" : "primary"} btn-sm" id="integ-roster-confirm-btn" data-confirmed="${rosterConfirmed}">${rosterConfirmed ? "✓ 已確認地主清冊(點擊取消)" : "確認地主清冊正確"}</button>`
+      : ""
+    }
     </div>
     <style>
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
@@ -216,6 +224,24 @@ async function renderIntegratedRosterTab(el) {
   el.querySelectorAll("[data-delete-integ]").forEach((b) => {
     b.addEventListener("click", () => deleteLandowner(Number(b.dataset.deleteInteg)));
   });
+
+  const confirmRosterBtn = document.getElementById("integ-roster-confirm-btn");
+  if (confirmRosterBtn) {
+    confirmRosterBtn.addEventListener("click", async () => {
+      const currentlyConfirmed = confirmRosterBtn.dataset.confirmed === "true";
+      confirmRosterBtn.disabled = true;
+      try {
+        await api(`/projects/${pid}/sop/1/checklist`, {
+          method: "POST",
+          body: { key: "landowner_roster_confirmed", confirmed: !currentlyConfirmed },
+        });
+        toast(currentlyConfirmed ? "已取消確認" : "已確認地主清冊正確", "success");
+        renderTab("integrated");
+      } catch (err) {
+        confirmRosterBtn.disabled = false;
+      }
+    });
+  }
 }
 
 async function renderLandownersTypeTab(el, type) {

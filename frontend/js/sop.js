@@ -343,10 +343,13 @@ async function renderSopTab(el) {
           const confirmed = confirmedChecklist[item.key];
           done = !!confirmed;
           sub = done ? `已確認・${fmtDate(confirmed.confirmed_at)}` : "尚未確認";
+          if (item.key === "landowner_roster_confirmed") sub += done ? "" : "(請至「整合清冊」頁右上角確認)";
         }
         if (!done) checklistAllDone = false;
+        // landowner_roster_confirmed 的確認鈕搬到「整合清冊」頁工具列右側 —— 那裡才
+        // 是實際盤點地主清冊的地方,這裡只留狀態文字,不重複放按鈕。
         const confirmBtn =
-          item.manual && isEditor()
+          item.manual && item.key !== "landowner_roster_confirmed" && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
             : "";
         const uploadBtn =
