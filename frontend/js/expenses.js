@@ -499,10 +499,11 @@ function wireInvoiceScanner(formId, categories) {
     renderQueueStepper(queue);
   }
 
-  // 多筆(或含錯誤)辨識結果:不是丟一張總表勾選後「全部建立」,而是逐筆把欄位
-  // 直接帶進跟「記錄支出」一模一樣的表單裡,使用者看得清楚、能個別修改,按「建立
-  // 並下一筆」存一筆換下一筆,讀不到內容的那筆自動略過並提示,直到跑完整個佇列。
-  function renderQueueStepper(queue) {
+  // 多筆(或含錯誤)辨識結果:逐筆把欄位帶進跟「記錄支出」一模一樣的表單裡,整個
+  // 佇列都在瀏覽器端本機編輯(上一筆/下一筆/新增一筆/刪除此筆都不碰資料庫)——
+  // 跟謄本匯入精靈同一套模式,所以「上一筆」回頭改欄位不會造成同一筆被建立兩次;
+  // 真正寫進資料庫是在最後一筆按「完成」的時候才一次送出整批。
+  function renderQueueStepper(initialQueue) {
     if (normalWrap) normalWrap.classList.add("hidden");
     if (!reviewWrap) return;
     reviewWrap.classList.remove("hidden");
@@ -511,114 +512,164 @@ function wireInvoiceScanner(formId, categories) {
       `<option value="">— 未分類 —</option>` +
       (categories || []).map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
 
-    let idx = 0;
-    let created = 0;
-    let skipped = 0;
+    const toEntry = (r) => ({
+      invoice_date: r.invoice_date || new Date().toISOString().slice(0, 10),
+      category_id: "",
+      untaxed_amount: r.untaxed_amount ?? "",
+      tax_amount: r.tax_amount ?? "",
+      description: "",
+      seller_tax_id: r.seller_tax_id || "",
+      buyer_tax_id: r.buyer_tax_id || "",
+      receipt_number: r.invoice_number || "",
+      src: r.error
+        ? `${r.source_filename || "拍照"}${r.page ? ` #${r.page}` : ""}・讀不到內容(${r.error}),請手動輸入或刪除此筆`
+        : `${r.source_filename || "拍照"}${r.page ? ` #${r.page}` : ""}${INVOICE_TYPE_LABEL[r.invoice_type] ? "・" + INVOICE_TYPE_LABEL[r.invoice_type] : ""}・${r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR"}`,
+    });
+    const blankEntry = () => ({
+      invoice_date: new Date().toISOString().slice(0, 10),
+      category_id: "", untaxed_amount: "", tax_amount: "", description: "",
+      seller_tax_id: "", buyer_tax_id: "", receipt_number: "", src: "手動新增",
+    });
+    const sumAmount = (e) => {
+      const u = e.untaxed_amount === "" ? null : Number(e.untaxed_amount);
+      const t = e.tax_amount === "" ? null : Number(e.tax_amount);
+      return u == null && t == null ? "" : (u || 0) + (t || 0);
+    };
 
-    const finish = () => {
+    const queue = initialQueue.map(toEntry);
+    let idx = 0;
+
+    const saveCurrentForm = () => {
+      const form = document.getElementById("q-step-form");
+      if (!form) return;
+      const fd = new FormData(form);
+      Object.assign(queue[idx], {
+        invoice_date: fd.get("expense_date") || "",
+        category_id: fd.get("category_id") || "",
+        description: fd.get("description") || "",
+        untaxed_amount: fd.get("untaxed_amount") || "",
+        tax_amount: fd.get("tax_amount") || "",
+        seller_tax_id: fd.get("seller_tax_id") || "",
+        buyer_tax_id: fd.get("buyer_tax_id") || "",
+        receipt_number: fd.get("receipt_number") || "",
+      });
+    };
+
+    const createAll = async () => {
+      let created = 0;
+      let failed = 0;
+      for (const e of queue) {
+        const amount = sumAmount(e);
+        if (!amount) {
+          failed++;
+          continue;
+        }
+        try {
+          await api(`/projects/${state.currentProjectId}/expenses`, {
+            method: "POST",
+            silent: true,
+            body: {
+              category_id: e.category_id ? Number(e.category_id) : null,
+              amount: Number(amount),
+              expense_date: e.invoice_date || new Date().toISOString().slice(0, 10),
+              description: e.description || null,
+              receipt_number: e.receipt_number || null,
+              untaxed_amount: e.untaxed_amount ? Number(e.untaxed_amount) : null,
+              tax_amount: e.tax_amount ? Number(e.tax_amount) : null,
+              seller_tax_id: e.seller_tax_id || null,
+              buyer_tax_id: e.buyer_tax_id || null,
+            },
+          });
+          created++;
+        } catch (err) {
+          failed++;
+        }
+      }
       closeModal();
       const parts = [`已建立 ${created} 筆`];
-      if (skipped) parts.push(`略過 ${skipped} 筆`);
+      if (failed) parts.push(`${failed} 筆未填金額或建立失敗`);
       toast(parts.join("・"), created ? "success" : "error");
       renderTab("expenses");
     };
 
     const paint = () => {
-      if (idx >= queue.length) {
-        finish();
-        return;
-      }
-      const r = queue[idx];
-      const src = `${escapeHtml(r.source_filename || "拍照")}${r.page ? ` #${r.page}` : ""}`;
-      const progress = `第 ${idx + 1} 筆・共 ${queue.length} 筆${created ? `(已建立 ${created} 筆)` : ""}`;
-
-      if (r.error) {
-        reviewWrap.innerHTML = `
-          <div class="helper-text" style="margin-bottom:8px">${progress}</div>
-          <div class="exp-sec" style="border-color:rgba(239,68,68,.35)">
-            <div class="exp-sec-title" style="color:var(--danger)">${src}・讀不到內容</div>
-            <div style="color:var(--danger);font-size:13.5px">${escapeHtml(r.error)}</div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn-secondary" id="q-step-cancel">取消其餘</button>
-            <button type="button" class="btn-primary" id="q-step-skip" style="background:#0d9488;border-color:#0d9488">下一筆 →</button>
-          </div>`;
-        document.getElementById("q-step-cancel").addEventListener("click", finish);
-        document.getElementById("q-step-skip").addEventListener("click", () => {
-          skipped++;
-          idx++;
-          paint();
-        });
-        return;
-      }
-
-      const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
-      const srcTag = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
+      const e = queue[idx];
       const isLast = idx === queue.length - 1;
 
       reviewWrap.innerHTML = `
-        <div class="helper-text" style="margin-bottom:8px">${progress}・來源:${src}${typeLabel ? `・${typeLabel}` : ""}・${srcTag}</div>
+        <div class="helper-text" style="margin-bottom:8px">第 ${idx + 1} 筆・共 ${queue.length} 筆・來源:${escapeHtml(e.src)}</div>
         <form id="q-step-form">
           <div class="exp-sec">
             <div class="exp-sec-title">支出資訊</div>
             <div class="field-row">
-              <div class="field"><label>日期</label><input type="date" name="expense_date" value="${escapeHtml(r.invoice_date) || new Date().toISOString().slice(0, 10)}" required></div>
+              <div class="field"><label>日期</label><input type="date" name="expense_date" value="${escapeHtml(e.invoice_date)}" required></div>
               <div class="field"><label>費用類別</label><select name="category_id">${catOptions}</select></div>
             </div>
-            <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" value="${r.total_amount ?? ""}" placeholder="例: 85000" required></div>
-            <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
+            <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" id="q-step-amount" value="${sumAmount(e)}" placeholder="由未稅金額+稅額自動加總" readonly required style="background:var(--surface-2);cursor:not-allowed"></div>
+            <div class="field"><label>說明</label><input name="description" value="${escapeHtml(e.description)}" placeholder="例: 第一次說明會場地費"></div>
           </div>
           <div class="exp-sec">
             <div class="exp-sec-title">發票明細(掃描後自動帶入)</div>
             <div class="field-row">
-              <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" value="${r.untaxed_amount ?? ""}"></div>
-              <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" value="${r.tax_amount ?? ""}"></div>
+              <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" id="q-step-untaxed" step="1" value="${escapeHtml(e.untaxed_amount)}"></div>
+              <div class="field"><label>稅額</label><input type="number" name="tax_amount" id="q-step-tax" step="1" value="${escapeHtml(e.tax_amount)}"></div>
             </div>
             <div class="field-row">
-              <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(r.seller_tax_id) || ""}" placeholder="8 碼"></div>
-              <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(r.buyer_tax_id) || ""}" placeholder="8 碼"></div>
+              <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(e.seller_tax_id)}" placeholder="8 碼"></div>
+              <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(e.buyer_tax_id)}" placeholder="8 碼"></div>
             </div>
-            <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(r.invoice_number) || ""}" placeholder="例: AX00123456"></div>
+            <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(e.receipt_number)}" placeholder="例: AX00123456"></div>
           </div>
-          <div class="modal-footer" style="justify-content:space-between">
-            <button type="button" class="btn-secondary" id="q-step-cancel">取消其餘</button>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="btn-secondary" id="q-step-skip">略過此筆</button>
-              <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">${isLast ? "建立並完成" : "建立並下一筆 →"}</button>
-            </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary btn-sm" id="q-step-add" style="margin-right:auto">+ 新增一筆</button>
+            <button type="button" class="btn-danger btn-sm" id="q-step-delete">刪除此筆</button>
+            ${idx > 0 ? `<button type="button" class="btn-secondary btn-sm" id="q-step-prev">上一筆</button>` : ""}
+            <button type="submit" class="btn-primary btn-sm" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
           </div>
         </form>`;
 
-      document.getElementById("q-step-cancel").addEventListener("click", finish);
-      document.getElementById("q-step-skip").addEventListener("click", () => {
-        skipped++;
+      const form = document.getElementById("q-step-form");
+      const amountInput = document.getElementById("q-step-amount");
+      const recalc = () => {
+        const u = document.getElementById("q-step-untaxed").value;
+        const t = document.getElementById("q-step-tax").value;
+        amountInput.value = sumAmount({ untaxed_amount: u, tax_amount: t });
+      };
+      document.getElementById("q-step-untaxed").addEventListener("input", recalc);
+      document.getElementById("q-step-tax").addEventListener("input", recalc);
+
+      document.getElementById("q-step-add").addEventListener("click", () => {
+        saveCurrentForm();
+        queue.splice(idx + 1, 0, blankEntry());
         idx++;
         paint();
       });
-      document.getElementById("q-step-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const data = Object.fromEntries(fd.entries());
-        const payload = {
-          category_id: data.category_id ? Number(data.category_id) : null,
-          amount: Number(data.amount),
-          expense_date: data.expense_date,
-          description: data.description || null,
-          receipt_number: data.receipt_number || null,
-          untaxed_amount: data.untaxed_amount ? Number(data.untaxed_amount) : null,
-          tax_amount: data.tax_amount ? Number(data.tax_amount) : null,
-          seller_tax_id: data.seller_tax_id || null,
-          buyer_tax_id: data.buyer_tax_id || null,
-        };
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        if (submitBtn) submitBtn.disabled = true;
-        try {
-          await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload });
-          created++;
+      document.getElementById("q-step-delete").addEventListener("click", () => {
+        if (queue.length === 1) {
+          closeModal();
+          toast("已取消,尚未建立任何支出", "success");
+          return;
+        }
+        queue.splice(idx, 1);
+        if (idx >= queue.length) idx = queue.length - 1;
+        paint();
+      });
+      const prevBtn = document.getElementById("q-step-prev");
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          saveCurrentForm();
+          idx--;
+          paint();
+        });
+      }
+      form.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        saveCurrentForm();
+        if (isLast) {
+          createAll();
+        } else {
           idx++;
           paint();
-        } catch (err) {
-          if (submitBtn) submitBtn.disabled = false;
         }
       });
     };
