@@ -316,6 +316,11 @@ function invoiceScanEnsureStyle() {
     #invoice-scan-panel { border:1px solid var(--border); border-radius:12px; padding:12px;
       margin-bottom:16px; background:var(--bg-subtle); }
     #invoice-scan-hint { font-size:13px; color:var(--text-muted); margin-bottom:8px; min-height:18px; }
+    .isc-loading { display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:12px; padding:26px 12px 10px; font-size:14.5px; font-weight:700; color:var(--text); text-align:center; }
+    .isc-spinner { width:30px; height:30px; border:3px solid rgba(13,148,136,.18);
+      border-top-color:#0d9488; border-radius:50%; animation:isc-spin .8s linear infinite; }
+    @keyframes isc-spin { to { transform:rotate(360deg); } }
     .exp-sec { border:1px solid var(--border); border-radius:12px; padding:14px 16px 4px; margin-bottom:14px; background:var(--surface); }
     .exp-sec-title { font-size:12px; font-weight:800; color:var(--brand-dark, #0d9488); letter-spacing:.03em; margin-bottom:10px; }
     .exp-sec .field-row { flex-wrap:wrap; }
@@ -345,6 +350,7 @@ function wireInvoiceScanner(formId, categories) {
   const finishBtn = document.getElementById("invoice-finish-btn");
   const hint = document.getElementById("invoice-scan-hint");
   const extra = document.getElementById("invoice-scan-extra");
+  const actionsRow = document.getElementById("invoice-scan-actions");
   const underForm = document.getElementById(formId);
   if (!btn || !panel) return;
   invoiceScanEnsureStyle();
@@ -356,6 +362,7 @@ function wireInvoiceScanner(formId, categories) {
       reviewWrap.classList.add("hidden");
       reviewWrap.innerHTML = "";
     }
+    if (actionsRow) actionsRow.style.justifyContent = "";
   };
   // 掃描面板(拍照 / 逐筆審核)跟底下手動填寫的表單只留一個 —— 面板開著就把原本的
   // 表單藏起來,不然畫面上會同時看到兩份「支出資訊」,使用者搞不清楚要填哪個。
@@ -654,7 +661,9 @@ function wireInvoiceScanner(formId, categories) {
     if (finishBtn) finishBtn.classList.add("hidden");
     const stage = document.getElementById("invoice-scan-stage");
     if (stage) stage.classList.add("hidden");
-    hint.textContent = files.length > 1 ? `已選擇 ${files.length} 個檔案,辨識中…` : "已選擇檔案,辨識中…";
+    const loadingMsg = files.length > 1 ? `已選擇 ${files.length} 個檔案,辨識中…` : "已選擇檔案,辨識中…";
+    hint.innerHTML = `<div class="isc-loading"><span class="isc-spinner"></span>${escapeHtml(loadingMsg)}</div>`;
+    if (actionsRow) actionsRow.style.justifyContent = "center";
     if (extra) extra.textContent = "";
     const pid = state.currentProjectId;
     if (!pid) {
@@ -742,7 +751,7 @@ const INVOICE_SCAN_HTML = `
           <span class="isc-c bl live"></span><span class="isc-c br live"></span>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <div id="invoice-scan-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 立即拍照</button>
         <button type="button" class="btn-primary btn-sm hidden" id="invoice-finish-btn" style="background:#0d9488;border-color:#0d9488">✅ 完成</button>
         <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
