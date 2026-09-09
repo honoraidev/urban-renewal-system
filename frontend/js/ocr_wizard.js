@@ -292,6 +292,7 @@ function renderWizardFileList() {
       (f, i) => `
       <div class="record-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i + 1}. ${escapeHtml(f.name)}</span>
+        <button type="button" class="btn-secondary btn-sm" data-rename-file="${i}" title="重新命名">✏️</button>
         <button type="button" class="btn-secondary btn-sm" data-move-up="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
         <button type="button" class="btn-secondary btn-sm" data-move-down="${i}" ${i === titleDeedWizard.files.length - 1 ? "disabled" : ""
         }>▼</button>
@@ -300,6 +301,29 @@ function renderWizardFileList() {
     )
     .join("");
 
+  wrap.querySelectorAll("[data-rename-file]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.renameFile);
+      const oldFile = titleDeedWizard.files[i];
+      const dotIdx = oldFile.name.lastIndexOf(".");
+      const ext = dotIdx > -1 ? oldFile.name.slice(dotIdx) : "";
+      const baseName = dotIdx > -1 ? oldFile.name.slice(0, dotIdx) : oldFile.name;
+      const input = prompt("重新命名檔案:", baseName);
+      if (input === null) return; // 取消
+      const newBase = input.trim();
+      if (!newBase) {
+        toast("檔名不能空白", "error");
+        return;
+      }
+      // 使用者自己打了副檔名(含 .)就照他打的用,不然沿用原本的副檔名 —— 不然
+      // 選成 PDF/圖片以外的類型,後端可能認不出格式辨識不了。
+      const newName = newBase.includes(".") ? newBase : `${newBase}${ext}`;
+      const renamed = new File([oldFile], newName, { type: oldFile.type, lastModified: oldFile.lastModified });
+      if (oldFile.sourceDocumentId) renamed.sourceDocumentId = oldFile.sourceDocumentId;
+      titleDeedWizard.files[i] = renamed;
+      renderWizardFileList();
+    });
+  });
   wrap.querySelectorAll("[data-move-up]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const i = Number(btn.dataset.moveUp);
