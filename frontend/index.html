@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260909_3">
+  <link rel="stylesheet" href="style.css?v=20260909_4">
 </head>
 
 <body>
@@ -162,15 +162,17 @@
           <div id="view-project-detail" class="hidden">
             <div class="pd-top-grid">
               <div class="pd-top-left">
-                <button class="back-link" id="back-to-dashboard">← 返回</button>
+                <div class="pd-top-line1">
+                  <button class="back-link" id="back-to-dashboard">← 返回</button>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div id="pd-status-badge"></div>
+                    <div id="pd-header-actions"></div>
+                  </div>
+                </div>
                 <div class="project-header">
                   <div>
                     <h2 id="pd-name"></h2>
                     <div class="sub" id="pd-sub"></div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <div id="pd-status-badge"></div>
-                    <div id="pd-header-actions"></div>
                   </div>
                 </div>
               </div>
