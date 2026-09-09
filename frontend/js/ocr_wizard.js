@@ -771,7 +771,7 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
 
   wrap.innerHTML = `
     <div class="pooled-ownership-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <span class="helper-text" style="margin:0">🔗 謄本「權利範圍」有「公同共有」字樣者會自動勾選「公同」;可自行勾選或取消。權利範圍請依謄本自行填寫。</span>
+      <span class="helper-text" style="margin:0">🔗 系統會根據謄本自動勾選「公同」;可自行勾選或取消。</span>
     </div>
     ${owners
       .map(

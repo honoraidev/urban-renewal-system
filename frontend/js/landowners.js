@@ -987,7 +987,7 @@ async function openEditLandownerModal(landownerId) {
             </div>
           </div>
           <div class="field-row">
-            <div class="field"><label>聯絡結果(會一併更新地主的聯絡狀態)</label>
+            <div class="field"><label>聯絡結果</label>
               <select name="c_contact_result" id="lo-c-result">
                 ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
               </select>
@@ -1126,8 +1126,8 @@ function landRecordFormFields(record) {
     </div>
     <div class="field-row">
       <div class="field"><label>土地總面積(m²)</label><input name="total_area_sqm" type="number" step="0.01" value="${r.total_area_sqm ?? 0}" autocomplete="off"></div>
-      <div class="field"><label>持分面積(m²) · 自動重算</label><input class="lr-owned-sqm" type="number" readonly placeholder="總面積 × 分子/分母" style="background:var(--bg-subtle)" tabindex="-1"></div>
-      <div class="field"><label>持分面積(坪) · 自動重算</label><input class="lr-owned-ping" type="number" readonly style="background:var(--bg-subtle)" tabindex="-1"></div>
+      <div class="field"><label>持分面積(m²)</label><input class="lr-owned-sqm" type="number" readonly placeholder="總面積 × 分子/分母" style="background:var(--bg-subtle)" tabindex="-1"></div>
+      <div class="field"><label>持分面積(坪)</label><input class="lr-owned-ping" type="number" readonly style="background:var(--bg-subtle)" tabindex="-1"></div>
     </div>
     <div class="field">
       <label>前次移轉現值或原規定地價(元/m²)</label>
@@ -1261,7 +1261,7 @@ function buildingRecordFormFields(record) {
     </div>
     <div class="field-row">
       <div class="field"><label>共有部分面積(m²)</label><input name="common_area_sqm" type="number" step="0.01" value="${r.common_area_sqm ?? 0}"></div>
-      <div class="field"><label>建物總面積(m²) · 自動重算</label><input class="br-total-area" type="number" readonly placeholder="主+附屬+共有" style="background:var(--bg-subtle)" tabindex="-1"></div>
+      <div class="field"><label>建物總面積(m²)</label><input class="br-total-area" type="number" readonly placeholder="主+附屬+共有" style="background:var(--bg-subtle)" tabindex="-1"></div>
     </div>
     <div class="field">
       <label>持分(分子/分母)</label>
