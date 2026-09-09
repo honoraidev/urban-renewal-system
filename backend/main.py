@@ -8,7 +8,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, projects, resources, sop, users
+from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -23,6 +23,7 @@ def _auto_migrate() -> None:
         models.ActivityLog.__table__.create(bind=engine, checkfirst=True)
         models.CalendarEvent.__table__.create(bind=engine, checkfirst=True)
         models.InventoryItem.__table__.create(bind=engine, checkfirst=True)
+        models.ProjectNote.__table__.create(bind=engine, checkfirst=True)
     except Exception as exc:
         print(f"[auto_migrate] table create skipped: {exc}", flush=True)
 
@@ -125,9 +126,19 @@ app.add_middleware(
 )
 
 
-def _write_activity(user_id, project_id, method, path, label, status_code):
+def _write_activity(user_id, project_id, landowner_id, method, path, label, status_code):
     db = SessionLocal()
     try:
+        # 有 landowner_id 的話,把地主姓名併進標籤(在寫入當下,不是讀取當下 - 保留
+        # 「當時是誰」的歷史紀錄,就算之後這位地主改名也不影響舊紀錄的可讀性),
+        # 案件公告面板才看得出來是「誰」的資料被改了,不只是「地主資料被改了」。
+        if landowner_id:
+            try:
+                owner = db.get(models.Landowner, landowner_id)
+                if owner and owner.name:
+                    label = f"{label} — {owner.name}"
+            except Exception:
+                pass
         db.add(
             ActivityLog(
                 user_id=user_id,
@@ -180,11 +191,11 @@ class ActivityLogMiddleware:
                 return
             if user_id is None:
                 return
-            label, project_id = describe_request(scope["method"], scope["path"])
+            label, project_id, landowner_id = describe_request(scope["method"], scope["path"])
             if label is None:
                 return
             await anyio.to_thread.run_sync(
-                _write_activity, user_id, project_id, scope["method"], scope["path"], label, status_code
+                _write_activity, user_id, project_id, landowner_id, scope["method"], scope["path"], label, status_code
             )
         except Exception:
             pass
@@ -207,6 +218,8 @@ app.include_router(ocr_intake.router)
 app.include_router(encumbrances.router)
 app.include_router(resources.router)
 app.include_router(building_view.router)
+app.include_router(project_notes.router)
+app.include_router(project_notes.feed_router)
 
 
 @app.get("/health")

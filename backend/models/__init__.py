@@ -19,6 +19,7 @@ from models.regulation import Regulation
 from models.website import Website
 from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
+from models.project_note import ProjectNote
 
 __all__ = [
     "User",
@@ -45,4 +46,5 @@ __all__ = [
     "Website",
     "FaqItem",
     "InventoryItem",
+    "ProjectNote",
 ]

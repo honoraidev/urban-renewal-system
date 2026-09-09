@@ -63,13 +63,23 @@ _RAW_RULES: list[tuple[str, str, str]] = [
 _RULES = [(m, re.compile("^" + p), label) for m, p, label in _RAW_RULES]
 
 # Paths that are mutating in HTTP terms but not worth showing in an activity feed.
-_IGNORE = re.compile(r"^/(auth/(login|logout)|dashboard/my-work)|^/projects/\d+/expenses/scan-invoice$")
+# /notes itself is excluded because it IS the manual half of the 公告 feed - logging
+# "新增公告" as an auto-entry right next to the note it just created would be noise.
+_IGNORE = re.compile(
+    r"^/(auth/(login|logout)|dashboard/my-work)"
+    r"|^/projects/\d+/expenses/scan-invoice(-batch)?$"
+    r"|^/projects/\d+/notes(/\d+)?$"
+)
 
 
-def describe_request(method: str, path: str) -> tuple[str | None, int | None]:
-    """Returns (label, project_id). label is None when the request should not be logged."""
+def describe_request(method: str, path: str) -> tuple[str | None, int | None, int | None]:
+    """Returns (label, project_id, landowner_id). label is None when the request
+    should not be logged. landowner_id lets the caller (main.py's activity-log
+    middleware) enrich the label with the landowner's name at write time - e.g.
+    「修改地主資料」→「修改地主資料 — 陳大文」- so the 案件公告 feed can show
+    *whose* address/data changed, not just that "something" changed."""
     if _IGNORE.match(path):
-        return None, None
+        return None, None, None
     project_id: int | None = None
     m = re.match(r"^/projects/(\d+)", path)
     if m:
@@ -79,8 +89,10 @@ def describe_request(method: str, path: str) -> tuple[str | None, int | None]:
             continue
         match = rule_re.match(path)
         if match:
-            if project_id is None and "pid" in match.groupdict() and match.group("pid"):
-                project_id = int(match.group("pid"))
-            return label, project_id
+            gd = match.groupdict()
+            if project_id is None and gd.get("pid"):
+                project_id = int(gd["pid"])
+            landowner_id = int(gd["lid"]) if gd.get("lid") else None
+            return label, project_id, landowner_id
     # Fallback: still record it, just with a generic label.
-    return f"{method} {path}", project_id
+    return f"{method} {path}", project_id, None
