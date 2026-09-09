@@ -361,10 +361,8 @@ async function renderSopTab(el) {
           item.form && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-form="${item.docType}">${stageForms[item.docType] ? "編輯" : "填表"}</button>`
             : "";
-        const rosterBtn =
-          item.key === "landowner_roster_confirmed" && done && !isLandowner()
-            ? `<button type="button" class="btn-primary btn-sm" id="roster-xlsx-btn">📊 產生地主清冊 Excel</button>`
-            : "";
+        // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
+        const rosterBtn = "";
         return `
         <div class="sop-checklist-item ${done ? "done" : ""}">
           <div class="sop-checklist-icon">${done ? "✓" : ""}</div>
@@ -427,33 +425,6 @@ async function renderSopTab(el) {
       } catch (err) { }
     });
   });
-
-  const rosterBtn = document.getElementById("roster-xlsx-btn");
-  if (rosterBtn) {
-    rosterBtn.addEventListener("click", async () => {
-      rosterBtn.disabled = true;
-      const orig = rosterBtn.textContent;
-      rosterBtn.textContent = "產生中…";
-      try {
-        const res = await api(`/projects/${pid}/roster.xlsx`);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        const proj = state.currentProject || {};
-        a.download = `${proj.project_code || "roster"}_地主清冊.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        toast("地主清冊已下載", "success");
-      } catch (err) {
-      } finally {
-        rosterBtn.disabled = false;
-        rosterBtn.textContent = orig;
-      }
-    });
-  }
 
   el.querySelectorAll("[data-checklist-form]").forEach((btn) => {
     btn.addEventListener("click", () => {

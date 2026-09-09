@@ -111,10 +111,16 @@ async function renderIntegratedRosterTab(el) {
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
       </div>
-      ${isEditor()
+      <div style="display:flex;align-items:center;gap:8px">
+        ${rosterConfirmed && !isLandowner()
+      ? `<button type="button" class="btn-primary btn-sm" id="roster-xlsx-btn">📊 產生地主清冊 Excel</button>`
+      : ""
+    }
+        ${isEditor()
       ? `<button type="button" class="btn-${rosterConfirmed ? "secondary" : "primary"} btn-sm" id="integ-roster-confirm-btn" data-confirmed="${rosterConfirmed}">${rosterConfirmed ? "✓ 已確認地主清冊(點擊取消)" : "確認地主清冊正確"}</button>`
       : ""
     }
+      </div>
     </div>
     <style>
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
@@ -239,6 +245,33 @@ async function renderIntegratedRosterTab(el) {
         renderTab("integrated");
       } catch (err) {
         confirmRosterBtn.disabled = false;
+      }
+    });
+  }
+
+  const rosterXlsxBtn = document.getElementById("roster-xlsx-btn");
+  if (rosterXlsxBtn) {
+    rosterXlsxBtn.addEventListener("click", async () => {
+      rosterXlsxBtn.disabled = true;
+      const orig = rosterXlsxBtn.textContent;
+      rosterXlsxBtn.textContent = "產生中…";
+      try {
+        const res = await api(`/projects/${pid}/roster.xlsx`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const proj = state.currentProject || {};
+        a.download = `${proj.project_code || "roster"}_地主清冊.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast("地主清冊已下載", "success");
+      } catch (err) {
+      } finally {
+        rosterXlsxBtn.disabled = false;
+        rosterXlsxBtn.textContent = orig;
       }
     });
   }
