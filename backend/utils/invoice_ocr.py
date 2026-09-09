@@ -386,8 +386,9 @@ def extract_invoices_multi(file_bytes: bytes, content_type: str | None = None) -
       - 圖片:先找有沒有多個電子發票 QR(一張照片拍了好幾張證明聯) —— 有就每個
         QR 各算一筆;沒有 QR 才落回原本的單張 OCR/AI 辨識(每張影像最多算一筆;
         沒有 QR 的紙本發票疊在一起拍暫不支援自動切開,請每張分開拍或分開上傳)。
-      每筆額外附上 "page"(第幾頁/第幾張,從 1 起算),讀不到的頁面直接跳過、
-      不會讓整批失敗;整份都讀不到才丟例外。"""
+      每筆額外附上 "page"(第幾頁/第幾張,從 1 起算)。讀不到的頁面不會讓整批失敗,
+      但也不會被默默丟掉 —— 會回一筆帶 "error" 的佔位資料,讓前端逐筆審核畫面顯示
+      「讀不到內容」並可略過,而不是無聲無息少一筆讓人搞不懂發生什麼事。"""
     is_pdf = (content_type or "").lower().endswith("pdf") or file_bytes[:5] == b"%PDF-"
 
     def _one_image(image_bytes: bytes, page: int) -> list[dict]:
@@ -401,8 +402,8 @@ def extract_invoices_multi(file_bytes: bytes, content_type: str | None = None) -
             single = _extract_single_image(image_bytes)
             single["page"] = page
             return [single]
-        except InvoiceOcrError:
-            return []
+        except InvoiceOcrError as exc:
+            return [{"page": page, "error": str(exc)}]
 
     if is_pdf:
         pages = _pdf_all_pages_png(file_bytes)
@@ -411,11 +412,6 @@ def extract_invoices_multi(file_bytes: bytes, content_type: str | None = None) -
         results = []
         for i, png in enumerate(pages, start=1):
             results.extend(_one_image(png, i))
-        if not results:
-            raise InvoiceOcrError("這份 PDF 每一頁都讀不到發票內容")
         return results
 
-    results = _one_image(file_bytes, 1)
-    if not results:
-        raise InvoiceOcrError("讀不到發票內容,請拍清楚一點、對正、光線充足再試")
-    return results
+    return _one_image(file_bytes, 1)
