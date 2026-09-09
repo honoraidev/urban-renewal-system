@@ -345,6 +345,7 @@ function wireInvoiceScanner(formId, categories) {
   const finishBtn = document.getElementById("invoice-finish-btn");
   const hint = document.getElementById("invoice-scan-hint");
   const extra = document.getElementById("invoice-scan-extra");
+  const underForm = document.getElementById(formId);
   if (!btn || !panel) return;
   invoiceScanEnsureStyle();
 
@@ -355,6 +356,16 @@ function wireInvoiceScanner(formId, categories) {
       reviewWrap.classList.add("hidden");
       reviewWrap.innerHTML = "";
     }
+  };
+  // 掃描面板(拍照 / 逐筆審核)跟底下手動填寫的表單只留一個 —— 面板開著就把原本的
+  // 表單藏起來,不然畫面上會同時看到兩份「支出資訊」,使用者搞不清楚要填哪個。
+  const showPanel = () => {
+    panel.classList.remove("hidden");
+    if (underForm) underForm.classList.add("hidden");
+  };
+  const hidePanel = () => {
+    panel.classList.add("hidden");
+    if (underForm) underForm.classList.remove("hidden");
   };
 
   // LINE 內建瀏覽器等 in-app webview 常在切換畫面(例如按下快門的瞬間)把相機串流
@@ -474,7 +485,7 @@ function wireInvoiceScanner(formId, categories) {
     const queue = _invoiceQueue.slice();
     stopInvoiceScan(); // 停相機、清計時器,也會清空 _invoiceQueue —— 所以先複製一份
     if (!queue.length) {
-      panel.classList.add("hidden");
+      hidePanel();
       closeMenu();
       return;
     }
@@ -612,7 +623,7 @@ function wireInvoiceScanner(formId, categories) {
   btn.addEventListener("click", () => {
     if (!panel.classList.contains("hidden")) {
       stopInvoiceScan();
-      panel.classList.add("hidden");
+      hidePanel();
       closeMenu();
       showNormalMode();
       return;
@@ -628,7 +639,7 @@ function wireInvoiceScanner(formId, categories) {
       shotBtn.textContent = "📸 立即拍照";
     }
     if (finishBtn) finishBtn.classList.add("hidden");
-    panel.classList.remove("hidden");
+    showPanel();
     if (extra) extra.textContent = "";
     await openCamera();
   };
@@ -638,7 +649,7 @@ function wireInvoiceScanner(formId, categories) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
     showNormalMode();
-    panel.classList.remove("hidden");
+    showPanel();
     if (shotBtn) shotBtn.classList.add("hidden"); // 靜態圖片/PDF,沒有相機快門可按
     if (finishBtn) finishBtn.classList.add("hidden");
     const stage = document.getElementById("invoice-scan-stage");
@@ -648,7 +659,7 @@ function wireInvoiceScanner(formId, categories) {
     const pid = state.currentProjectId;
     if (!pid) {
       toast("請先進入案件", "error");
-      panel.classList.add("hidden");
+      hidePanel();
       return;
     }
     const fd = new FormData();
@@ -658,12 +669,12 @@ function wireInvoiceScanner(formId, categories) {
       const r = await api(`/projects/${pid}/expenses/scan-invoice-batch`, { method: "POST", body: fd, isForm: true });
       results = r.results || [];
     } catch (e) {
-      panel.classList.add("hidden");
+      hidePanel();
       return;
     }
     if (!results.length) {
       toast("沒有辨識出任何發票", "error");
-      panel.classList.add("hidden");
+      hidePanel();
       return;
     }
     _invoiceQueue.push(...results);
@@ -707,7 +718,7 @@ function wireInvoiceScanner(formId, categories) {
   if (closeBtn)
     closeBtn.addEventListener("click", () => {
       stopInvoiceScan();
-      panel.classList.add("hidden");
+      hidePanel();
       closeMenu();
     });
 }
