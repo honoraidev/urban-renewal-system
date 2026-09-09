@@ -132,6 +132,35 @@ function bootstrapApp() {
     });
   }
 
+  const invoiceBtn = document.getElementById("btn-run-invoice");
+  if (invoiceBtn) {
+    invoiceBtn.addEventListener("click", () => {
+      openModal(
+        "發票掃描 - 使用說明",
+        `
+        <div style="padding:4px 0">
+          <div style="background:#ffedd5;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px">
+            <div style="font-size:14px;color:#9a3412;line-height:1.5">
+              <strong>拍照或上傳電子發票證明聯，自動辨識金額、日期、統編並回填費用表單！</strong>
+            </div>
+          </div>
+
+          <h4 style="margin:12px 0 8px;font-size:15px;color:var(--text-main);font-weight:700">📍 如何使用此功能：</h4>
+          <ol style="margin:0 0 16px 20px;padding:0;font-size:14px;color:var(--text-muted);line-height:1.8">
+            <li>請由左側選單進入任一<strong>「都更案件」</strong>。</li>
+            <li>切換至 <strong>「費用」</strong> 頁籤，點擊<strong>「新增費用」</strong>。</li>
+            <li>在表單中按 <strong>「📷 掃描發票(拍照辨識)」</strong>,對準發票下方的 QR code 拍照,或直接上傳照片 / PDF。</li>
+            <li>系統會優先讀 QR code(最準確),讀不到才改用 OCR 掃描文字並自動互算未稅金額 / 營業稅 / 總計,辨識結果自動回填發票號碼、日期、金額欄位,可再手動修正。</li>
+          </ol>
+
+          <div class="modal-footer" style="margin-top:20px">
+            <button type="button" class="btn-primary" onclick="closeModal()">我知道了</button>
+          </div>
+        </div>`
+      );
+    });
+  }
+
   (async function init() {
     if (state.token) {
       try {

@@ -374,6 +374,25 @@
                 </div>
               </div>
 
+              <!-- Card 3: 發票掃描 -->
+              <div
+                style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,0.02)">
+                <div>
+                  <div
+                    style="width:52px;height:52px;border-radius:14px;background:#ffedd5;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px">
+                    🧾</div>
+                  <div style="font-size:17px;font-weight:700;color:var(--text-main);margin-bottom:8px">發票掃描</div>
+                  <div style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
+                    拍照或上傳電子發票證明聯,優先讀取 QR code 精準取值,讀不到再用 OCR 掃描並自動校正互算未稅金額、營業稅與總計,一鍵回填費用表單。</div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span
+                    style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">已上線</span>
+                  <button type="button" class="btn-primary btn-sm" id="btn-run-invoice"
+                    style="background:#0d9488;border-color:#0d9488;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600">使用說明</button>
+                </div>
+              </div>
+
               <!-- Card 4: 製作同意書 -->
               <div
                 style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,0.02)">
@@ -455,7 +474,7 @@
   <script src="js/inventory.js?v=20260908_8"></script>
   <script src="js/buildingview.js?v=20260907_1"></script>
   <script src="js/land_value_tax.js?v=20260901_4"></script>
-  <script src="js/main.js?v=20260908_1"></script>
+  <script src="js/main.js?v=20260909_1"></script>
 </body>
 
 </html>
