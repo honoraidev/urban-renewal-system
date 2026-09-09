@@ -287,22 +287,6 @@ function stopInvoiceScan() {
   if (stage) stage.classList.add("hidden");
 }
 
-function applyInvoiceToForm(formId, parsed) {
-  const form = document.getElementById(formId);
-  if (!form || !parsed) return;
-  const set = (name, val) => {
-    const el = form.querySelector(`[name="${name}"]`);
-    if (el && val != null && val !== "") el.value = val;
-  };
-  set("expense_date", parsed.expense_date);
-  set("amount", parsed.amount);
-  set("receipt_number", parsed.invoice_number);
-  set("untaxed_amount", parsed.untaxed_amount);
-  set("tax_amount", parsed.tax_amount);
-  set("seller_tax_id", parsed.seller_tax_id);
-  set("buyer_tax_id", parsed.buyer_tax_id);
-}
-
 function invoiceScanEnsureStyle() {
   if (document.getElementById("invoice-scan-style")) return;
   const s = document.createElement("style");
@@ -343,11 +327,10 @@ function invoiceScanEnsureStyle() {
   document.head.appendChild(s);
 }
 
-// 綁定發票辨識按鈕。formId = 該表單 id,用來回填欄位。整張發票拍照後交後端本機 OCR 辨識。
-// formId = 該表單 id,只有辨識到「剛好 1 張」發票時才會直接回填進去。categories 給
-// 多筆審核表的類別下拉選單用。拍照可連續拍好幾張、選相片/選檔案也都能一次選多個
-// (或一份多頁 PDF) —— 全部併成同一個佇列,「完成」時 1 筆就回填表單,多筆就切成
-// 審核表一次建立多筆支出,不用另外開一個「批次匯入」按鈕。
+// 綁定發票辨識按鈕。整張發票拍照後交後端 OCR/AI 辨識,categories 給逐筆表單的
+// 類別下拉選單用。拍照可連續拍好幾張、選相片/選檔案也都能一次選多個(或一份多頁
+// PDF)—— 全部併成同一個佇列,「完成」後一律走 renderQueueStepper() 逐筆帶入表單、
+// 按「建立並下一筆」確認,不論這次掃了 1 張還是好幾張,介面都一樣。
 function wireInvoiceScanner(formId, categories) {
   const btn = document.getElementById("scan-invoice-btn");
   const menu = document.getElementById("invoice-scan-menu");
@@ -485,36 +468,14 @@ function wireInvoiceScanner(formId, categories) {
     }
   }
 
-  // 佇列收尾:只有 1 張就直接帶入這張表單(維持單張的原本手感);多張(或含錯誤的
-  // 1 張)就切到審核表一次建立多筆支出,並關掉整個記錄支出視窗。
+  // 佇列收尾:不論辨識到 1 張還是多張,一律走同一套逐筆帶入表單、按「建立並下一
+  // 筆」的流程 —— 介面只有一種,不用先猜使用者這次掃了幾張。
   function finalizeQueue() {
     const queue = _invoiceQueue.slice();
     stopInvoiceScan(); // 停相機、清計時器,也會清空 _invoiceQueue —— 所以先複製一份
     if (!queue.length) {
       panel.classList.add("hidden");
       closeMenu();
-      return;
-    }
-    const validCount = queue.filter((r) => !r.error).length;
-    if (queue.length === 1 && validCount === 1) {
-      const r = queue[0];
-      applyInvoiceToForm(formId, {
-        invoice_number: r.invoice_number || null,
-        expense_date: r.invoice_date || null,
-        amount: r.total_amount != null ? r.total_amount : null,
-        untaxed_amount: r.untaxed_amount != null ? r.untaxed_amount : null,
-        tax_amount: r.tax_amount != null ? r.tax_amount : null,
-        seller_tax_id: r.seller_tax_id || null,
-        buyer_tax_id: r.buyer_tax_id || null,
-      });
-      panel.classList.add("hidden");
-      closeMenu();
-      const src = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
-      const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
-      toast(
-        `已由 ${src} 帶入${typeLabel ? `(${typeLabel})` : ""}${r.total_amount != null ? " · 總計 $" + r.total_amount : ""},請確認`,
-        "success"
-      );
       return;
     }
     renderQueueStepper(queue);
