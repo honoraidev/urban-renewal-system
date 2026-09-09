@@ -291,7 +291,7 @@ function renderWizardFileList() {
     .map(
       (f, i) => `
       <div class="record-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px">
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i + 1}. ${escapeHtml(f.name)}</span>
+        <span class="wizard-file-name" data-file-idx="${i}" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text" title="點兩下或按 ✏️ 重新命名">${i + 1}. ${escapeHtml(f.name)}</span>
         <button type="button" class="btn-secondary btn-sm" data-rename-file="${i}" title="重新命名">✏️</button>
         <button type="button" class="btn-secondary btn-sm" data-move-up="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
         <button type="button" class="btn-secondary btn-sm" data-move-down="${i}" ${i === titleDeedWizard.files.length - 1 ? "disabled" : ""
@@ -301,28 +301,60 @@ function renderWizardFileList() {
     )
     .join("");
 
-  wrap.querySelectorAll("[data-rename-file]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const i = Number(btn.dataset.renameFile);
-      const oldFile = titleDeedWizard.files[i];
-      const dotIdx = oldFile.name.lastIndexOf(".");
-      const ext = dotIdx > -1 ? oldFile.name.slice(dotIdx) : "";
-      const baseName = dotIdx > -1 ? oldFile.name.slice(0, dotIdx) : oldFile.name;
-      const input = prompt("重新命名檔案:", baseName);
-      if (input === null) return; // 取消
-      const newBase = input.trim();
-      if (!newBase) {
+  // 檔名直接在畫面上變成輸入框改,不跳瀏覽器原生的 prompt() 對話框。
+  const startInlineRename = (i) => {
+    const span = wrap.querySelector(`.wizard-file-name[data-file-idx="${i}"]`);
+    if (!span) return;
+    const oldFile = titleDeedWizard.files[i];
+    const dotIdx = oldFile.name.lastIndexOf(".");
+    const ext = dotIdx > -1 ? oldFile.name.slice(dotIdx) : "";
+    const baseName = dotIdx > -1 ? oldFile.name.slice(0, dotIdx) : oldFile.name;
+    span.outerHTML = `
+      <span style="flex:1;min-width:0;display:flex;align-items:center;gap:4px">
+        <input type="text" class="wizard-file-rename-input" data-file-idx="${i}" value="${escapeHtml(baseName)}"
+          style="flex:1;min-width:0;padding:3px 6px;font-size:13px">
+        <span class="helper-text" style="white-space:nowrap">${escapeHtml(ext)}</span>
+      </span>`;
+    const input = wrap.querySelector(`.wizard-file-rename-input[data-file-idx="${i}"]`);
+    input.focus();
+    input.select();
+    let done = false;
+    const commit = () => {
+      if (done) return;
+      done = true;
+      const newBase = input.value.trim();
+      if (newBase) {
+        const newName = `${newBase}${ext}`;
+        const renamed = new File([oldFile], newName, { type: oldFile.type, lastModified: oldFile.lastModified });
+        if (oldFile.sourceDocumentId) renamed.sourceDocumentId = oldFile.sourceDocumentId;
+        titleDeedWizard.files[i] = renamed;
+      } else {
         toast("檔名不能空白", "error");
-        return;
       }
-      // 使用者自己打了副檔名(含 .)就照他打的用,不然沿用原本的副檔名 —— 不然
-      // 選成 PDF/圖片以外的類型,後端可能認不出格式辨識不了。
-      const newName = newBase.includes(".") ? newBase : `${newBase}${ext}`;
-      const renamed = new File([oldFile], newName, { type: oldFile.type, lastModified: oldFile.lastModified });
-      if (oldFile.sourceDocumentId) renamed.sourceDocumentId = oldFile.sourceDocumentId;
-      titleDeedWizard.files[i] = renamed;
       renderWizardFileList();
+    };
+    const cancel = () => {
+      if (done) return;
+      done = true;
+      renderWizardFileList();
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
     });
+    input.addEventListener("blur", commit);
+  };
+
+  wrap.querySelectorAll("[data-rename-file]").forEach((btn) => {
+    btn.addEventListener("click", () => startInlineRename(Number(btn.dataset.renameFile)));
+  });
+  wrap.querySelectorAll(".wizard-file-name").forEach((span) => {
+    span.addEventListener("dblclick", () => startInlineRename(Number(span.dataset.fileIdx)));
   });
   wrap.querySelectorAll("[data-move-up]").forEach((btn) => {
     btn.addEventListener("click", () => {
