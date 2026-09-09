@@ -30,6 +30,12 @@ function fmtMoney(n) {
   return Number(n).toLocaleString("zh-TW", { maximumFractionDigits: 0 });
 }
 
+// 所有面積(㎡/坪)跟面積加總一律固定小數兩位顯示,整數也要補成 X.00 —— 不要讓
+// 「137」「137.50」這種位數不一致的樣子混在同一欄。null/undefined/空字串顯示 "-"。
+function fmtArea(n) {
+  return n === null || n === undefined || n === "" ? "-" : Number(n).toFixed(2);
+}
+
 function formatMonthToMinguo(val) {
   if (!val) return "";
   const s = String(val).trim();

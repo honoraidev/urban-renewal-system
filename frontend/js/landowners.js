@@ -77,7 +77,7 @@ async function renderIntegratedRosterTab(el) {
   const rosterConfirmed = !!sop?.stages?.["1"]?.data?.checklist?.landowner_roster_confirmed;
   const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
 
-  const fmt2 = (n) => (n || n === 0 ? Number(n).toFixed(2) : "-");
+  const fmt2 = fmtArea;
   const uniqJoin = (arr) => [...new Set(arr.filter(Boolean))].join("、");
 
   // 「已連繫 / 待聯繫」由 contact_status + 逾期推導(一列可同時是已連繫又待聯繫)
@@ -376,9 +376,9 @@ async function renderLandownersTypeTab(el, type) {
                 (lr) => `<tr>
                                 <td>${escapeHtml(lr.parcel_number)}</td>
                                 <td>${escapeHtml(lr.section) || "-"}</td>
-                                <td>${lr.total_area_sqm}m²</td>
+                                <td>${fmtArea(lr.total_area_sqm)}m²</td>
                                 <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
-                                <td>${lr.owned_area_sqm ?? "-"}m² (${lr.ownership_share_pct ?? "-"}%)</td>
+                                <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
                                 ${isEditor()
                     ? `<td class="actions-cell">
                                         <button class="btn-secondary btn-sm" data-edit-land="${lr.id}" data-owner="${o.id}">編輯</button>
@@ -407,7 +407,7 @@ async function renderLandownersTypeTab(el, type) {
                                 <td>${escapeHtml(br.building_number) || "-"}</td>
                                 <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
                                 <td>${escapeHtml(br.floor) || "-"}</td>
-                                <td>${br.total_area_sqm}m²</td>
+                                <td>${fmtArea(br.total_area_sqm)}m²</td>
                                 <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
                                 ${isEditor()
                     ? `<td class="actions-cell">

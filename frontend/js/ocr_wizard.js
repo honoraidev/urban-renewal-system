@@ -2293,9 +2293,9 @@ function renderBatchParcelsTab() {
         <tr>
           <td>${escapeHtml(r.parcel_number)}</td>
           <td>${escapeHtml([r.township, r.section, r.subsection].filter(Boolean).join(""))}</td>
-          <td>${r.total_area_sqm}</td>
+          <td>${fmtArea(r.total_area_sqm)}</td>
           <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
-          <td>${r.owned_area_sqm ?? "-"}</td>
+          <td>${fmtArea(r.owned_area_sqm)}</td>
         </tr>`
       )
       .join("")}
@@ -2316,7 +2316,7 @@ function renderBatchBuildingsTab() {
           <td>${escapeHtml(r.building_number) || "-"}</td>
           <td>${escapeHtml(r.address) || "-"}</td>
           <td>${escapeHtml(r.floor) || "-"}</td>
-          <td>${r.total_area_sqm}</td>
+          <td>${fmtArea(r.total_area_sqm)}</td>
           <td>${r.ownership_numerator}/${r.ownership_denominator}</td>
         </tr>`
       )
