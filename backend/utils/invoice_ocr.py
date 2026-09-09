@@ -50,6 +50,20 @@ def _pdf_first_page_png(pdf_bytes: bytes) -> bytes | None:
         return None
 
 
+def _pdf_all_pages_png(pdf_bytes: bytes, max_pages: int = 30) -> list[bytes]:
+    """批次匯入用:掃描機常把好幾張發票掃成一份多頁 PDF,每一頁各當一張影像處理。"""
+    try:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        return [
+            doc.load_page(i).get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72)).tobytes("png")
+            for i in range(min(doc.page_count, max_pages))
+        ]
+    except Exception:
+        return []
+
+
 # ============================================================ ① QR
 
 def _decode_qr_strings(image_bytes: bytes) -> list[str]:
@@ -105,13 +119,21 @@ def _parse_einvoice_left_qr(s: str) -> dict | None:
     }
 
 
-def _try_qr(image_bytes: bytes) -> dict | None:
+def _try_qr_all(image_bytes: bytes) -> list[dict]:
+    """跟 _try_qr 一樣,但一次回傳影像裡讀到的『所有』電子發票 QR —— 一張照片裡拍了
+    好幾張電子發票證明聯(或收據上印了好幾張)時,每個 QR 都會變成一筆發票。"""
+    out = []
     for s in _decode_qr_strings(image_bytes):
         parsed = _parse_einvoice_left_qr(s.strip())
         if parsed:
             parsed["invoice_type"] = "electronic"
-            return parsed
-    return None
+            out.append(parsed)
+    return out
+
+
+def _try_qr(image_bytes: bytes) -> dict | None:
+    qrs = _try_qr_all(image_bytes)
+    return qrs[0] if qrs else None
 
 
 # ============================================================ 發票類型分類(③ OCR 之後)
@@ -302,21 +324,9 @@ def _extract_via_gemini(image_bytes: bytes) -> dict:  # pragma: no cover - opt-i
 
 # ============================================================ 進入點
 
-def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -> dict:
-    is_pdf = (content_type or "").lower().endswith("pdf") or file_bytes[:5] == b"%PDF-"
-    image_bytes = file_bytes
-    if is_pdf:
-        png = _pdf_first_page_png(file_bytes)
-        if png is None:
-            raise InvoiceOcrError("PDF 無法轉圖,請改上傳照片")
-        image_bytes = png
-
-    # ① QR(最準、零成本)
-    qr = _try_qr(image_bytes)
-    if qr:
-        qr["ocr_text"] = ""
-        return qr
-
+def _extract_single_image(image_bytes: bytes) -> dict:
+    """已知這張影像上沒有(或不用管)QR 的情況下,走 Gemini / 本機 OCR + 規則辨識
+    一張發票。extract_invoice_fields 跟 extract_invoices_multi 都靠這個做重活。"""
     use_gemini = bool(settings.INVOICE_USE_GEMINI and settings.GEMINI_API_KEY)
 
     # ② 沒 QR:走 Gemini。
@@ -349,3 +359,63 @@ def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -
     result = _rule_extract(text)
     result["ocr_text"] = text[:4000]
     return result
+
+
+def extract_invoice_fields(file_bytes: bytes, content_type: str | None = None) -> dict:
+    """單張發票(一張照片/一份單頁 PDF = 一張發票)。記錄支出表單裡「掃描發票」用這個。"""
+    is_pdf = (content_type or "").lower().endswith("pdf") or file_bytes[:5] == b"%PDF-"
+    image_bytes = file_bytes
+    if is_pdf:
+        png = _pdf_first_page_png(file_bytes)
+        if png is None:
+            raise InvoiceOcrError("PDF 無法轉圖,請改上傳照片")
+        image_bytes = png
+
+    # ① QR(最準、零成本)
+    qr = _try_qr(image_bytes)
+    if qr:
+        qr["ocr_text"] = ""
+        return qr
+
+    return _extract_single_image(image_bytes)
+
+
+def extract_invoices_multi(file_bytes: bytes, content_type: str | None = None) -> list[dict]:
+    """批次匯入用:一個檔案可能包含不只一張發票,回傳一張發票一筆:
+      - PDF:每一頁各自處理(掃描機常把好幾張發票掃成一份多頁 PDF)。
+      - 圖片:先找有沒有多個電子發票 QR(一張照片拍了好幾張證明聯) —— 有就每個
+        QR 各算一筆;沒有 QR 才落回原本的單張 OCR/AI 辨識(每張影像最多算一筆;
+        沒有 QR 的紙本發票疊在一起拍暫不支援自動切開,請每張分開拍或分開上傳)。
+      每筆額外附上 "page"(第幾頁/第幾張,從 1 起算),讀不到的頁面直接跳過、
+      不會讓整批失敗;整份都讀不到才丟例外。"""
+    is_pdf = (content_type or "").lower().endswith("pdf") or file_bytes[:5] == b"%PDF-"
+
+    def _one_image(image_bytes: bytes, page: int) -> list[dict]:
+        qrs = _try_qr_all(image_bytes)
+        if qrs:
+            for q in qrs:
+                q["ocr_text"] = ""
+                q["page"] = page
+            return qrs
+        try:
+            single = _extract_single_image(image_bytes)
+            single["page"] = page
+            return [single]
+        except InvoiceOcrError:
+            return []
+
+    if is_pdf:
+        pages = _pdf_all_pages_png(file_bytes)
+        if not pages:
+            raise InvoiceOcrError("PDF 無法轉圖,請改上傳照片")
+        results = []
+        for i, png in enumerate(pages, start=1):
+            results.extend(_one_image(png, i))
+        if not results:
+            raise InvoiceOcrError("這份 PDF 每一頁都讀不到發票內容")
+        return results
+
+    results = _one_image(file_bytes, 1)
+    if not results:
+        raise InvoiceOcrError("讀不到發票內容,請拍清楚一點、對正、光線充足再試")
+    return results

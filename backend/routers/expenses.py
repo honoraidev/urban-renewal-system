@@ -94,6 +94,84 @@ async def scan_invoice(
         ) from exc
 
 
+@router.post("/scan-invoice-batch")
+async def scan_invoice_batch(
+    files: list[UploadFile] = File(...),
+    project: Project = Depends(require_project_editor),
+):
+    """批次匯入用:一次辨識多個檔案(多張照片,或內含多頁/多張發票的一份 PDF),
+    每個檔案可能展開成不只一張發票(多頁 PDF 逐頁算、一張照片裡的多個電子發票 QR
+    也各算一筆)。不寫入資料庫 —— 前端把結果列成審核清單,使用者確認過才逐筆
+    呼叫 POST 建立支出。單一檔案/單頁讀失敗不中斷整批,錯誤會附在該筆結果裡。"""
+    import traceback
+
+    from utils.invoice_ocr import InvoiceOcrError, extract_invoices_multi
+
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="沒有收到檔案")
+    if len(files) > 20:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="一次最多 20 個檔案,請分批上傳")
+
+    payload = []
+    total_bytes = 0
+    for f in files:
+        content = await f.read()
+        total_bytes += len(content)
+        if total_bytes > 60 * 1024 * 1024:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="檔案總大小過大(上限 60MB)")
+        payload.append((f.filename or "invoice", content, f.content_type))
+
+    # 檔案數愈多要跑的辨識愈多,逾時上限跟著放寬(但總量還是有上限,別讓一批卡死 worker)。
+    timeout_s = min(600, 30 + 20 * len(payload))
+    results: list[dict] = []
+    try:
+        async with _SCAN_INVOICE_LIMITER:
+            with anyio.fail_after(timeout_s):
+                if settings.OCR_REMOTE_URL:
+                    async with httpx.AsyncClient(timeout=timeout_s) as client:
+                        resp = await client.post(
+                            settings.OCR_REMOTE_URL.rstrip("/") + "/invoice-batch",
+                            files=[
+                                ("files", (name, content, ctype or "application/octet-stream"))
+                                for name, content, ctype in payload
+                            ],
+                            headers={"X-OCR-Secret": settings.OCR_REMOTE_SECRET},
+                        )
+                    resp.raise_for_status()
+                    results = resp.json().get("results", [])
+                else:
+                    # 沒設遠端:本機逐檔跑(受 INVOICE_ALLOW_LOCAL_OCR 保護)。
+                    for name, content, ctype in payload:
+                        try:
+                            invoices = await anyio.to_thread.run_sync(
+                                extract_invoices_multi, content, ctype, abandon_on_cancel=True,
+                            )
+                            for inv in invoices:
+                                inv["source_filename"] = name
+                                results.append(inv)
+                        except InvoiceOcrError as exc:
+                            results.append({"source_filename": name, "page": 1, "error": str(exc)})
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="批次辨識逾時,請減少張數或分批上傳",
+        ) from exc
+    except httpx.HTTPError as exc:
+        print(f"[scan-invoice-batch] 遠端 OCR 服務錯誤:{exc!r}", flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="遠端辨識服務暫時無法使用,請稍後再試或手動輸入",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        print("[scan-invoice-batch] 未預期錯誤:\n" + traceback.format_exc(), flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"辨識時發生錯誤:{type(exc).__name__}: {exc}",
+        ) from exc
+
+    return {"results": results}
+
+
 def get_expense_or_404(db: Session, project_id: int, expense_id: int) -> Expense:
     expense = db.scalar(select(Expense).where(Expense.id == expense_id, Expense.project_id == project_id))
     if expense is None:

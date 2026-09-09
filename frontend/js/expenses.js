@@ -151,6 +151,7 @@ async function renderExpensesTab(el) {
       <!-- Action Buttons -->
       <div style="display:flex;align-items:center;gap:8px">
         ${isManager() ? `<button class="btn-secondary btn-sm" id="manage-categories-btn" style="border-radius:20px">管理類別</button>` : ""}
+        ${isEditor() ? `<button class="btn-secondary btn-sm" id="batch-import-btn" style="border-radius:20px">📥 批次匯入發票</button>` : ""}
         ${isEditor() ? `<button class="btn-primary btn-sm" id="add-expense-btn" style="background:#0d9488;border-color:#0d9488;border-radius:20px;padding:7px 16px;font-size:13px;font-weight:600">+ 記錄支出</button>` : ""}
       </div>
     </div>
@@ -251,6 +252,9 @@ async function renderExpensesTab(el) {
 
   const manageBtn = document.getElementById("manage-categories-btn");
   if (manageBtn) manageBtn.addEventListener("click", () => openManageCategoriesModal(categories));
+
+  const batchBtn = document.getElementById("batch-import-btn");
+  if (batchBtn) batchBtn.addEventListener("click", () => openBatchInvoiceModal(categories));
 }
 
 // ---- 發票辨識(拍照 → 後端 AI OCR)-------------------------------------------
@@ -325,6 +329,15 @@ function invoiceScanEnsureStyle() {
     .exp-sec .field-row { flex-wrap:wrap; }
     .exp-sec .field-row > .field { min-width:130px; }
     .exp-amount-field input { font-size:20px; font-weight:800; }
+    .batch-queue-grid { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
+    .batch-thumb { position:relative; width:76px; height:76px; border-radius:8px; overflow:hidden;
+      border:1px solid var(--border); background:var(--surface-2); display:flex; align-items:center; justify-content:center; }
+    .batch-thumb img { width:100%; height:100%; object-fit:cover; }
+    .batch-thumb-name { font-size:10px; color:var(--text-muted); padding:2px; text-align:center; word-break:break-all; }
+    .batch-thumb-x { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%;
+      border:none; background:rgba(0,0,0,.6); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; }
+    .batch-row-error td { background:rgba(239,68,68,.06); }
+    #batch-step-review table input, #batch-step-review table select { padding:5px 7px; font-size:12.5px; }
   `;
   document.head.appendChild(s);
 }
@@ -717,5 +730,302 @@ function openManageCategoriesModal(categories) {
       e.target.reset();
       await refresh();
     } catch (err) { }
+  });
+}
+
+// ---- 批次匯入發票(多張照片 / 多個檔案 / 一份多頁 PDF 一次辨識,審核後一次儲存) ----
+
+let _batchQueue = []; // [{blob, name, previewUrl}]
+let _batchCameraStream = null;
+let _batchCategories = [];
+
+function batchInvoiceEnsureStyle() {
+  invoiceScanEnsureStyle(); // 共用同一份 style,batch 的規則已併進去
+}
+
+function _batchStopCamera() {
+  if (_batchCameraStream) {
+    _batchCameraStream.getTracks().forEach((t) => t.stop());
+    _batchCameraStream = null;
+  }
+}
+
+function _batchRenderQueue() {
+  const wrap = document.getElementById("batch-queue-list");
+  const countEl = document.getElementById("batch-queue-count");
+  const scanBtn = document.getElementById("batch-scan-btn");
+  if (!wrap) return;
+  wrap.innerHTML = _batchQueue
+    .map((item, i) => {
+      const isImg = (item.blob.type || "").startsWith("image/");
+      return `<div class="batch-thumb" title="${escapeHtml(item.name)}">
+        ${isImg
+          ? `<img src="${item.previewUrl}" alt="">`
+          : `<div class="batch-thumb-name">📄<br>${escapeHtml(item.name.slice(0, 14))}</div>`}
+        <button type="button" class="batch-thumb-x" data-batch-remove="${i}">×</button>
+      </div>`;
+    })
+    .join("");
+  if (countEl) countEl.textContent = _batchQueue.length;
+  if (scanBtn) scanBtn.disabled = _batchQueue.length === 0;
+  wrap.querySelectorAll("[data-batch-remove]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const idx = Number(b.dataset.batchRemove);
+      if (_batchQueue[idx].previewUrl) URL.revokeObjectURL(_batchQueue[idx].previewUrl);
+      _batchQueue.splice(idx, 1);
+      _batchRenderQueue();
+    });
+  });
+}
+
+function _batchAddFile(blob, name) {
+  const isImg = (blob.type || "").startsWith("image/");
+  _batchQueue.push({
+    blob,
+    name: name || blob.name || `invoice_${_batchQueue.length + 1}.jpg`,
+    previewUrl: isImg ? URL.createObjectURL(blob) : "",
+  });
+  _batchRenderQueue();
+}
+
+async function _batchOpenCamera() {
+  const stage = document.getElementById("batch-cam-stage");
+  const video = document.getElementById("batch-cam-video");
+  if (!stage || !video) return;
+  stage.classList.remove("hidden");
+  try {
+    _batchCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    video.srcObject = _batchCameraStream;
+    video.setAttribute("playsinline", "");
+    await video.play();
+  } catch (e) {
+    toast("無法開啟相機(需 HTTPS 並允許權限):" + ((e && e.name) || e), "error");
+    stage.classList.add("hidden");
+  }
+}
+
+function _batchGrabStill(video) {
+  if (!video || !video.videoWidth) return Promise.resolve(null);
+  const c = document.createElement("canvas");
+  c.width = video.videoWidth;
+  c.height = video.videoHeight;
+  c.getContext("2d").drawImage(video, 0, 0);
+  return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.85));
+}
+
+function openBatchInvoiceModal(categories) {
+  _batchQueue = [];
+  _batchCategories = categories || [];
+  batchInvoiceEnsureStyle();
+
+  openModal(
+    "批次匯入發票",
+    `
+    <div id="batch-step-collect">
+      <div class="helper-text" style="margin-bottom:10px">
+        拍照或選多張發票照片 / PDF 加入清單(一份 PDF 裡有好幾頁發票、或一張照片拍了好幾張電子發票 QR 都會自動拆開),
+        加完按「開始辨識」,辨識完再一次確認金額、一次儲存。
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button type="button" class="btn-secondary btn-sm" id="batch-cam-btn">📷 拍照加入</button>
+        <label class="btn-secondary btn-sm" style="cursor:pointer">📁 選擇多個檔案(可複選)
+          <input type="file" id="batch-file-input" accept="image/*,application/pdf" multiple style="display:none">
+        </label>
+      </div>
+      <div id="batch-cam-stage" class="hidden" style="margin-bottom:10px">
+        <video id="batch-cam-video" playsinline muted style="width:100%;border-radius:12px;max-height:50vh;object-fit:cover;background:#000;display:block"></video>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="button" class="btn-primary btn-sm" id="batch-cam-shot" style="background:#0d9488;border-color:#0d9488">📸 拍照加入(可連續拍)</button>
+          <button type="button" class="btn-secondary btn-sm" id="batch-cam-close">關閉相機</button>
+        </div>
+      </div>
+      <div id="batch-queue-list" class="batch-queue-grid"></div>
+      <div class="modal-footer">
+        <span class="helper-text" style="margin-right:auto">已加入 <strong id="batch-queue-count">0</strong> 個檔案</span>
+        <button type="button" class="btn-secondary" id="batch-cancel-btn">取消</button>
+        <button type="button" class="btn-primary" id="batch-scan-btn" disabled style="background:#0d9488;border-color:#0d9488">開始辨識</button>
+      </div>
+    </div>
+    <div id="batch-step-review" class="hidden"></div>
+    `,
+    { width: "760px" }
+  );
+
+  _batchRenderQueue();
+
+  document.getElementById("batch-cam-btn").addEventListener("click", _batchOpenCamera);
+  document.getElementById("batch-cam-close").addEventListener("click", () => {
+    _batchStopCamera();
+    document.getElementById("batch-cam-stage").classList.add("hidden");
+  });
+  document.getElementById("batch-cam-shot").addEventListener("click", async () => {
+    const video = document.getElementById("batch-cam-video");
+    const blob = await _batchGrabStill(video);
+    if (blob) _batchAddFile(blob, `拍照_${_batchQueue.length + 1}.jpg`);
+    else toast("沒抓到畫面,請再試一次", "error");
+  });
+  document.getElementById("batch-file-input").addEventListener("change", (e) => {
+    [...e.target.files].forEach((f) => _batchAddFile(f, f.name));
+    e.target.value = "";
+  });
+  document.getElementById("batch-cancel-btn").addEventListener("click", () => {
+    _batchStopCamera();
+    closeModal();
+  });
+  document.getElementById("batch-scan-btn").addEventListener("click", _batchRunScan);
+}
+
+async function _batchRunScan() {
+  _batchStopCamera();
+  const stage = document.getElementById("batch-cam-stage");
+  if (stage) stage.classList.add("hidden");
+  const pid = state.currentProjectId;
+  const scanBtn = document.getElementById("batch-scan-btn");
+  scanBtn.disabled = true;
+  const oldLabel = scanBtn.textContent;
+  scanBtn.textContent = `辨識中…請稍候(共 ${_batchQueue.length} 個檔案)`;
+  const fd = new FormData();
+  _batchQueue.forEach((item) => fd.append("files", item.blob, item.name));
+  let results = [];
+  try {
+    const r = await api(`/projects/${pid}/expenses/scan-invoice-batch`, { method: "POST", body: fd, isForm: true });
+    results = r.results || [];
+  } catch (e) {
+    scanBtn.disabled = false;
+    scanBtn.textContent = oldLabel;
+    return;
+  }
+  if (!results.length) {
+    toast("沒有辨識出任何發票", "error");
+    scanBtn.disabled = false;
+    scanBtn.textContent = oldLabel;
+    return;
+  }
+  _batchRenderReview(results);
+}
+
+function _batchRenderReview(results) {
+  document.getElementById("batch-step-collect").classList.add("hidden");
+  const stepReview = document.getElementById("batch-step-review");
+  stepReview.classList.remove("hidden");
+
+  const catOptions = (selectedId) =>
+    `<option value="">— 未分類 —</option>` +
+    _batchCategories.map((c) => `<option value="${c.id}" ${selectedId === c.id ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("");
+
+  const rowsHtml = results
+    .map((r, i) => {
+      const hasError = !!r.error;
+      const src = `${escapeHtml(r.source_filename || "")}${r.page ? ` #${r.page}` : ""}`;
+      if (hasError) {
+        return `<tr data-batch-row="${i}" class="batch-row-error">
+          <td><input type="checkbox" class="batch-row-check" disabled></td>
+          <td class="helper-text" style="white-space:nowrap">${src}</td>
+          <td colspan="6" style="color:var(--danger)">${escapeHtml(r.error)}</td>
+        </tr>`;
+      }
+      const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
+      const srcTag = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
+      return `<tr data-batch-row="${i}">
+        <td><input type="checkbox" class="batch-row-check" checked></td>
+        <td class="helper-text" style="white-space:nowrap">${src}<br>${typeLabel} · ${srcTag}</td>
+        <td><input type="date" class="b-date" value="${escapeHtml(r.invoice_date) || ""}" style="width:130px"></td>
+        <td><select class="b-cat" style="min-width:110px">${catOptions(null)}</select></td>
+        <td><input type="number" class="b-amount" value="${r.total_amount ?? ""}" style="width:90px" required></td>
+        <td><input class="b-desc" placeholder="說明" style="width:130px"></td>
+        <td><input class="b-receipt" value="${escapeHtml(r.invoice_number) || ""}" style="width:110px"></td>
+        <td><button type="button" class="btn-secondary btn-sm" data-batch-drop="${i}">移除</button></td>
+      </tr>`;
+    })
+    .join("");
+
+  stepReview.innerHTML = `
+    <div class="helper-text" style="margin-bottom:8px">請確認每筆金額 / 類別再儲存;讀不到的行(紅底)不會被儲存,可以直接移除。</div>
+    <div class="table-wrap" style="max-height:48vh;overflow:auto">
+      <table style="width:100%">
+        <thead><tr><th></th><th>來源</th><th>日期</th><th>類別</th><th>金額</th><th>說明</th><th>發票號碼</th><th></th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <span class="helper-text" style="margin-right:auto" id="batch-review-summary"></span>
+      <button type="button" class="btn-secondary" id="batch-review-back">上一步</button>
+      <button type="button" class="btn-primary" id="batch-save-all" style="background:#0d9488;border-color:#0d9488">全部儲存</button>
+    </div>
+  `;
+
+  const updateSummary = () => {
+    const rows = [...stepReview.querySelectorAll("tr[data-batch-row]")];
+    let n = 0;
+    let total = 0;
+    rows.forEach((tr) => {
+      const chk = tr.querySelector(".batch-row-check");
+      if (chk && chk.checked && !chk.disabled) {
+        n++;
+        total += Number(tr.querySelector(".b-amount")?.value) || 0;
+      }
+    });
+    const el = document.getElementById("batch-review-summary");
+    if (el) el.textContent = `已選 ${n} 筆・合計 NT$${fmtMoney(total)}`;
+  };
+  stepReview.addEventListener("input", updateSummary);
+  stepReview.addEventListener("change", updateSummary);
+  updateSummary();
+
+  stepReview.querySelectorAll("[data-batch-drop]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.closest("tr")?.remove();
+      updateSummary();
+    });
+  });
+
+  document.getElementById("batch-review-back").addEventListener("click", () => {
+    stepReview.classList.add("hidden");
+    stepReview.innerHTML = "";
+    document.getElementById("batch-step-collect").classList.remove("hidden");
+    const scanBtn = document.getElementById("batch-scan-btn");
+    scanBtn.disabled = _batchQueue.length === 0;
+    scanBtn.textContent = "開始辨識";
+  });
+
+  document.getElementById("batch-save-all").addEventListener("click", async () => {
+    const saveBtn = document.getElementById("batch-save-all");
+    const rows = [...stepReview.querySelectorAll("tr[data-batch-row]")].filter((tr) => {
+      const chk = tr.querySelector(".batch-row-check");
+      return chk && chk.checked && !chk.disabled;
+    });
+    if (!rows.length) {
+      toast("沒有勾選要儲存的項目", "error");
+      return;
+    }
+    saveBtn.disabled = true;
+    let ok = 0;
+    let fail = 0;
+    for (const tr of rows) {
+      const amount = Number(tr.querySelector(".b-amount")?.value);
+      if (!amount) {
+        fail++;
+        continue;
+      }
+      const payload = {
+        category_id: tr.querySelector(".b-cat")?.value ? Number(tr.querySelector(".b-cat").value) : null,
+        amount,
+        expense_date: tr.querySelector(".b-date")?.value || new Date().toISOString().slice(0, 10),
+        description: tr.querySelector(".b-desc")?.value || null,
+        receipt_number: tr.querySelector(".b-receipt")?.value || null,
+      };
+      saveBtn.textContent = `儲存中…(${ok + fail + 1}/${rows.length})`;
+      try {
+        await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload, silent: true });
+        ok++;
+      } catch (e) {
+        fail++;
+      }
+    }
+    closeModal();
+    toast(fail ? `已儲存 ${ok} 筆,${fail} 筆失敗` : `已儲存 ${ok} 筆支出`, fail ? "error" : "success");
+    renderTab("expenses");
   });
 }

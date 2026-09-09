@@ -24,7 +24,7 @@ os.environ["OCR_FORCE_LOCAL"] = "1"
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile, status
 
-from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields
+from utils.invoice_ocr import InvoiceOcrError, extract_invoice_fields, extract_invoices_multi
 
 _SECRET = os.environ.get("OCR_SERVICE_SECRET", "")
 
@@ -81,6 +81,31 @@ async def invoice(
         return await run_in_threadpool(extract_invoice_fields, content, file.content_type)
     except InvoiceOcrError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@app.post("/invoice-batch")
+async def invoice_batch(
+    files: list[UploadFile] = File(...),
+    x_ocr_secret: str | None = Header(default=None),
+):
+    """批次匯入用:一次收多個檔案,每個檔案可能各自展開成不只一張發票(多頁 PDF
+    的每一頁 / 一張照片裡的多個 QR)。單一檔案讀失敗不中斷整批,錯誤附在結果裡。"""
+    _check(x_ocr_secret)
+    from starlette.concurrency import run_in_threadpool
+
+    out = []
+    for f in files:
+        content = await f.read()
+        if not content:
+            continue
+        try:
+            invoices = await run_in_threadpool(extract_invoices_multi, content, f.content_type)
+            for inv in invoices:
+                inv["source_filename"] = f.filename or "invoice"
+                out.append(inv)
+        except InvoiceOcrError as exc:
+            out.append({"source_filename": f.filename or "invoice", "page": 1, "error": str(exc)})
+    return {"results": out}
 
 
 @app.post("/ocr")
