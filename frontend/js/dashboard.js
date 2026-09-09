@@ -712,7 +712,13 @@ function renderProjectHeader(p) {
   const subEl = document.getElementById("pd-sub");
   const badgeEl = document.getElementById("pd-status-badge");
 
-  if (nameEl) nameEl.textContent = `${p.name} (${p.project_code})${p.description ? ` · ${p.description}` : ""}`;
+  if (nameEl) {
+    const fullName = `${p.name} (${p.project_code})${p.description ? ` · ${p.description}` : ""}`;
+    nameEl.textContent = fullName;
+    // 標題現在強制一行顯示、太長會用「...」截斷(見 style.css .project-header h2)
+    // - 補個 title 屬性,滑鼠移上去還是看得到完整名稱。
+    nameEl.title = fullName;
+  }
   if (subEl) subEl.textContent = [p.district, p.address].filter(Boolean).join(" · ") || "—";
   if (badgeEl) {
     badgeEl.innerHTML =
