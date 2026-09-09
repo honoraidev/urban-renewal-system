@@ -2,30 +2,28 @@
 
 // 土地增值稅一般稅率試算(土地稅法第 33 條)。輸入的「原規定地價/前次移轉現值」與「本次申報移轉現值」
 // 都是「總額」(不是每平方公尺單價)- 地政士/地價稅通知書上列的通常就是總額,這樣使用者不用自己拿去乘面積。
-// 持有年限減徵只套用在超過原地價 1 倍、2 倍的級距部分,未套用在第一級(這是法條規定的減徵範圍,不是隨便省略)。
-// 這是概算工具,不是正式稅額 - 實際申報應以地方稅捐稽徵機關核算為準,已在頁面上標註。
-function calculateLandValueIncrementTax({ originalValue, currentValue, holdingYears, cpiIndex }) {
+// 這是概算工具,不是正式稅額 - 實際申報應以地方稅捐稽徵機關核算為準,已在頁面上標註(未套用持有年限
+// 減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等)。
+function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex }) {
   // 依土地稅法:漲價總數額 = 申報現值 − 原規定地價(或前次移轉現值) × 台灣地區消費者物價總指數 ÷ 100。
   // 分級級距也以「按物價指數調整後的原地價」為基準。未填指數時視為 100(不調整)。
   const idx = cpiIndex && cpiIndex > 0 ? cpiIndex : 100;
   const adjustedOriginal = originalValue * (idx / 100);
   const gain = Math.max(0, currentValue - adjustedOriginal);
   if (originalValue <= 0 || gain <= 0) {
-    return { gain: 0, brackets: [], totalTax: 0, reliefRate: 0, adjustedOriginal, cpiIndex: idx };
+    return { gain: 0, brackets: [], totalTax: 0, adjustedOriginal, cpiIndex: idx };
   }
-  const reliefRate = holdingYears >= 40 ? 0.4 : holdingYears >= 30 ? 0.3 : holdingYears >= 20 ? 0.2 : 0;
 
   const tier1Base = Math.min(gain, adjustedOriginal * 1);
   const tier2Base = Math.max(0, Math.min(gain, adjustedOriginal * 2) - adjustedOriginal * 1);
   const tier3Base = Math.max(0, gain - adjustedOriginal * 2);
 
   const tier1Tax = tier1Base * 0.2;
-  const tier2Tax = tier2Base * 0.3 * (1 - reliefRate);
-  const tier3Tax = tier3Base * 0.4 * (1 - reliefRate);
+  const tier2Tax = tier2Base * 0.3;
+  const tier3Tax = tier3Base * 0.4;
 
   return {
     gain,
-    reliefRate,
     adjustedOriginal,
     cpiIndex: idx,
     brackets: [
@@ -42,7 +40,6 @@ function landValueTaxRowResult(lr) {
   return calculateLandValueIncrementTax({
     originalValue: Number(lr.ltt_original_value) || 0,
     currentValue: Number(lr.ltt_current_value) || 0,
-    holdingYears: Number(lr.ltt_holding_years) || 0,
   });
 }
 
@@ -67,7 +64,7 @@ async function renderLandValueTaxTab(el) {
   }
 
   const canEditLtt = isEditor() || isLandowner();
-  const editorCols = canEditLtt ? 4 : 3; // 原規定地價 + 本次申報 + 持有年數 (+ 儲存)
+  const editorCols = canEditLtt ? 3 : 2; // 原規定地價 + 本次申報 (+ 儲存)
   const bodyHtml = landOwners
     .map((o) => {
       const seq = String(seqByOwnerId.get(o.id)).padStart(3, "0");
@@ -89,11 +86,11 @@ async function renderLandValueTaxTab(el) {
     <div class="section-toolbar">
       <h3>土地增值稅試算(一般稅率,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
     </div>
-    <div class="helper-text" style="margin-bottom:12px">原地價/現值填一次後會自動儲存,之後開啟這頁會直接帶入。點編號左邊的箭頭展開該地主的每一筆土地登記。⚠ 僅供概算參考,未套用自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
+    <div class="helper-text" style="margin-bottom:12px">原地價/現值填一次後會自動儲存,之後開啟這頁會直接帶入。點編號左邊的箭頭展開該地主的每一筆土地登記。⚠ 僅供概算參考,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
-          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本次申報移轉現值(元)</th><th>持有年數</th>
+          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本次申報移轉現值(元)</th>
           ${canEditLtt ? "<th></th>" : ""}
           <th>應納稅額試算</th>
         </tr></thead>
@@ -147,10 +144,6 @@ function lttChildRowHtml(owner, record) {
       ? `<input type="number" min="0" step="1" class="ltt-input-current" value="${record.ltt_current_value ?? ""}" style="width:150px">`
       : (record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-")
     }</td>
-      <td>${editable
-      ? `<input type="number" min="0" step="1" class="ltt-input-years" value="${record.ltt_holding_years ?? ""}" style="width:88px">`
-      : (record.ltt_holding_years ?? "-")
-    }</td>
       ${editable ? `<td><button type="button" class="btn-secondary btn-sm" data-ltt-save="${record.id}" data-owner="${owner.id}">儲存</button></td>` : ""}
       <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>
     </tr>`;
@@ -161,7 +154,6 @@ function lttResultCellHtml(result) {
   const fmt = (n) => Math.round(n).toLocaleString();
   const notes = [];
   if (result.cpiIndex && result.cpiIndex !== 100) notes.push(`物價指數 ${result.cpiIndex}`);
-  if (result.reliefRate) notes.push(`持有減徵 ${(result.reliefRate * 100).toFixed(0)}%`);
   return `<strong>約 ${fmt(result.totalTax)} 元</strong>` + (notes.length ? ` <span class="helper-text">(已套用 ${notes.join("、")})</span>` : "");
 }
 
@@ -176,7 +168,6 @@ function wireLandValueTaxRows(el, rows) {
       const periodMonth = row.querySelector('[name="ltt_period_month"]').value;
       const originalValuePeriod = periodYear && periodMonth ? `${periodYear}年${String(periodMonth).padStart(2, "0")}月` : "";
       const currentValue = row.querySelector(".ltt-input-current").value;
-      const holdingYears = row.querySelector(".ltt-input-years").value;
 
       try {
         const updated = await api(`/projects/${state.currentProjectId}/landowners/${ownerId}/land-records/${recordId}`, {
@@ -185,7 +176,6 @@ function wireLandValueTaxRows(el, rows) {
             ltt_original_value: originalValue === "" ? null : Number(originalValue),
             ltt_original_value_period: originalValuePeriod || null,
             ltt_current_value: currentValue === "" ? null : Number(currentValue),
-            ltt_holding_years: holdingYears === "" ? null : Number(holdingYears),
           },
         });
         toast("已儲存", "success");
