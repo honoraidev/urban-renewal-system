@@ -25,9 +25,10 @@ _RAW_RULES: list[tuple[str, str, str]] = [
     ("POST", _P + r"/documents$", "上傳文件"),
     ("POST", _P + r"/documents/from-images$", "上傳文件（影像）"),
     ("DELETE", _P + r"/documents/\d+$", "刪除文件"),
-    ("POST", _P + r"/documents/cleanup-duplicates$", "清理重複文件"),
     ("POST", _P + r"/ocr/title-deed$", "OCR 辨識謄本"),
     ("POST", _P + r"/ocr/split-pages$", "OCR 分頁"),
+    ("POST", _P + r"/building-parts$", "新增共有部分建物"),
+    ("POST", r"/ocr/extract-building-group$", "OCR 辨識建物群組"),
     ("POST", _P + r"/sop/force-close$", "強制結案"),
     ("POST", _P + r"/sop/\d+/complete$", "SOP 過關"),
     ("POST", _P + r"/sop/\d+/checklist$", "SOP 勾選查核項目"),
@@ -49,12 +50,13 @@ _RAW_RULES: list[tuple[str, str, str]] = [
     ("PATCH", r"/dashboard/calendar/\d+$", "修改行事曆備註"),
     ("DELETE", r"/dashboard/calendar/\d+$", "刪除行事曆備註"),
     ("*", r"/users$", "使用者管理"),
+    ("PATCH", r"/users/\d+/active$", "啟用/停用使用者"),
     ("*", r"/users/\d+$", "使用者管理"),
     ("POST", r"/inventory-items$", "新增物品"),
     ("PATCH", r"/inventory-items/\d+$", "修改物品"),
     ("DELETE", r"/inventory-items/\d+$", "刪除物品"),
     ("*", r"/auth/me$", "更新個人資料"),
-    ("*", r"/companydocs", "公版文件維護"),
+    ("*", r"/company-documents", "公版文件維護"),
     ("*", r"/regulations", "法規維護"),
     ("*", r"/websites", "網站維護"),
     ("*", r"/faq", "知識庫維護"),
@@ -69,6 +71,11 @@ _IGNORE = re.compile(
     r"^/(auth/(login|logout)|dashboard/my-work)"
     r"|^/projects/\d+/expenses/scan-invoice(-batch)?$"
     r"|^/projects/\d+/notes(/\d+)?$"
+    # /documents/inspect 只是上傳前的內容檢查(不寫資料),不是使用者真的做了什麼事;
+    # detect-cases / detect-building-cases 是批次匯入精靈選案件前的純預覽分組,兩個都
+    # 還沒進到任何案件,不算「案件動態」——都不值得留紀錄,以免洗版。
+    r"|^/projects/\d+/documents/inspect$"
+    r"|^/ocr/detect-(building-)?cases$"
 )
 
 
