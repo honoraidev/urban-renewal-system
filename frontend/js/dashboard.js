@@ -602,7 +602,8 @@ async function openProject(id) {
   const membersTabBtn = document.getElementById("tab-btn-members");
   if (membersTabBtn) membersTabBtn.classList.toggle("hidden", !isManager() || isLandowner());
   state.activeTab = "sop";
-  await Promise.all([renderTab(state.activeTab), renderSopSummary(), renderProjectBoardCard()]);
+  // renderTab() 本身現在就會刷新公告卡片,這裡不用再額外呼叫一次。
+  await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
 
 function renderProjectHeader(p) {
@@ -658,6 +659,10 @@ async function renderTab(tab) {
     const msg = escapeHtml(e && (e.message || String(e))) || "系統連線錯誤";
     el.innerHTML = `<div class="empty-state">載入失敗（${msg}）<br><button type="button" class="btn-secondary btn-sm" style="margin-top:12px" onclick="renderDashboardTab('${tab}')">🔄 點此重新載入</button></div>`;
   }
+  // 每次切分頁都順便刷新「公告 / 進度通知」卡片 - 案件裡幾乎每個動作(新增/刪除
+  // 支出、上傳文件…)完成後都會呼叫 renderTab() 導回列表,這樣公告卡片才會跟著看到
+  // 最新一筆自動紀錄,不用使用者手動整理頁面才看得到。
+  renderProjectBoardCard();
 }
 
 function initDashboard() {
