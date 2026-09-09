@@ -9,7 +9,7 @@ function myWorkEnsureStyle() {
   s.textContent = `
     .mw-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap:20px; align-items:start; }
     @media (max-width: 980px){ .mw-grid { grid-template-columns: 1fr; } }
-    .mw-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
+    .mw-card { background:var(--surface); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
     .mw-card h3 { margin:0 0 12px; font-size:15px; }
     .mw-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
     .mw-cal-head .t { font-weight:700; font-size:15px; }
@@ -24,7 +24,7 @@ function myWorkEnsureStyle() {
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
-    .mw-tile { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:14px; background:var(--bg-card,#fff); margin-bottom:16px; }
+    .mw-tile { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:14px; background:var(--surface); margin-bottom:16px; }
     .mw-tile .num { font-size:30px; font-weight:800; color:var(--brand,#0d9488); line-height:1; }
     .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:10px; }
     .mw-act:last-child { border-bottom:none; }

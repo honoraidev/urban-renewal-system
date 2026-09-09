@@ -411,7 +411,7 @@ function renderWebsitesGrid(items, el, isManagerView) {
           ${list.map((r) => {
       const itemIcon = WEBSITE_ITEM_ICONS[r.name] || "🔗";
       return `
-              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
                 <div style="display:flex;align-items:center;gap:16px;flex:1;min-width:0">
                   <div style="width:44px;height:44px;border-radius:12px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
                     ${itemIcon}

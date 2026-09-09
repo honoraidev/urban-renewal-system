@@ -11,7 +11,7 @@ function boardEnsureStyle() {
   const s = document.createElement("style");
   s.id = "board-style";
   s.textContent = `
-    .board-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:12px; padding:12px 16px; }
+    .board-card { background:var(--surface); border:1px solid var(--border,#e5e7eb); border-radius:12px; padding:12px 16px; }
     .board-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:10px; }
     .board-card-head h3 { margin:0; font-size:15px; display:flex; align-items:center; gap:6px; }
     .board-card-head .btn-sm { padding:5px 12px; font-size:13px; }

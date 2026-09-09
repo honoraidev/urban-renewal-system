@@ -248,7 +248,7 @@ function openInventoryFormModal(title, item) {
       #inventory-form .inv-field label { display:block; font-size:12.5px; font-weight:600; color:var(--text-muted); margin-bottom:5px; }
       #inventory-form .inv-field input, #inventory-form .inv-field select, #inventory-form .inv-field textarea {
         width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border); border-radius:8px;
-        font-size:14px; background:var(--bg-card,#fff); transition:border-color .12s, box-shadow .12s;
+        font-size:14px; background:var(--surface); transition:border-color .12s, box-shadow .12s;
       }
       #inventory-form .inv-field input:focus, #inventory-form .inv-field select:focus, #inventory-form .inv-field textarea:focus {
         outline:none; border-color:var(--brand,#0d9488); box-shadow:0 0 0 3px rgba(13,148,136,.12);
