@@ -299,45 +299,6 @@ def upload_document(
     return document
 
 
-@router.post("/cleanup-duplicates")
-def cleanup_duplicate_documents(
-    db: Session = Depends(get_db),
-    project: Project = Depends(require_project_ocr_editor),
-):
-    all_docs = db.scalars(
-        select(Document)
-        .where(Document.project_id == project.id)
-        .order_by(Document.doc_type, Document.file_name, Document.uploaded_at.desc())
-    ).all()
-
-    seen_keys = set()
-    to_delete = []
-
-    for doc in all_docs:
-        key = (doc.doc_type, doc.file_name)
-        if key in seen_keys:
-            to_delete.append(doc)
-        else:
-            seen_keys.add(key)
-
-    deleted_count = len(to_delete)
-    for doc in to_delete:
-        if doc.file_path and os.path.exists(doc.file_path):
-            other_ref = db.scalar(
-                select(Document.id).where(Document.file_path == doc.file_path, Document.id != doc.id)
-            )
-            if not other_ref:
-                try:
-                    os.remove(doc.file_path)
-                except Exception:
-                    pass
-        db.delete(doc)
-
-    if deleted_count > 0:
-        db.commit()
-
-    return {"deleted_count": deleted_count}
-
 
 @router.post("/from-images", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def create_document_from_images(
