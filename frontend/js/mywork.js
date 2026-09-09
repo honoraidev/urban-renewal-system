@@ -13,7 +13,18 @@ function myWorkEnsureStyle() {
     .mw-card h3 { margin:0 0 12px; font-size:15px; }
     .mw-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
     .mw-cal-head .t { font-weight:700; font-size:15px; }
-    .mw-cal-nav button { border:1px solid var(--border,#e5e7eb); background:transparent; border-radius:8px; width:30px; height:30px; cursor:pointer; }
+    .mw-cal-nav { display:flex; align-items:center; gap:6px; }
+    .mw-cal-nav button {
+      border:1px solid var(--border,#e5e7eb); background:var(--surface); color:var(--text);
+      border-radius:9px; width:30px; height:30px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      font-size:15px; font-weight:700; line-height:1; padding:0;
+      transition:background .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
+    }
+    .mw-cal-nav button:hover { background:var(--surface-2); border-color:var(--brand,#0d9488); color:var(--brand,#0d9488); }
+    .mw-cal-nav button:active { transform:scale(.92); }
+    #mw-today-btn { font-size:12.5px; font-weight:800; color:var(--brand,#0d9488); border-color:rgba(13,148,136,.35); }
+    #mw-today-btn:hover { background:rgba(13,148,136,.1); }
     .mw-cal { display:grid; grid-template-columns: repeat(7,1fr); gap:4px; }
     .mw-cal .dow { text-align:center; font-size:12px; color:var(--text-muted,#6b7280); padding:4px 0; }
     .mw-day { min-height:74px; border:1px solid var(--border,#eee); border-radius:8px; padding:4px 5px; cursor:pointer; background:var(--bg,#fff); overflow:hidden; }
@@ -147,7 +158,7 @@ function renderMyWork() {
           <div class="t">${y} 年 ${m} 月</div>
           <div class="mw-cal-nav">
             <button type="button" id="mw-prev">‹</button>
-            <button type="button" id="mw-today-btn" title="回到本月">·</button>
+            <button type="button" id="mw-today-btn" title="回到本月">今</button>
             <button type="button" id="mw-next">›</button>
           </div>
         </div>
