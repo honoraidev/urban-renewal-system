@@ -327,6 +327,11 @@ function invoiceScanEnsureStyle() {
     .exp-amount-field input { font-size:20px; font-weight:800; }
     .qrow-error td { background:rgba(239,68,68,.06); }
     #invoice-review-wrap table input, #invoice-review-wrap table select { padding:5px 7px; font-size:12.5px; }
+    /* 逐筆審核畫面欄位偏多、常常要捲動才看得到底 —— 主要動作按鈕(下一筆/完成)固定
+       在視窗最底部,捲到哪都按得到,不用特地捲回最下面。 */
+    #q-step-primary-footer { position:sticky; bottom:-22px; z-index:5; background:var(--surface);
+      margin:14px -22px -22px; padding:12px 22px 22px; border-top:1px solid var(--border);
+      border-radius:0 0 16px 16px; }
   `;
   document.head.appendChild(s);
 }
@@ -600,7 +605,7 @@ function wireInvoiceScanner(formId, categories) {
       const isLast = idx === queue.length - 1;
 
       reviewWrap.innerHTML = `
-        <div class="helper-text" style="margin-bottom:8px">第 ${idx + 1} 筆・共 ${queue.length} 筆・來源:${escapeHtml(e.src)}</div>
+        <div class="helper-text" id="q-step-progress">第 ${idx + 1} 筆・共 ${queue.length} 筆・來源:${escapeHtml(e.src)}</div>
         <form id="q-step-form">
           <div class="exp-sec">
             <div class="exp-sec-title">支出資訊</div>
@@ -608,8 +613,10 @@ function wireInvoiceScanner(formId, categories) {
               <div class="field"><label>日期</label><input type="date" name="expense_date" value="${escapeHtml(e.invoice_date)}" required></div>
               <div class="field"><label>費用類別</label><select name="category_id">${catOptions}</select></div>
             </div>
-            <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" id="q-step-amount" value="${sumAmount(e)}" placeholder="由未稅金額+稅額自動加總" readonly required style="background:var(--surface-2);cursor:not-allowed"></div>
-            <div class="field"><label>說明</label><input name="description" value="${escapeHtml(e.description)}" placeholder="例: 第一次說明會場地費"></div>
+            <div class="field-row">
+              <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" id="q-step-amount" value="${sumAmount(e)}" placeholder="由未稅金額+稅額自動加總" readonly required style="background:var(--surface-2);cursor:not-allowed"></div>
+              <div class="field"><label>說明</label><input name="description" value="${escapeHtml(e.description)}" placeholder="例: 第一次說明會場地費"></div>
+            </div>
           </div>
           <div class="exp-sec">
             <div class="exp-sec-title">發票明細(掃描後自動帶入)</div>
@@ -628,7 +635,7 @@ function wireInvoiceScanner(formId, categories) {
               ${idx > 0 ? `<button type="button" class="btn-secondary btn-sm" id="q-step-prev">上一筆</button>` : ""}
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer" id="q-step-primary-footer">
             <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
           </div>
         </form>`;
@@ -853,7 +860,8 @@ function openAddExpenseModal(categories) {
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
-    </form>`
+    </form>`,
+    { width: "560px" }
   );
 
   wireInvoiceScanner("expense-form", categories);
@@ -919,7 +927,8 @@ function openEditExpenseModal(expense, categories) {
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
       </div>
-    </form>`
+    </form>`,
+    { width: "560px" }
   );
 
   wireInvoiceScanner("expense-edit-form", categories);
