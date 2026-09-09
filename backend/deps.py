@@ -14,9 +14,11 @@ bearer_scheme = HTTPBearer(auto_error=False)
 # L0 系統管理員(DEMO) / L1 管理層 / L2 都更主管 - full access to every project,
 # no ProjectMember row needed. (ocr_staff 這個內部代號現在對應「L2 都更主管」。)
 MANAGE_ROLES = {"sys_admin", "manager", "ocr_staff"}
-# + L3 案件負責人 / L4 案件工作人員 - can edit a project's general case data, but only
-# for projects they're assigned to via ProjectMember.
-EDIT_ROLES = MANAGE_ROLES | {"case_owner", "case_staff"}
+# + L3 案件負責人 - 全站權限模型:除了地主,所有角色都能「看」每一個案件(唯讀);
+# 只有 L0~L3(這裡)可以自行讀寫任何案件,不再需要是該案件的 ProjectMember。L4 案件
+# 工作人員 / L5 檢視者一律唯讀 - 「案件人員」名單現在純粹是紀錄用(誰負責這個案件),
+# 不再是寫入權限的關卡。
+EDIT_ROLES = MANAGE_ROLES | {"case_owner"}
 # OCR/文件上傳端點 - 與 EDIT_ROLES 相同(ocr_staff 已在 MANAGE_ROLES 內)。
 OCR_ROLES = EDIT_ROLES
 # L6 地主 - read-only, and only ever their own linked Landowner rows (Landowner.user_id).
@@ -98,17 +100,14 @@ def _landowner_owns_something(db: Session, project_id: int, user_id: int) -> boo
 def require_project_viewer(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """L1/L2 see every project; L3-L6 must be a ProjectMember; L7 地主 must have a linked
-    Landowner row in this project (and only ever sees their own data - enforced per-endpoint)."""
+    """全站唯讀權限:除了 L7 地主(只能看自己被綁定的案件),每個角色都能看到每一個
+    案件 - 不再需要是該案件的 ProjectMember 才看得到。是否能「寫」由
+    require_project_editor / require_project_ocr_editor 另外把關。"""
     project = _get_project_or_404(db, project_id)
-    if user.role in MANAGE_ROLES:
-        return project
     if user.role == LANDOWNER_ROLE:
         if not _landowner_owns_something(db, project_id, user.id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a landowner of this project")
         return project
-    if not _is_project_member(db, project_id, user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
     return project
 
 
@@ -125,28 +124,22 @@ def require_project_staff_viewer(
 def require_project_editor(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """L1-L4 can edit a project's general case data; L3/L4 only if assigned to it."""
+    """只有 L0~L3(EDIT_ROLES)可以自行讀寫任何案件,不再需要是 ProjectMember;
+    L4 案件工作人員 / L5 檢視者一律唯讀,「案件人員」名單不再是寫入權限的關卡。"""
     project = _get_project_or_404(db, project_id)
     if user.role not in EDIT_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
-    if user.role in MANAGE_ROLES:
-        return project
-    if not _is_project_member(db, project_id, user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
     return project
 
 
 def require_project_ocr_editor(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """L1-L5 can use OCR/document-upload endpoints; L3/L4/L5 only if assigned to it."""
+    """OCR/文件上傳一樣比照 require_project_editor:只有 L0~L3(OCR_ROLES)可以用,
+    不再需要是 ProjectMember。"""
     project = _get_project_or_404(db, project_id)
     if user.role not in OCR_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="OCR/editor role required")
-    if user.role in MANAGE_ROLES:
-        return project
-    if not _is_project_member(db, project_id, user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this project")
     return project
 
 

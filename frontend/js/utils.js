@@ -244,9 +244,11 @@ function openYearMonthPanel(wrap) {
   panel.addEventListener("click", (e) => e.stopPropagation());
 }
 
-// L1-L4: general case-data editing (landowners/contacts/expenses/encumbrances/SOP).
+// L0-L3(系統管理員/管理層/都更主管/案件負責人):全站權限模型 —— 除了地主,每個
+//角色都能「看」每一個案件,但只有這幾個角色能自行讀寫,不再需要是該案件的
+// ProjectMember(對齊後端 deps.EDIT_ROLES)。L4 案件工作人員 / L5 檢視者一律唯讀。
 function isEditor() {
-  return state.user && ["sys_admin", "manager", "case_owner", "case_staff"].includes(state.user.role);
+  return state.user && ["sys_admin", "manager", "ocr_staff", "case_owner"].includes(state.user.role);
 }
 
 // L7 地主:唯讀,且只看得到自己被綁定的那筆(其餘由後端強制過濾)。
@@ -265,12 +267,12 @@ function isSystemAdmin() {
   return state.user && state.user.role === "sys_admin";
 }
 
-// L1-L5: OCR/document-upload functionality.
+// L0-L3: OCR/document-upload functionality(對齊後端 deps.OCR_ROLES,現在跟 isEditor() 同一組)。
 function canOcr() {
-  return state.user && ["sys_admin", "manager", "case_owner", "case_staff", "ocr_staff"].includes(state.user.role);
+  return isEditor();
 }
 
-// L1-L3: can create a new project.
+// L0-L3: can create a new project.
 function canCreateProject() {
-  return state.user && ["sys_admin", "manager", "case_owner"].includes(state.user.role);
+  return state.user && ["sys_admin", "manager", "ocr_staff", "case_owner"].includes(state.user.role);
 }

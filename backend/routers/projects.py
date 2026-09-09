@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import get_db
 from deps import (
+    EDIT_ROLES,
     MANAGE_ROLES,
     get_current_user,
     require_manager,
@@ -114,12 +115,9 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
             select(Landowner.project_id).where(Landowner.user_id == current_user.id).distinct()
         ).all()
         projects_stmt = select(Project).where(Project.id.in_(lo_project_ids)).order_by(Project.created_at.desc())
-    elif current_user.role not in MANAGE_ROLES:
-        member_project_ids = db.scalars(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
-        ).all()
-        projects_stmt = select(Project).where(Project.id.in_(member_project_ids)).order_by(Project.created_at.desc())
     else:
+        # 全站權限模型:除了地主,每個角色都能看到每一個案件(唯讀)- 不再限制只看
+        # 自己是 ProjectMember 的案件。能不能「寫」由 require_project_editor 另外把關。
         projects_stmt = select(Project).order_by(Project.created_at.desc())
     projects = db.scalars(projects_stmt).all()
     project_ids = [p.id for p in projects]
@@ -209,14 +207,9 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
             .distinct()
             .order_by(Project.created_at.desc())
         )
-    elif current_user.role not in MANAGE_ROLES:
-        stmt = (
-            select(Project)
-            .join(ProjectMember, ProjectMember.project_id == Project.id)
-            .where(ProjectMember.user_id == current_user.id)
-            .order_by(Project.created_at.desc())
-        )
     else:
+        # 除了地主,每個角色都能看到每一個案件(唯讀);能不能「寫」由
+        # require_project_editor 另外把關,不再靠這裡的清單過濾。
         stmt = select(Project).order_by(Project.created_at.desc())
     return db.scalars(stmt).all()
 
@@ -227,8 +220,8 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in MANAGE_ROLES | {"case_owner"}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L1/L2/L3 role required")
+    if current_user.role not in EDIT_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2/L3 role required")
 
     existing = db.scalar(select(Project).where(Project.project_code == payload.project_code))
     if existing is not None:
@@ -243,10 +236,10 @@ def create_project(
     # routers/sop.py's build_initial_stage_data/STAGE_CHECKLIST_REQUIREMENTS).
     db.add(SopStage(project_id=project.id, stage_data=_initial_stage_data(), current_stage=0))
 
-    if current_user.role == "case_owner":
-        # Otherwise an L3 who just created this project couldn't see it themselves -
-        # require_project_viewer/editor require ProjectMember for non-manager roles.
-        db.add(ProjectMember(project_id=project.id, user_id=current_user.id, role_in_project=current_user.role))
+    # 誰先建立這個案件就自動加入「案件人員」名單 - 這份名單現在純粹是紀錄用(追蹤誰
+    # 負責這個案件),已經不是查看/編輯權限的關卡(見 deps.require_project_viewer/
+    # require_project_editor),所以不分角色一律加入,不只 case_owner。
+    db.add(ProjectMember(project_id=project.id, user_id=current_user.id, role_in_project=current_user.role))
 
     db.commit()
     db.refresh(project)
