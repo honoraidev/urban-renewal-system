@@ -212,11 +212,8 @@ async function renderSopSummary() {
   const headerActions = document.getElementById("pd-header-actions");
   if (headerActions) {
     headerActions.innerHTML =
-      `<button class="btn-secondary btn-sm" id="pd-board-btn">🔔 公告</button>` +
-      (isManager() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "");
+      isManager() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "";
   }
-  const boardBtn = document.getElementById("pd-board-btn");
-  if (boardBtn) boardBtn.addEventListener("click", openProjectBoardModal);
 
   el.innerHTML = `
     ${finalBanner}

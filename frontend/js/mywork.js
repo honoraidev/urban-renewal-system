@@ -31,10 +31,8 @@ function myWorkEnsureStyle() {
     .mw-act .tm { color:var(--text-muted,#6b7280); white-space:nowrap; font-variant-numeric:tabular-nums; }
     .mw-board h3 { display:flex; align-items:center; gap:6px; }
     .mw-board .mw-board-body { }
-    #mw-act-rest { border-top:1px solid var(--border,#f1f5f9); margin-top:4px; }
-    .mw-act-toggle { margin-top:8px; width:100%; text-align:center; background:var(--bg-subtle,#f8fafc); border:1px solid var(--border,#e5e7eb);
-      border-radius:8px; padding:6px 0; font-size:12.5px; color:var(--brand,#0d9488); cursor:pointer; font-weight:600; }
-    .mw-act-toggle:hover { background:#eef2f7; }
+    .mw-act-scroll { max-height:172px; overflow-y:auto; }
+    .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px; }
     .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
     .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
   `;
@@ -134,14 +132,12 @@ function renderMyWork() {
       a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
     }</span></div>`;
   };
-  const _ACT_FIRST = 4;
+  // 卷軸式:全部列出來、用捲動看更多,不用「展開全部」按鈕 — 捲動區下方用
+  // #mw-act-more 顯示「目前捲動位置以下還有幾則」,會隨捲動即時更新。
   const actList = !_acts.length
     ? `<div class="helper-text">今天還沒有操作紀錄</div>`
-    : `${_acts.slice(0, _ACT_FIRST).map(_actRow).join("")}
-       ${_acts.length > _ACT_FIRST
-        ? `<div id="mw-act-rest" hidden>${_acts.slice(_ACT_FIRST).map(_actRow).join("")}</div>
-           <button type="button" class="mw-act-toggle" id="mw-act-toggle">展開全部 (${_acts.length}) ▾</button>`
-        : ""}`;
+    : `<div class="mw-act-scroll" id="mw-act-scroll">${_acts.map(_actRow).join("")}</div>
+       <div class="mw-act-more" id="mw-act-more"></div>`;
 
   body.innerHTML = `
     <div class="mw-grid">
@@ -190,14 +186,16 @@ function renderMyWork() {
     el.addEventListener("click", () => openMyWorkDay(el.dataset.mwDay, eventsByDate[el.dataset.mwDay] || []));
   });
 
-  const actToggle = document.getElementById("mw-act-toggle");
-  if (actToggle) {
-    actToggle.addEventListener("click", () => {
-      const rest = document.getElementById("mw-act-rest");
-      const open = rest.hidden;
-      rest.hidden = !open;
-      actToggle.textContent = open ? "收合 ▴" : `展開全部 (${_acts.length}) ▾`;
-    });
+  const actScroll = document.getElementById("mw-act-scroll");
+  const actMore = document.getElementById("mw-act-more");
+  if (actScroll && actMore) {
+    const updateActMore = () => {
+      const bottom = actScroll.scrollTop + actScroll.clientHeight;
+      const remaining = [...actScroll.children].filter((row) => row.offsetTop + row.offsetHeight > bottom + 1).length;
+      actMore.textContent = remaining > 0 ? `↓ 以下還有 ${remaining} 則` : "";
+    };
+    actScroll.addEventListener("scroll", updateActMore);
+    updateActMore();
   }
 }
 

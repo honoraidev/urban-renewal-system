@@ -602,7 +602,7 @@ async function openProject(id) {
   const membersTabBtn = document.getElementById("tab-btn-members");
   if (membersTabBtn) membersTabBtn.classList.toggle("hidden", !isManager() || isLandowner());
   state.activeTab = "sop";
-  await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
+  await Promise.all([renderTab(state.activeTab), renderSopSummary(), renderProjectBoardCard()]);
 }
 
 function renderProjectHeader(p) {
