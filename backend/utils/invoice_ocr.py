@@ -171,12 +171,29 @@ _ROC_DATE_RE = re.compile(r"(?<!\d)(\d{2,3})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]
 _ROC_DATE_COMPACT_RE = re.compile(r"(?<!\d)(1\d{2})(\d{2})(\d{2})(?!\d)")
 _AD_DATE_RE = re.compile(r"(20\d{2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})")
 _MONEY = r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+)"
-_TOTAL_RE = re.compile(r"(總\s*計|總計額|應\s*收|實\s*收|含稅總額|合\s*計)\D{0,6}" + _MONEY)
-_UNTAX_RE = re.compile(r"(銷\s*售\s*額|課稅銷售額|未稅金額|未稅)\D{0,6}" + _MONEY)
-_TAX_RE = re.compile(r"(營\s*業\s*稅|稅\s*額)\D{0,6}" + _MONEY)
-_SELLER_TAXID_RE = re.compile(r"(賣\s*方|營業人統編|統一編號|統編)\D{0,6}(\d{8})")
-_BUYER_TAXID_RE = re.compile(r"(買\s*方|買受人統編)\D{0,6}(\d{8})")
-_ANY_MONEY_RE = re.compile(r"\d{1,3}(?:,\d{3})+")
+# 表格式發票的欄位標籤跟金額常常不是緊貼著:標籤是一個 OCR 文字框、金額是隔壁儲存格
+# 另一個文字框,中間常夾著同一列其他儲存格的文字(勾選欄、備註…),原本 \D{0,6} 的
+# 容許範圍太小,常常因此整個抓不到 —— 放寬到 \D{0,24}(約一行的量),抓錯的風險
+# 不大(還是要求同一列/同一段落內)但能救回更多漏掉的欄位。
+_LABEL_GAP = r"[^\d]{0,24}"
+# 「合計」單獨當關鍵字太籠統 —— 三聯式發票上「銷售額合計」(未稅小計)也含這兩個字,
+# 位置通常還在真正的「總計」(含稅總額)前面,用 .search() 找第一個符合的會誤抓成
+# 未稅小計。所以拆成兩層:先找「總計/應收/實收/含稅總額」這些不會跟未稅小計混淆的
+# 明確關鍵字,真的都沒有才退回單獨的「合計」。
+_TOTAL_STRICT_RE = re.compile(r"(總\s*計|總計額|應\s*收|實\s*收|含稅總額)" + _LABEL_GAP + _MONEY)
+_TOTAL_LOOSE_RE = re.compile(r"(合\s*計)" + _LABEL_GAP + _MONEY)
+_UNTAX_RE = re.compile(r"(銷\s*售\s*額|課稅銷售額|未稅金額|未稅)" + _LABEL_GAP + _MONEY)
+_TAX_RE = re.compile(r"(營\s*業\s*稅|稅\s*額)" + _LABEL_GAP + _MONEY)
+# 統一編號常印成 8 個獨立的方格(逐字 OCR 常拆成單一數字、中間夾空白或換行),
+# 所以不能死板要求 8 碼緊連在一起 —— 允許數字之間夾空白/換行,取出後再去空白比對長度。
+_TAXID8 = r"(\d(?:[ \t　\n]{0,2}\d){7})"
+# 紙本三聯式/二聯式發票上「統一編號:」印在「買受人」欄位正下方,填的是買方的統編
+# (賣方統編通常沒有另外印文字標籤,只出現在「統一發票專用章」的圓戳章裡)—— 原本
+# 誤把「統一編號」歸給賣方,實際上該歸買方;賣方改看營業人蓋用的發票專用章附近。
+_SELLER_TAXID_RE = re.compile(r"(賣\s*方|營業人統編|統一發票專用章|營業人蓋用)" + _LABEL_GAP + _TAXID8)
+_BUYER_TAXID_RE = re.compile(r"(買\s*方|買受人統編|統一編號|統編)" + _LABEL_GAP + _TAXID8)
+# 金額欄位漏了逗號分隔(OCR 常見)時的最後手段:同一份文字裡抓最大的 3~7 位純數字。
+_ANY_MONEY_RE = re.compile(r"\d{1,3}(?:,\d{3})+|\d{3,7}")
 
 
 def _parse_date(text):
@@ -198,7 +215,8 @@ def _rule_extract(text: str) -> dict:
     num_m = _NUM_RE.search(text) or _NUM_RE.search(flat)
     invoice_number = re.sub(r"[-\s]", "", num_m.group(0)).upper() if num_m else None
 
-    total = _to_int(_TOTAL_RE.search(text).group(2)) if _TOTAL_RE.search(text) else None
+    total_m = _TOTAL_STRICT_RE.search(text) or _TOTAL_LOOSE_RE.search(text)
+    total = _to_int(total_m.group(2)) if total_m else None
     untaxed = _to_int(_UNTAX_RE.search(text).group(2)) if _UNTAX_RE.search(text) else None
     tax = _to_int(_TAX_RE.search(text).group(2)) if _TAX_RE.search(text) else None
 
@@ -218,16 +236,20 @@ def _rule_extract(text: str) -> dict:
     elif total and tax and untaxed is None:
         untaxed = total - tax
 
+    # 統一編號欄位可能被拆成 8 個獨立方格,取出來的字串要先去掉夾在數字間的空白/
+    # 換行才是真正的 8 碼(_TAXID8 只保證抓到 8 個數字,順序間可能還帶著分隔字元)。
+    _clean_taxid = lambda s: re.sub(r"\s", "", s) if s else None
     sm = _SELLER_TAXID_RE.search(flat)
     bm = _BUYER_TAXID_RE.search(flat)
-    buyer_tax_id = bm.group(2) if bm else None
+    seller_tax_id = _clean_taxid(sm.group(2)) if sm else None
+    buyer_tax_id = _clean_taxid(bm.group(2)) if bm else None
     return {
         "invoice_number": invoice_number,
         "invoice_date": _parse_date(text) or _parse_date(flat),
         "total_amount": total,
         "untaxed_amount": untaxed,
         "tax_amount": tax,
-        "seller_tax_id": sm.group(2) if sm else None,
+        "seller_tax_id": seller_tax_id,
         "buyer_tax_id": buyer_tax_id,
         "seller_name": None,
         "source": "ocr",
