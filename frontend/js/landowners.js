@@ -108,11 +108,35 @@ async function renderIntegratedRosterTab(el) {
         ])}
       </div>
     </div>
-    <div class="table-wrap">
+    <style>
+      #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+      #integ-roster table { border-collapse:separate; border-spacing:0; width:100%; font-size:13px; }
+      #integ-roster thead th {
+        position:sticky; top:0; z-index:2; background:var(--surface-2);
+        padding:10px 12px; text-align:left; font-weight:700; color:var(--text-muted);
+        white-space:nowrap; border-bottom:1px solid var(--border);
+      }
+      #integ-roster tbody td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+      #integ-roster tbody tr:last-child td { border-bottom:none; }
+      #integ-roster tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 45%, transparent); }
+      #integ-roster tbody tr:hover { background:color-mix(in srgb, var(--brand) 8%, transparent); }
+      #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:52px; }
+      #integ-roster .col-nowrap { white-space:nowrap; }
+      #integ-roster .col-name { font-weight:600; }
+      #integ-roster .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      #integ-roster th.num { text-align:right; }
+      #integ-roster .cell-state, #integ-roster .cell-visit { white-space:nowrap; }
+      #integ-roster .cell-visit .mini-badge { margin-right:6px; }
+      #integ-roster .row-actions { white-space:nowrap; text-align:right; }
+      #integ-roster .row-actions .btn-sm { padding:3px 10px; }
+      #integ-roster .visit-date { color:var(--text-muted); }
+    </style>
+    <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th>編號</th><th>建物門牌</th><th>地號</th><th>姓名</th><th>狀態</th>
-          <th>土地(㎡)</th><th>土地(坪)</th><th>建物(㎡)</th><th>建物(坪)</th><th>拜訪紀錄</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th><th>狀態</th>
+          <th class="num">土地㎡</th><th class="num">土地坪</th><th class="num">建物㎡</th><th class="num">建物坪</th>
+          <th>拜訪紀錄</th><th class="row-actions">操作</th>
         </tr></thead>
         <tbody>
         ${rows.map((o, i) => {
@@ -129,29 +153,31 @@ async function renderIntegratedRosterTab(el) {
     const stateTok = `${o.visit_status} ${o.agreement_status}`;
     const visitTok = `${o.reply_status} ${contactTokens(o).join(" ")}`;
     return `<tr data-hay="${escapeHtml(hay)}" data-state-tok="${stateTok}" data-visit-tok="${visitTok}">
-            <td>${String(i + 1).padStart(3, "0")}</td>
-            <td>${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
-            <td>${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
-            <td>${escapeHtml(o.name)}</td>
-            <td style="white-space:nowrap">
+            <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
+            <td class="col-name">${escapeHtml(o.name)}</td>
+            <td class="cell-state">
               <span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span>
               <span class="mini-badge ${o.visit_status === "visited" ? "gate-ok" : ""}" style="margin-left:4px">${VISIT_STATUS_LABEL[o.visit_status] || "未拜訪"}</span>
             </td>
-            <td>${fmt2(landSqm)}</td>
-            <td>${fmt2(landSqm * 0.3025)}</td>
-            <td>${fmt2(bldSqm)}</td>
-            <td>${fmt2(bldSqm * 0.3025)}</td>
-            <td style="white-space:nowrap">
+            <td class="num">${fmt2(landSqm)}</td>
+            <td class="num">${fmt2(landSqm * 0.3025)}</td>
+            <td class="num">${fmt2(bldSqm)}</td>
+            <td class="num">${fmt2(bldSqm * 0.3025)}</td>
+            <td class="cell-visit">
               <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
-              ${visit}
+              <span class="visit-date">${visit}</span>
+            </td>
+            <td class="row-actions">
               ${isEditor() ? `<button type="button" class="btn-secondary btn-sm" data-edit-integ="${o.id}">編輯</button>
-              <button type="button" class="btn-danger btn-sm" data-delete-integ="${o.id}">刪除</button>` : ""}
+              <button type="button" class="btn-danger btn-sm" data-delete-integ="${o.id}">刪除</button>` : "-"}
             </td>
           </tr>`;
   }).join("")}
         </tbody>
       </table>
-    </div>`;
+    </div></div>`;
 
   const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
   const applyIntegratedFilter = () => {
