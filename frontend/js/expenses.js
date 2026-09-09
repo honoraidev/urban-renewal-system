@@ -263,8 +263,16 @@ const INVOICE_TYPE_LABEL = {
 };
 
 let _invoiceScanStream = null;
+let _invoiceAutoTimer = null;
+let _invoiceAutoAttempts = 0;
+const INVOICE_AUTO_MAX_ATTEMPTS = 5;
 
 function stopInvoiceScan() {
+  if (_invoiceAutoTimer) {
+    clearTimeout(_invoiceAutoTimer);
+    _invoiceAutoTimer = null;
+  }
+  _invoiceAutoAttempts = 0;
   if (_invoiceScanStream) {
     _invoiceScanStream.getTracks().forEach((t) => t.stop());
     _invoiceScanStream = null;
@@ -303,6 +311,20 @@ function invoiceScanEnsureStyle() {
     .isc-c.tr { top:-2px; right:-2px; border-left:0; border-bottom:0; border-top-right-radius:12px; }
     .isc-c.bl { bottom:-2px; left:-2px; border-right:0; border-top:0; border-bottom-left-radius:12px; }
     .isc-c.br { bottom:-2px; right:-2px; border-left:0; border-top:0; border-bottom-right-radius:12px; }
+    .isc-c.live { border-color:#facc15; animation: isc-pulse 1s ease-in-out infinite; }
+    @keyframes isc-pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+    #scan-invoice-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+      padding:13px 16px; font-size:15px; font-weight:700; border-radius:12px;
+      background:#0d9488; color:#fff; border:none; margin-bottom:14px; }
+    #scan-invoice-btn:hover { background:#0b7d73; opacity:1; }
+    #invoice-scan-panel { border:1px solid var(--border); border-radius:12px; padding:12px;
+      margin-bottom:16px; background:var(--bg-subtle); }
+    #invoice-scan-hint { font-size:13px; color:var(--text-muted); margin-bottom:8px; min-height:18px; }
+    .exp-sec { border:1px solid var(--border); border-radius:12px; padding:14px 16px 4px; margin-bottom:14px; background:var(--surface); }
+    .exp-sec-title { font-size:12px; font-weight:800; color:var(--brand-dark, #0d9488); letter-spacing:.03em; margin-bottom:10px; }
+    .exp-sec .field-row { flex-wrap:wrap; }
+    .exp-sec .field-row > .field { min-width:130px; }
+    .exp-amount-field input { font-size:20px; font-weight:800; }
   `;
   document.head.appendChild(s);
 }
@@ -341,18 +363,21 @@ function wireInvoiceScanner(formId) {
     return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", 0.92));
   }
 
-  async function aiRecognize(blob) {
+  // 回傳是否成功帶入欄位 — 讓自動連拍迴圈知道要不要再拍一次。
+  async function aiRecognize(blob, { auto = false } = {}) {
     if (!blob) {
-      if (extra) extra.textContent = "沒有抓到畫面,請再按一次「拍照辨識」,或改用「上傳發票照片 / PDF」。";
-      toast("沒有抓到相機畫面,請再試一次或改用上傳照片", "error");
-      return;
+      if (!auto) {
+        if (extra) extra.textContent = "沒有抓到畫面,請再按一次「立即拍照」,或改用「上傳發票照片 / PDF」。";
+        toast("沒有抓到相機畫面,請再試一次或改用上傳照片", "error");
+      }
+      return false;
     }
     const pid = state.currentProjectId;
     if (!pid) {
       toast("請先進入案件", "error");
-      return;
+      return false;
     }
-    if (extra) extra.textContent = "辨識中…約需 3~8 秒";
+    if (extra) extra.textContent = auto ? `自動辨識中…(第 ${_invoiceAutoAttempts} 次,約 3~5 秒)` : "辨識中…約需 3~8 秒";
     if (shotBtn) shotBtn.disabled = true;
     const fd = new FormData();
     fd.append("file", blob, "invoice.jpg");
@@ -368,8 +393,8 @@ function wireInvoiceScanner(formId) {
         buyer_tax_id: r.buyer_tax_id || null,
       };
       if (!parsed.invoice_number && !parsed.expense_date && parsed.amount == null) {
-        if (extra) extra.textContent = "沒有讀到發票欄位,請拍清楚一點(對正、光線足、填滿框)再試";
-        return;
+        if (!auto && extra) extra.textContent = "沒有讀到發票欄位,請拍清楚一點(對正、光線足、填滿框)再試";
+        return false;
       }
       applyInvoiceToForm(formId, parsed);
       stopInvoiceScan();
@@ -380,17 +405,44 @@ function wireInvoiceScanner(formId) {
         `已由 ${src} 帶入${typeLabel ? `(${typeLabel})` : ""}${r.total_amount != null ? " · 總計 $" + r.total_amount : ""},請確認`,
         "success"
       );
+      return true;
     } catch (e) {
       if (extra) extra.textContent = "辨識失敗:" + (e && e.message ? e.message : e);
+      return false;
     } finally {
       if (shotBtn) shotBtn.disabled = false;
+    }
+  }
+
+  // 開鏡頭後不用手動按快門 — 對到焦就自動連拍+辨識,拍到有讀到欄位為止(最多
+  // INVOICE_AUTO_MAX_ATTEMPTS 次)。手動「立即拍照」可隨時插隊、跳過等待。
+  async function autoCaptureLoop() {
+    _invoiceAutoTimer = null;
+    if (!_invoiceScanStream) return;
+    _invoiceAutoAttempts++;
+    const blob = await grabStill();
+    if (!blob) {
+      if (_invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 400);
+      } else if (extra) {
+        extra.textContent = "沒有抓到相機畫面,請按「立即拍照」再試,或改用上傳照片。";
+      }
+      return;
+    }
+    const ok = await aiRecognize(blob, { auto: true });
+    if (!ok && _invoiceScanStream) {
+      if (_invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 900);
+      } else if (extra) {
+        extra.textContent = "自動掃描沒讀到欄位,請按「立即拍照」重試,並確認發票對正、填滿框、光線充足。";
+      }
     }
   }
 
   async function openCamera() {
     const stage = document.getElementById("invoice-scan-stage");
     if (stage) stage.classList.remove("hidden");
-    hint.textContent = "把整張發票放進框內、對正、對到焦,再按「拍照辨識」。";
+    hint.textContent = "把整張發票放進框內、對正、填滿框 — 對到焦會自動拍照辨識,不用按快門。";
     try {
       _invoiceScanStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -398,6 +450,9 @@ function wireInvoiceScanner(formId) {
       video.srcObject = _invoiceScanStream;
       video.setAttribute("playsinline", "");
       await video.play();
+      if (_invoiceAutoTimer) clearTimeout(_invoiceAutoTimer);
+      _invoiceAutoAttempts = 0;
+      _invoiceAutoTimer = setTimeout(autoCaptureLoop, 550); // 給一點時間讓相機自動對焦
     } catch (e) {
       hint.textContent = "無法開啟相機(需 HTTPS 並允許權限):" + ((e && e.name) || e) + "。可改用「上傳發票照片」。";
       if (stage) stage.classList.add("hidden");
@@ -416,12 +471,20 @@ function wireInvoiceScanner(formId) {
 
   if (shotBtn)
     shotBtn.addEventListener("click", async () => {
+      if (_invoiceAutoTimer) {
+        clearTimeout(_invoiceAutoTimer);
+        _invoiceAutoTimer = null;
+      }
       if (!_invoiceScanStream) {
         await openCamera();
         return;
       }
       const blob = await grabStill();
-      aiRecognize(blob);
+      const ok = await aiRecognize(blob, { auto: false });
+      // 手動這次沒抓到也沒關係,自動連拍繼續接手,不用使用者一直按
+      if (!ok && _invoiceScanStream && _invoiceAutoAttempts < INVOICE_AUTO_MAX_ATTEMPTS) {
+        _invoiceAutoTimer = setTimeout(autoCaptureLoop, 900);
+      }
     });
 
   if (closeBtn)
@@ -439,18 +502,18 @@ function wireInvoiceScanner(formId) {
 }
 
 const INVOICE_SCAN_HTML = `
-  <button type="button" class="btn-secondary btn-sm" id="scan-invoice-btn" style="margin-bottom:10px">📷 掃描發票(拍照辨識)</button>
-  <div id="invoice-scan-panel" class="hidden" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg-subtle)">
-    <div id="invoice-scan-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">把整張發票放進框內、對正、對到焦,再按「拍照辨識」。</div>
+  <button type="button" id="scan-invoice-btn">📷 掃描發票 — 對準鏡頭自動辨識</button>
+  <div id="invoice-scan-panel" class="hidden">
+    <div id="invoice-scan-hint">把整張發票放進框內、對正、填滿框 — 對到焦會自動拍照辨識,不用按快門。</div>
     <div id="invoice-scan-stage" class="hidden">
       <video id="invoice-scan-video" playsinline muted></video>
       <div class="isc-box">
-        <span class="isc-c tl"></span><span class="isc-c tr"></span>
-        <span class="isc-c bl"></span><span class="isc-c br"></span>
+        <span class="isc-c tl live"></span><span class="isc-c tr live"></span>
+        <span class="isc-c bl live"></span><span class="isc-c br live"></span>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 拍照辨識</button>
+      <button type="button" class="btn-primary btn-sm" id="invoice-shot-btn" style="background:#0d9488;border-color:#0d9488">📸 立即拍照</button>
       <label class="btn-secondary btn-sm" style="cursor:pointer">上傳發票照片 / PDF<input type="file" accept="image/*,application/pdf" id="invoice-scan-file" style="display:none"></label>
       <button type="button" class="btn-secondary btn-sm" id="invoice-scan-close">關閉</button>
     </div>
@@ -463,26 +526,32 @@ function openAddExpenseModal(categories) {
     `
     ${INVOICE_SCAN_HTML}
     <form id="expense-form">
-      <div class="field-row">
-        <div class="field"><label>日期</label><input type="date" name="expense_date" value="${new Date().toISOString().slice(0, 10)}" required></div>
-        <div class="field"><label>費用類別</label>
-          <select name="category_id">
-            <option value="">— 未分類 —</option>
-            ${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
-          </select>
+      <div class="exp-sec">
+        <div class="exp-sec-title">支出資訊</div>
+        <div class="field-row">
+          <div class="field"><label>日期</label><input type="date" name="expense_date" value="${new Date().toISOString().slice(0, 10)}" required></div>
+          <div class="field"><label>費用類別</label>
+            <select name="category_id">
+              <option value="">— 未分類 —</option>
+              ${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
+            </select>
+          </div>
         </div>
+        <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" placeholder="例: 85000" required></div>
+        <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
       </div>
-      <div class="field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" placeholder="例: 85000" required></div>
-      <div class="field-row">
-        <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" placeholder="辨識後自動帶入"></div>
-        <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" placeholder="辨識後自動帶入"></div>
+      <div class="exp-sec">
+        <div class="exp-sec-title">發票明細(掃描後自動帶入)</div>
+        <div class="field-row">
+          <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" placeholder="辨識後自動帶入"></div>
+          <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" placeholder="辨識後自動帶入"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>賣方統編</label><input name="seller_tax_id" placeholder="8 碼"></div>
+          <div class="field"><label>買方統編</label><input name="buyer_tax_id" placeholder="8 碼"></div>
+        </div>
+        <div class="field"><label>發票號碼</label><input name="receipt_number" placeholder="例: AX00123456"></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>賣方統編</label><input name="seller_tax_id" placeholder="8 碼"></div>
-        <div class="field"><label>買方統編</label><input name="buyer_tax_id" placeholder="8 碼"></div>
-      </div>
-      <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
-      <div class="field"><label>發票號碼</label><input name="receipt_number" placeholder="例: AX00123456"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
@@ -523,26 +592,32 @@ function openEditExpenseModal(expense, categories) {
     `
     ${INVOICE_SCAN_HTML}
     <form id="expense-edit-form">
-      <div class="field-row">
-        <div class="field"><label>日期</label><input type="date" name="expense_date" value="${fmtDate(expense.expense_date)}" required></div>
-        <div class="field"><label>費用類別</label>
-          <select name="category_id">
-            <option value="">— 未分類 —</option>
-            ${categories.map((c) => `<option value="${c.id}" ${expense.category_id === c.id ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}
-          </select>
+      <div class="exp-sec">
+        <div class="exp-sec-title">支出資訊</div>
+        <div class="field-row">
+          <div class="field"><label>日期</label><input type="date" name="expense_date" value="${fmtDate(expense.expense_date)}" required></div>
+          <div class="field"><label>費用類別</label>
+            <select name="category_id">
+              <option value="">— 未分類 —</option>
+              ${categories.map((c) => `<option value="${c.id}" ${expense.category_id === c.id ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}
+            </select>
+          </div>
         </div>
+        <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" value="${expense.amount}" required></div>
+        <div class="field"><label>說明</label><input name="description" value="${escapeHtml(expense.description) || ""}" placeholder="例: 第一次說明會場地費"></div>
       </div>
-      <div class="field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" value="${expense.amount}" required></div>
-      <div class="field-row">
-        <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" value="${expense.untaxed_amount ?? ""}"></div>
-        <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" value="${expense.tax_amount ?? ""}"></div>
+      <div class="exp-sec">
+        <div class="exp-sec-title">發票明細(掃描後自動帶入)</div>
+        <div class="field-row">
+          <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" value="${expense.untaxed_amount ?? ""}"></div>
+          <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" value="${expense.tax_amount ?? ""}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(expense.seller_tax_id) || ""}" placeholder="8 碼"></div>
+          <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(expense.buyer_tax_id) || ""}" placeholder="8 碼"></div>
+        </div>
+        <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(expense.receipt_number) || ""}" placeholder="例: AX00123456"></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(expense.seller_tax_id) || ""}" placeholder="8 碼"></div>
-        <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(expense.buyer_tax_id) || ""}" placeholder="8 碼"></div>
-      </div>
-      <div class="field"><label>說明</label><input name="description" value="${escapeHtml(expense.description) || ""}" placeholder="例: 第一次說明會場地費"></div>
-      <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(expense.receipt_number) || ""}" placeholder="例: AX00123456"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="stopInvoiceScan();closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
