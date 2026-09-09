@@ -204,6 +204,23 @@
   }
   .login-brand-dot img { height: 116px; width: auto; display: block; }
   #login-form .btn-primary { padding: 10px 16px; font-size: 16px; margin-top: 4px; }
+  /* 登入卡片背景固定白色(不跟深色模式切換),但輸入框原本用 var(--surface-2)/
+     var(--text) 這種跟主題連動的顏色 —— 深色模式下會變成一塊跟白色卡片不搭的灰
+     藍色。這裡鎖死成固定的淺色系,不管系統是深色或淺色都跟卡片一致。瀏覽器自動
+     填入(記住密碼)另外還有自己的底色,一併用 -webkit-autofill 蓋掉。 */
+  .login-card input {
+    background: #f1f5f9; color: #0f172a; border-color: #dbe2ea;
+  }
+  .login-card input:hover { border-color: #b9c2ce; }
+  .login-card input:focus { background: #ffffff; border-color: var(--brand); }
+  .login-card input:-webkit-autofill,
+  .login-card input:-webkit-autofill:hover,
+  .login-card input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #0f172a;
+    -webkit-box-shadow: 0 0 0px 1000px #f1f5f9 inset;
+    box-shadow: 0 0 0px 1000px #f1f5f9 inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 
   /* ---------- App shell (sidebar layout) ---------- */
   #app { min-height: 100vh; }
