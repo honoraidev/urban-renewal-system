@@ -1,6 +1,6 @@
 "use strict";
 
-const myWorkState = { month: null, data: null };
+const myWorkState = { month: null, data: null, scope: "personal" };
 
 function myWorkEnsureStyle() {
   if (document.getElementById("mywork-style")) return;
@@ -35,6 +35,10 @@ function myWorkEnsureStyle() {
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
+    .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
+    .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
+    .mw-scope-toggle button.active { background:var(--surface); color:var(--brand,#0d9488); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    .mw-scope-toggle button:hover:not(.active) { color:var(--text); }
     .mw-tile { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:14px; background:var(--surface); margin-bottom:16px; }
     .mw-tile .num { font-size:30px; font-weight:800; color:var(--brand,#0d9488); line-height:1; }
     .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:10px; }
@@ -66,7 +70,7 @@ async function loadMyWork() {
   const body = document.getElementById("mywork-body");
   if (body && !myWorkState.data) body.innerHTML = `<div class="empty-state">載入中...</div>`;
   try {
-    myWorkState.data = await api(`/dashboard/my-work?month=${myWorkState.month}`);
+    myWorkState.data = await api(`/dashboard/my-work?month=${myWorkState.month}&scope=${myWorkState.scope}`);
   } catch (e) {
     if (body) body.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
@@ -132,15 +136,18 @@ function renderMyWork() {
     })
     .join("");
 
+  const isTeam = myWorkState.scope === "team";
   const followList = (d.today_followups || [])
-    .map((f) => `<div>· ${escapeHtml(f.landowner_name)}<span class="helper-text"> — ${escapeHtml(f.project_name)}</span></div>`)
-    .join("") || `<div class="helper-text">今天還沒有聯絡紀錄</div>`;
+    .map((f) => `<div>· ${escapeHtml(f.landowner_name)}<span class="helper-text"> — ${escapeHtml(f.project_name)}${
+      f.staff_name ? ` · ${escapeHtml(f.staff_name)}` : ""
+    }</span></div>`)
+    .join("") || `<div class="helper-text">${isTeam ? "今天團隊還沒有聯絡紀錄" : "今天還沒有聯絡紀錄"}</div>`;
 
   const _acts = d.today_activities || [];
   const _actRow = (a) => {
     const t = new Date(/[Zz]|[+-]\d\d:?\d\d$/.test(a.created_at) ? a.created_at : a.created_at + "Z");
     const hm = isNaN(t) ? "" : `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    return `<div class="mw-act"><span class="tm">${hm}</span><span>${escapeHtml(a.action)}${
+    return `<div class="mw-act"><span class="tm">${hm}</span><span>${a.user_name ? `<strong>${escapeHtml(a.user_name)}</strong> ` : ""}${escapeHtml(a.action)}${
       a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
     }</span></div>`;
   };
@@ -169,11 +176,15 @@ function renderMyWork() {
         <p class="helper-text" style="margin:10px 0 0">點任一天新增/編輯待辦。<span style="color:#15803d">■</span> 案件共用 <span style="color:#075985">■</span> 個人</p>
       </div>
       <div>
+        <div class="mw-scope-toggle" id="mw-scope-toggle">
+          <button type="button" data-scope="personal" class="${isTeam ? "" : "active"}">👤 個人</button>
+          <button type="button" data-scope="team" class="${isTeam ? "active" : ""}">👥 案件團隊</button>
+        </div>
         <div class="mw-tile">
           <div class="num">${d.today_followup_count}</div>
           <div>
             <div style="font-weight:700">今日跟進地主</div>
-            <div class="helper-text">今天你新增聯絡紀錄的地主人數</div>
+            <div class="helper-text">${isTeam ? "今天團隊新增聯絡紀錄的地主人數" : "今天你新增聯絡紀錄的地主人數"}</div>
           </div>
         </div>
         <div class="mw-card" style="margin-bottom:16px">
@@ -186,6 +197,14 @@ function renderMyWork() {
         </div>
       </div>
     </div>`;
+
+  document.getElementById("mw-scope-toggle").querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.scope === myWorkState.scope) return;
+      myWorkState.scope = btn.dataset.scope;
+      loadMyWork();
+    });
+  });
 
   document.getElementById("mw-prev").onclick = () => myWorkMonthShift(-1);
   document.getElementById("mw-next").onclick = () => myWorkMonthShift(1);

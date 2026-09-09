@@ -26,13 +26,13 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 def _visible_project_ids(db: Session, user: User) -> list[int]:
+    # 全站權限模型:除了地主,每個角色都能看到每一個案件(見 deps.require_project_
+    # viewer),ProjectMember 名單已經不是可視範圍的關卡了,這裡跟著一致 —— 否則像
+    # L3/L4 在自己不是「案件人員」的案件上做的事,這裡的案名對照表會漏查不到那個
+    # project_id,今日跟進/操作紀錄就會少了案名。
     if user.role == LANDOWNER_ROLE:
         return []
-    if user.role in MANAGE_ROLES:
-        return list(db.scalars(select(Project.id)))
-    return list(
-        db.scalars(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
-    )
+    return list(db.scalars(select(Project.id)))
 
 
 def _month_bounds(month: str | None) -> tuple[str, date, date]:
@@ -53,6 +53,7 @@ def _month_bounds(month: str | None) -> tuple[str, date, date]:
 @router.get("/my-work", response_model=MyWorkResponse)
 def get_my_work(
     month: str | None = Query(default=None, description="YYYY-MM, defaults to current month"),
+    scope: str = Query(default="personal", pattern="^(personal|team)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -60,24 +61,30 @@ def get_my_work(
     project_name_by_id = dict(
         db.execute(select(Project.id, Project.name).where(Project.id.in_(project_ids))).all()
     ) if project_ids else {}
+    is_team = scope == "team"
 
     now = datetime.utcnow()
     day_start = datetime.combine(now.date(), time.min)
     day_end = day_start + timedelta(days=1)
 
-    # --- 今日跟進地主 (distinct landowners this user logged a contact for today) ---
-    followup_rows = db.execute(
-        select(ContactLog.landowner_id, Landowner.name, Landowner.project_id)
+    # --- 今日跟進地主 ---
+    # personal:只看自己今天記錄的聯絡;team:看得到的所有案件、所有人今天記錄的聯絡
+    # (見 _visible_project_ids —— 全站權限模型下這就是「所有案件」)。
+    followup_query = (
+        select(ContactLog.landowner_id, Landowner.name, Landowner.project_id, User.display_name)
         .join(Landowner, Landowner.id == ContactLog.landowner_id)
-        .where(
-            ContactLog.staff_id == current_user.id,
-            ContactLog.contact_date >= day_start,
-            ContactLog.contact_date < day_end,
-        )
-    ).all()
+        .join(User, User.id == ContactLog.staff_id)
+        .where(ContactLog.contact_date >= day_start, ContactLog.contact_date < day_end)
+    )
+    if is_team:
+        # .in_([]) 就是永遠不成立,project_ids 空的時候(地主帳號)自然回傳 0 筆。
+        followup_query = followup_query.where(Landowner.project_id.in_(project_ids))
+    else:
+        followup_query = followup_query.where(ContactLog.staff_id == current_user.id)
+    followup_rows = db.execute(followup_query).all()
     seen: set[int] = set()
     today_followups: list[TodayFollowUpItem] = []
-    for lid, lname, pid in followup_rows:
+    for lid, lname, pid, staff_name in followup_rows:
         if lid in seen:
             continue
         seen.add(lid)
@@ -87,20 +94,25 @@ def get_my_work(
                 project_name=project_name_by_id.get(pid, ""),
                 landowner_id=lid,
                 landowner_name=lname,
+                staff_name=staff_name if is_team else None,
             )
         )
 
     # --- 今日操作紀錄 ---
-    activity_rows = db.scalars(
-        select(ActivityLog)
-        .where(
-            ActivityLog.user_id == current_user.id,
-            ActivityLog.created_at >= day_start,
-            ActivityLog.created_at < day_end,
-        )
-        .order_by(ActivityLog.created_at.desc())
-        .limit(200)
-    ).all()
+    # team 模式只看跟案件有關的動作(project_id 不為空),帳號設定這類非案件操作不算
+    # 「團隊」的事;personal 維持原本(自己做的任何事都算,不限案件)。
+    activity_query = select(ActivityLog).where(
+        ActivityLog.created_at >= day_start, ActivityLog.created_at < day_end
+    )
+    if is_team:
+        activity_query = activity_query.where(ActivityLog.project_id.in_(project_ids))
+    else:
+        activity_query = activity_query.where(ActivityLog.user_id == current_user.id)
+    activity_rows = db.scalars(activity_query.order_by(ActivityLog.created_at.desc()).limit(200)).all()
+    activity_user_ids = {a.user_id for a in activity_rows if a.user_id}
+    activity_user_names = dict(
+        db.execute(select(User.id, User.display_name).where(User.id.in_(activity_user_ids))).all()
+    ) if activity_user_ids else {}
     today_activities = [
         TodayActivityItem(
             id=a.id,
@@ -110,6 +122,7 @@ def get_my_work(
             project_id=a.project_id,
             project_name=project_name_by_id.get(a.project_id) if a.project_id else None,
             created_at=a.created_at,
+            user_name=activity_user_names.get(a.user_id) if is_team else None,
         )
         for a in activity_rows
     ]

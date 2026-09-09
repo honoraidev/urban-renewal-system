@@ -8,6 +8,7 @@ class TodayFollowUpItem(BaseModel):
     project_name: str
     landowner_id: int
     landowner_name: str
+    staff_name: str | None = None  # 只在 scope=team 時填,personal 不需要顯示是誰做的
 
 
 class TodayActivityItem(BaseModel):
@@ -18,6 +19,7 @@ class TodayActivityItem(BaseModel):
     project_id: int | None = None
     project_name: str | None = None
     created_at: datetime
+    user_name: str | None = None  # 只在 scope=team 時填,personal 不需要顯示是誰做的
 
 
 class CalendarEventItem(BaseModel):
