@@ -299,7 +299,13 @@ def build_roster_workbook(
             common_share = round(sum(s[4] or 0 for s in _shares), 2)
         else:
             common_share = _num(b.common_area_sqm)
-        licence = round((total or 0) + (aux or 0), 2)
+        # 權狀面積 = 主建物 + 附屬建物 + 共有部分持分。b.total_area_sqm(_compute_building_totals
+        # 算出的「建物總面積」)本身就已經是 structure_area_sqm + auxiliary_area_sqm +
+        # common_area_sqm 的加總 —— 附屬建物面積(aux)已經算在 total 裡面了,這裡不能再加
+        # 一次 aux,不然附屬建物面積會被重複計算兩次(謄本匯入的建物尤其明顯:結構面積跟
+        # 附屬建物是分開兩個數字相加得出 total,再 +aux 就變成三個數字疊加)。權狀面積真正
+        # 該多算的是共有部分持分(common_share)——這是另外從共有建號分算出來的,不在 total 裡。
+        licence = round((total or 0) + (common_share or 0), 2)
 
         detail = [""] * 13  # 1F..7F / 平台 / 陽臺 / 騎樓 / 附屬平台 / 附屬陽臺 / 防空避難室
         for f in getattr(b, "floors_detail", None) or []:
