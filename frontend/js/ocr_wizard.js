@@ -2071,7 +2071,13 @@ async function submitTitleDeedWizardInner() {
     );
 
     for (const b of d.buildings) {
-      const floorAreaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0;
+      // 謄本印的「總面積」欄位就是最終登記的建物總面積 —— 不管附屬建物在那份謄本
+      // 排版裡有沒有被獨立列出來,這個數字都不該再被疊加。後端 create_building_record
+      // 會用 structure_area_sqm + auxiliary_area_sqm + common_area_sqm 重算一次
+      // total_area_sqm,所以這裡要把 structure_area_sqm 用「總面積 − 附屬建物」回推,
+      // 這樣加回去以後才會等於謄本印的原始總面積;auxiliary_area_sqm 還是照樣存附屬
+      // 建物真實面積,地主清冊的「附屬建物總面積」欄位才有東西可以顯示。
+      const totalAreaSqm = Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0;
       const auxAreaSqm = (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
       for (const owner of b.owners) {
         if (!owner.owner_name) continue;
@@ -2092,7 +2098,7 @@ async function submitTitleDeedWizardInner() {
               .filter((a) => a.use || String(a.area_sqm) !== "")
               .map((a) => ({ use: a.use || "", area_sqm: Number(a.area_sqm) || 0 })),
             registration_order: owner.registration_order || null,
-            structure_area_sqm: floorAreaSqm,
+            structure_area_sqm: totalAreaSqm - auxAreaSqm,
             auxiliary_area_sqm: auxAreaSqm,
             common_area_sqm: 0,
             ownership_numerator: owner.ownership_numerator || 1,
@@ -2112,8 +2118,8 @@ async function submitTitleDeedWizardInner() {
             parcel_number: b.parcel_number || null,
             address: b.building_address || null,
             total_floors: b.total_floors || null,
-            structure_area_sqm: Number(b.total_area_sqm) || Number(b.floor_area_sqm) || 0,
-            auxiliary_area_sqm: (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0),
+            structure_area_sqm: totalAreaSqm - auxAreaSqm,
+            auxiliary_area_sqm: auxAreaSqm,
             main_use: b.main_use || "共有部分",
             common_part_shares: (b.common_part_of || []).map((c) => ({
               building_number: c.main_building_number || "",
