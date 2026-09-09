@@ -15,7 +15,7 @@ function boardEnsureStyle() {
     .board-card h3 { margin:0 0 10px; font-size:15px; display:flex; align-items:center; gap:6px; }
     .board-add-form { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
     .board-add-form input[type="text"] { flex:1; min-width:220px; }
-    .board-scroll { max-height:220px; overflow-y:auto; }
+    .board-scroll { max-height:76px; overflow-y:auto; }
     .board-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px; }
     .board-row { display:flex; justify-content:space-between; gap:12px; padding:7px 0;
       border-bottom:1px solid var(--border,#f1f5f9); align-items:flex-start; font-size:13px; }
