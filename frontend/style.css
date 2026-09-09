@@ -511,7 +511,7 @@
   .project-header > div { min-width: 0; max-width: 100%; }
   .project-header h2 {
     margin: 0 0 6px; font-size: 27px; font-weight: 800;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    max-width: 100%; word-break: break-word;
   }
   .project-header .sub { color: var(--text-muted); font-size: 16.5px; }
   .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
