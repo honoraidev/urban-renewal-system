@@ -618,12 +618,12 @@ function wireInvoiceScanner(formId, categories) {
               <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(e.buyer_tax_id)}" placeholder="8 碼"></div>
             </div>
             <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(e.receipt_number)}" placeholder="例: AX00123456"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn-secondary btn-sm" id="q-step-add" style="margin-right:auto">+ 新增一筆</button>
-            <button type="button" class="btn-danger btn-sm" id="q-step-delete">刪除此筆</button>
-            ${idx > 0 ? `<button type="button" class="btn-secondary btn-sm" id="q-step-prev">上一筆</button>` : ""}
-            <button type="submit" class="btn-primary btn-sm" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+              <button type="button" class="btn-secondary btn-sm" id="q-step-add" style="margin-right:auto">+ 新增一筆</button>
+              <button type="button" class="btn-danger btn-sm" id="q-step-delete">刪除此筆</button>
+              ${idx > 0 ? `<button type="button" class="btn-secondary btn-sm" id="q-step-prev">上一筆</button>` : ""}
+              <button type="submit" class="btn-primary btn-sm" style="background:#0d9488;border-color:#0d9488">${isLast ? "完成,建立全部支出" : "下一筆 →"}</button>
+            </div>
           </div>
         </form>`;
 
