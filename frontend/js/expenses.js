@@ -517,10 +517,13 @@ function wireInvoiceScanner(formId, categories) {
       );
       return;
     }
-    renderQueueReview(queue);
+    renderQueueStepper(queue);
   }
 
-  function renderQueueReview(queue) {
+  // 多筆(或含錯誤)辨識結果:不是丟一張總表勾選後「全部建立」,而是逐筆把欄位
+  // 直接帶進跟「記錄支出」一模一樣的表單裡,使用者看得清楚、能個別修改,按「建立
+  // 並下一筆」存一筆換下一筆,讀不到內容的那筆自動略過並提示,直到跑完整個佇列。
+  function renderQueueStepper(queue) {
     if (normalWrap) normalWrap.classList.add("hidden");
     if (!reviewWrap) return;
     reviewWrap.classList.remove("hidden");
@@ -529,116 +532,119 @@ function wireInvoiceScanner(formId, categories) {
       `<option value="">— 未分類 —</option>` +
       (categories || []).map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
 
-    const rowsHtml = queue
-      .map((r, i) => {
-        const src = `${escapeHtml(r.source_filename || "拍照")}${r.page ? ` #${r.page}` : ""}`;
-        if (r.error) {
-          return `<tr data-q-row="${i}" class="qrow-error">
-            <td><input type="checkbox" class="q-check" disabled></td>
-            <td class="helper-text" style="white-space:nowrap">${src}</td>
-            <td colspan="6" style="color:var(--danger)">${escapeHtml(r.error)}</td>
-          </tr>`;
-        }
-        const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
-        const srcTag = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
-        return `<tr data-q-row="${i}">
-          <td><input type="checkbox" class="q-check" checked></td>
-          <td class="helper-text" style="white-space:nowrap">${src}<br>${typeLabel} · ${srcTag}</td>
-          <td><input type="date" class="q-date" value="${escapeHtml(r.invoice_date) || ""}" style="width:128px"></td>
-          <td><select class="q-cat" style="min-width:100px">${catOptions}</select></td>
-          <td><input type="number" class="q-amount" value="${r.total_amount ?? ""}" style="width:85px" required></td>
-          <td><input class="q-desc" placeholder="說明" style="width:120px"></td>
-          <td><input class="q-receipt" value="${escapeHtml(r.invoice_number) || ""}" style="width:105px"></td>
-          <td><button type="button" class="btn-secondary btn-sm" data-q-drop="${i}">移除</button></td>
-        </tr>`;
-      })
-      .join("");
+    let idx = 0;
+    let created = 0;
+    let skipped = 0;
 
-    reviewWrap.innerHTML = `
-      <div class="helper-text" style="margin-bottom:8px">共辨識 ${queue.length} 筆,請確認金額/類別後一次建立(紅底行讀不到內容,不會被儲存)。</div>
-      <div class="table-wrap" style="max-height:42vh;overflow:auto">
-        <table style="width:100%">
-          <thead><tr><th></th><th>來源</th><th>日期</th><th>類別</th><th>金額</th><th>說明</th><th>發票號碼</th><th></th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap">
-        <span class="helper-text" id="q-review-summary"></span>
-        <div style="display:flex;gap:8px">
-          <button type="button" class="btn-secondary btn-sm" id="q-review-cancel">取消</button>
-          <button type="button" class="btn-primary btn-sm" id="q-review-save" style="background:#0d9488;border-color:#0d9488">全部建立支出</button>
-        </div>
-      </div>
-    `;
-
-    const updateSummary = () => {
-      let n = 0;
-      let total = 0;
-      reviewWrap.querySelectorAll("tr[data-q-row]").forEach((tr) => {
-        const chk = tr.querySelector(".q-check");
-        if (chk && chk.checked && !chk.disabled) {
-          n++;
-          total += Number(tr.querySelector(".q-amount")?.value) || 0;
-        }
-      });
-      const el = document.getElementById("q-review-summary");
-      if (el) el.textContent = `已選 ${n} 筆・合計 NT$${fmtMoney(total)}`;
+    const finish = () => {
+      closeModal();
+      const parts = [`已建立 ${created} 筆`];
+      if (skipped) parts.push(`略過 ${skipped} 筆`);
+      toast(parts.join("・"), created ? "success" : "error");
+      renderTab("expenses");
     };
-    reviewWrap.addEventListener("input", updateSummary);
-    reviewWrap.addEventListener("change", updateSummary);
-    updateSummary();
 
-    reviewWrap.querySelectorAll("[data-q-drop]").forEach((b) => {
-      b.addEventListener("click", () => {
-        b.closest("tr")?.remove();
-        updateSummary();
-      });
-    });
-
-    document.getElementById("q-review-cancel").addEventListener("click", () => {
-      panel.classList.add("hidden");
-      closeMenu();
-      showNormalMode();
-    });
-
-    document.getElementById("q-review-save").addEventListener("click", async () => {
-      const saveBtn = document.getElementById("q-review-save");
-      const rows = [...reviewWrap.querySelectorAll("tr[data-q-row]")].filter((tr) => {
-        const chk = tr.querySelector(".q-check");
-        return chk && chk.checked && !chk.disabled;
-      });
-      if (!rows.length) {
-        toast("沒有勾選要儲存的項目", "error");
+    const paint = () => {
+      if (idx >= queue.length) {
+        finish();
         return;
       }
-      saveBtn.disabled = true;
-      let ok = 0;
-      let fail = 0;
-      for (const tr of rows) {
-        const amount = Number(tr.querySelector(".q-amount")?.value);
-        if (!amount) {
-          fail++;
-          continue;
-        }
-        const payload = {
-          category_id: tr.querySelector(".q-cat")?.value ? Number(tr.querySelector(".q-cat").value) : null,
-          amount,
-          expense_date: tr.querySelector(".q-date")?.value || new Date().toISOString().slice(0, 10),
-          description: tr.querySelector(".q-desc")?.value || null,
-          receipt_number: tr.querySelector(".q-receipt")?.value || null,
-        };
-        saveBtn.textContent = `儲存中…(${ok + fail + 1}/${rows.length})`;
-        try {
-          await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload, silent: true });
-          ok++;
-        } catch (e) {
-          fail++;
-        }
+      const r = queue[idx];
+      const src = `${escapeHtml(r.source_filename || "拍照")}${r.page ? ` #${r.page}` : ""}`;
+      const progress = `第 ${idx + 1} 筆・共 ${queue.length} 筆${created ? `(已建立 ${created} 筆)` : ""}`;
+
+      if (r.error) {
+        reviewWrap.innerHTML = `
+          <div class="helper-text" style="margin-bottom:8px">${progress}</div>
+          <div class="exp-sec" style="border-color:rgba(239,68,68,.35)">
+            <div class="exp-sec-title" style="color:var(--danger)">${src}・讀不到內容</div>
+            <div style="color:var(--danger);font-size:13.5px">${escapeHtml(r.error)}</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" id="q-step-cancel">取消其餘</button>
+            <button type="button" class="btn-primary" id="q-step-skip" style="background:#0d9488;border-color:#0d9488">下一筆 →</button>
+          </div>`;
+        document.getElementById("q-step-cancel").addEventListener("click", finish);
+        document.getElementById("q-step-skip").addEventListener("click", () => {
+          skipped++;
+          idx++;
+          paint();
+        });
+        return;
       }
-      closeModal();
-      toast(fail ? `已建立 ${ok} 筆,${fail} 筆失敗` : `已建立 ${ok} 筆支出`, fail ? "error" : "success");
-      renderTab("expenses");
-    });
+
+      const typeLabel = INVOICE_TYPE_LABEL[r.invoice_type] || "";
+      const srcTag = r.source === "qr" ? "QR" : r.source === "gemini" ? "AI" : "OCR";
+      const isLast = idx === queue.length - 1;
+
+      reviewWrap.innerHTML = `
+        <div class="helper-text" style="margin-bottom:8px">${progress}・來源:${src}${typeLabel ? `・${typeLabel}` : ""}・${srcTag}</div>
+        <form id="q-step-form">
+          <div class="exp-sec">
+            <div class="exp-sec-title">支出資訊</div>
+            <div class="field-row">
+              <div class="field"><label>日期</label><input type="date" name="expense_date" value="${escapeHtml(r.invoice_date) || new Date().toISOString().slice(0, 10)}" required></div>
+              <div class="field"><label>費用類別</label><select name="category_id">${catOptions}</select></div>
+            </div>
+            <div class="field exp-amount-field"><label>總金額(含稅,新臺幣)</label><input type="number" name="amount" step="1" value="${r.total_amount ?? ""}" placeholder="例: 85000" required></div>
+            <div class="field"><label>說明</label><input name="description" placeholder="例: 第一次說明會場地費"></div>
+          </div>
+          <div class="exp-sec">
+            <div class="exp-sec-title">發票明細(掃描後自動帶入)</div>
+            <div class="field-row">
+              <div class="field"><label>未稅金額</label><input type="number" name="untaxed_amount" step="1" value="${r.untaxed_amount ?? ""}"></div>
+              <div class="field"><label>稅額</label><input type="number" name="tax_amount" step="1" value="${r.tax_amount ?? ""}"></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>賣方統編</label><input name="seller_tax_id" value="${escapeHtml(r.seller_tax_id) || ""}" placeholder="8 碼"></div>
+              <div class="field"><label>買方統編</label><input name="buyer_tax_id" value="${escapeHtml(r.buyer_tax_id) || ""}" placeholder="8 碼"></div>
+            </div>
+            <div class="field"><label>發票號碼</label><input name="receipt_number" value="${escapeHtml(r.invoice_number) || ""}" placeholder="例: AX00123456"></div>
+          </div>
+          <div class="modal-footer" style="justify-content:space-between">
+            <button type="button" class="btn-secondary" id="q-step-cancel">取消其餘</button>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn-secondary" id="q-step-skip">略過此筆</button>
+              <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">${isLast ? "建立並完成" : "建立並下一筆 →"}</button>
+            </div>
+          </div>
+        </form>`;
+
+      document.getElementById("q-step-cancel").addEventListener("click", finish);
+      document.getElementById("q-step-skip").addEventListener("click", () => {
+        skipped++;
+        idx++;
+        paint();
+      });
+      document.getElementById("q-step-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+        const payload = {
+          category_id: data.category_id ? Number(data.category_id) : null,
+          amount: Number(data.amount),
+          expense_date: data.expense_date,
+          description: data.description || null,
+          receipt_number: data.receipt_number || null,
+          untaxed_amount: data.untaxed_amount ? Number(data.untaxed_amount) : null,
+          tax_amount: data.tax_amount ? Number(data.tax_amount) : null,
+          seller_tax_id: data.seller_tax_id || null,
+          buyer_tax_id: data.buyer_tax_id || null,
+        };
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          await api(`/projects/${state.currentProjectId}/expenses`, { method: "POST", body: payload });
+          created++;
+          idx++;
+          paint();
+        } catch (err) {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
+    };
+
+    paint();
   }
 
   // 主按鈕:面板開著就整個收起來;沒開就彈出「拍照 / 選擇相片 / 選擇檔案」三選一選單。
