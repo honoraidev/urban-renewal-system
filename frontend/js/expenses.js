@@ -313,8 +313,20 @@ function wireInvoiceScanner(formId) {
   if (!btn || !panel) return;
   invoiceScanEnsureStyle();
 
-  function grabStill() {
-    if (!video.videoWidth) return Promise.resolve(null);
+  // LINE 內建瀏覽器等 in-app webview 常在切換畫面(例如按下快門的瞬間)把相機串流
+  // 暫停,這時 video.videoWidth 可能還是 0 —— 不要直接放棄,輪詢等一下再試。
+  async function waitForVideoReady(maxMs = 1500) {
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+      if (video.videoWidth && video.readyState >= 2) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return video.videoWidth > 0;
+  }
+
+  async function grabStill() {
+    const ready = await waitForVideoReady();
+    if (!ready || !video.videoWidth) return null;
     const c = document.createElement("canvas");
     c.width = video.videoWidth;
     c.height = video.videoHeight;
@@ -323,7 +335,11 @@ function wireInvoiceScanner(formId) {
   }
 
   async function aiRecognize(blob) {
-    if (!blob) return;
+    if (!blob) {
+      if (extra) extra.textContent = "沒有抓到畫面,請再按一次「拍照辨識」,或改用「上傳發票照片 / PDF」。";
+      toast("沒有抓到相機畫面,請再試一次或改用上傳照片", "error");
+      return;
+    }
     const pid = state.currentProjectId;
     if (!pid) {
       toast("請先進入案件", "error");
