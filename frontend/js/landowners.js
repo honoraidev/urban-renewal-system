@@ -927,8 +927,17 @@ function openAddBuildingByNumberModal() {
   });
 }
 
-function openEditLandownerModal(landownerId) {
-  const owner = state.projectCache[state.currentProjectId].landowners.find((o) => o.id === landownerId);
+async function openEditLandownerModal(landownerId) {
+  // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
+  // 抓的地主清單沒有寫回這個快取,只有登記資料分頁會寫,所以在整合清冊儲存過一次
+  // 之後,快取還是舊的,再點編輯會看到儲存前的舊狀態(例如拜訪/簽約狀態一直顯示
+  // 未拜訪/未簽約)。
+  let owner;
+  try {
+    owner = await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`);
+  } catch (e) {
+    return;
+  }
   if (!owner) return;
   const now = new Date();
   const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -965,10 +974,10 @@ function openEditLandownerModal(landownerId) {
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
         <label for="lo-add-contact-toggle" style="display:inline-flex;align-items:center;gap:8px;font-weight:700;cursor:pointer;margin:0">
-          <input type="checkbox" id="lo-add-contact-toggle" checked style="width:17px;height:17px;flex:none;margin:0;accent-color:var(--brand);cursor:pointer">
+          <input type="checkbox" id="lo-add-contact-toggle" style="width:17px;height:17px;flex:none;margin:0;accent-color:var(--brand);cursor:pointer">
           <span>同時新增一筆聯絡紀錄</span>
         </label>
-        <div id="lo-contact-fields" style="margin-top:10px">
+        <div id="lo-contact-fields" class="hidden" style="margin-top:10px">
           <div class="field-row">
             <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date" value="${localIso}"></div>
             <div class="field"><label>聯絡方式</label>
