@@ -513,7 +513,7 @@
   .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; min-width: 0; }
   .project-header > div { min-width: 0; max-width: 100%; }
   .project-header h2 {
-    margin: 0 0 6px; font-size: 24px; font-weight: 800;
+    margin: 0 0 6px; font-size: 28px; font-weight: 800;
     max-width: 100%; word-break: break-word;
   }
   .project-header .sub { color: var(--text-muted); font-size: 16.5px; }
