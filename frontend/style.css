@@ -484,7 +484,10 @@
      螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。 */
   .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 400px) minmax(280px, 560px); justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 4px; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
-  .pd-top-left { display: flex; flex-direction: column; }
+  .pd-top-left {
+    background: var(--surface); border-radius: 14px; padding: 18px 20px;
+    display: flex; flex-direction: column;
+  }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .pd-top-left .back-link { margin-bottom: 0; }
   .pd-top-left .project-header { margin-bottom: 0; }
