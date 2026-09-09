@@ -482,12 +482,14 @@
   .back-link:hover { color: var(--brand-dark); opacity: 1; }
   /* 案件詳情頁最上面:左邊是返回/狀態/標題,右邊並排放「公告 / 進度通知」卡片 - 窄
      螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。 */
-  .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 400px) minmax(280px, 560px); justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 4px; }
+  .pd-top-grid { display: grid; grid-template-columns: minmax(280px, 400px) minmax(280px, 560px); justify-content: space-between; gap: 20px; align-items: stretch; margin-bottom: 4px; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
-  .pd-top-line1 { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .pd-top-line1 { display: flex; align-items: center; gap: 12px; }
   .pd-top-left .back-link { margin-bottom: 0; }
-  .pd-top-left .project-header { margin-bottom: 0; }
+  /* 標題區在返回列下面撐滿剩餘高度、垂直置中 - 讓案名/區域文字落在返回列與下方
+     SOP 進度列的正中間,不會因為右邊公告卡片較高而整塊貼在最上面。 */
+  .pd-top-left .project-header { flex: 1; align-items: center; margin-bottom: 0; }
   .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
   .project-header h2 { margin: 0 0 4px; font-size: 21.5px; font-weight: 800; }
   .project-header .sub { color: var(--text-muted); font-size: 14.5px; }
