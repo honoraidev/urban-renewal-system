@@ -62,6 +62,7 @@ async function doLogout() {
   state.projectCache = {};
   sessionStorage.removeItem("token");
   sessionStorage.removeItem("lastView");
+  if (typeof myWorkStopPolling === "function") myWorkStopPolling();
   document.getElementById("app").classList.add("hidden");
   document.getElementById("view-login").classList.remove("hidden");
   loggingOut = false;

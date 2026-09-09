@@ -1,6 +1,6 @@
 "use strict";
 
-const myWorkState = { month: null, data: null, scope: "personal" };
+const myWorkState = { month: null, data: null, scope: "personal", pollTimer: null };
 
 function myWorkEnsureStyle() {
   if (document.getElementById("mywork-style")) return;
@@ -64,6 +64,7 @@ async function goToMyWork() {
     myWorkState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }
   await loadMyWork();
+  myWorkStartPolling();
 }
 
 async function loadMyWork() {
@@ -332,7 +333,24 @@ function openMyWorkDay(dateIso, events) {
   });
 }
 
-function initMyWork() {
-  const btn = document.getElementById("mywork-refresh-btn");
-  if (btn) btn.addEventListener("click", loadMyWork);
+function initMyWork() {}
+
+// 拿掉手動「重新整理」按鈕,改成停留在這頁時每 30 秒自己默默刷新一次(有新的跟進/
+// 操作紀錄不用手動點才看得到)。離開這頁(切到別的畫面)就停止輪詢,不浪費請求。
+function myWorkStartPolling() {
+  myWorkStopPolling();
+  myWorkState.pollTimer = setInterval(() => {
+    const view = document.getElementById("view-mywork");
+    if (!view || view.classList.contains("hidden")) {
+      myWorkStopPolling();
+      return;
+    }
+    loadMyWork();
+  }, 30000);
+}
+function myWorkStopPolling() {
+  if (myWorkState.pollTimer) {
+    clearInterval(myWorkState.pollTimer);
+    myWorkState.pollTimer = null;
+  }
 }
