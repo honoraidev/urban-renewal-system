@@ -1221,42 +1221,131 @@
 }
 
 /* ===== 使用手冊 (view-manual) ===== */
-.manual-wrap { max-width: 920px; color: var(--text-muted); font-size: 14px; line-height: 1.9; }
-.manual-wrap h3 {
-  color: var(--text-main); font-size: 17px; font-weight: 800;
-  margin: 34px 0 10px; padding-top: 10px; border-top: 1px solid var(--border);
-  scroll-margin-top: 16px;
+#view-manual { scroll-behavior: smooth; }
+.manual-wrap { color: var(--text-muted); font-size: 14.5px; line-height: 1.95; }
+
+/* Hero */
+.manual-hero {
+  position: relative; overflow: hidden;
+  border-radius: 20px; padding: 30px 34px; margin: 4px 0 26px;
+  background:
+    radial-gradient(130% 150% at 100% 0%, color-mix(in srgb, var(--brand) 24%, transparent) 0%, transparent 62%),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 13%, var(--surface)) 0%, var(--surface) 72%);
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--border));
+  box-shadow: var(--shadow);
 }
-.manual-wrap h3:first-of-type { border-top: none; padding-top: 0; margin-top: 8px; }
-.manual-wrap h4 { color: var(--text-main); font-size: 14.5px; font-weight: 700; margin: 18px 0 6px; }
-.manual-wrap p { margin: 8px 0; }
-.manual-wrap ul, .manual-wrap ol { margin: 8px 0 8px 20px; padding: 0; }
-.manual-wrap li { margin: 4px 0; }
-.manual-wrap strong { color: var(--text-main); }
+.manual-hero-icon {
+  width: 56px; height: 56px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 14px;
+  background: color-mix(in srgb, var(--brand) 20%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 34%, transparent);
+}
+.manual-hero h2 { margin: 0 0 6px; font-size: 24px; font-weight: 900; color: var(--text); }
+.manual-hero p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 62ch; line-height: 1.7; }
+
+.manual-layout { display: block; }
+.manual-body { min-width: 0; }
+.manual-body > * { max-width: 940px; }
+
+/* 目錄 */
 .manual-toc {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px; padding: 16px 22px; margin-bottom: 8px;
+  border-radius: 16px; padding: 18px 20px; margin-bottom: 26px;
 }
-.manual-toc-title { font-weight: 800; color: var(--text-main); margin-bottom: 8px; font-size: 14px; }
-.manual-toc ol { margin: 0 0 0 20px; }
-.manual-toc a { color: var(--brand); text-decoration: none; }
-.manual-toc a:hover { text-decoration: underline; }
+.manual-toc-title {
+  font-weight: 800; color: var(--text); font-size: 11.5px; letter-spacing: .14em;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.manual-toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; display: grid; gap: 2px; }
+@media (min-width: 720px) { .manual-toc ol { grid-template-columns: 1fr 1fr; gap: 2px 24px; } }
+.manual-toc li { counter-increment: toc; margin: 0; }
+.manual-toc a {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px;
+  color: var(--text); text-decoration: none; font-size: 13.5px; font-weight: 600;
+  transition: background .12s ease, color .12s ease;
+}
+.manual-toc a::before {
+  content: counter(toc); flex: 0 0 22px; height: 22px; border-radius: 7px;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  background: var(--surface-2); color: var(--text-muted); transition: inherit;
+}
+.manual-toc a:hover { background: var(--brand-light); color: var(--brand-dark); }
+.manual-toc a:hover::before { background: var(--brand); color: #fff; }
+
+/* 章節 */
+.manual-body { counter-reset: sec; }
+.manual-body h3 {
+  counter-increment: sec; display: flex; align-items: center; gap: 12px;
+  color: var(--text); font-size: 19px; font-weight: 800;
+  margin: 44px 0 14px; padding-top: 26px; border-top: 1px solid var(--border);
+  scroll-margin-top: 20px;
+}
+.manual-body h3::before {
+  content: counter(sec); flex: 0 0 30px; height: 30px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 15px; font-weight: 900; color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.manual-body h3:first-child { border-top: none; padding-top: 4px; margin-top: 0; }
+.manual-body h4 {
+  color: var(--text); font-size: 15px; font-weight: 700;
+  margin: 22px 0 8px; padding-left: 12px; border-left: 3px solid var(--brand);
+}
+.manual-body p { margin: 10px 0; }
+.manual-body strong { color: var(--text); font-weight: 700; }
+
+/* 一般清單 */
+.manual-body ul { margin: 10px 0; padding: 0; list-style: none; }
+.manual-body ul li { position: relative; padding-left: 20px; margin: 7px 0; }
+.manual-body ul li::before {
+  content: ""; position: absolute; left: 4px; top: 11px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--brand);
+}
+/* 步驟清單 */
+.manual-body ol { margin: 12px 0; padding: 0; list-style: none; counter-reset: step; }
+.manual-body ol li {
+  position: relative; padding-left: 38px; margin: 11px 0; counter-increment: step; min-height: 26px;
+}
+.manual-body ol li::before {
+  content: counter(step); position: absolute; left: 0; top: 0;
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; font-weight: 800; background: var(--brand-light); color: var(--brand-dark);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+/* 路徑 chip */
 .manual-path {
-  display: inline-block; background: var(--surface-2, var(--surface));
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 1px 7px; font-size: 12.5px; color: var(--text-main); white-space: nowrap;
+  display: inline-block; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 2px 9px; font-size: 12.5px; font-weight: 600;
+  color: var(--text); white-space: nowrap;
 }
-.manual-note {
-  background: var(--brand-light, color-mix(in srgb, var(--brand) 10%, transparent));
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
-  border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px;
+
+/* 提示框 */
+.manual-note, .manual-warn {
+  position: relative; border-radius: 12px; border: 1px solid transparent;
+  padding: 13px 16px 13px 44px; margin: 16px 0; font-size: 13.5px; line-height: 1.7; color: var(--text);
 }
-.manual-warn {
-  background: var(--danger-light); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
-  border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; color: var(--text-main);
-}
-.manual-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+.manual-note::before, .manual-warn::before { position: absolute; left: 14px; top: 12px; font-size: 16px; line-height: 1; }
+.manual-note { background: var(--brand-light); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
+.manual-note::before { content: "\1F4A1"; }
+.manual-warn { background: var(--warning-light); border-color: color-mix(in srgb, var(--warning) 36%, transparent); }
+.manual-warn::before { content: "\26A0\FE0F"; }
+
+/* 表格 */
+.manual-tw { overflow-x: auto; margin: 16px 0; border: 1px solid var(--border); border-radius: 12px; }
+.manual-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .manual-table th, .manual-table td {
-  border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top;
+  padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border);
 }
-.manual-table th { background: var(--surface); color: var(--text-main); font-weight: 700; white-space: nowrap; }
+.manual-table th { background: var(--surface-2); color: var(--text); font-weight: 700; white-space: nowrap; }
+.manual-table td:first-child { font-weight: 600; color: var(--text); }
+.manual-table tbody tr:last-child td { border-bottom: none; }
+.manual-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+.manual-table tbody tr:hover { background: var(--brand-light); }
+
+/* 寬螢幕:目錄變左側固定欄 */
+@media (min-width: 1120px) {
+  .manual-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 46px; align-items: start; }
+  .manual-toc { position: sticky; top: 16px; margin-bottom: 0; }
+  .manual-toc ol { grid-template-columns: 1fr; }
+}
