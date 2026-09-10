@@ -35,6 +35,7 @@ function bootstrapApp() {
       if (target === "mywork") goToMyWork();
       if (target === "dashboard") goToDashboard();
       if (target === "tools") goToTools();
+      if (target === "manual") goToManual();
       if (target === "users") goToUsers();
       if (target === "loginlogs") goToLoginLogs();
       if (target === "companydocs") goToCompanyDocs();

@@ -56,6 +56,7 @@ function showView(id) {
     "view-faq",
     "view-inventory",
     "view-tools",
+    "view-manual",
   ].forEach((v) => {
     const el = document.getElementById(v);
     if (el) el.classList.toggle("hidden", v !== id);
@@ -153,6 +154,9 @@ async function restoreLastView() {
       case "view-tools":
         goToTools();
         break;
+      case "view-manual":
+        goToManual();
+        break;
       default:
         // "view-new-project" / "view-ocr-batch" 這類過渡畫面沒有可復原的內容,回首頁。
         setActiveNav("dashboard");
@@ -166,6 +170,11 @@ async function restoreLastView() {
 function goToTools() {
   setActiveNav("tools");
   showView("view-tools");
+}
+
+function goToManual() {
+  setActiveNav("manual");
+  showView("view-manual");
 }
 
 function setActiveNav(name) {

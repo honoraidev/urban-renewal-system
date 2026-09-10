@@ -95,6 +95,7 @@
         </div>
         <div class="sb-sec">系統指南</div>
         <div class="nav-links">
+          <button class="nav-link" data-nav="manual"><span style="margin-right:6px">📖</span>使用手冊</button>
           <button class="nav-link" data-nav="tools"><span style="margin-right:6px">🔧</span>功能區</button>
         </div>
         <div class="nav-user">
@@ -438,6 +439,126 @@
                     style="background:#0d9488;border-color:#0d9488;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600">使用說明</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- 使用手冊 -->
+          <div id="view-manual" class="hidden">
+            <div class="page-header" style="margin-bottom:8px">
+              <div>
+                <h2>使用手冊</h2>
+                <p class="helper-text" style="margin:4px 0 0">都更管理系統操作說明。左側可切換各功能;實際畫面按角色權限顯示。</p>
+              </div>
+            </div>
+
+            <div class="manual-wrap"
+              style="max-width:900px;margin-top:20px;font-size:14px;color:var(--text-muted);line-height:1.85">
+
+              <div class="manual-toc"
+                style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:24px">
+                <div style="font-weight:700;color:var(--text-main);margin-bottom:6px">目錄</div>
+                <ol style="margin:0 0 0 18px;padding:0">
+                  <li><a href="#manual-overview">系統總覽與角色權限</a></li>
+                  <li><a href="#manual-start">開始使用:登入與側欄導覽</a></li>
+                  <li><a href="#manual-flow">案件作業流程(SOP 十關)</a></li>
+                  <li><a href="#manual-tabs">案件內各頁籤說明</a></li>
+                  <li><a href="#manual-tools">功能區工具(OCR、清冊、發票、土增稅)</a></li>
+                  <li><a href="#manual-resources">工具與資源</a></li>
+                  <li><a href="#manual-tips">常見問題與提示</a></li>
+                </ol>
+              </div>
+
+              <section id="manual-overview" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">1 · 系統總覽與角色權限</h3>
+                <p>本系統協助都市更新案件從<strong>籌備立案</strong>到<strong>雙門檻同意</strong>的全流程管理:謄本 OCR 匯入、地主與土地／建物登記、同意度與聯絡率統計、SOP 關卡進度、文件與費用管理、土地增值稅試算。</p>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>管理者 / 主管</strong>:所有案件的建立、刪除、人員指派與系統設定。</li>
+                  <li><strong>承辦 / 編輯者</strong>:被指派案件的資料編輯(登記資料、聯絡紀錄、文件、費用、SOP 操作)。</li>
+                  <li><strong>檢視者</strong>:唯讀。</li>
+                  <li><strong>地主帳號</strong>:僅能看到自己被綁定的那筆地主資料。</li>
+                </ul>
+              </section>
+
+              <section id="manual-start" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">2 · 開始使用:登入與側欄導覽</h3>
+                <p>以帳號密碼登入。左側選單分為幾個區塊:</p>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>總覽</strong> — <em>工作看板</em>(個人待辦、今日跟進地主、今日操作紀錄)、<em>都更案件進度總覽</em>(所有案件的關卡狀態一覽)。</li>
+                  <li><strong>案件管理</strong> — 依縣市分組的案件清單,點入即進入該案件詳情頁。</li>
+                  <li><strong>工具與資源</strong> — 公版文件、相關法規、相關網站、知識庫、部門物品管制表。</li>
+                  <li><strong>系統指南</strong> — 本使用手冊、功能區。</li>
+                </ul>
+                <p style="margin-top:8px">右上角頭像可編輯個人資料、切換深/淺色、登出;管理者另有使用者管理與登入紀錄。系統會記住你最後停留的畫面,重新整理不會被彈回首頁。</p>
+              </section>
+
+              <section id="manual-flow" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">3 · 案件作業流程(SOP 十關)</h3>
+                <p>在案件詳情頁的 <strong>「SOP 進度」</strong> 頁籤逐關推進。每一關展開後有檢核清單,補齊必要文件／資料並確認後才能「完成本關卡」進入下一關。</p>
+                <ol style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>第0關 · 初始核定立案</strong> — 上傳發函／意願書／同意書／合約範本。</li>
+                  <li><strong>第1關 · 謄本 OCR／地主清冊</strong> — 上傳地籍圖、土地與建物謄本(可用 OCR 匯入),於「登記資料」逐筆校正,確認地主清冊正確、產出地主清冊 Excel。</li>
+                  <li><strong>第2關 · 聯絡率 &gt; 95%</strong> — 於「地主聯絡簿」記錄聯絡狀況,系統自動計算聯絡率。</li>
+                  <li><strong>第3關 · 說明會 #1</strong> — 上傳說明會資料並確認。</li>
+                  <li><strong>第4關 · 同意度 &gt; 80%(雙門檻)</strong> — 人數與土地持分兩個門檻都要達 80%。</li>
+                  <li><strong>第5關 · 顧問文件主管審核</strong>。</li>
+                  <li><strong>第6關 · 說明會 #2(圖面發布)</strong>。</li>
+                  <li><strong>第7關 · 說明會 #3(合約 Q&amp;A)</strong>。</li>
+                  <li><strong>第8關 · 說明會 #4 同意度 &gt; 80%</strong>(雙門檻)。</li>
+                  <li><strong>第9關 · 雙門檻同意 &gt; 80%</strong> — 最終關卡。</li>
+                </ol>
+                <p style="margin-top:8px">同意度／聯絡率由「登記資料」「地主聯絡簿」「文件(同意書)」的資料即時彙算,不需手動輸入百分比。</p>
+              </section>
+
+              <section id="manual-tabs" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">4 · 案件內各頁籤說明</h3>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>SOP 進度</strong> — 十關進度、檢核清單、關卡文件上傳、完成／退回關卡。</li>
+                  <li><strong>登記資料</strong> — 土地登記、建物登記、地主。可用「自動掃描謄本(OCR)」批次匯入,再逐筆校正地號、建號、持分、面積、他項權利、戶籍地址等;土地登記可填「前次移轉現值或原規定地價」供土增稅試算。</li>
+                  <li><strong>整合清冊</strong> — 土地 × 建物 × 地主的整合檢視。</li>
+                  <li><strong>樓棟視圖</strong> — 依門牌／樓層排出的棟別格狀圖,格內顯示同意狀態顏色與共有人頭數,方便逐戶掃樓追蹤。共有部分／純地下室建號不列入。</li>
+                  <li><strong>關聯</strong> — 地主與土地／建物的關聯關係。</li>
+                  <li><strong>地主聯絡簿</strong> — 每位地主的聯絡紀錄與跟進狀態;聯絡率、逾期未聯絡提醒由此彙算。</li>
+                  <li><strong>文件</strong> — 案件文件庫,含同意書狀態(影響同意度)。</li>
+                  <li><strong>他項權利部</strong> — 抵押權、地上權等他項權利登記。</li>
+                  <li><strong>費用</strong> — 案件支出登錄;可用「發票掃描」拍照／上傳自動回填金額。</li>
+                  <li><strong>土增稅</strong> — 一般稅率土增稅試算。「原規定地價／前次移轉現值」在「登記資料 → 土地登記」編輯,此頁唯讀;此頁只填「本次申報移轉現值」。⚠ 僅供參考,正式稅額以稅捐機關核算為準。</li>
+                  <li><strong>人員</strong> — 案件成員與角色指派(限管理者／主管)。</li>
+                </ul>
+              </section>
+
+              <section id="manual-tools" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">5 · 功能區工具</h3>
+                <p>側欄「系統指南 → 功能區」集中列出跨案件工具,每張卡片有「使用說明」。</p>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>OCR 謄本辨識</strong> — 進入案件 → 登記資料 → 土地／建物登記 → 「自動掃描謄本(OCR)」→ 上傳 PDF。電子謄本直接抽文字,掃描件與空缺欄位自動 OCR 補掃 + AI 校正,一鍵匯入。</li>
+                  <li><strong>清冊製作</strong> — SOP 第1關「確認地主清冊正確」步驟點「產生地主清冊 Excel」。層次面積欄依各案件實際樓層動態產生,建物總面積／權狀面積會與各欄加總對得起來。</li>
+                  <li><strong>發票掃描</strong> — 費用頁拍照／上傳電子發票證明聯,優先讀 QR code,讀不到再 OCR,自動互算未稅金額、營業稅、總計並回填表單。</li>
+                  <li><strong>計算土地增值稅</strong> — 土增稅頁自動帶入案件地主與地號,輸入原地價／現值等即時試算。</li>
+                  <li><strong>製作同意書</strong> — 即將推出。</li>
+                </ul>
+              </section>
+
+              <section id="manual-resources" style="margin-bottom:28px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">6 · 工具與資源</h3>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>公版文件</strong> — 發函、意願書、同意書、合約等範本下載。</li>
+                  <li><strong>相關法規</strong> / <strong>相關網站</strong> — 都更相關法令與常用外部連結。</li>
+                  <li><strong>知識庫</strong> — 常見問答。</li>
+                  <li><strong>部門物品管制表</strong> — 部門物品借還與盤點。</li>
+                </ul>
+              </section>
+
+              <section id="manual-tips" style="margin-bottom:8px">
+                <h3 style="color:var(--text-main);margin:0 0 8px">7 · 常見問題與提示</h3>
+                <ul style="margin:8px 0 0 18px;padding:0">
+                  <li><strong>OCR 匯入後數字怪怪的?</strong> 到「登記資料」逐筆對照謄本校正;OCR 為輔助,仍以謄本為準。</li>
+                  <li><strong>舊案件缺共有建號／共有持分資料?</strong> 需重新用 OCR 匯入該案謄本才會帶入。</li>
+                  <li><strong>關卡卡住無法完成?</strong> 展開該關檢核清單,補齊必要文件與確認項目。</li>
+                  <li><strong>畫面沒更新?</strong> 重新整理瀏覽器;系統會復原你最後停留的頁面。</li>
+                  <li><strong>看不到某些頁籤／按鈕?</strong> 依角色權限顯示,需要時請管理者調整權限或案件成員。</li>
+                </ul>
+              </section>
+
             </div>
           </div>
         </main>
