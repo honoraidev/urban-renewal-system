@@ -292,6 +292,13 @@ def build_roster_workbook(
         + _COLS_TAIL
     )
 
+    # 面積類欄位:數值一律顯示到小數後 2 位(整數也是,例:80 -> 80.00);
+    # 剛好是 0 的就留白不填。判定:欄名含「面積 / ㎡ / 坪」,或就是「防空避難室」。
+    def _is_area_header(h: str) -> bool:
+        return "面積" in h or "㎡" in h or "坪" in h or h == "防空避難室"
+
+    area_cols = {i for i, (_g, h) in enumerate(columns, start=1) if _is_area_header(h)}
+
     wb = Workbook()
     ws = wb.active
     ws.title = "地主清冊"
@@ -502,9 +509,13 @@ def build_roster_workbook(
     def _emit(row_values):
         nonlocal r
         for cidx, val in enumerate(row_values, start=1):
+            if cidx in area_cols and isinstance(val, (int, float)) and not isinstance(val, bool):
+                val = None if abs(val) < 0.005 else round(float(val), 2)
             cell = ws.cell(row=r, column=cidx, value=val)
             cell.border = border
             cell.alignment = Alignment(vertical="center", wrap_text=True)
+            if cidx in area_cols:
+                cell.number_format = "0.00"
         r += 1
 
     r = 3
