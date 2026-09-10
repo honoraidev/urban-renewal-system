@@ -262,7 +262,7 @@ async function renderIntegratedRosterTab(el) {
         const a = document.createElement("a");
         a.href = url;
         const proj = state.currentProject || {};
-        a.download = `${proj.project_code || "roster"}_地主清冊.xlsx`;
+        a.download = `${proj.name || proj.project_code || "roster"}清冊.xlsx`;
         document.body.appendChild(a);
         a.click();
         a.remove();
