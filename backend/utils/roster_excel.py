@@ -2,8 +2,13 @@
 欄位列),一列資料 = 一筆土地登記(地號 × 所有權人),對應建物依號碼比對帶入。
 
 群組:土地標示部 / 土地所有權部 / 建物標示部 / 建物所有權部 / 共有建號。
-他項權利欄已依範本移除。「共有建號」群組的共有建號 / 共有面積 / 共有權利範圍(分子分母)
-目前資料模型還沒存(待 OCR/模型擴充),先留空;持分面積先用建物的 common_area_sqm。
+他項權利欄已依範本移除。
+
+「建物標示部」的「層次面積(㎡)」欄組**依每個案件的實際樓層客製化**:掃過該案件所有
+建物的「層數 / 層次」,地上最高到 N 層就出 1F~NF、地下最深到 M 層就出「地下1F~地下MF」,
+再固定補一欄「其他層次」接屋突 / 夾層 / 認不出來的樓層 —— 確保
+「建物總面積 = Σ層次各格 + 附屬建物總面積」「權狀面積 = 建物總面積 + 共有持分」
+這兩條在匯出檔裡每一列都對得起來(以前欄位寫死 1F~7F,地下層直接被丟掉,加總就對不上)。
 """
 
 import io
@@ -15,8 +20,8 @@ from openpyxl.utils import get_column_letter
 
 PING_PER_SQM = 0.3025
 
-# (群組, 欄位標題) - 順序即欄位順序
-_COLUMNS: list[tuple[str, str]] = [
+# 「層次面積」欄組前面、固定不變的欄位(群組, 標題)
+_COLS_HEAD: list[tuple[str, str]] = [
     ("土地標示部", "土地清冊編號"),
     ("土地標示部", "鄉鎮市區"),
     ("土地標示部", "地段"),
@@ -40,19 +45,18 @@ _COLUMNS: list[tuple[str, str]] = [
     ("建物標示部", "附屬建物總面積(㎡)"),
     ("建物標示部", "共有建號持分面積"),
     ("建物標示部", "權狀面積(㎡)"),
-    ("建物標示部", "層次面積(㎡)1F"),
-    ("建物標示部", "層次面積(㎡)2F"),
-    ("建物標示部", "層次面積(㎡)3F"),
-    ("建物標示部", "層次面積(㎡)4F"),
-    ("建物標示部", "層次面積(㎡)5F"),
-    ("建物標示部", "層次面積(㎡)6F"),
-    ("建物標示部", "層次面積(㎡)7F"),
-    ("建物標示部", "層次面積(㎡)平台"),
-    ("建物標示部", "層次面積(㎡)陽臺"),
-    ("建物標示部", "層次面積(㎡)騎樓"),
+]
+_HEAD_BLD_COLS = 9  # 建號 … 權狀面積(㎡):_bld_std_cells 回傳的前 9 欄
+
+# 「層次面積」欄組後面的固定附屬欄(建物標示部尾)
+_COLS_ACCESSORY: list[tuple[str, str]] = [
     ("建物標示部", "附屬建物(㎡)平台"),
     ("建物標示部", "附屬建物(㎡)陽臺"),
     ("建物標示部", "防空避難室"),
+]
+
+# 「層次面積」欄組後面、固定不變的欄位
+_COLS_TAIL: list[tuple[str, str]] = [
     ("建物所有權部", "登記次序"),
     ("建物所有權部", "所有權人"),
     ("建物所有權部", "統一編號"),
@@ -74,38 +78,114 @@ def _digits(v) -> str:
     return re.sub(r"\D", "", str(v or ""))
 
 
-_CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7}
+_CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 
 
-def _floor_slot(name: str):
-    """樓層名 -> 13 個明細欄位裡的 index(0=1F … 6=7F, 7=平台, 8=陽臺, 9=騎樓)。
-    地下層 / 屋頂突出物 等沒有對應欄位就回 None。"""
-    s = re.sub(r"\s+", "", str(name or ""))
-    if "地下" in s or "屋頂" in s:
-        return None
-    if "平台" in s or "平臺" in s:
-        return 7
-    if "陽台" in s or "陽臺" in s:
-        return 8
-    if "騎樓" in s:
-        return 9
-    m = re.match(r"([一二三四五六七1-7])\s*層?", s)
-    if m:
-        n = _CN_NUM.get(m.group(1)) or (int(m.group(1)) if m.group(1).isdigit() else None)
-        if n and 1 <= n <= 7:
-            return n - 1
+def _parse_cn_int(tok: str):
+    """「一」「12」「005」「十一」「二十」-> int,認不出回 None。"""
+    tok = (tok or "").strip()
+    if tok.isdigit():
+        return int(tok)
+    if tok in _CN_NUM:
+        return _CN_NUM[tok]
+    if tok == "十":
+        return 10
+    if len(tok) == 2 and tok[0] == "十" and tok[1] in _CN_NUM:
+        return 10 + _CN_NUM[tok[1]]
+    if len(tok) == 2 and tok[1] == "十" and tok[0] in _CN_NUM:
+        return _CN_NUM[tok[0]] * 10
     return None
 
 
+# 層次(非數字樓層)裡、範本有獨立欄位的幾種;順序即欄位順序
+_LAYER_L_KINDS: list[tuple[str, tuple[str, ...]]] = [
+    ("平台", ("平台", "平臺")),
+    ("陽臺", ("陽台", "陽臺")),
+    ("騎樓", ("騎樓",)),
+]
+
+# OCR 髒資料保險:層次欄最多開到這麼多層,超過的併進「其他層次」
+_MAX_FLOOR_COLS = 40
+
+
+def _classify_floor(name: str) -> tuple:
+    """floors_detail 的樓層名 -> 版面 key:
+      ("F", n)     地上第 n 層
+      ("L", 平台/陽臺/騎樓)  非數字層次
+      ("B", n)     地下第 n 層
+      ("OTHER",)   屋突 / 夾層 / 認不出來 / 超出上限 —— 併進「其他層次」
+    """
+    s = re.sub(r"\s+", "", str(name or ""))
+    for tag, kws in _LAYER_L_KINDS:
+        if any(k in s for k in kws):
+            return ("L", tag)
+    if "地下" in s:
+        m = re.search(r"地下([一二三四五六七八九十0-9]+)", s)
+        n = _parse_cn_int(m.group(1)) if m else None
+        return ("B", n) if n and 1 <= n <= _MAX_FLOOR_COLS else ("OTHER",)
+    m = re.match(r"([一二三四五六七八九十0-9]+)層?", s)
+    n = _parse_cn_int(m.group(1)) if m else None
+    return ("F", n) if n and 1 <= n <= _MAX_FLOOR_COLS else ("OTHER",)
+
+
+def _parse_total_floors(text: str) -> tuple[int, int]:
+    """『層數』欄 -> (地上最高層, 地下最深層)。吃得下 '005' / '五層' /
+    '地上5層地下2層' / '地上七層' 等寫法。"""
+    s = re.sub(r"\s+", "", str(text or ""))
+    if not s:
+        return (0, 0)
+    below = 0
+    mb = re.search(r"地下([一二三四五六七八九十0-9]+)層?", s)
+    if mb:
+        below = _parse_cn_int(mb.group(1)) or 0
+    above = 0
+    ma = re.search(r"地上([一二三四五六七八九十0-9]+)層?", s)
+    if ma:
+        above = _parse_cn_int(ma.group(1)) or 0
+    if not above:
+        s2 = s.replace(mb.group(0), "") if mb else s  # 去掉「地下N層」再找地上層數
+        m = re.search(r"([一二三四五六七八九十0-9]+)層?", s2)
+        if m:
+            above = _parse_cn_int(m.group(1)) or 0
+        elif s2.isdigit():
+            above = int(s2)
+    return (min(above, _MAX_FLOOR_COLS), min(below, _MAX_FLOOR_COLS))
+
+
+def _layer_layout(building_records: list) -> list[tuple[tuple, str]]:
+    """掃過(已過濾的)建物 records,決定這個案件「層次面積」欄組要有哪些欄、順序為何。
+    回傳 [(key, header), …],key 同 _classify_floor 的回傳值。
+    地上最高 N 層 → 1F~NF、地下最深 M 層 → 地下1F~地下MF;平台 / 陽臺 / 騎樓層次一律開;
+    最後固定含 ("OTHER",)。"""
+    max_f = max_b = 0
+    for b in building_records:
+        af, bf = _parse_total_floors(getattr(b, "total_floors", None))
+        max_f, max_b = max(max_f, af), max(max_b, bf)
+        for fd in getattr(b, "floors_detail", None) or []:
+            if not isinstance(fd, dict):
+                continue
+            kind, val = (_classify_floor(fd.get("floor")) + (None,))[:2]
+            if kind == "F" and val:
+                max_f = max(max_f, val)
+            elif kind == "B" and val:
+                max_b = max(max_b, val)
+
+    slots: list[tuple[tuple, str]] = [(("F", i), f"層次面積(㎡){i}F") for i in range(1, max_f + 1)]
+    slots += [(("L", tag), f"層次面積(㎡){tag}") for tag, _ in _LAYER_L_KINDS]
+    slots += [(("B", i), f"層次面積(㎡)地下{i}F") for i in range(1, max_b + 1)]
+    slots.append((("OTHER",), "層次面積(㎡)其他層次"))
+    return slots
+
+
 def _accessory_slot(use: str):
-    """附屬建物用途 -> 明細 index(10=附屬平台, 11=附屬陽臺, 12=附屬防空避難室)。"""
+    """附屬建物用途 -> _COLS_ACCESSORY 裡的 index(0=平台, 1=陽臺, 2=防空避難室)。"""
     s = re.sub(r"\s+", "", str(use or ""))
     if "平台" in s or "平臺" in s:
-        return 10
+        return 0
     if "陽台" in s or "陽臺" in s:
-        return 11
+        return 1
     if "防空" in s or "避難" in s:
-        return 12
+        return 2
     return None
 
 
@@ -192,6 +272,20 @@ def build_roster_workbook(
         lambda b: (_digits(b.building_number), (b.registration_order or "").strip(), b.landowner_id),
     )
 
+    # ---- 依本案件實際樓層,決定「層次面積」欄組 ----
+    layer_slots = _layer_layout(building_records)
+    layer_pos = {key: idx for idx, (key, _) in enumerate(layer_slots)}
+    other_pos = layer_pos[("OTHER",)]
+    n_layer = len(layer_slots)
+    _BLD_STD_LEN = _HEAD_BLD_COLS + n_layer + len(_COLS_ACCESSORY)
+
+    columns: list[tuple[str, str]] = (
+        _COLS_HEAD
+        + [("建物標示部", header) for _, header in layer_slots]
+        + _COLS_ACCESSORY
+        + _COLS_TAIL
+    )
+
     wb = Workbook()
     ws = wb.active
     ws.title = "地主清冊"
@@ -207,12 +301,12 @@ def build_roster_workbook(
     # 群組列(第1列) + 欄位列(第2列),資料從第3列起 - 版面同「清冊範本」,無標題列。
     col = 1
     i = 0
-    n = len(_COLUMNS)
+    n = len(columns)
     while i < n:
-        group = _COLUMNS[i][0]
+        group = columns[i][0]
         start = col
-        while i < n and _COLUMNS[i][0] == group:
-            c = ws.cell(row=2, column=col, value=_COLUMNS[i][1])
+        while i < n and columns[i][0] == group:
+            c = ws.cell(row=2, column=col, value=columns[i][1])
             c.fill, c.font, c.alignment, c.border = head_fill, head_font, center, border
             col += 1
             i += 1
@@ -274,9 +368,6 @@ def build_roster_workbook(
             (o.address if o else "") or "",
         ]
 
-    # 建物標示部欄位數(建號 … 防空避難室)
-    _BLD_STD_LEN = 22
-
     def _common_shares_for(b):
         """回傳這個主建物分持的共有部分清單:[(共有建號, 共有面積, 分子, 分母, 持分面積㎡), …]。"""
         if not b:
@@ -299,22 +390,41 @@ def build_roster_workbook(
             common_share = round(sum(s[4] or 0 for s in _shares), 2)
         else:
             common_share = _num(b.common_area_sqm)
-        # 建物總面積(total = b.total_area_sqm)已經是 _compute_building_totals() 算出的
-        # structure_area_sqm + auxiliary_area_sqm + common_area_sqm,也就是「主建物+
-        # 附屬建物」。權狀面積 = 建物總面積 + 共有部分持分(共有部分持分是另外從共有
-        # 建號分算出來的,不在 total 裡);不能再 +aux 一次,不然附屬建物面積會被算
-        # 兩次。
+        # total(= b.total_area_sqm)已是 _compute_building_totals() 算的 structure + auxiliary
+        # + common,也就是「主建物 + 附屬建物」。權狀面積 = 建物總面積 + 共有部分持分
+        # (共有持分另從共有建號分算,不在 total 裡);不能再 +aux 一次,否則附屬被算兩次。
         licence = round((total or 0) + (common_share or 0), 2)
 
-        detail = [""] * 13  # 1F..7F / 平台 / 陽臺 / 騎樓 / 附屬平台 / 附屬陽臺 / 防空避難室
+        # detail:前 n_layer 格 = layer_slots 對應的層次面積,後 3 格 = 附屬平台/陽臺/防空
+        detail = [""] * (n_layer + len(_COLS_ACCESSORY))
         for f in getattr(b, "floors_detail", None) or []:
-            slot = _floor_slot(f.get("floor") if isinstance(f, dict) else None)
-            if slot is not None and isinstance(f, dict):
-                detail[slot] = _num(f.get("area_sqm")) or f.get("area_sqm") or ""
+            if not isinstance(f, dict):
+                continue
+            pos = layer_pos.get(_classify_floor(f.get("floor")), other_pos)
+            area = _num(f.get("area_sqm"))
+            if area is None:
+                area = ""
+            if pos == other_pos:
+                # 「其他層次」會有多筆(地下二層 + 地下三層 + 屋突…),要加總不能覆蓋
+                prev = detail[pos] if isinstance(detail[pos], (int, float)) else 0
+                detail[pos] = round(prev + area, 2) if isinstance(area, (int, float)) else (prev or area)
+            else:
+                detail[pos] = area
         for a in getattr(b, "accessories_detail", None) or []:
-            slot = _accessory_slot(a.get("use") if isinstance(a, dict) else None)
-            if slot is not None and isinstance(a, dict):
-                detail[slot] = _num(a.get("area_sqm")) or a.get("area_sqm") or ""
+            k = _accessory_slot(a.get("use") if isinstance(a, dict) else None)
+            if k is not None and isinstance(a, dict):
+                detail[n_layer + k] = _num(a.get("area_sqm")) or a.get("area_sqm") or ""
+
+        # 保險:層次各格加總必須 == 主建物面積 structure_area_sqm。謄本沒逐層明細、或
+        # 明細少算時,把差額補進「其他層次」,讓匯出檔裡「建物總面積 = Σ層次格 + 附屬」
+        # 永遠成立。差額為負(明細多於主建物面積)時不動。
+        _struct = _num(b.structure_area_sqm)
+        if _struct is not None:
+            _placed = sum(v for v in detail[:n_layer] if isinstance(v, (int, float)))
+            _gap = round(_struct - _placed, 2)
+            if _gap >= 0.01:
+                _prev = detail[other_pos] if isinstance(detail[other_pos], (int, float)) else 0
+                detail[other_pos] = round(_prev + _gap, 2)
 
         # 層次欄:多筆時列出所有樓層名
         floor_names = [
@@ -426,7 +536,7 @@ def build_roster_workbook(
         _emit(row)
 
     # 欄寬
-    for cidx, (_group, header) in enumerate(_COLUMNS, start=1):
+    for cidx, (_group, header) in enumerate(columns, start=1):
         w = 10
         if "地址" in header:
             w = 32
