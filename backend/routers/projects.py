@@ -43,6 +43,7 @@ from schemas.project import (
 )
 from security import verify_password
 from utils.consent_ratio import calculate_consent_ratio
+from utils.document_folders import seed_project_folders
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -240,6 +241,9 @@ def create_project(
     # 負責這個案件),已經不是查看/編輯權限的關卡(見 deps.require_project_viewer/
     # require_project_editor),所以不分角色一律加入,不只 case_owner。
     db.add(ProjectMember(project_id=project.id, user_id=current_user.id, role_in_project=current_user.role))
+
+    # 每個案件都自動建立標準「案件資料」資料夾樹(1.謄本 / 2.基地調查 / 3.同意書 / …)
+    seed_project_folders(db, project.id)
 
     db.commit()
     db.refresh(project)

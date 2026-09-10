@@ -24,6 +24,7 @@ def _auto_migrate() -> None:
         models.CalendarEvent.__table__.create(bind=engine, checkfirst=True)
         models.InventoryItem.__table__.create(bind=engine, checkfirst=True)
         models.ProjectNote.__table__.create(bind=engine, checkfirst=True)
+        models.DocumentFolder.__table__.create(bind=engine, checkfirst=True)
     except Exception as exc:
         print(f"[auto_migrate] table create skipped: {exc}", flush=True)
 
@@ -68,6 +69,7 @@ def _auto_migrate() -> None:
         ("landowners", "reply_status", "VARCHAR(20) NOT NULL DEFAULT 'not_replied'"),
         ("inventory_items", "custodian_dept", "VARCHAR(100) NULL"),
         ("inventory_items", "borrower_dept", "VARCHAR(100) NULL"),
+        ("documents", "folder_id", "INT NULL"),
     ):
         try:
             with engine.connect() as _conn:
@@ -95,6 +97,61 @@ def _auto_migrate() -> None:
             _conn.commit()
     except Exception as exc:
         print(f"[auto_migrate] stale ocr_jobs sweep skipped: {exc}", flush=True)
+
+    # documents.folder_id -> document_folders FK (the ALTER loop above only adds the
+    # column). Best-effort: skip if it's already there or the table is locked.
+    try:
+        with engine.connect() as _conn:
+            _exists = _conn.execute(
+                _sql_text(
+                    "SELECT 1 FROM information_schema.table_constraints "
+                    "WHERE table_schema = DATABASE() AND table_name = 'documents' "
+                    "AND constraint_name = 'fk_documents_folder'"
+                )
+            ).first()
+            if not _exists:
+                _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+                _conn.execute(
+                    _sql_text(
+                        "ALTER TABLE documents ADD CONSTRAINT fk_documents_folder "
+                        "FOREIGN KEY (folder_id) REFERENCES document_folders(id) ON DELETE SET NULL"
+                    )
+                )
+                _conn.commit()
+                print("[auto_migrate] added FK fk_documents_folder", flush=True)
+    except Exception as exc:
+        print(f"[auto_migrate] add FK fk_documents_folder skipped: {exc}", flush=True)
+
+    # Seed the standard 案件資料 folder tree for every existing project, and file any
+    # documents that still have no folder into the folder their legacy doc_type maps to.
+    try:
+        from utils.document_folders import folder_id_for_doc_type, seed_project_folders
+
+        _db = SessionLocal()
+        try:
+            _project_ids = [r[0] for r in _db.execute(_sql_text("SELECT id FROM projects"))]
+            for _pid in _project_ids:
+                _fmap = seed_project_folders(_db, _pid)
+                _db.flush()
+                _rows = _db.execute(
+                    _sql_text(
+                        "SELECT id, doc_type FROM documents "
+                        "WHERE project_id = :pid AND folder_id IS NULL"
+                    ),
+                    {"pid": _pid},
+                ).all()
+                for _doc_id, _doc_type in _rows:
+                    _fid = folder_id_for_doc_type(_fmap, _doc_type)
+                    if _fid:
+                        _db.execute(
+                            _sql_text("UPDATE documents SET folder_id = :fid WHERE id = :id"),
+                            {"fid": _fid, "id": _doc_id},
+                        )
+            _db.commit()
+        finally:
+            _db.close()
+    except Exception as exc:
+        print(f"[auto_migrate] document folder seed/backfill skipped: {exc}", flush=True)
 
 
 @asynccontextmanager

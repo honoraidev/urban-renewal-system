@@ -7,6 +7,7 @@ from models.building_record import BuildingRecord
 from models.contact_log import ContactLog
 from models.consent_record import ConsentRecord
 from models.document import Document
+from models.document_folder import DocumentFolder
 from models.expense import Expense, ExpenseCategory
 from models.ocr import OcrJob, OcrMatchResult
 from models.ocr_job_document import OcrJobDocument
@@ -32,6 +33,7 @@ __all__ = [
     "ContactLog",
     "ConsentRecord",
     "Document",
+    "DocumentFolder",
     "Expense",
     "ExpenseCategory",
     "OcrJob",

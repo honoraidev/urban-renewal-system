@@ -12,6 +12,9 @@ class Document(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     landowner_id: Mapped[int | None] = mapped_column(ForeignKey("landowners.id", ondelete="SET NULL"), nullable=True)
+    folder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("document_folders.id", ondelete="SET NULL"), nullable=True
+    )
     doc_type: Mapped[str] = mapped_column(String(30), nullable=False, default="other")
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

@@ -212,11 +212,32 @@ CREATE TABLE consent_records (
     INDEX idx_consent_project_stage (project_id, sop_stage)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 9b. document_folders (per-project 案件資料 folder tree - the standard 都更 case-file
+-- structure every project is seeded with; see backend/utils/document_folders.py.
+-- parent_id NULL = top-level folder. Seeded folders carry a stable `code`; folders a
+-- user adds by hand have code = NULL. Defined before `documents` so documents.folder_id
+-- can reference it inline.)
+CREATE TABLE document_folders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    parent_id INT NULL,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_document_folders_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT fk_document_folders_parent FOREIGN KEY (parent_id) REFERENCES document_folders(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_document_folders_project_code (project_id, code),
+    INDEX idx_document_folders_project (project_id),
+    INDEX idx_document_folders_parent (parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 10. documents
 CREATE TABLE documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     landowner_id INT NULL,
+    folder_id INT NULL,
     doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other','dev_letter_template','willingness_form_template','consent_form_template','contract_template','cadastral_map','consultant_document') NOT NULL DEFAULT 'other',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
@@ -227,8 +248,10 @@ CREATE TABLE documents (
     description TEXT,
     CONSTRAINT fk_documents_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     CONSTRAINT fk_documents_landowner FOREIGN KEY (landowner_id) REFERENCES landowners(id) ON DELETE SET NULL,
+    CONSTRAINT fk_documents_folder FOREIGN KEY (folder_id) REFERENCES document_folders(id) ON DELETE SET NULL,
     CONSTRAINT fk_documents_uploaded_by FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_documents_project (project_id)
+    INDEX idx_documents_project (project_id),
+    INDEX idx_documents_folder (folder_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 11. expense_categories

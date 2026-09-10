@@ -12,13 +12,20 @@ from database import get_db
 from deps import get_current_user, require_project_ocr_editor, require_project_staff_viewer
 from models.building_record import BuildingRecord
 from models.document import Document
+from models.document_folder import DocumentFolder
 from models.land_record import LandRecord
 from models.landowner import Landowner
 from models.ocr import OcrJob
 from models.ocr_job_document import OcrJobDocument
 from models.project import Project
 from models.user import User
-from schemas.document import DocumentRead
+from schemas.document import (
+    DocumentFolderCreate,
+    DocumentFolderRead,
+    DocumentFolderUpdate,
+    DocumentRead,
+)
+from utils.document_folders import folder_id_for_doc_type, seed_project_folders
 from utils.file_storage import build_upload_path
 from utils.ocr import merge_pages_to_pdf
 
@@ -258,11 +265,188 @@ def list_documents(
     ).all()
 
 
+# --- 案件資料 folder tree -------------------------------------------------------
+# Every project is seeded with the standard 都更 case-file folder structure (see
+# utils/document_folders.py). These endpoints expose that tree and let staff add / rename
+# / move / remove their own sub-folders. Standard folders (code != NULL) can be renamed
+# and reordered but not deleted.
+
+
+def _get_folder_or_404(db: Session, project_id: int, folder_id: int) -> DocumentFolder:
+    folder = db.scalar(
+        select(DocumentFolder).where(
+            DocumentFolder.id == folder_id, DocumentFolder.project_id == project_id
+        )
+    )
+    if folder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+    return folder
+
+
+@router.get("/folders", response_model=list[DocumentFolderRead])
+def list_document_folders(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    # Seed on first read so projects created before the folder tree existed still get it
+    # (the backfill in main.py also covers this, but a fresh read shouldn't depend on a
+    # restart having happened). Tolerate a concurrent seeder racing us on the
+    # (project_id, code) unique key - if it lost, the folders it needed now exist anyway.
+    try:
+        seed_project_folders(db, project.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+    return db.scalars(
+        select(DocumentFolder)
+        .where(DocumentFolder.project_id == project.id)
+        .order_by(
+            func.coalesce(DocumentFolder.parent_id, 0),
+            DocumentFolder.sort_order,
+            DocumentFolder.id,
+        )
+    ).all()
+
+
+@router.post("/folders", response_model=DocumentFolderRead, status_code=status.HTTP_201_CREATED)
+def create_document_folder(
+    payload: DocumentFolderCreate,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="資料夾名稱不可空白")
+
+    parent_id = payload.parent_id
+    if parent_id is not None:
+        _get_folder_or_404(db, project.id, parent_id)
+
+    sibling_cond = (
+        DocumentFolder.parent_id == parent_id
+        if parent_id is not None
+        else DocumentFolder.parent_id.is_(None)
+    )
+    max_order = db.scalar(
+        select(func.max(DocumentFolder.sort_order)).where(
+            DocumentFolder.project_id == project.id, sibling_cond
+        )
+    )
+
+    folder = DocumentFolder(
+        project_id=project.id,
+        parent_id=parent_id,
+        name=name,
+        code=None,
+        sort_order=(max_order or 0) + 1,
+    )
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+@router.patch("/folders/{folder_id}", response_model=DocumentFolderRead)
+def update_document_folder(
+    folder_id: int,
+    payload: DocumentFolderUpdate,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    folder = _get_folder_or_404(db, project.id, folder_id)
+    data = payload.model_dump(exclude_unset=True)
+
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="資料夾名稱不可空白")
+        folder.name = name
+
+    if data.get("sort_order") is not None:
+        folder.sort_order = data["sort_order"]
+
+    if "parent_id" in data:
+        new_parent = data["parent_id"]
+        if new_parent is not None:
+            if new_parent == folder.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="不能把資料夾移到自己底下"
+                )
+            parent = _get_folder_or_404(db, project.id, new_parent)
+            # Walk up from the new parent; if we reach this folder, the move makes a cycle.
+            cursor: DocumentFolder | None = parent
+            hops = 0
+            while cursor is not None and hops < 100:
+                if cursor.id == folder.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="不能把資料夾移到自己的子資料夾底下",
+                    )
+                cursor = db.get(DocumentFolder, cursor.parent_id) if cursor.parent_id else None
+                hops += 1
+        folder.parent_id = new_parent
+
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+@router.delete("/folders/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_document_folder(
+    folder_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    folder = _get_folder_or_404(db, project.id, folder_id)
+    if folder.code is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="標準資料夾不可刪除")
+
+    has_children = db.scalar(
+        select(func.count()).select_from(DocumentFolder).where(DocumentFolder.parent_id == folder.id)
+    )
+    has_docs = db.scalar(
+        select(func.count()).select_from(Document).where(Document.folder_id == folder.id)
+    )
+    if has_children or has_docs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="資料夾內仍有子資料夾或文件,請先清空或移出"
+        )
+
+    db.delete(folder)
+    db.commit()
+    return  # 204
+
+
+def _resolve_upload_folder_id(
+    db: Session, project_id: int, folder_id: int | None, doc_type: str
+) -> int | None:
+    """A caller-supplied folder_id must belong to this project; otherwise fall back to
+    the standard folder that matches the (legacy) doc_type."""
+    if folder_id is not None:
+        _get_folder_or_404(db, project_id, folder_id)
+        return folder_id
+    try:
+        folder_map = seed_project_folders(db, project_id)
+        db.flush()
+    except Exception:
+        db.rollback()
+        folder_map = {
+            row.code: row.id
+            for row in db.scalars(
+                select(DocumentFolder).where(
+                    DocumentFolder.project_id == project_id, DocumentFolder.code.is_not(None)
+                )
+            )
+        }
+    return folder_id_for_doc_type(folder_map, doc_type)
+
+
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def upload_document(
     file: UploadFile = File(...),
     doc_type: str = Form("other"),
     landowner_id: int | None = Form(None),
+    folder_id: int | None = Form(None),
     description: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -272,6 +456,8 @@ def upload_document(
 
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
+
+    folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 
     upload_filename = file.filename or "upload"
     content = file.file.read()
@@ -285,6 +471,7 @@ def upload_document(
     document = Document(
         project_id=project_id,
         landowner_id=landowner_id,
+        folder_id=folder_id,
         doc_type=doc_type,
         file_name=upload_filename,
         file_path=disk_path,
@@ -305,6 +492,7 @@ def create_document_from_images(
     files: list[UploadFile] = File(...),
     doc_type: str = Form("property_register"),
     file_name: str | None = Form(None),
+    folder_id: int | None = Form(None),
     description: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -317,6 +505,8 @@ def create_document_from_images(
     project_id = project.id
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
+
+    folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 
     file_payload = [(upload.file.read(), upload.content_type) for upload in files]
     if not file_payload:
@@ -332,6 +522,7 @@ def create_document_from_images(
 
     document = Document(
         project_id=project_id,
+        folder_id=folder_id,
         doc_type=doc_type,
         file_name=display_name,
         file_path=disk_path,
