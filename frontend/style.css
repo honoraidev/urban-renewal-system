@@ -1318,6 +1318,7 @@
   padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border);
 }
 .manual-table th { background: var(--surface-2); color: var(--text); font-weight: 700; white-space: nowrap; }
+.manual-table th:first-child, .manual-table td:first-child { white-space: nowrap; }
 .manual-table td:first-child { font-weight: 600; color: var(--text); }
 .manual-table tbody tr:last-child td { border-bottom: none; }
 .manual-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
