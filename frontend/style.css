@@ -1223,26 +1223,6 @@
 /* ===== 使用手冊 (view-manual) ===== */
 #view-manual { scroll-behavior: smooth; }
 .manual-wrap { color: var(--text-muted); font-size: 14.5px; line-height: 1.95; }
-
-/* Hero */
-.manual-hero {
-  position: relative; overflow: hidden;
-  border-radius: 20px; padding: 30px 34px; margin: 4px 0 26px;
-  background:
-    radial-gradient(130% 150% at 100% 0%, color-mix(in srgb, var(--brand) 24%, transparent) 0%, transparent 62%),
-    linear-gradient(135deg, color-mix(in srgb, var(--brand) 13%, var(--surface)) 0%, var(--surface) 72%);
-  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--border));
-  box-shadow: var(--shadow);
-}
-.manual-hero-icon {
-  width: 56px; height: 56px; border-radius: 16px;
-  display: flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 14px;
-  background: color-mix(in srgb, var(--brand) 20%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--brand) 34%, transparent);
-}
-.manual-hero h2 { margin: 0 0 6px; font-size: 24px; font-weight: 900; color: var(--text); }
-.manual-hero p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 62ch; line-height: 1.7; }
-
 .manual-layout { display: block; }
 .manual-body { min-width: 0; }
 .manual-body > * { max-width: 940px; }
