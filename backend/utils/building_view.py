@@ -18,7 +18,9 @@ def _parse_chinese_floor_number(text: str) -> int | None:
     core = re.sub(r"^(地下|B)", "", text, flags=re.IGNORECASE)
     core = re.sub(r"(樓|層|F)$", "", core, flags=re.IGNORECASE).strip()
     if not core:
-        return None
+        # 沒帶數字的「地下層」/「地下」當地下一層 —— 不然會被丟到 -10000 的
+        # catch-all,在樓棟視圖裡自成一列、和「B1」分開。上面沒帶數字就維持 None。
+        return -1 if basement else None
     if core.isdigit():
         n = int(core)
         return -n if basement else n
@@ -33,6 +35,19 @@ def _parse_chinese_floor_number(text: str) -> int | None:
     else:
         return None
     return -n if basement else n
+
+
+def is_shared_building_record(b) -> bool:
+    """共有部分 / 公設 / 純地下室 —— 不是任何人的區分所有建物,樓棟視圖不該把它
+    當成一戶。OCR 常把每位區分所有權人的「共有部分:XXXX建號」誤存成掛在該人
+    底下的一筆 building_record(同一個地下停車場建號會重複幾十列),不濾掉的話
+    那一格就會出現「×50」這種假的共有人頭數。地主清冊匯出也做同樣的剔除。"""
+    if (getattr(b, "main_use", None) or "").strip() == "共有部分":
+        return True
+    if getattr(b, "common_part_shares", None):
+        return True
+    addr = getattr(b, "address", "") or ""
+    return "房屋地下" in addr or "共同使用" in addr
 
 
 _DOOR_NUMBER_RE = re.compile(r"^(.*?)(\d+)\s*號")

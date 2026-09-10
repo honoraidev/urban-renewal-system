@@ -9,7 +9,12 @@ from models.consent_record import ConsentRecord
 from models.land_record import LandRecord
 from models.landowner import Landowner
 from models.project import Project
-from utils.building_view import floor_sort_key_and_label, group_building_records, parse_address
+from utils.building_view import (
+    floor_sort_key_and_label,
+    group_building_records,
+    is_shared_building_record,
+    parse_address,
+)
 
 router = APIRouter(prefix="/projects/{project_id}/building-view", tags=["building-view"])
 
@@ -39,6 +44,8 @@ def get_building_view(
         .options(selectinload(BuildingRecord.landowner))
         .where(BuildingRecord.project_id == project_id, BuildingRecord.landowner_id.isnot(None))
     ).all()
+    # 剔除共有部分 / 純地下室建號(OCR 一位共有人一列,不濾會出現「×50」假人頭)。
+    records = [r for r in records if not is_shared_building_record(r)]
 
     landowner_ids = {r.landowner_id for r in records}
     consent_by_landowner: dict[int, str] = {}
