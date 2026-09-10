@@ -6,9 +6,9 @@
 
 「建物標示部」的「層次面積(㎡)」欄組**依每個案件的實際樓層客製化**:掃過該案件所有
 建物的「層數 / 層次」,地上最高到 N 層就出 1F~NF、地下最深到 M 層就出「地下1F~地下MF」,
-再固定補一欄「其他層次」接屋突 / 夾層 / 認不出來的樓層 —— 確保
-「建物總面積 = Σ層次各格 + 附屬建物總面積」「權狀面積 = 建物總面積 + 共有持分」
-這兩條在匯出檔裡每一列都對得起來(以前欄位寫死 1F~7F,地下層直接被丟掉,加總就對不上)。
+平台 / 陽臺 / 騎樓層次一律出;只有在真的出現屋突 / 夾層 / 認不出來的樓層時,才多補一欄
+「其他層次」。這樣「建物總面積 = Σ層次各格 + 附屬建物總面積」「權狀面積 = 建物總面積 +
+共有持分」在匯出檔裡每一列都對得起來(以前欄位寫死 1F~7F,地下層直接被丟掉,加總就對不上)。
 """
 
 import io
@@ -112,8 +112,8 @@ def _classify_floor(name: str) -> tuple:
     """floors_detail 的樓層名 -> 版面 key:
       ("F", n)     地上第 n 層
       ("L", 平台/陽臺/騎樓)  非數字層次
-      ("B", n)     地下第 n 層
-      ("OTHER",)   屋突 / 夾層 / 認不出來 / 超出上限 —— 併進「其他層次」
+      ("B", n)     地下第 n 層(沒帶數字的「地下層」當地下一層)
+      ("OTHER",)   屋突 / 夾層 / 認不出來 / 超出上限 —— 併進「其他層次」(僅在真的有這種樓層時才出欄)
     """
     s = re.sub(r"\s+", "", str(name or ""))
     for tag, kws in _LAYER_L_KINDS:
@@ -122,7 +122,9 @@ def _classify_floor(name: str) -> tuple:
     if "地下" in s:
         m = re.search(r"地下([一二三四五六七八九十0-9]+)", s)
         n = _parse_cn_int(m.group(1)) if m else None
-        return ("B", n) if n and 1 <= n <= _MAX_FLOOR_COLS else ("OTHER",)
+        if n and 1 <= n <= _MAX_FLOOR_COLS:
+            return ("B", n)
+        return ("OTHER",) if m else ("B", 1)  # 「地下層」沒帶數字 -> 地下一層
     m = re.match(r"([一二三四五六七八九十0-9]+)層?", s)
     n = _parse_cn_int(m.group(1)) if m else None
     return ("F", n) if n and 1 <= n <= _MAX_FLOOR_COLS else ("OTHER",)
@@ -156,8 +158,9 @@ def _layer_layout(building_records: list) -> list[tuple[tuple, str]]:
     """掃過(已過濾的)建物 records,決定這個案件「層次面積」欄組要有哪些欄、順序為何。
     回傳 [(key, header), …],key 同 _classify_floor 的回傳值。
     地上最高 N 層 → 1F~NF、地下最深 M 層 → 地下1F~地下MF;平台 / 陽臺 / 騎樓層次一律開;
-    最後固定含 ("OTHER",)。"""
+    只有在真的出現屋突 / 夾層 / 認不出來的樓層時,才在最後補一欄「其他層次」。"""
     max_f = max_b = 0
+    has_other = False
     for b in building_records:
         af, bf = _parse_total_floors(getattr(b, "total_floors", None))
         max_f, max_b = max(max_f, af), max(max_b, bf)
@@ -169,11 +172,14 @@ def _layer_layout(building_records: list) -> list[tuple[tuple, str]]:
                 max_f = max(max_f, val)
             elif kind == "B" and val:
                 max_b = max(max_b, val)
+            elif kind == "OTHER":
+                has_other = True
 
     slots: list[tuple[tuple, str]] = [(("F", i), f"層次面積(㎡){i}F") for i in range(1, max_f + 1)]
     slots += [(("L", tag), f"層次面積(㎡){tag}") for tag, _ in _LAYER_L_KINDS]
     slots += [(("B", i), f"層次面積(㎡)地下{i}F") for i in range(1, max_b + 1)]
-    slots.append((("OTHER",), "層次面積(㎡)其他層次"))
+    if has_other:
+        slots.append((("OTHER",), "層次面積(㎡)其他層次"))
     return slots
 
 
@@ -275,7 +281,7 @@ def build_roster_workbook(
     # ---- 依本案件實際樓層,決定「層次面積」欄組 ----
     layer_slots = _layer_layout(building_records)
     layer_pos = {key: idx for idx, (key, _) in enumerate(layer_slots)}
-    other_pos = layer_pos[("OTHER",)]
+    other_pos = layer_pos.get(("OTHER",))  # 沒有屋突/夾層/認不出的樓層時就沒這欄 -> None
     n_layer = len(layer_slots)
     _BLD_STD_LEN = _HEAD_BLD_COLS + n_layer + len(_COLS_ACCESSORY)
 
@@ -400,7 +406,11 @@ def build_roster_workbook(
         for f in getattr(b, "floors_detail", None) or []:
             if not isinstance(f, dict):
                 continue
-            pos = layer_pos.get(_classify_floor(f.get("floor")), other_pos)
+            pos = layer_pos.get(_classify_floor(f.get("floor")))
+            if pos is None:
+                pos = other_pos
+            if pos is None:
+                continue  # 沒有「其他層次」欄(掃描時已判定用不到)—— 保險跳過
             area = _num(f.get("area_sqm"))
             if area is None:
                 area = ""
@@ -417,9 +427,9 @@ def build_roster_workbook(
 
         # 保險:層次各格加總必須 == 主建物面積 structure_area_sqm。謄本沒逐層明細、或
         # 明細少算時,把差額補進「其他層次」,讓匯出檔裡「建物總面積 = Σ層次格 + 附屬」
-        # 永遠成立。差額為負(明細多於主建物面積)時不動。
+        # 永遠成立。差額為負(明細多於主建物面積)、或本案沒有「其他層次」欄時不動。
         _struct = _num(b.structure_area_sqm)
-        if _struct is not None:
+        if _struct is not None and other_pos is not None:
             _placed = sum(v for v in detail[:n_layer] if isinstance(v, (int, float)))
             _gap = round(_struct - _placed, 2)
             if _gap >= 0.01:
