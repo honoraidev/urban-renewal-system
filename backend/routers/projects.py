@@ -395,7 +395,8 @@ def download_roster_xlsx(
     content = build_roster_workbook(
         project, land_records, building_records, landowners_by_id
     )
-    fname = f"{project.project_code}_地主清冊.xlsx"
+    # 下載檔名 = 案件名稱 + 清冊(中文名放 RFC 5987 的 filename*,ASCII fallback 用案件編號)
+    fname = f"{(project.name or project.project_code).strip()}清冊.xlsx"
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
