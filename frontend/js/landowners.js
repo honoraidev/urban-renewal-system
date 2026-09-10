@@ -149,7 +149,7 @@ async function renderIntegratedRosterTab(el) {
       <table>
         <thead><tr>
           <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th><th>狀態</th>
-          <th class="num">土地㎡</th><th class="num">土地坪</th><th class="num">建物㎡</th><th class="num">建物坪</th>
+          <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th>拜訪紀錄</th><th class="row-actions">操作</th>
         </tr></thead>
         <tbody>
