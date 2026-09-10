@@ -86,7 +86,7 @@ async function renderLandValueTaxTab(el) {
     <div class="section-toolbar">
       <h3>土地增值稅試算(一般稅率,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
     </div>
-    <div class="helper-text" style="margin-bottom:12px">「原規定地價/前次移轉現值」在「土地登記」頁編輯,本頁唯讀;只有「本次申報移轉現值」可在本頁填,填一次即儲存。點編號左邊的箭頭展開該地主的每一筆土地登記。⚠ 僅供概算參考,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
+    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
@@ -133,7 +133,7 @@ function lttChildRowHtml(owner, record) {
   return `
     <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
       <td colspan="2" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
-      <td>${record.ltt_original_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_original_value_period)}</div>` : ""}${record.ltt_original_value ? Number(record.ltt_original_value).toLocaleString() : "-"}${editable ? `<div class="helper-text" style="margin-top:2px;opacity:.7">於「土地登記」頁修改</div>` : ""}</td>
+      <td>${record.ltt_original_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_original_value_period)}</div>` : ""}${record.ltt_original_value ? Number(record.ltt_original_value).toLocaleString() : "-"}</td>
       <td>${editable
       ? `<input type="number" min="0" step="1" class="ltt-input-current" value="${record.ltt_current_value ?? ""}" style="width:150px">`
       : (record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-")
