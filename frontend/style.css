@@ -947,8 +947,7 @@
 .ltt-table input, .ltt-table .ymp-trigger {
   font-size: 15.5px; padding: 10px 12px; border-radius: 8px; height: 44px; box-sizing: border-box;
 }
-.ltt-table .ltt-input-original, .ltt-table .ltt-input-current { text-align: right; }
-.ltt-orig-cell .ymp-trigger { font-weight: 600; }
+.ltt-table .ltt-input-current { text-align: right; }
 .ltt-result-cell { font-size: 17px; white-space: nowrap; }
 .ltt-result-cell strong { font-size: 18px; font-weight: 800; }
 .ltt-result-cell .helper-text { font-size: 13px; }
