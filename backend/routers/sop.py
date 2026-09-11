@@ -58,11 +58,11 @@ FINAL_STAGE = 9
 # UI shows, instead of any editor being able to click past unfinished items.
 # `checklist_keys` entries must have been confirmed via POST /{stage}/checklist first.
 STAGE_CHECKLIST_REQUIREMENTS: dict[int, dict] = {
-    0: {"doc_types": ["dev_letter_template", "willingness_form_template", "consent_form_template", "contract_template"]},
+    0: {"doc_types": ["roi_report"]},
     1: {"doc_types": ["cadastral_map"], "checklist_keys": ["landowner_roster_confirmed"], "needs_land": True, "needs_building": True},
     3: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_3"]},
     5: {"doc_types": ["consultant_document"], "checklist_keys": ["consultant_reviewed"]},
-    6: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_6"]},
+    6: {"doc_types": ["briefing_material", "consent_form_template", "contract_template"], "checklist_keys": ["briefing_reviewed_6"]},
     7: {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_7"]},
 }
 

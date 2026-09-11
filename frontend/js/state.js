@@ -61,14 +61,13 @@ const TAIWAN_DISTRICTS = {
 const DOC_TYPE_LABEL = {
   property_register: "土地登記謄本", building_register: "建物登記謄本", consent_form: "同意書", briefing_material: "說明會資料",
   contract: "合約", photo: "照片", other: "其他",
-  dev_letter_template: "開發信", willingness_form_template: "意願書",
+  roi_report: "投報表",
   consent_form_template: "同意書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
 };
 
 const DOC_TYPE_KEYWORDS = {
-  dev_letter_template: ["開發信", "致住戶", "說明信", "開發", "letter", "dev"],
-  willingness_form_template: ["意願書", "意願", "參與意願", "意願調查", "willingness", "willing"],
+  roi_report: ["投報表", "投資報酬", "投報", "財務試算", "投資效益", "收益試算", "roi"],
   consent_form_template: ["同意書", "都更同意", "更新同意", "consent"],
   consent_form: ["同意書", "都更同意", "更新同意", "consent"],
   contract_template: ["合約", "契約", "協議書", "合約範本", "contract", "agreement"],

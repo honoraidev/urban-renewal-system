@@ -22,10 +22,7 @@ function sopStageLabel(key, stageObj) {
 
 const SOP_STAGE_CHECKLISTS = {
   0: [
-    { key: "dev_letter_template", label: "上傳開發信範本", docType: "dev_letter_template", form: true },
-    { key: "willingness_form_template", label: "上傳意願書範本", docType: "willingness_form_template", form: true },
-    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template", form: true },
-    { key: "contract_template", label: "上傳合約範本", docType: "contract_template", form: true },
+    { key: "roi_report", label: "上傳投報表", docType: "roi_report" },
   ],
   1: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
@@ -47,6 +44,8 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   6: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
+    { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
     { key: "briefing_reviewed_6", label: "主管審核通過", manual: true },
   ],
   7: [
@@ -566,8 +565,6 @@ const STAGE_FORM_STATUS_OPTIONS = [
   "已完成",
 ];
 
-const WILLINGNESS_INTENT_DEFAULT =
-  "本人願意參與本都市更新案件之相關整合及後續程序。\n本人同意由案件工作人員依相關規定聯繫、說明及辦理必要文件。";
 const CONSENT_INTENT_DEFAULT =
   "本人已悉本案都市更新相關說明，並同意依案件程序辦理後續相關作業。";
 
@@ -578,60 +575,8 @@ const CONTRACT_DOCUMENTS_DEFAULT =
   "乙方應依甲方通知提供土地、建物及身分相關文件。\n甲方應妥善保存案件資料，並依約定用途使用。";
 const CONTRACT_PERIOD_DEFAULT = "契約期間：自民國115年__月__日起至案件完成相關程序止。";
 
-// Applicant + 不動產 blocks shared by 意願書 / 同意書 (the applicant's own data, not
-// case-level, so no auto-fill from the project).
-const APPLICANT_SECTIONS = [
-  {
-    title: "申請人資料",
-    fields: [
-      { name: "applicant_name", label: "姓名" },
-      { name: "applicant_id", label: "身分證字號" },
-      { name: "applicant_phone", label: "聯絡電話" },
-      { name: "applicant_address", label: "通訊地址", full: true },
-    ],
-  },
-  {
-    title: "不動產資料",
-    fields: [
-      { name: "estate_section", label: "段名" },
-      { name: "estate_parcel_number", label: "地號" },
-      { name: "estate_building_number", label: "建號" },
-      { name: "estate_share", label: "權利範圍" },
-    ],
-  },
-];
-
-// 案件層級基本資料 (auto-filled from the project) - used by 開發信 / 合約.
-const CASE_BASIC_SECTION = {
-  title: "基本資料",
-  fields: [
-    { name: "case_name", label: "案件名稱", default: (p) => p.name },
-    { name: "case_number", label: "案件編號", default: (p) => p.project_code },
-    { name: "dev_unit", label: "開發單位" },
-    { name: "contact_name", label: "聯絡窗口 · 姓名" },
-    { name: "contact_phone", label: "聯絡窗口 · 電話" },
-    {
-      name: "case_address",
-      label: "案件地址",
-      full: true,
-      default: (p) => [p.city, p.district, p.address].filter(Boolean).join(""),
-    },
-  ],
-};
-
-// Per-範本 field schema. Falls back to the 案件基本資料 set for anything unlisted.
+// Per-範本 field schema. Falls back to the 同意書 set for anything unlisted.
 const STAGE_FORM_SCHEMAS = {
-  willingness_form_template: {
-    sections: [
-      ...APPLICANT_SECTIONS,
-      {
-        title: "意願內容",
-        fields: [
-          { name: "intent_content", label: "意願內容", type: "textarea", full: true, rows: 3, default: () => WILLINGNESS_INTENT_DEFAULT },
-        ],
-      },
-    ],
-  },
   consent_form_template: {
     sections: [
       {
@@ -667,12 +612,6 @@ const STAGE_FORM_SCHEMAS = {
       },
     ],
   },
-  dev_letter_template: {
-    sections: [
-      CASE_BASIC_SECTION,
-      { title: "", fields: [{ name: "dev_note", label: "開發說明", type: "textarea", full: true, rows: 4 }] },
-    ],
-  },
   contract_template: {
     sections: [
       {
@@ -704,7 +643,7 @@ function openStageFormModal(pid, stage, docType, existing, onSaved) {
   const f = (existing && existing.fields) || {};
   const proj = state.currentProject || {};
   const today = new Date().toISOString().slice(0, 10);
-  const schema = STAGE_FORM_SCHEMAS[docType] || STAGE_FORM_SCHEMAS.dev_letter_template;
+  const schema = STAGE_FORM_SCHEMAS[docType] || STAGE_FORM_SCHEMAS.consent_form_template;
 
   const fieldValue = (fld) => {
     const cur = f[fld.name];

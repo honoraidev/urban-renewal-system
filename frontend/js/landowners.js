@@ -297,9 +297,6 @@ async function renderLandownersTypeTab(el, type) {
   const signedIds = new Set(
     documents.filter((d) => d.doc_type === "contract" && landownerIds.has(d.landowner_id)).map((d) => d.landowner_id)
   );
-  const willingIds = new Set(
-    documents.filter((d) => d.doc_type === "willingness_form_template" && landownerIds.has(d.landowner_id)).map((d) => d.landowner_id)
-  );
   const alertIds = new Set(alerts.filter((a) => landownerIds.has(a.landowner_id)).map((a) => a.landowner_id));
 
   el.innerHTML = `
@@ -311,10 +308,6 @@ async function renderLandownersTypeTab(el, type) {
       <div class="dashboard-stat-item accent-success" data-stat-filter="signed" role="button" tabindex="0">
         <div class="dashboard-stat-icon">✅</div>
         <div><div class="dashboard-stat-num">${signedIds.size}</div><div class="dashboard-stat-lbl">已簽約人數</div></div>
-      </div>
-      <div class="dashboard-stat-item accent-info" data-stat-filter="willing" role="button" tabindex="0">
-        <div class="dashboard-stat-icon">📋</div>
-        <div><div class="dashboard-stat-num">${willingIds.size}</div><div class="dashboard-stat-lbl">已意願書人數</div></div>
       </div>
       <div class="dashboard-stat-item accent-danger" data-stat-filter="alert" role="button" tabindex="0">
         <div class="dashboard-stat-icon">🔔</div>
@@ -438,7 +431,7 @@ async function renderLandownersTypeTab(el, type) {
   }
 
   {
-    const statFilterSets = { signed: signedIds, willing: willingIds, alert: alertIds };
+    const statFilterSets = { signed: signedIds, alert: alertIds };
     const statCards = el.querySelectorAll("[data-stat-filter]");
     const applyStatFilter = (filter) => {
       statCards.forEach((card) => card.classList.toggle("active", card.dataset.statFilter === filter));

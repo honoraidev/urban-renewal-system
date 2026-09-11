@@ -8,7 +8,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, users
+from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -82,6 +82,50 @@ def _auto_migrate() -> None:
                 _conn.commit()
         except Exception as exc:
             print(f"[auto_migrate] ALTER {_tbl} {_col} skipped: {exc}", flush=True)
+
+    # documents.doc_type ENUM: 拿掉已停用的 dev_letter_template / willingness_form_template,
+    # 加入 roi_report(投報表)。只有在定義真的不一致時才 MODIFY(MODIFY 會重建整張表);
+    # 若還有列在用舊值就跳過不動(收窄 ENUM 會把那些列變成空字串)。
+    _DOCTYPE_ENUM = (
+        "ENUM('property_register','building_register','consent_form','briefing_material',"
+        "'contract','photo','other','consent_form_template','contract_template',"
+        "'cadastral_map','consultant_document','roi_report')"
+    )
+    try:
+        with engine.connect() as _conn:
+            _cur_type = _conn.execute(
+                _sql_text(
+                    "SELECT COLUMN_TYPE FROM information_schema.columns "
+                    "WHERE table_schema = DATABASE() AND table_name = 'documents' "
+                    "AND column_name = 'doc_type'"
+                )
+            ).scalar() or ""
+            _want = _DOCTYPE_ENUM.lower().replace(" ", "")
+            if _cur_type.lower().replace(" ", "") != _want:
+                _stale = _conn.execute(
+                    _sql_text(
+                        "SELECT COUNT(*) FROM documents "
+                        "WHERE doc_type IN ('dev_letter_template','willingness_form_template')"
+                    )
+                ).scalar()
+                if _stale:
+                    print(
+                        f"[auto_migrate] doc_type ENUM narrow skipped: {_stale} row(s) still use "
+                        "dev_letter_template/willingness_form_template",
+                        flush=True,
+                    )
+                else:
+                    _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+                    _conn.execute(
+                        _sql_text(
+                            f"ALTER TABLE documents MODIFY COLUMN doc_type {_DOCTYPE_ENUM} "
+                            "NOT NULL DEFAULT 'other'"
+                        )
+                    )
+                    _conn.commit()
+                    print("[auto_migrate] documents.doc_type ENUM updated (+roi_report)", flush=True)
+    except Exception as exc:
+        print(f"[auto_migrate] doc_type ENUM update skipped: {exc}", flush=True)
 
     # 謄本辨識現在跑在背景執行緒;若上次是重啟中斷,job 會永遠停在 processing。
     # 開機時把卡超過 30 分鐘的 processing job 標成 failed,前端輪詢才不會一直等。
@@ -261,6 +305,7 @@ class ActivityLogMiddleware:
 app.add_middleware(ActivityLogMiddleware)
 
 app.include_router(auth.router)
+app.include_router(sso.router)
 app.include_router(projects.router)
 app.include_router(dashboard.router)
 app.include_router(landowners.router)

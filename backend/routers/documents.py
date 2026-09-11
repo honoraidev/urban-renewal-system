@@ -39,17 +39,15 @@ VALID_DOC_TYPES = {
     "contract",
     "photo",
     "other",
-    "dev_letter_template",
-    "willingness_form_template",
     "consent_form_template",
     "contract_template",
     "cadastral_map",
     "consultant_document",
+    "roi_report",
 }
 
 DOC_TYPE_LABELS_MAP = {
-    "dev_letter_template": "開發信",
-    "willingness_form_template": "意願書",
+    "roi_report": "投報表",
     "consent_form_template": "同意書",
     "consent_form": "同意書",
     "contract_template": "合約",
@@ -64,8 +62,7 @@ DOC_TYPE_LABELS_MAP = {
 }
 
 DOC_TYPE_CONTENT_KEYWORDS = {
-    "dev_letter_template": ["開發信", "致住戶", "致住戶信", "說明信", "開發說明", "都更開發", "開發信函"],
-    "willingness_form_template": ["意願書", "參與意願", "意願調查", "都更意願", "意願調查表", "參與意願書"],
+    "roi_report": ["投報表", "投資報酬", "投資效益", "投報分析", "收益試算", "財務試算", "投資報酬率"],
     "consent_form_template": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
     "consent_form": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
     "contract_template": ["合約", "契約", "合約書", "契約書", "協議書", "合作意向書", "都更合約"],
@@ -203,13 +200,11 @@ async def inspect_document_content(
     # DECISION: Content text / OCR takes absolute priority over filename.
     # For required document types, file content MUST contain expected keywords.
     REQUIRED_KEYWORD_DOC_TYPES = {
-        "willingness_form_template",
-        "willingness_form",
         "consent_form_template",
         "consent_form",
         "contract_template",
         "contract",
-        "dev_letter_template",
+        "roi_report",
         "cadastral_map",
         "property_register",
         "building_register",

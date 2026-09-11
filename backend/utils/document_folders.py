@@ -58,10 +58,9 @@ DOC_TYPE_TO_FOLDER_CODE: dict[str, str] = {
     "consent_form_template": "consent.business_plan",
     "briefing_material": "briefing",
     "consultant_document": "partners.consultant",
+    "roi_report": "site_survey.roi",
     "contract": DEFAULT_FOLDER_CODE,
     "contract_template": DEFAULT_FOLDER_CODE,
-    "dev_letter_template": DEFAULT_FOLDER_CODE,
-    "willingness_form_template": DEFAULT_FOLDER_CODE,
     "photo": DEFAULT_FOLDER_CODE,
     "other": DEFAULT_FOLDER_CODE,
 }
