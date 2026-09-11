@@ -104,8 +104,13 @@ function buildingViewGroupCardHtml(g) {
   // sliver off the last row's cell borders no matter how that was patched. CSS grid
   // sidesteps all of that: every cell is sized/positioned independently, so there's no
   // table-layout box for a border to get clipped against.
+  // 「16之1」「34之2」這種帶「之」的門牌比純數字寬,固定 34px 方格會把文字擠到
+  // 換行(「16之」斷成兩行);這種格子改窄字級 + 不換行,寧可格子本身變寬一點。
+  const wideCls = (label) => (String(label).includes("之") ? " bv-cell-wide" : "");
   const cornerHtml = `<div class="bv-grid-corner"></div>`;
-  const headerCellsHtml = cols.map((c) => `<div class="bv-col-label">${escapeHtml(c.label)}</div>`).join("");
+  const headerCellsHtml = cols
+    .map((c) => `<div class="bv-col-label${wideCls(c.label)}">${escapeHtml(c.label)}</div>`)
+    .join("");
   const bodyHtml = rows
     .map((r) => {
       const rowLabelHtml = `<div class="bv-row-label">${escapeHtml(r.label)}</div>`;
@@ -115,9 +120,10 @@ function buildingViewGroupCardHtml(g) {
           const door = flipped ? r.key : c.key;
           const cell = g.cells[`${floorSort}|${door}`];
           const cellLabel = flipped ? g.floors.find((f) => f.sort === c.key)?.label : door;
-          if (!cell) return `<div class="bv-cell bv-cell-empty">${escapeHtml(String(cellLabel))}</div>`;
+          const wide = wideCls(cellLabel);
+          if (!cell) return `<div class="bv-cell bv-cell-empty${wide}">${escapeHtml(String(cellLabel))}</div>`;
           const badge = cell.owners.length > 1 ? `<span class="bv-cell-badge">×${cell.owners.length}</span>` : "";
-          return `<div class="bv-cell ${buildingViewCellClass(cell.status)}" data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
+          return `<div class="bv-cell${wide} ${buildingViewCellClass(cell.status)}" data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
         })
         .join("");
       return rowLabelHtml + cellsHtml;
