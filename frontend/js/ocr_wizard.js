@@ -113,25 +113,10 @@ function normalizeTitleDeedData(raw) {
   return { deed_category: deedCategory, parcels, buildings, encumbrances };
 }
 
-function jumpToWizardRecordOwners(type, idx) {
-  titleDeedWizard.activeType = type;
-  titleDeedWizard.activeIndex = idx;
-  titleDeedWizard.returnToConfirm = true;
-  if (type === "parcel") {
-    titleDeedWizard.parcelSubStep = 1;
-    titleDeedWizard.step = 2;
-  } else {
-    titleDeedWizard.buildingSubStep = 1;
-    titleDeedWizard.step = 3;
-  }
-  renderWizardStep();
-}
-
 function renderWizardStep() {
   const steps = {
     2: renderWizardStepParcelEditor,
     3: renderWizardStepBuildingEditor,
-    4: renderWizardStepConfirm,
   };
   if (steps[titleDeedWizard.step]) {
     steps[titleDeedWizard.step]();
@@ -142,7 +127,6 @@ function startWizardReview() {
   const d = titleDeedWizard.data;
   titleDeedWizard.parcelSubStep = 0;
   titleDeedWizard.buildingSubStep = 0;
-  titleDeedWizard.returnToConfirm = false;
   if (d.parcels.length) {
     titleDeedWizard.activeType = "parcel";
     titleDeedWizard.activeIndex = 0;
@@ -152,7 +136,9 @@ function startWizardReview() {
     titleDeedWizard.activeIndex = 0;
     titleDeedWizard.step = 3;
   } else {
-    titleDeedWizard.step = 4;
+    toast("本次掃描未擷取到有效的土地地號或建物建號資料,請確認檔案類別與影像品質後重新上傳", "error");
+    renderWizardStep0();
+    return;
   }
   renderWizardStep();
 }
@@ -728,16 +714,6 @@ function buildingSummaryHtml(b) {
   return `${catSelector}<span>建號 ${escapeHtml(b.building_number || "-")} · ${escapeHtml(b.building_address || "(未填寫門牌)")} · ${b.owners.length} 位所有權人</span>`;
 }
 
-// Plain-text (no markup) versions, used as card titles on the confirm step.
-function parcelSummaryLabel(p) {
-  const place = `${p.township || ""}${p.section || ""}${p.subsection || ""}`;
-  return `${place || "(未填寫鄉鎮市區/地段)"} · 地號 ${p.parcel_number || "-"} · ${(p.owners || []).length} 位所有權人`;
-}
-
-function buildingSummaryLabel(b) {
-  return `建號 ${b.building_number || "-"} · ${b.building_address || "(未填寫門牌)"} · ${(b.owners || []).length} 位所有權人`;
-}
-
 function ownerRowHtml(prefix, o, areaSqm) {
   const numerator = o.ownership_numerator || 1;
   const denominator = o.ownership_denominator || 1;
@@ -1054,12 +1030,6 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
 function advanceFromParcel(idx) {
   const d = titleDeedWizard.data;
   titleDeedWizard.parcelSubStep = 0;
-  if (titleDeedWizard.returnToConfirm) {
-    titleDeedWizard.returnToConfirm = false;
-    titleDeedWizard.step = 4;
-    renderWizardStep();
-    return;
-  }
   if (idx < d.parcels.length) {
     titleDeedWizard.activeIndex = idx;
     renderWizardStep();
@@ -1070,8 +1040,8 @@ function advanceFromParcel(idx) {
     titleDeedWizard.step = 3;
     renderWizardStep();
   } else {
-    titleDeedWizard.step = 4;
-    renderWizardStep();
+    // 這是最後一筆(沒有建物要接著填),直接跳確認框、確定就送出建立。
+    confirmAndSubmitTitleDeedWizard();
   }
 }
 
@@ -1104,7 +1074,7 @@ function renderParcelDescriptionSubStep(idx) {
     <div class="modal-footer">
       <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
-      ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
+      ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
     </div>`,
     { width: "620px" }
@@ -1183,7 +1153,7 @@ function renderParcelOwnersSubStep(idx) {
 function renderParcelEncumbrancesSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
-  const isLast = idx === parcels.length - 1 || titleDeedWizard.returnToConfirm;
+  const isLast = idx === parcels.length - 1;
   openModal(
     "掃描謄本匯入",
     `
@@ -1193,7 +1163,7 @@ function renderParcelEncumbrancesSubStep(idx) {
     <div class="helper-text" style="margin-top:6px">若這筆地號沒有他項權利部,可直接略過。跨好幾筆地號的他項權利,留到最後「他項權利部」步驟處理即可</div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
-      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆地號"}</button>
+      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "確認建立" : "下一筆地號"}</button>
     </div>`,
     { width: "620px" }
   );
@@ -1428,18 +1398,12 @@ function readEncumbranceRows(containerId) {
 function advanceFromBuilding(idx) {
   const d = titleDeedWizard.data;
   titleDeedWizard.buildingSubStep = 0;
-  if (titleDeedWizard.returnToConfirm) {
-    titleDeedWizard.returnToConfirm = false;
-    titleDeedWizard.step = 4;
-    renderWizardStep();
-    return;
-  }
   if (idx < d.buildings.length) {
     titleDeedWizard.activeIndex = idx;
     renderWizardStep();
   } else {
-    titleDeedWizard.step = 4;
-    renderWizardStep();
+    // 建物一律排在土地後面處理,這是整批的最後一筆,直接跳確認框、確定就送出建立。
+    confirmAndSubmitTitleDeedWizard();
   }
 }
 
@@ -1486,7 +1450,7 @@ function renderBuildingDescriptionSubStep(idx) {
     <div class="modal-footer">
       <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
-      ${idx > 0 && !titleDeedWizard.returnToConfirm ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
+      ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
     </div>`,
     { width: "620px" }
@@ -1651,7 +1615,7 @@ function renderBuildingOwnersSubStep(idx) {
 function renderBuildingEncumbranceSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
-  const isLast = idx === buildings.length - 1 || titleDeedWizard.returnToConfirm;
+  const isLast = idx === buildings.length - 1;
   if (!b.encumbrances) b.encumbrances = [];
   openModal(
     "掃描謄本匯入",
@@ -1662,7 +1626,7 @@ function renderBuildingEncumbranceSubStep(idx) {
     <div class="helper-text" style="margin-top:6px">若這筆建號沒有他項權利部,可直接略過。</div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
-      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "下一步" : "下一筆建號"}</button>
+      <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "確認建立" : "下一筆建號"}</button>
     </div>`,
     { width: "620px" }
   );
@@ -1680,218 +1644,21 @@ function renderBuildingEncumbranceSubStep(idx) {
   });
 }
 
-function renderWizardStepConfirm() {
+// 沒有獨立的「確認建立」頁面了 —— 逐筆核對到最後一筆(或按「⚡ 一鍵建立」跳過核對)
+// 時,跳原生確認對話框;按確定才真的送出建立,取消就留在原頁面繼續編輯。
+function confirmAndSubmitTitleDeedWizard() {
   const d = titleDeedWizard.data;
-  const shareSum = (owners) =>
-    owners.reduce((sum, o) => sum + (Number(o.ownership_numerator) || 0) / (Number(o.ownership_denominator) || 1), 0);
-  const shareSumWarningHtml = (owners) => {
-    if (!owners.length) return "";
-    const sum = shareSum(owners);
-    if (Math.abs(sum - 1) <= 0.05) return "";
-    return `<div class="wizard-confirm-card-row" style="color:var(--danger)">⚠ 權利範圍加總為 ${(sum * 100).toFixed(1)}%,明顯偏離 100%,請重點核對這幾位所有權人的權利範圍</div>`;
-  };
-
-  const suspiciousOwnerFindings = (owners, item = null) => {
-    const findings = [];
-    if (item) {
-      if (item.parcel_number !== undefined && (item.area_sqm === "" || item.area_sqm === null)) {
-        findings.push(`地號「${escapeHtml(item.parcel_number) || "-"}」缺少土地面積，請對照原始檔案補填`);
-      }
-      if (item.building_number !== undefined && item.total_area_sqm === "" && item.floor_area_sqm === "") {
-        findings.push(`建號「${escapeHtml(item.building_number) || "-"}」缺少建物面積，請對照原始檔案補填`);
-      }
-    }
-    const orderCounts = new Map();
-    owners.forEach((o) => {
-      const order = (o.registration_order || "").trim();
-      if (order) orderCounts.set(order, (orderCounts.get(order) || 0) + 1);
-    });
-    owners.forEach((o) => {
-      const order = (o.registration_order || "").trim();
-      if (order && orderCounts.get(order) > 1) {
-        findings.push(`「${escapeHtml(o.owner_name) || "-"}」的登記次序「${escapeHtml(order)}」跟同一筆裡其他共有人重複`);
-      }
-      if (!order && o.owner_name) {
-        findings.push(`「${escapeHtml(o.owner_name)}」沒有登記次序,可能是這一行在原始掃描件裡沒被辨識到,請對照原件補上`);
-      }
-      if (!o.address && o.owner_name) {
-        findings.push(`「${escapeHtml(o.owner_name)}」缺少戶籍地址，建議對照原件補填`);
-      }
-      if ((o.ownership_numerator || 0) > (o.ownership_denominator || 1)) {
-        findings.push(`「${escapeHtml(o.owner_name) || "-"}」的權利範圍分子大於分母(${o.ownership_numerator}/${o.ownership_denominator})`);
-      }
-      if ((o.ownership_denominator || 0) <= 0) {
-        findings.push(`「${escapeHtml(o.owner_name) || "-"}」的權利範圍分母無效(${o.ownership_denominator})，請重新填寫`);
-      }
-      if (/里\d+[路街巷]/.test(o.address || "")) {
-        findings.push(`「${escapeHtml(o.owner_name) || "-"}」的地址「${escapeHtml(o.address)}」看起來像漏掉「鄰」字`);
-      }
-    });
-    const names = owners.map((o) => (o.owner_name || "").trim()).filter(Boolean);
-    owners.forEach((o) => {
-      const name = (o.owner_name || "").trim();
-      if (name.length < 2) return;
-      const isPrefixOfLonger = names.some((other) => other !== name && other.startsWith(name));
-      if (isPrefixOfLonger) {
-        findings.push(`「${escapeHtml(name)}」剛好是同一筆裡另一個人姓名的開頭,可能是漏了最後一個字`);
-      }
-    });
-    return findings;
-  };
-  const suspiciousOwnerWarningHtml = (owners, item = null) => {
-    const findings = suspiciousOwnerFindings(owners, item);
-    if (!findings.length) return "";
-    return `<div class="wizard-confirm-card-row" style="color:var(--warning);flex-direction:column;align-items:flex-start;gap:2px">${findings.map((f) => `<div>⚠ ${f}</div>`).join("")}</div>`;
-  };
-  const ownerChipsHtml = (owners) =>
-    `<div class="wizard-confirm-chip-list">${owners
-      .map((o) => `<span class="wizard-confirm-chip">${escapeHtml(o.owner_name) || "-"}(${o.ownership_numerator}/${o.ownership_denominator})</span>`)
-      .join("")}</div>`;
-  const parcelCardHtml = (p, idx) => `
-    <div class="wizard-confirm-card">
-      <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
-        <div class="wizard-confirm-card-title">${escapeHtml(parcelSummaryLabel(p))}</div>
-        <button type="button" class="btn-link btn-sm" data-jump-parcel="${idx}">編輯</button>
-      </div>
-      <div class="wizard-confirm-card-row">
-        <span class="wizard-confirm-card-label">所有權人</span>
-        ${ownerChipsHtml(p.owners)}
-      </div>
-      ${shareSumWarningHtml(p.owners)}
-      ${suspiciousOwnerWarningHtml(p.owners, p)}
-      ${(p.encumbrances || []).length
-      ? `<div class="wizard-confirm-card-row">
-              <span class="wizard-confirm-card-label">他項權利</span>
-              <div class="wizard-confirm-chip-list">${(p.encumbrances || []).map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}</div>
-            </div>`
-      : ""
-    }
-    </div>`;
-  const parcelsHtml = d.parcels.length
-    ? d.parcels.map(parcelCardHtml).join("")
-    : `<div class="helper-text" style="margin-top:8px">(本次未包含土地資料)</div>`;
-  const buildingsSectionHtml = d.buildings.length
-    ? `<div class="wizard-confirm-section-title">建物建號(${d.buildings.length})</div>
-      ${d.buildings
-      .map(
-        (b, idx) => `
-        <div class="wizard-confirm-card">
-          <div class="wizard-confirm-card-row" style="justify-content:space-between;align-items:center">
-            <div class="wizard-confirm-card-title">${escapeHtml(buildingSummaryLabel(b))}</div>
-            <button type="button" class="btn-link btn-sm" data-jump-building="${idx}">編輯</button>
-          </div>
-          <div class="wizard-confirm-card-row">
-            <span class="wizard-confirm-card-label">所有權人</span>
-            ${ownerChipsHtml(b.owners)}
-          </div>
-          ${shareSumWarningHtml(b.owners)}
-          ${suspiciousOwnerWarningHtml(b.owners, b)}
-          ${(b.encumbrances || []).length
-          ? `<div class="wizard-confirm-card-row">
-                <span class="wizard-confirm-card-label">他項權利</span>
-                <div class="wizard-confirm-chip-list">${(b.encumbrances || []).map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}</div>
-              </div>`
-          : ""
-        }
-        </div>`
-      )
-      .join("")}`
-    : "";
-
-  const relationRowsHtml = d.parcels
-    .map((p) => {
-      const linkedBuildings = d.buildings.filter((b) => b.parcel_number && b.parcel_number === p.parcel_number);
-      if (!linkedBuildings.length) return "";
-      return `
-        <div class="wizard-relation-row">
-          <div class="wizard-relation-card">
-            <div class="wizard-relation-card-title">📍 地號 ${escapeHtml(p.parcel_number) || "-"}</div>
-            <div class="wizard-relation-card-sub">${escapeHtml(parcelSummaryLabel(p))}</div>
-          </div>
-          <div class="wizard-relation-arrow">→</div>
-          <div class="wizard-relation-card">
-            <div class="wizard-relation-card-title">🏢 建號 ${linkedBuildings.length} 筆</div>
-            <div class="wizard-relation-card-sub">${linkedBuildings.map((b) => escapeHtml(b.building_number) || "-").join("、")}</div>
-          </div>
-        </div>`;
-    })
-    .join("");
-  const relationSectionHtml = relationRowsHtml
-    ? `<div class="wizard-confirm-section-title">地號 → 建號 關聯預覽</div>${relationRowsHtml}`
-    : "";
-
-  // 只顯示「真的出錯」的訊息(例如某幾頁辨識失敗);規則直讀/欄位可疑之類的軟性提示不再顯示。
-  const backendWarningBannerHtml =
-    titleDeedWizard.warning && /失敗|不完整/.test(titleDeedWizard.warning)
-      ? `<div class="final-banner danger" style="margin-bottom:12px;background:#fde8e8;color:#9b1c1c;border:1px solid #f8b4b4;font-weight:600">⚠️ ${escapeHtml(titleDeedWizard.warning)}</div>`
-      : "";
-
-  const noDataWarningHtml = (!d.parcels.length && !d.buildings.length)
-    ? `<div class="final-banner danger" style="margin-bottom:16px;padding:12px;background:#fff5f5;border:1px solid #f8b4b4;border-radius:8px">
-        <div style="font-weight:600;color:#c53030;margin-bottom:4px">⚠️ 辨識結果未包含地號或建號</div>
-        <div style="font-size:13px;color:#4a5568;margin-bottom:8px">本次掃描未擷取到有效的土地地號或建物建號資料。請檢查：
-          <ul style="margin:4px 0 8px 18px;padding:0">
-            <li>檔案類別是否選擇正確（建議選擇「土地+建物謄本混合」）</li>
-            <li>上傳的圖片/PDF 檔是否清楚完整</li>
-          </ul>
-        </div>
-        <button type="button" class="btn-secondary btn-sm" onclick="renderWizardStep0()">← 返回重新選擇檔案與類別</button>
-      </div>`
-    : "";
-
-  openModal(
-    "掃描謄本匯入",
-    `
-    ${wizardProgressHtml("確認建立")}
-    ${backendWarningBannerHtml}
-    ${noDataWarningHtml}
-    <div class="final-banner warning" style="margin-bottom:16px">⚠️ 建立前最後確認：以下姓名、地址、面積等內容為 AI 辨識結果，可能有誤或臆測，請務必逐筆對照原始掃描件</div>
-    ${relationSectionHtml}
-    <div class="wizard-confirm-section-title">土地地號(${d.parcels.length})</div>
-    ${parcelsHtml}
-    ${buildingsSectionHtml}
-    ${d.encumbrances.length
-      ? `<div class="wizard-confirm-section-title">跨地號/建號的他項權利(${d.encumbrances.length})</div>
-          <div class="wizard-confirm-card">
-            <div class="wizard-confirm-chip-list">
-              ${d.encumbrances.map((e) => `<span class="wizard-confirm-chip encumbrance">${escapeHtml(e.right_type) || "-"} · ${escapeHtml(e.right_holder) || "-"}</span>`).join("")}
-            </div>
-          </div>`
-      : ""
-    }
-    <div class="helper-text" style="margin-top:14px;line-height:1.6">確認無誤後點「建立」，系統會自動比對／建立地主，並寫入土地、建物、他項權利資料。同一人若出現在多筆地號／建號，只會建立一筆地主。</div>
-    <div class="modal-footer">
-      <button type="button" class="btn-secondary" id="wizard-prev-btn">上一步</button>
-      <button type="button" class="btn-primary" id="wizard-confirm-btn" ${!d.parcels.length && !d.buildings.length ? "disabled" : ""}>建立</button>
-    </div>`,
-    { width: "620px" }
+  if (!d || (!d.parcels.length && !d.buildings.length)) {
+    toast("沒有可建立的資料", "error");
+    return;
+  }
+  const total = d.parcels.length + d.buildings.length;
+  const ok = confirm(
+    `確定要建立這 ${total} 筆土地／建物資料嗎？\n` +
+      "系統會自動比對／建立地主，並寫入土地、建物、他項權利資料;同一人出現在多筆地號／建號只會建立一筆地主。\n\n" +
+      "請確認方才核對的姓名、地址、面積等 AI 辨識內容無誤 —— 建立後不會再跳出確認畫面。"
   );
-
-  document.getElementById("wizard-prev-btn").addEventListener("click", () => {
-    const d = titleDeedWizard.data;
-    if (d.buildings.length) {
-      titleDeedWizard.activeType = "building";
-      titleDeedWizard.activeIndex = d.buildings.length - 1;
-      titleDeedWizard.buildingSubStep = 1;
-      titleDeedWizard.step = 3;
-    } else if (d.parcels.length) {
-      titleDeedWizard.activeType = "parcel";
-      titleDeedWizard.activeIndex = d.parcels.length - 1;
-      titleDeedWizard.parcelSubStep = 2;
-      titleDeedWizard.step = 2;
-    } else {
-      closeModal();
-      return;
-    }
-    renderWizardStep();
-  });
-  document.getElementById("wizard-confirm-btn").addEventListener("click", submitTitleDeedWizard);
-  document.querySelectorAll("[data-jump-parcel]").forEach((btn) => {
-    btn.addEventListener("click", () => jumpToWizardRecordOwners("parcel", Number(btn.dataset.jumpParcel)));
-  });
-  document.querySelectorAll("[data-jump-building]").forEach((btn) => {
-    btn.addEventListener("click", () => jumpToWizardRecordOwners("building", Number(btn.dataset.jumpBuilding)));
-  });
+  if (ok) submitTitleDeedWizard();
 }
 
 async function findOrCreateLandownerByOwner(owner, createdCache) {
@@ -2157,15 +1924,9 @@ async function submitTitleDeedWizardInner() {
 
 // Skip the per-地號/建號 walkthrough: create every record straight from the current
 // (AI-parsed + whatever's been edited so far) data.
-async function oneClickCreateTitleDeed() {
-  const d = titleDeedWizard && titleDeedWizard.data;
-  if (!d || (!d.parcels.length && !d.buildings.length)) {
-    toast("沒有可建立的資料", "error");
-    return;
-  }
-  // 略過逐筆檢視,直接跳到「確認建立」那一步(仍需在該畫面按「建立」)。
-  titleDeedWizard.step = 4;
-  renderWizardStep();
+function oneClickCreateTitleDeed() {
+  // 略過逐筆檢視,直接跳確認對話框(確定就送出建立)。
+  confirmAndSubmitTitleDeedWizard();
 }
 
 function offerBuildingImportFollowUp() {
