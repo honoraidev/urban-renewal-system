@@ -745,6 +745,8 @@ async function renderTab(tab) {
     state.integratedViewMode = "building";
     tab = "integrated";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
+    const integratedSelect = document.getElementById("tab-integrated-view-select");
+    if (integratedSelect) integratedSelect.value = "building";
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
   if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
@@ -815,4 +817,16 @@ function initDashboard() {
       await renderTab(btn.dataset.tab);
     });
   });
+
+  // 「整合清冊」分頁按鈕本身就是切換土地/建物個別檢視的下拉,選項改變時除了點擊
+  // 分頁按鈕本身會做的事(切到整合清冊分頁)之外,還要記住選到的檢視模式。
+  const tabIntegratedSelect = document.getElementById("tab-integrated-view-select");
+  if (tabIntegratedSelect) {
+    tabIntegratedSelect.addEventListener("change", async (e) => {
+      state.integratedViewMode = e.target.value;
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
+      state.activeTab = "integrated";
+      await renderTab("integrated");
+    });
+  }
 }

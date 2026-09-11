@@ -188,7 +188,13 @@
             <div id="pd-sop-summary" style="margin-bottom:16px"></div>
             <div class="tab-bar">
               <button class="tab-btn active" data-tab="sop">SOP 進度</button>
-              <button class="tab-btn" data-tab="integrated">整合清冊</button>
+              <div class="tab-btn" data-tab="integrated" style="padding:0;cursor:pointer;white-space:nowrap">
+                <select id="tab-integrated-view-select" style="width:auto;padding:10px 16px;border:none;background:transparent;font:inherit;font-size:15.5px;color:inherit;cursor:pointer">
+                  <option value="combined">整合清冊</option>
+                  <option value="land">土地登記清冊</option>
+                  <option value="building">建物登記清冊</option>
+                </select>
+              </div>
               <button class="tab-btn" data-tab="buildingview">樓棟視圖</button>
               <button class="tab-btn" data-tab="relations">關聯</button>
               <button class="tab-btn" data-tab="contacts">地主聯絡簿</button>
@@ -681,12 +687,12 @@
   <script src="js/api.js?v=20260901_1"></script>
   <script src="js/modals.js?v=20260831_1"></script>
   <script src="js/auth.js?v=20260909_2"></script>
-  <script src="js/dashboard.js?v=20260911_1"></script>
+  <script src="js/dashboard.js?v=20260911_2"></script>
   <script src="js/mywork.js?v=20260909_7"></script>
   <script src="js/sop.js?v=20260911_1"></script>
   <script src="js/board.js?v=20260909_9"></script>
   <script src="js/ocr_wizard.js?v=20260911_1"></script>
-  <script src="js/landowners.js?v=20260911_6"></script>
+  <script src="js/landowners.js?v=20260911_7"></script>
   <script src="js/documents.js?v=20260909_1"></script>
   <script src="js/contacts.js?v=20260908_1"></script>
   <script src="js/encumbrances.js?v=20260825_7"></script>
