@@ -632,7 +632,7 @@
   }
 
   .section-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
-  .section-toolbar h3 { margin: 0; font-size: 16.5px; font-weight: 700; }
+  .section-toolbar h3 { margin: 0; font-size: 16.5px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
   /* ---------- SOP progress bar (compact, above the tab bar) ---------- */
   .sop-progress-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
