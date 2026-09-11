@@ -334,7 +334,11 @@ async function renderSopTab(el) {
         } else if (item.countOf) {
           const count = item.countOf === "land" ? landCount : buildingCount;
           done = count > 0;
-          sub = done ? `共 ${count} 筆` : "尚未匯入";
+          sub = done
+            ? `共 ${count} 筆`
+            : item.countOf === "building" && landCount === 0
+              ? "請先完成「上傳土地謄本PDF」,才能匯入建物登記"
+              : "尚未匯入";
         } else if (item.contactRate) {
           done = contactRate >= CONTACT_RATE_THRESHOLD;
           sub = `已聯絡 ${contactedCount}/${landowners.length}(${Math.round(contactRate * 100)}%)`;
