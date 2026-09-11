@@ -135,6 +135,9 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
         line-height:1.35; margin-top:2px; word-break:break-word;
       }
+      /* 「查看明細」展開列裡的土地/建物子表格也是巢狀在 #integ-roster 底下,上面
+         thead th 的 sticky 選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
+      #integ-roster .sub-detail thead th { position:static; }
     </style>
     <div id="integ-roster"><div class="table-wrap">
       <table>
@@ -167,9 +170,9 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
-            <td class="col-name">${escapeHtml(o.name)}${sub(landShare)}</td>
+            <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
-            <td class="num">${fmt2(landSqm * 0.3025)}</td>
+            <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="cell-visit">
@@ -177,10 +180,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
               <span class="visit-date">${visit}</span>
             </td>
             <td class="row-actions">
-              ${isEditor() ? `<button type="button" class="btn-secondary btn-sm" data-edit-integ="${o.id}">編輯</button>
-              <button type="button" class="btn-danger btn-sm" data-delete-integ="${o.id}">刪除</button>` : "-"}
+              <button type="button" class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
             </td>
-          </tr>`;
+          </tr>
+          ${ownerDetailRowHtml(o, 10)}`;
   }).join("")}
         </tbody>
       </table>
@@ -191,12 +194,18 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
     const vt = checked("integ-visit-dd");
     let shown = 0;
-    el.querySelectorAll("tbody tr").forEach((tr) => {
+    // 明細展開列不是本體(沒有 data-hay/data-visit-tok),跳過不篩,只跟著上面那筆
+    // 摘要列一起關 - 不然搜尋/篩選一重跑,展開狀態就會被強制打開或關不掉。
+    el.querySelectorAll("tbody tr:not(.detail-row)").forEach((tr) => {
       const okSearch = !q || (tr.dataset.hay || "").includes(q);
       const rowVt = (tr.dataset.visitTok || "").split(" ");
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
       const show = okSearch && okVt;
       tr.classList.toggle("hidden", !show);
+      if (!show) {
+        const detailRow = tr.nextElementSibling;
+        if (detailRow && detailRow.classList.contains("detail-row")) detailRow.classList.add("hidden");
+      }
       if (show) shown++;
     });
     const cnt = document.getElementById("integ-count");
@@ -214,12 +223,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
-  el.querySelectorAll("[data-edit-integ]").forEach((b) => {
-    b.addEventListener("click", () => openEditLandownerModal(Number(b.dataset.editInteg)));
-  });
-  el.querySelectorAll("[data-delete-integ]").forEach((b) => {
-    b.addEventListener("click", () => deleteLandowner(Number(b.dataset.deleteInteg)));
-  });
+  wireOwnerDetailRows(el, owners);
 
   const confirmRosterBtn = document.getElementById("integ-roster-confirm-btn");
   if (confirmRosterBtn) {
@@ -265,6 +269,112 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       }
     });
   }
+}
+
+// 一位地主的「查看明細」展開列:土地/建物逐筆列表 + 各自的新增/編輯/刪除。
+// 「整合清冊」跟「土地登記清冊/建物登記清冊」共用同一份,操作欄行為一致。
+function ownerDetailRowHtml(o, colspan) {
+  return `
+    <tr class="detail-row hidden" id="detail-row-${o.id}"><td colspan="${colspan}">
+      <div class="sub-detail">
+        <div class="section-toolbar" style="margin-bottom:8px">
+          <strong>土地資料</strong>
+          ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
+        </div>
+        ${o.land_records.length
+      ? `<table>
+                <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+                <tbody>
+                  ${o.land_records
+        .map(
+          (lr) => `<tr>
+                      <td>${escapeHtml(lr.parcel_number)}</td>
+                      <td>${escapeHtml(lr.section) || "-"}</td>
+                      <td>${fmtArea(lr.total_area_sqm)}m²</td>
+                      <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
+                      <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
+                      ${isEditor()
+              ? `<td class="actions-cell">
+                            <button class="btn-secondary btn-sm" data-edit-land="${lr.id}" data-owner="${o.id}">編輯</button>
+                            <button class="btn-danger btn-sm" data-delete-land="${lr.id}" data-owner="${o.id}">刪除</button>
+                          </td>`
+              : ""
+            }
+                    </tr>`
+        )
+        .join("")}
+                </tbody>
+              </table>`
+      : `<div class="helper-text">尚無土地資料</div>`
+    }
+        <div class="section-toolbar" style="margin:16px 0 8px">
+          <strong>建物資料</strong>
+          ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
+        </div>
+        ${o.building_records.length
+      ? `<table>
+                <thead><tr><th>建號</th><th>座落地號</th><th>樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+                <tbody>
+                  ${o.building_records
+        .map(
+          (br) => `<tr>
+                      <td>${escapeHtml(br.building_number) || "-"}</td>
+                      <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
+                      <td>${escapeHtml(br.floor) || "-"}</td>
+                      <td>${fmtArea(br.total_area_sqm)}m²</td>
+                      <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
+                      ${isEditor()
+              ? `<td class="actions-cell">
+                            <button class="btn-secondary btn-sm" data-edit-building="${br.id}" data-owner="${o.id}">編輯</button>
+                            <button class="btn-danger btn-sm" data-delete-building="${br.id}" data-owner="${o.id}">刪除</button>
+                          </td>`
+              : ""
+            }
+                    </tr>`
+        )
+        .join("")}
+                </tbody>
+              </table>`
+      : `<div class="helper-text">尚無建物資料</div>`
+    }
+      </div>
+    </td></tr>`;
+}
+
+function wireOwnerDetailRows(el, landowners) {
+  el.querySelectorAll("[data-detail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById(`detail-row-${btn.dataset.detail}`).classList.toggle("hidden");
+    });
+  });
+  el.querySelectorAll("[data-add-land]").forEach((btn) => {
+    btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
+  });
+  el.querySelectorAll("[data-add-building]").forEach((btn) => {
+    btn.addEventListener("click", () => openAddBuildingRecordModal(Number(btn.dataset.addBuilding)));
+  });
+  el.querySelectorAll("[data-edit-land]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const owner = landowners.find((o) => o.id === Number(btn.dataset.owner));
+      const record = owner?.land_records.find((r) => r.id === Number(btn.dataset.editLand));
+      if (record) openEditLandRecordModal(owner.id, record);
+    });
+  });
+  el.querySelectorAll("[data-delete-land]").forEach((btn) => {
+    btn.addEventListener("click", () => deleteLandRecord(Number(btn.dataset.owner), Number(btn.dataset.deleteLand)));
+  });
+  el.querySelectorAll("[data-edit-building]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const owner = landowners.find((o) => o.id === Number(btn.dataset.owner));
+      const record = owner?.building_records.find((r) => r.id === Number(btn.dataset.editBuilding));
+      if (record) openEditBuildingRecordModal(owner.id, record);
+    });
+  });
+  el.querySelectorAll("[data-delete-building]").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      deleteBuildingRecord(Number(btn.dataset.owner), Number(btn.dataset.deleteBuilding))
+    );
+  });
 }
 
 async function renderLandownersTypeTab(el, type, titleText = "") {
@@ -335,70 +445,7 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
                 <button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
               </td>
             </tr>
-            <tr class="detail-row hidden" id="detail-row-${o.id}"><td colspan="10">
-              <div class="sub-detail">
-                <div class="section-toolbar" style="margin-bottom:8px">
-                  <strong>土地資料</strong>
-                  ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
-                </div>
-                ${o.land_records.length
-            ? `<table>
-                        <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
-                        <tbody>
-                          ${o.land_records
-              .map(
-                (lr) => `<tr>
-                                <td>${escapeHtml(lr.parcel_number)}</td>
-                                <td>${escapeHtml(lr.section) || "-"}</td>
-                                <td>${fmtArea(lr.total_area_sqm)}m²</td>
-                                <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
-                                <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
-                                ${isEditor()
-                    ? `<td class="actions-cell">
-                                        <button class="btn-secondary btn-sm" data-edit-land="${lr.id}" data-owner="${o.id}">編輯</button>
-                                        <button class="btn-danger btn-sm" data-delete-land="${lr.id}" data-owner="${o.id}">刪除</button>
-                                      </td>`
-                    : ""
-                  }
-                              </tr>`
-              )
-              .join("")}
-                        </tbody>
-                      </table>`
-            : `<div class="helper-text">尚無土地資料</div>`
-          }
-                <div class="section-toolbar" style="margin:16px 0 8px">
-                  <strong>建物資料</strong>
-                  ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
-                </div>
-                ${o.building_records.length
-            ? `<table>
-                        <thead><tr><th>建號</th><th>座落地號</th><th>樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
-                        <tbody>
-                          ${o.building_records
-              .map(
-                (br) => `<tr>
-                                <td>${escapeHtml(br.building_number) || "-"}</td>
-                                <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
-                                <td>${escapeHtml(br.floor) || "-"}</td>
-                                <td>${fmtArea(br.total_area_sqm)}m²</td>
-                                <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
-                                ${isEditor()
-                    ? `<td class="actions-cell">
-                                        <button class="btn-secondary btn-sm" data-edit-building="${br.id}" data-owner="${o.id}">編輯</button>
-                                        <button class="btn-danger btn-sm" data-delete-building="${br.id}" data-owner="${o.id}">刪除</button>
-                                      </td>`
-                    : ""
-                  }
-                              </tr>`
-              )
-              .join("")}
-                        </tbody>
-                      </table>`
-            : `<div class="helper-text">尚無建物資料</div>`
-          }
-              </div>
-            </td></tr>
+            ${ownerDetailRowHtml(o, 6)}
           `;
       })
       .join("")}
@@ -438,54 +485,10 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
     });
   }
 
-  el.querySelectorAll("[data-detail]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.getElementById(`detail-row-${btn.dataset.detail}`).classList.toggle("hidden");
-    });
-  });
-  el.querySelectorAll("[data-edit]").forEach((btn) => {
-    btn.addEventListener("click", () => openEditLandownerModal(Number(btn.dataset.edit)));
-  });
-  el.querySelectorAll("[data-delete]").forEach((btn) => {
-    btn.addEventListener("click", () => deleteLandowner(Number(btn.dataset.delete)));
-  });
-  el.querySelectorAll("[data-log-contact]").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      openAddContactModal(Number(btn.dataset.logContact), () => {
-        renderTab(state.activeTab);
-        syncProjectAggregates();
-      })
-    );
-  });
+  wireOwnerDetailRows(el, landowners);
   const addBtn = document.getElementById("add-landowner-btn");
   if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
   // 土地/建物登記匯入按鈕搬到「SOP > 第1關」的清冊需求旁邊了(見 sop.js),這裡不再放。
-
-  el.querySelectorAll("[data-add-land]").forEach((btn) => {
-    btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
-  });
-  el.querySelectorAll("[data-add-building]").forEach((btn) => {
-    btn.addEventListener("click", () => openAddBuildingRecordModal(Number(btn.dataset.addBuilding)));
-  });
-  el.querySelectorAll("[data-edit-land]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const owner = landowners.find((o) => o.id === Number(btn.dataset.owner));
-      const record = owner?.land_records.find((r) => r.id === Number(btn.dataset.editLand));
-      if (record) openEditLandRecordModal(owner.id, record);
-    });
-  });
-  el.querySelectorAll("[data-edit-building]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const owner = landowners.find((o) => o.id === Number(btn.dataset.owner));
-      const record = owner?.building_records.find((r) => r.id === Number(btn.dataset.editBuilding));
-      if (record) openEditBuildingRecordModal(owner.id, record);
-    });
-  });
-  el.querySelectorAll("[data-delete-building]").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      deleteBuildingRecord(Number(btn.dataset.owner), Number(btn.dataset.deleteBuilding))
-    );
-  });
 }
 
 function formatMonthToMinguo(yyyyMm) {
