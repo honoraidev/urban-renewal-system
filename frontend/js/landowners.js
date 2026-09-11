@@ -65,13 +65,14 @@ function _shortDoorAddr(addr) {
 
 // 「整合清冊」分頁的檢視切換下拉:預設整合清冊(土地+建物合併一列一地主),也可以切到
 // 「土地登記」「建物登記」個別檢視(沿用登記資料分頁那份 renderLandownersTypeTab)。下拉
-// 直接放進子畫面自己的標題列(緊接在「整合清冊 (N)」大標題右邊),不再另外佔一整列。
+// 本身就是大標題(取代原本的純文字標題),點標題就能切換,後面只再接「(N)」筆數,
+// 不會有「整合清冊 (N) 整合清冊 ▾」這種文字重複。
 function integratedViewSwitcherHtml(mode) {
   return `
-    <select id="integrated-view-select" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+    <select id="integrated-view-select" style="width:auto;padding:2px 4px;border:none;background:transparent;font-size:16.5px;font-weight:700;color:inherit;cursor:pointer">
       <option value="combined" ${mode === "combined" ? "selected" : ""}>整合清冊</option>
-      <option value="land" ${mode === "land" ? "selected" : ""}>土地登記</option>
-      <option value="building" ${mode === "building" ? "selected" : ""}>建物登記</option>
+      <option value="land" ${mode === "land" ? "selected" : ""}>土地登記清冊</option>
+      <option value="building" ${mode === "building" ? "selected" : ""}>建物登記清冊</option>
     </select>`;
 }
 
@@ -128,7 +129,7 @@ async function renderIntegratedCombinedView(el, extraToolbarHtml = "") {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
-      <h3 style="display:flex;align-items:center;gap:10px">整合清冊 (<span id="integ-count">${rows.length}</span>)${extraToolbarHtml}</h3>
+      <h3 style="display:flex;align-items:center;gap:2px">${extraToolbarHtml} (<span id="integ-count">${rows.length}</span>)</h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
         ${ddHtml("integ-state-dd", "狀態", [
@@ -344,7 +345,7 @@ async function renderLandownersTypeTab(el, type, extraToolbarHtml = "") {
       </div>
     </div>
     <div class="section-toolbar">
-      <h3 style="display:flex;align-items:center;gap:10px">${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})${extraToolbarHtml}</h3>
+      <h3 style="display:flex;align-items:center;gap:2px">${extraToolbarHtml || (isLand ? "土地登記清冊" : "建物登記清冊")} (${landowners.length})</h3>
       ${isEditor()
       ? `<div style="display:flex;gap:8px">
               <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>
