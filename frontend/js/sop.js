@@ -26,8 +26,8 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   1: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
-    { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land" },
-    { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building" },
+    { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land", action: "land" },
+    { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building", action: "building" },
     { key: "landowner_roster_confirmed", label: "確認地主清冊正確", manual: true },
   ],
   2: [
@@ -360,6 +360,14 @@ async function renderSopTab(el) {
           item.form && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-form="${item.docType}">${stageForms[item.docType] ? "編輯" : "填表"}</button>`
             : "";
+        // 土地/建物登記謄本匯入(原本放在「整合清冊」頁工具列,搬過來跟關卡需求放一起)。
+        // 建物匯入要先有土地資料(建號比對地號用),沒有就整個鎖住。
+        const actionBtn =
+          item.action && canOcr()
+            ? item.action === "building" && landCount === 0
+              ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記">建物登記匯入</button>`
+              : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}">${item.action === "land" ? "土地登記匯入" : "建物登記匯入"}</button>`
+            : "";
         // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
         const rosterBtn = "";
         return `
@@ -369,7 +377,7 @@ async function renderSopTab(el) {
             <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
             <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
           </div>
-          ${rosterBtn}${confirmBtn}${formBtn}${uploadBtn}
+          ${rosterBtn}${confirmBtn}${formBtn}${uploadBtn}${actionBtn}
         </div>`;
       })
       .join("");
@@ -422,6 +430,13 @@ async function renderSopTab(el) {
         toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
         renderSopTab(el);
       } catch (err) { }
+    });
+  });
+
+  el.querySelectorAll("[data-checklist-action]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.checklistAction === "land") openTitleDeedWizard();
+      else openBuildingTitleDeedWizard();
     });
   });
 

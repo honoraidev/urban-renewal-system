@@ -316,10 +316,9 @@ async function renderLandownersTypeTab(el, type) {
     </div>
     <div class="section-toolbar">
       <h3>${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})</h3>
-      ${isEditor() || canOcr()
+      ${isEditor()
       ? `<div style="display:flex;gap:8px">
-              ${canOcr() ? `<button class="btn-secondary btn-sm" id="scan-title-deed-btn">${isLand ? "土地登記匯入" : "建物登記匯入"}</button>` : ""}
-              ${isEditor() ? `<button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>` : ""}
+              <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>
             </div>`
       : ""
     }
@@ -478,23 +477,7 @@ async function renderLandownersTypeTab(el, type) {
   });
   const addBtn = document.getElementById("add-landowner-btn");
   if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
-  const scanBtn = document.getElementById("scan-title-deed-btn");
-  if (scanBtn) {
-    // 防呆:建物登記要先有土地資料(建號要比對地號)。整個案件都沒有任何土地
-    // record 時,擋下建物匯入並提示。
-    const hasLandRecords = !isLand && allLandowners.some((o) => (o.land_records || []).length > 0);
-    if (!isLand && !hasLandRecords) {
-      scanBtn.style.opacity = "0.55";
-      scanBtn.style.cursor = "not-allowed";
-      scanBtn.title = "請先完成「土地登記匯入」,才能匯入建物登記";
-      scanBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        toast("請先匯入土地登記 —— 建物的地號需要比對土地資料", "error");
-      });
-    } else {
-      scanBtn.addEventListener("click", isLand ? openTitleDeedWizard : openBuildingTitleDeedWizard);
-    }
-  }
+  // 土地/建物登記匯入按鈕搬到「SOP > 第1關」的清冊需求旁邊了(見 sop.js),這裡不再放。
 
   el.querySelectorAll("[data-add-land]").forEach((btn) => {
     btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
