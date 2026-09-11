@@ -8,7 +8,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, users
+from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -251,8 +251,46 @@ def _write_activity(user_id, project_id, landowner_id, method, path, label, stat
             )
         )
         db.commit()
+        _maybe_notify(db, user_id, project_id, label)
     finally:
         db.close()
+
+
+def _maybe_notify(db, user_id, project_id, label):
+    """案件內有寫入 → 推 LINE 給案件成員 + 主管。best-effort。"""
+    try:
+        from utils.sso_notify import enabled as _on, send as _send
+
+        if not (_on() and project_id and label):
+            return
+        from models.project import Project, ProjectMember
+        from models.user import User
+
+        proj = db.get(Project, project_id)
+        actor = db.get(User, user_id) if user_id else None
+        emps = [
+            u for (u,) in db.query(User.username)
+            .join(ProjectMember, ProjectMember.user_id == User.id)
+            .filter(ProjectMember.project_id == project_id)
+            .all()
+        ]
+        pcode = proj.project_code if proj else project_id
+        pname = proj.name if proj else ""
+        text = f"【都更】{pname}({pcode})\n{label}"
+        if actor:
+            text += f"\n經手:{actor.display_name}"
+        link = None
+        if settings.NOTIFY_LINK_BASE:
+            link = f"{settings.NOTIFY_LINK_BASE.rstrip('/')}/projects/{project_id}"
+        _send({
+            "employee_nos": emps,
+            "roles": ["manager"],
+            "exclude_employee_nos": [actor.username] if actor else [],
+            "text": text,
+            "link": link,
+        })
+    except Exception:  # noqa: BLE001
+        pass
 
 
 class ActivityLogMiddleware:
@@ -305,6 +343,7 @@ class ActivityLogMiddleware:
 app.add_middleware(ActivityLogMiddleware)
 
 app.include_router(auth.router)
+app.include_router(sso.router)
 app.include_router(projects.router)
 app.include_router(dashboard.router)
 app.include_router(landowners.router)

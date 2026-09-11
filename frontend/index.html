@@ -42,6 +42,10 @@
         <div id="login-error" class="login-error hidden"></div>
         <button type="submit" class="btn-primary" style="width:100%">登入</button>
       </form>
+      <a id="sso-login-btn" href="/api/auth/sso/login" class="btn-secondary hidden"
+         style="width:100%;display:block;text-align:center;margin-top:10px;text-decoration:none;box-sizing:border-box">
+        用公司帳號 / LINE 登入
+      </a>
     </div>
     <footer class="app-footer login-footer">
       <div class="app-footer-brand">
@@ -648,6 +652,31 @@
     </div>
   </div>
 
+  <script>
+  // 統一登入(SSO)回導處理 —— 必須在 state.js 之前跑,才能被當成已登入。
+  (function () {
+    var h = location.hash || "";
+    var mt = h.match(/(?:^|[#&])sso_token=([^&]+)/);
+    var me = h.match(/(?:^|[#&])sso_error=([^&]+)/);
+    if (mt) {
+      try { sessionStorage.setItem("token", decodeURIComponent(mt[1])); } catch (e) {}
+      history.replaceState(null, "", location.pathname + location.search);
+    } else if (me) {
+      history.replaceState(null, "", location.pathname + location.search);
+      window.addEventListener("DOMContentLoaded", function () {
+        var el = document.getElementById("login-error");
+        if (el) { el.textContent = "公司帳號登入失敗:" + decodeURIComponent(me[1]); el.classList.remove("hidden"); }
+      });
+    }
+    // 後端有開 SSO 才顯示按鈕
+    fetch("/api/auth/sso/enabled").then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.enabled) {
+        var b = document.getElementById("sso-login-btn");
+        if (b) b.classList.remove("hidden");
+      }
+    }).catch(function () {});
+  })();
+  </script>
   <script src="js/state.js?v=20260908_1"></script>
   <script src="js/utils.js?v=20260909_2"></script>
   <script src="js/api.js?v=20260901_1"></script>

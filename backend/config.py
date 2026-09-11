@@ -26,6 +26,19 @@ class Settings(BaseSettings):
 
     ADMIN_INITIAL_PASSWORD: str = "Admin@2026"
 
+    # ── 統一登入（company-sso）。SSO_ENABLED=false 時完全不啟用,維持原本帳密登入。 ──
+    SSO_ENABLED: bool = False
+    SSO_ISSUER: str = ""                # 例:http://127.0.0.1:8099
+    SSO_CLIENT_ID: str = ""
+    SSO_CLIENT_SECRET: str = ""
+    SSO_REDIRECT_URI: str = ""          # 例:http://127.0.0.1:8100/api/auth/sso/callback
+    SSO_POST_LOGIN_URL: str = "/"       # 登入成功後導回前端
+
+    # 案件異動 → 呼叫 company-sso /api/notify 推 LINE。與 SSO 登入獨立,可各自開關。
+    SSO_NOTIFY_ENABLED: bool = False
+    SSO_INTERNAL_API_KEY: str = ""      # = company-sso 的 INTERNAL_API_KEY
+    NOTIFY_LINK_BASE: str = ""          # 設了才在通知訊息附「查看」按鈕,例:http://127.0.0.1:8100
+
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
