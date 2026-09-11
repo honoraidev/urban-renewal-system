@@ -63,7 +63,38 @@ function _shortDoorAddr(addr) {
   return (dm ? dm[0] : tail).trim();
 }
 
+// 「整合清冊」分頁上方加一個檢視切換下拉:預設整合清冊(土地+建物合併一列一地主),
+// 也可以切到「土地登記」「建物登記」個別檢視(沿用登記資料分頁那份 renderLandownersTypeTab)。
 async function renderIntegratedRosterTab(el) {
+  const mode = state.integratedViewMode || "combined";
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <label for="integrated-view-select" style="font-size:13px;color:var(--text-secondary)">檢視</label>
+      <select id="integrated-view-select" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+        <option value="combined" ${mode === "combined" ? "selected" : ""}>整合清冊</option>
+        <option value="land" ${mode === "land" ? "selected" : ""}>土地登記</option>
+        <option value="building" ${mode === "building" ? "selected" : ""}>建物登記</option>
+      </select>
+    </div>
+    <div id="integrated-view-content"><div class="empty-state">載入中...</div></div>`;
+
+  el.querySelector("#integrated-view-select").addEventListener("change", async (e) => {
+    state.integratedViewMode = e.target.value;
+    await renderIntegratedSubView(document.getElementById("integrated-view-content"), state.integratedViewMode);
+  });
+
+  await renderIntegratedSubView(document.getElementById("integrated-view-content"), mode);
+}
+
+async function renderIntegratedSubView(el, mode) {
+  if (mode === "land" || mode === "building") {
+    await renderLandownersTypeTab(el, mode);
+  } else {
+    await renderIntegratedCombinedView(el);
+  }
+}
+
+async function renderIntegratedCombinedView(el) {
   const pid = state.currentProjectId;
   const [owners, alerts, contactSummary, sop] = await Promise.all([
     api(`/projects/${pid}/landowners`),
