@@ -63,38 +63,36 @@ function _shortDoorAddr(addr) {
   return (dm ? dm[0] : tail).trim();
 }
 
-// 「整合清冊」分頁上方加一個檢視切換下拉:預設整合清冊(土地+建物合併一列一地主),
-// 也可以切到「土地登記」「建物登記」個別檢視(沿用登記資料分頁那份 renderLandownersTypeTab)。
-async function renderIntegratedRosterTab(el) {
-  const mode = state.integratedViewMode || "combined";
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <label for="integrated-view-select" style="font-size:13px;color:var(--text-secondary)">檢視</label>
-      <select id="integrated-view-select" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
-        <option value="combined" ${mode === "combined" ? "selected" : ""}>整合清冊</option>
-        <option value="land" ${mode === "land" ? "selected" : ""}>土地登記</option>
-        <option value="building" ${mode === "building" ? "selected" : ""}>建物登記</option>
-      </select>
-    </div>
-    <div id="integrated-view-content"><div class="empty-state">載入中...</div></div>`;
-
-  el.querySelector("#integrated-view-select").addEventListener("change", async (e) => {
-    state.integratedViewMode = e.target.value;
-    await renderIntegratedSubView(document.getElementById("integrated-view-content"), state.integratedViewMode);
-  });
-
-  await renderIntegratedSubView(document.getElementById("integrated-view-content"), mode);
+// 「整合清冊」分頁的檢視切換下拉:預設整合清冊(土地+建物合併一列一地主),也可以切到
+// 「土地登記」「建物登記」個別檢視(沿用登記資料分頁那份 renderLandownersTypeTab)。下拉
+// 直接放進子畫面自己的標題列(緊接在「整合清冊 (N)」大標題右邊),不再另外佔一整列。
+function integratedViewSwitcherHtml(mode) {
+  return `
+    <select id="integrated-view-select" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+      <option value="combined" ${mode === "combined" ? "selected" : ""}>整合清冊</option>
+      <option value="land" ${mode === "land" ? "selected" : ""}>土地登記</option>
+      <option value="building" ${mode === "building" ? "selected" : ""}>建物登記</option>
+    </select>`;
 }
 
-async function renderIntegratedSubView(el, mode) {
+async function renderIntegratedRosterTab(el) {
+  const mode = state.integratedViewMode || "combined";
+  const switcherHtml = integratedViewSwitcherHtml(mode);
   if (mode === "land" || mode === "building") {
-    await renderLandownersTypeTab(el, mode);
+    await renderLandownersTypeTab(el, mode, switcherHtml);
   } else {
-    await renderIntegratedCombinedView(el);
+    await renderIntegratedCombinedView(el, switcherHtml);
+  }
+  const select = el.querySelector("#integrated-view-select");
+  if (select) {
+    select.addEventListener("change", async (e) => {
+      state.integratedViewMode = e.target.value;
+      await renderIntegratedRosterTab(el);
+    });
   }
 }
 
-async function renderIntegratedCombinedView(el) {
+async function renderIntegratedCombinedView(el, extraToolbarHtml = "") {
   const pid = state.currentProjectId;
   const [owners, alerts, contactSummary, sop] = await Promise.all([
     api(`/projects/${pid}/landowners`),
@@ -130,7 +128,7 @@ async function renderIntegratedCombinedView(el) {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
-      <h3>整合清冊 (<span id="integ-count">${rows.length}</span>)</h3>
+      <h3 style="display:flex;align-items:center;gap:10px">整合清冊 (<span id="integ-count">${rows.length}</span>)${extraToolbarHtml}</h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
         ${ddHtml("integ-state-dd", "狀態", [
@@ -308,7 +306,7 @@ async function renderIntegratedCombinedView(el) {
   }
 }
 
-async function renderLandownersTypeTab(el, type) {
+async function renderLandownersTypeTab(el, type, extraToolbarHtml = "") {
   const pid = state.currentProjectId;
   const isLand = type === "land";
   currentLandownerLabel = isLand ? "地主" : "屋主";
@@ -346,7 +344,7 @@ async function renderLandownersTypeTab(el, type) {
       </div>
     </div>
     <div class="section-toolbar">
-      <h3>${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})</h3>
+      <h3 style="display:flex;align-items:center;gap:10px">${isLand ? "土地登記清冊" : "建物登記清冊"} (${landowners.length})${extraToolbarHtml}</h3>
       ${isEditor()
       ? `<div style="display:flex;gap:8px">
               <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>
