@@ -739,12 +739,12 @@ function renderProjectHeader(p) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
-  // 土地登記 / 建物登記 已合併為「登記資料」單一分頁,內含子切換。舊的 "buildings"
-  // 進入點(例如建物謄本匯入後)導到合併分頁並預設顯示建物子頁。
+  // 土地登記 / 建物登記已併入「整合清冊」分頁的檢視切換下拉。舊的 "buildings" 進入點
+  // (例如建物謄本匯入後)導到整合清冊並預設顯示建物登記檢視。
   if (tab === "buildings") {
-    state.landRegSubMode = "building";
-    tab = "landowners";
-    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "landowners"));
+    state.integratedViewMode = "building";
+    tab = "integrated";
+    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
   if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
@@ -758,7 +758,6 @@ async function renderTab(tab) {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
     sop: renderSopTab,
-    landowners: renderRegistrationsTab,
     integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,
     relations: renderRelationsTab,

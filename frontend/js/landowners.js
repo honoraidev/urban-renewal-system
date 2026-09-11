@@ -21,32 +21,6 @@ function syncProjectAggregates() {
   } catch (e) {}
 }
 
-// 合併後的「登記資料」分頁:上方兩個按鈕(土地登記 / 建物登記)切換,下方沿用
-// renderLandownersTypeTab 依 land / building 渲染同一份清冊。
-async function renderRegistrationsTab(el) {
-  const mode = state.landRegSubMode === "building" ? "building" : "land";
-  el.innerHTML = `
-    <div class="reg-subtab-bar" style="display:flex;gap:8px;margin-bottom:16px">
-      <button type="button" class="btn-sm reg-subtab ${mode === "land" ? "btn-primary" : "btn-secondary"}" data-reg-sub="land">土地登記</button>
-      <button type="button" class="btn-sm reg-subtab ${mode === "building" ? "btn-primary" : "btn-secondary"}" data-reg-sub="building">建物登記</button>
-    </div>
-    <div id="reg-sub-content"><div class="empty-state">載入中...</div></div>`;
-
-  el.querySelectorAll("[data-reg-sub]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      state.landRegSubMode = btn.dataset.regSub === "building" ? "building" : "land";
-      el.querySelectorAll(".reg-subtab").forEach((x) => {
-        const on = x.dataset.regSub === state.landRegSubMode;
-        x.classList.toggle("btn-primary", on);
-        x.classList.toggle("btn-secondary", !on);
-      });
-      await renderLandownersTypeTab(document.getElementById("reg-sub-content"), state.landRegSubMode);
-    });
-  });
-
-  await renderLandownersTypeTab(document.getElementById("reg-sub-content"), mode);
-}
-
 // 「整合清冊」:一列 = 一位地主,土地 + 建物資料合併呈現。純檢視。
 function _shortDoorAddr(addr) {
   if (!addr) return "";

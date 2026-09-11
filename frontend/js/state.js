@@ -8,8 +8,6 @@ const state = {
   currentProjectId: null,
   currentProject: null,
   activeTab: "sop",
-  // 「登記資料」分頁裡的子切換:"land"(土地登記)/ "building"(建物登記)
-  landRegSubMode: "land",
   projectCache: {},
   selectedContactLandownerId: null,
   sopSelectedStage: null,
