@@ -346,13 +346,10 @@ async function renderSopTab(el) {
           const confirmed = confirmedChecklist[item.key];
           done = !!confirmed;
           sub = done ? `已確認・${fmtDate(confirmed.confirmed_at)}` : "尚未確認";
-          if (item.key === "landowner_roster_confirmed") sub += done ? "" : "(請至「整合清冊」頁右上角確認)";
         }
         if (!done) checklistAllDone = false;
-        // landowner_roster_confirmed 的確認鈕搬到「整合清冊」頁工具列右側 —— 那裡才
-        // 是實際盤點地主清冊的地方,這裡只留狀態文字,不重複放按鈕。
         const confirmBtn =
-          item.manual && item.key !== "landowner_roster_confirmed" && isEditor()
+          item.manual && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
             : "";
         const uploadBtn =
@@ -426,6 +423,15 @@ async function renderSopTab(el) {
     btn.addEventListener("click", async () => {
       const key = btn.dataset.checklistConfirm;
       const currentlyConfirmed = btn.dataset.checklistConfirmed === "true";
+      // 「確認地主清冊正確」影響後面所有謄本比對跟清冊匯出,確認前跳警告讓人再想一下,
+      // 取消確認就不用特別警告。
+      if (key === "landowner_roster_confirmed" && !currentlyConfirmed) {
+        const ok = await confirmDialog(
+          "確認後,後續的謄本比對、地主清冊 Excel 匯出都會以目前的地主清冊資料為準。\n\n請確認姓名、地號/建號、持分等資料都已核對無誤。",
+          { title: "確認地主清冊正確?", confirmText: "確認無誤" }
+        );
+        if (!ok) return;
+      }
       try {
         await api(`/projects/${pid}/sop/${selected}/checklist`, {
           method: "POST",

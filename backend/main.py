@@ -88,12 +88,13 @@ def _auto_migrate() -> None:
     # documents.doc_type ENUM: 拿掉已停用的 dev_letter_template / willingness_form_template,
     # 加入 roi_report(投報表)、willingness_form(地主編輯視窗「已拜訪」上傳的意願書,跟
     # 已移除的 willingness_form_template 是不同東西 - 那是公司文件範本庫的分類,這個是
-    # 每位地主自己的一份意願書)。只有在定義真的不一致時才 MODIFY(MODIFY 會重建整張表);
-    # 若還有列在用舊值就跳過不動(收窄 ENUM 會把那些列變成空字串)。
+    # 每位地主自己的一份意願書)、landowner_roster(下載地主清冊 Excel 時自動存進文件分頁
+    # 的那份)。只有在定義真的不一致時才 MODIFY(MODIFY 會重建整張表);若還有列在用舊值
+    # 就跳過不動(收窄 ENUM 會把那些列變成空字串)。
     _DOCTYPE_ENUM = (
         "ENUM('property_register','building_register','consent_form','briefing_material',"
         "'contract','photo','other','consent_form_template','contract_template',"
-        "'cadastral_map','consultant_document','roi_report','willingness_form')"
+        "'cadastral_map','consultant_document','roi_report','willingness_form','landowner_roster')"
     )
     try:
         with engine.connect() as _conn:

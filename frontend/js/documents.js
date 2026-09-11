@@ -46,8 +46,7 @@ function renderDocRows(docs) {
           <td>${fmtDateTime(d.uploaded_at)}</td>
           <td>${escapeHtml(d.description) || "-"}</td>
           <td class="actions-cell">
-            <span class="helper-text">舊版・不可下載</span>
-            ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${d.id}">刪除</button>` : ""}
+            <button class="btn-secondary btn-sm" data-view="${d.id}">檢視</button>
           </td>
         </tr>`);
     });
@@ -92,6 +91,9 @@ async function renderDocumentsTab(el) {
 
   el.querySelectorAll("[data-download]").forEach((btn) => {
     btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.download), btn.dataset.filename));
+  });
+  el.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => viewDocument(Number(btn.dataset.view)));
   });
   el.querySelectorAll("[data-delete-doc]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -143,6 +145,17 @@ async function openOcrBatchListModal() {
         goToOcrBatch(Number(row.dataset.openBatch));
       });
     });
+}
+
+// 舊版本只給「檢視」不給「下載/刪除」- 開新分頁讓瀏覽器用內建檢視器(PDF/圖片)
+// 直接顯示,不像 downloadDocument 那樣強制存檔。
+async function viewDocument(docId) {
+  try {
+    const res = await api(`/projects/${state.currentProjectId}/documents/${docId}/download`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch (err) { }
 }
 
 async function downloadDocument(docId, fileName) {

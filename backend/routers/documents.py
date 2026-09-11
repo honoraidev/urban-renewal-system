@@ -45,10 +45,12 @@ VALID_DOC_TYPES = {
     "consultant_document",
     "roi_report",
     "willingness_form",
+    "landowner_roster",
 }
 
 DOC_TYPE_LABELS_MAP = {
     "willingness_form": "意願書",
+    "landowner_roster": "地主清冊",
     "roi_report": "投報表",
     "consent_form_template": "同意書",
     "consent_form": "同意書",

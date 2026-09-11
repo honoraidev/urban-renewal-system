@@ -63,6 +63,7 @@ const DOC_TYPE_LABEL = {
   consent_form_template: "同意書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
   willingness_form: "意願書",
+  landowner_roster: "地主清冊",
 };
 
 const DOC_TYPE_KEYWORDS = {

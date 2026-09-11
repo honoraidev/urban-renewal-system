@@ -374,13 +374,17 @@ def create_common_building_part(
 @router.get("/{project_id}/roster.xlsx")
 def download_roster_xlsx(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_staff_viewer),
 ):
     """地主清冊 Excel(版面同「清冊範本」範本.pdf):土地標示/所有權/他項權利 + 對應建物 +
-    建物所有權/他項權利 + 共有建號。"""
+    建物所有權/他項權利 + 共有建號。產生的同時也存一份進「文件」分頁 - 跟其他上傳文件
+    一樣用檔名分版本,方便事後回頭找某次匯出當時的清冊內容。"""
     from urllib.parse import quote
 
+    from models.document import Document
     from models.encumbrance import Encumbrance
+    from utils.file_storage import build_upload_path
     from utils.roster_excel import build_roster_workbook
 
     land_records = list(
@@ -407,6 +411,22 @@ def download_roster_xlsx(
     )
     # 下載檔名 = 案件名稱 + 清冊(中文名放 RFC 5987 的 filename*,ASCII fallback 用案件編號)
     fname = f"{(project.name or project.project_code).strip()}清冊.xlsx"
+
+    disk_path, _stored_name = build_upload_path(project.project_code, fname)
+    with open(disk_path, "wb") as out:
+        out.write(content)
+    db.add(Document(
+        project_id=project.id,
+        doc_type="landowner_roster",
+        file_name=fname,
+        file_path=disk_path,
+        file_size_bytes=len(content),
+        mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        uploaded_by=current_user.id,
+        description="系統產生的地主清冊 Excel",
+    ))
+    db.commit()
+
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

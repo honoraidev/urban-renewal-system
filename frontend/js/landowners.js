@@ -63,8 +63,8 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     api(`/projects/${pid}/sop`, { silent: true }).catch(() => null),
   ]);
   const contactBy = new Map(contactSummary.map((c) => [c.landowner_id, c]));
-  // SOP 第1關「確認地主清冊正確」的確認鈕搬到這裡(整合清冊工具列右側)—— 這裡才
-  // 是實際盤點地主清冊的地方,SOP 頁只留狀態文字,不重複放按鈕。
+  // 「確認地主清冊正確」的確認鈕在 SOP 第1關那邊(見 sop.js),這裡只依確認狀態
+  // 決定「產生地主清冊 Excel」按鈕能不能按。
   const rosterConfirmed = !!sop?.stages?.["1"]?.data?.checklist?.landowner_roster_confirmed;
   const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
 
@@ -101,11 +101,9 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       <div style="display:flex;align-items:center;gap:8px">
         ${rosterConfirmed && !isLandowner()
       ? `<button type="button" class="btn-primary btn-sm" id="roster-xlsx-btn">📊 產生地主清冊 Excel</button>`
-      : ""
-    }
-        ${isEditor()
-      ? `<button type="button" class="btn-${rosterConfirmed ? "secondary" : "primary"} btn-sm" id="integ-roster-confirm-btn" data-confirmed="${rosterConfirmed}">${rosterConfirmed ? "✓ 已確認地主清冊(點擊取消)" : "確認地主清冊正確"}</button>`
-      : ""
+      : !isLandowner()
+        ? `<span class="helper-text" style="margin:0">請至「SOP 進度・第1關」確認地主清冊正確,才能匯出 Excel</span>`
+        : ""
     }
       </div>
     </div>
@@ -224,24 +222,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
   wireOwnerDetailRows(el, owners);
-
-  const confirmRosterBtn = document.getElementById("integ-roster-confirm-btn");
-  if (confirmRosterBtn) {
-    confirmRosterBtn.addEventListener("click", async () => {
-      const currentlyConfirmed = confirmRosterBtn.dataset.confirmed === "true";
-      confirmRosterBtn.disabled = true;
-      try {
-        await api(`/projects/${pid}/sop/1/checklist`, {
-          method: "POST",
-          body: { key: "landowner_roster_confirmed", confirmed: !currentlyConfirmed },
-        });
-        toast(currentlyConfirmed ? "已取消確認" : "已確認地主清冊正確", "success");
-        renderTab("integrated");
-      } catch (err) {
-        confirmRosterBtn.disabled = false;
-      }
-    });
-  }
 
   const rosterXlsxBtn = document.getElementById("roster-xlsx-btn");
   if (rosterXlsxBtn) {
