@@ -174,7 +174,8 @@ def _clean_address(addr: str) -> str:
 
 
 _ADDR_STOP_RE = re.compile(r"(?:權\s*利\s*範\s*圍|權\s*利\s*圍|權\s*狀\s*字\s*號|權\s*狀|當\s*期\s*申\s*報|當期申報地價|統\s*一\s*編\s*號|管\s*理\s*者|前\s*次\s*移\s*轉|前次移轉現值|歷次取得|其他登記事項)")
-_OWNER_BLOCK_RE = re.compile(r"(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?登記次序\s*[:：]\s*0*([0-9]{1,4})(.*?)(?=(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?登記次序|\Z)", re.S)
+# 排除「相關他項權利登記次序」「標的登記次序」,否則區塊在該行被截斷、還會多出假所有權人
+_OWNER_BLOCK_RE = re.compile(r"(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?(?<!標的)(?<!他項權利)登記次序\s*[:：]\s*0*([0-9]{1,4})(?!\s*-\s*[0-9])(.*?)(?=(?:[（\(]\s*[0-9]{1,4}\s*[）\)]\s*)?(?<!標的)(?<!他項權利)登記次序|\Z)", re.S)
 _CUR_SHARE_RE = re.compile(r"(?<!取得)權\s*利\s*範\s*圍\s*[:：]\s*(?:(公同共有|公同|全部)\s*)?[*\s]*([0-9]+)\s*分\s*之\s*([0-9]+)")
 _YM_VAL_RE = re.compile(r"([0-9]{2,3})\s*年\s*([0-9]{1,2})\s*月\s*[*\s]*([0-9,]+(?:\.[0-9]+)?)\s*元")
 
@@ -242,10 +243,15 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
 
             # 「相關他項權利登記次序：0004-000」 - links this owner to the 他項權利部 entry
             # set on their share. Absent => owner carries no 他項權利.
-            rel = re.findall(
-                r"相\s*關\s*他\s*項\s*權\s*利\s*登\s*記\s*次\s*序\s*[:：]\s*([0-9]{1,4}(?:\s*-\s*[0-9]{1,4})?)",
-                block,
-            )
+            # 一行可能列好幾筆(「0003-000 0004-000 0005-000」),全部都要
+            rel = [
+                o
+                for line in re.findall(
+                    r"相\s*關\s*他\s*項\s*權\s*利\s*登\s*記\s*次\s*序\s*[:：]\s*([0-9]{1,4}(?:\s*-\s*[0-9]{1,4})?(?:\s+[0-9]{1,4}\s*-\s*[0-9]{1,4})*)",
+                    block,
+                )
+                for o in re.findall(r"[0-9]{1,4}(?:\s*-\s*[0-9]{1,4})?", line)
+            ]
             if rel:
                 seen_rel: list[str] = []
                 for v in rel:
@@ -431,6 +437,84 @@ def _backfill_common_parts_from_raw(data: dict, page_texts: list[str] | None) ->
                     {"main_building_number": bn, "numerator": int(y), "denominator": int(x)}
                     for bn, x, y in pairs
                 ]
+    return data
+
+
+def _backfill_encumbrance_amounts_from_raw(data: dict, page_texts: list[str] | None) -> dict:
+    """擔保債權總金額:模型常漏讀或讀錯位數。從原文逐段(每個地號/建號)抓
+    「登記次序:XXXX-XXX … 擔保債權總金額:…元」,JSON 裡這筆沒有金額才補。
+    批次謄本的他項登記次序會跨地號/建號重複,先用對應地號/建號挑段;挑不出來時只有
+    全文件同一登記次序的金額都一樣才補,避免張冠李戴。"""
+    raw = "\n".join(page_texts or [])
+    if not re.search(r"擔\s*保\s*債\s*權\s*總\s*金\s*額", raw):
+        return data
+    try:
+        from utils.deed_parser import _ENC_BLOCK_RE, _enc_amount
+    except Exception:
+        return data
+    raw = raw.translate(_FULLWIDTH_DIGIT_MAP)
+
+    def _digits(v) -> str:
+        return re.sub(r"\D", "", str(v or ""))
+
+    def _order_key(v) -> tuple:
+        parts = [int(p) for p in re.findall(r"\d+", str(v or ""))]
+        while len(parts) > 1 and parts[-1] == 0:
+            parts.pop()
+        return tuple(parts)
+
+    def _same_no(a: str, b: str) -> bool:
+        return bool(a and b) and (a == b or (len(b) >= 4 and a.endswith(b)) or (len(a) >= 4 and b.endswith(a)))
+
+    hdrs = list(re.finditer(r"([0-9]{3,5}-[0-9]{3,5})\s*[地建]\s*號", raw))
+    sections: list[tuple[str, str]] = []
+    for idx, m in enumerate(hdrs):
+        end = hdrs[idx + 1].start() if idx + 1 < len(hdrs) else len(raw)
+        no, text = _digits(m.group(1)), raw[m.end():end]
+        # 同一建號跨頁時頁首會重印,併回同一段,「(續次頁)」的金額才接得回原本那筆
+        if sections and sections[-1][0] == no:
+            sections[-1] = (no, sections[-1][1] + "\n" + text)
+        else:
+            sections.append((no, text))
+    if not sections:
+        sections = [("", raw)]
+
+    found: list[tuple[str, tuple, int]] = []
+    for no, text in sections:
+        marks = list(_ENC_BLOCK_RE.finditer(text))
+        for i, mk in enumerate(marks):
+            end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+            amount = _enc_amount(text[mk.end():end])
+            if amount is not None:
+                found.append((no, _order_key(mk.group(1)), amount))
+    if not found:
+        return data
+
+    def _fill(encs, own_no: str) -> None:
+        for enc in encs or []:
+            cur = enc.get("secured_amount")
+            if isinstance(cur, str):
+                cur = int(_digits(cur)) if _digits(cur) else None
+                enc["secured_amount"] = cur
+            if cur:
+                continue
+            ok = _order_key(enc.get("registration_order"))
+            cands = [(no, amt) for no, o, amt in found if o == ok]
+            if not ok or not cands:
+                continue
+            targets = [_digits(t) for t in re.findall(r"\d{3,5}-\d{2,4}", str(enc.get("applies_to_parcels") or ""))]
+            if own_no:
+                targets.append(own_no)
+            hit = {amt for no, amt in cands if any(_same_no(no, t) for t in targets)}
+            amounts = hit or {amt for _, amt in cands}
+            if len(amounts) == 1:
+                enc["secured_amount"] = amounts.pop()
+
+    for parcel in data.get("land_parcels") or []:
+        _fill(parcel.get("encumbrances"), _digits(parcel.get("parcel_number")))
+    for building in data.get("buildings") or []:
+        _fill(building.get("encumbrances"), _digits(building.get("building_number")))
+    _fill(data.get("encumbrances"), "")
     return data
 
 
@@ -1151,6 +1235,9 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
 *********1分之1*********」只填「1分之1」),不要包含「全部」、「債權比例:」之類的文字,也不要包含\
 債務人姓名、債權總金額等其他描述。【嚴禁】填成「設定權利範圍:X分之Y」(那是設定在標的所有權人持分裡的比例)、\
 「擔保債權總金額」的金額
+     - secured_amount:「擔保債權總金額:」那一行的金額,只填純整數(單位:元),例如「最高限額新臺幣*****3,600,000元正」\
+填 3600000、「本金最高限額新臺幣***960,000元正」填 960000;「最高限額」「本金」「新臺幣」「元正」、星號與千分位逗號都不要。\
+【嚴禁】填成「債權額比例」的分數、「設定權利範圍」、收件字號或證明書字號裡的數字。找不到填 null,不可填 0。
 
 2. encumbrances(橫跨多筆地號/建號、或寫「全部」、無法歸屬到單一一筆地號的他項權利部,陣列,可能有 0 到多筆;\
 沒有的話回傳空陣列 []。已經歸進 land_parcels[].encumbrances 的項目不要在這裡重複):
@@ -1161,6 +1248,7 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
    - debtor_info:「債務額比例」欄位裡「N分之M」這個分數格式本身,只填分數(例如「債權額比例:全部\
 *********1分之1*********」只填「1分之1」),不要包含「全部」、「債權比例:」之類的文字,也不要包含\
 債務人姓名、債權總金額等其他描述
+   - secured_amount:「擔保債權總金額:」那一行的金額,只填純整數(元),規則同 land_parcels[].encumbrances 的 secured_amount。找不到填 null,不可填 0。
 
 3. buildings(建物標示部+所有權部,陣列,一筆建號一個項目;若整份文件完全沒有建物部分則回傳空陣列 []):
    - building_number:建號
@@ -1261,8 +1349,9 @@ _ENCUMBRANCE_ITEM_SCHEMA = {
         "right_type": _n("string"),
         "right_holder": _n("string"),
         "debtor_info": _n("string"),
+        "secured_amount": _n("integer"),
     },
-    "required": ["registration_order", "applies_to_parcels", "right_type", "right_holder", "debtor_info"],
+    "required": ["registration_order", "applies_to_parcels", "right_type", "right_holder", "debtor_info", "secured_amount"],
     "additionalProperties": False,
 }
 
@@ -2182,6 +2271,7 @@ def extract_title_deed(
             data = _post_process_extracted_data(rule_data)
             data = _backfill_owner_addresses(data, [o for o in text_overrides if o])
             data = _backfill_common_parts_from_raw(data, [o for o in text_overrides if o])
+            data = _backfill_encumbrance_amounts_from_raw(data, [o for o in text_overrides if o])
             data = _apply_recovered_addresses(data, recovered_addresses)
             data = _apply_recovered_names(data, recovered_names)
             data = _ai_correct_recovered_addresses(data, recovered_addresses)
@@ -2446,6 +2536,7 @@ def extract_title_deed(
     # 登記次序 block, fill it from the text directly - no dependence on the model.
     data = _backfill_owner_addresses(data, all_page_texts)
     data = _backfill_common_parts_from_raw(data, all_page_texts)
+    data = _backfill_encumbrance_amounts_from_raw(data, all_page_texts)
     data = _apply_recovered_addresses(data, recovered_addresses)
     data = _apply_recovered_names(data, recovered_names)
     data = _ai_correct_recovered_addresses(data, recovered_addresses)
@@ -3611,6 +3702,7 @@ def _call_openai_for_chunk(
             "【嚴禁】填成「字　號:」(像「信義字第201500號」)、「收件年期:」「登記日期:」「統一編號:」「住址:」「證明書字號:」的內容。讀不到就填空字串。\n"
             "• debtor_info:只填「債權額比例:」或「債務額比例:」那一行的「N分之M」分數(例如「1分之1」)。"
             "【嚴禁】填成「設定權利範圍:4分之1」(那是設定在標的所有權人持分中的比例,不是 debtor_info)、「擔保債權總金額:新臺幣6,210,000元正」、「擔保債權種類及範圍」「擔保債權確定期日」「利息」「遲延利息」「違約金」「債務人:」姓名。找不到就填空字串。\n"
+            "• secured_amount:「擔保債權總金額:」那一行的金額,只填純整數(元),例如「最高限額新臺幣*****3,600,000元正」填 3600000。找不到填 null,不可填 0。\n"
             "• applies_to_parcels:依「共同擔保地號/建號」或該頁標題地號填,通常就是本地號。\n"
             "義務人、債務人、權利人只能留在 encumbrance,不可混進 owners。"
             "只對應單一地號的放 land_parcels[].encumbrances;橫跨多筆或寫「全部」才放最外層 encumbrances。"

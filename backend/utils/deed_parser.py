@@ -54,6 +54,14 @@ _ENC_RIGHT_TYPE_RE = re.compile(r"權利種類\s*[:：]\s*([^\s\n]+)")
 _ENC_HOLDER_RE = re.compile(r"權\s*利\s*人\s*[:：][ \t　]*(.*?)[ \t　]*$", re.M)
 _ENC_DEBTOR_RE = re.compile(r"債[權務]額比例\s*[:：]\s*(?:全部\s*)?[*\s]*(\d+)\s*分之\s*(\d+)")
 _ENC_COMMON_PARCEL_RE = re.compile(r"共同擔保地號\s*[:：]\s*([^\n]+)")
+# 「擔保債權總金額：最高限額新臺幣*****3,600,000元正」/「本金最高限額新臺幣***960,000元正」
+_ENC_AMOUNT_RE = re.compile(r"擔\s*保\s*債\s*權\s*總\s*金\s*額\s*[:：][^\d]{0,60}?([\d,，]+)\s*元")
+
+
+def _enc_amount(block: str) -> int | None:
+    m = _ENC_AMOUNT_RE.search(block or "")
+    digits = re.sub(r"\D", "", m.group(1)) if m else ""
+    return int(digits) if digits else None
 
 _BLANK_TOKENS = {
     "",
@@ -212,6 +220,7 @@ def _parse_one_deed(block: str) -> dict | None:
                 "right_type": right_type,
                 "right_holder": holder,
                 "debtor_info": debtor_info,
+                "secured_amount": _enc_amount(eb),
             })
         # coverage: every （NNNN）登記次序：NNNN-NNN marker became a record
         if len(_ENC_BLOCK_RE.findall(enc_sec)) != len(encumbrances):
@@ -415,6 +424,7 @@ def _parse_one_building(block: str) -> dict | None:
                 "right_type": right_type,
                 "right_holder": holder,
                 "debtor_info": debtor_info,
+                "secured_amount": _enc_amount(eb),
             })
         if len(_ENC_BLOCK_RE.findall(enc_sec)) != len(encumbrances):
             return None

@@ -9,6 +9,7 @@ class EncumbranceCreate(BaseModel):
     right_type: str | None = None
     right_holder: str | None = None
     debtor_info: str | None = None
+    secured_amount: int | None = None
 
 
 class EncumbranceUpdate(BaseModel):
@@ -17,6 +18,7 @@ class EncumbranceUpdate(BaseModel):
     right_type: str | None = None
     right_holder: str | None = None
     debtor_info: str | None = None
+    secured_amount: int | None = None
 
 
 class EncumbranceRead(BaseModel):
@@ -27,6 +29,7 @@ class EncumbranceRead(BaseModel):
     right_type: str | None = None
     right_holder: str | None = None
     debtor_info: str | None = None
+    secured_amount: int | None = None
     created_at: datetime
     updated_at: datetime
 

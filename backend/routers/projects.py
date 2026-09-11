@@ -376,10 +376,11 @@ def download_roster_xlsx(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_staff_viewer),
 ):
-    """地主清冊 Excel(版面同「清冊範本」範本.pdf):土地標示/所有權 + 對應建物 +
-    建物所有權 + 共有建號。他項權利欄已依範本移除。"""
+    """地主清冊 Excel(版面同「清冊範本」範本.pdf):土地標示/所有權/他項權利 + 對應建物 +
+    建物所有權/他項權利 + 共有建號。"""
     from urllib.parse import quote
 
+    from models.encumbrance import Encumbrance
     from utils.roster_excel import build_roster_workbook
 
     land_records = list(
@@ -395,9 +396,14 @@ def download_roster_xlsx(
     landowners_by_id = {
         o.id: o for o in db.scalars(select(Landowner).where(Landowner.project_id == project.id))
     }
+    encumbrances = list(
+        db.scalars(
+            select(Encumbrance).where(Encumbrance.project_id == project.id).order_by(Encumbrance.id)
+        )
+    )
 
     content = build_roster_workbook(
-        project, land_records, building_records, landowners_by_id
+        project, land_records, building_records, landowners_by_id, encumbrances
     )
     # 下載檔名 = 案件名稱 + 清冊(中文名放 RFC 5987 的 filename*,ASCII fallback 用案件編號)
     fname = f"{(project.name or project.project_code).strip()}清冊.xlsx"

@@ -1,5 +1,16 @@
 "use strict";
 
+function parseSecuredAmount(v) {
+  if (v === null || v === undefined) return null;
+  const digits = String(v).replace(/\D/g, "");
+  return digits ? Number(digits) : null;
+}
+
+function formatSecuredAmount(v) {
+  const n = parseSecuredAmount(v);
+  return n === null ? "" : n.toLocaleString("en-US");
+}
+
 async function renderEncumbrancesTab(el) {
   const pid = state.currentProjectId;
   const encumbrances = await api(`/projects/${pid}/encumbrances`);
@@ -14,7 +25,7 @@ async function renderEncumbrancesTab(el) {
       ? `<div class="table-wrap">
             <table>
               <thead><tr>
-                <th>登記次序</th><th>對應地號/建號</th><th>權利種類</th><th>他項權利人</th><th>債務額比例</th>
+                <th>登記次序</th><th>對應地號/建號</th><th>權利種類</th><th>他項權利人</th><th>債務額比例</th><th style="text-align:right">擔保債權總金額</th>
                 ${isEditor() ? "<th>操作</th>" : ""}
               </tr></thead>
               <tbody>
@@ -26,6 +37,7 @@ async function renderEncumbrancesTab(el) {
                       <td>${escapeHtml(enc.right_type) || "-"}</td>
                       <td>${escapeHtml(enc.right_holder) || "-"}</td>
                       <td>${escapeHtml(enc.debtor_info) || "-"}</td>
+                      <td style="text-align:right;white-space:nowrap">${formatSecuredAmount(enc.secured_amount) || "-"}</td>
                       ${isEditor()
               ? `<td class="actions-cell">
                               <button class="btn-secondary btn-sm" data-edit-encumbrance="${enc.id}">編輯</button>
@@ -65,7 +77,7 @@ async function renderEncumbrancesTab(el) {
 
 function openEncumbranceFormModal(encumbrance) {
   const isEdit = !!encumbrance;
-  const e = encumbrance || { registration_order: "", applies_to_parcels: "", right_type: "", right_holder: "", debtor_info: "" };
+  const e = encumbrance || { registration_order: "", applies_to_parcels: "", right_type: "", right_holder: "", debtor_info: "", secured_amount: null };
   const ratio = parseDebtorRatio(e.debtor_info);
   openModal(
     isEdit ? "編輯他項權利" : "新增他項權利",
@@ -82,12 +94,18 @@ function openEncumbranceFormModal(encumbrance) {
         </div>
         <div class="field"><label>他項權利人</label><input name="right_holder" value="${escapeHtml(e.right_holder)}" autocomplete="off"></div>
       </div>
-      <div class="field">
-        <label>債務額比例</label>
-        <div style="display:flex;align-items:center;gap:8px">
-          <input name="debtor_num" type="number" value="${escapeHtml(ratio.numerator)}" placeholder="分子" style="width:90px" autocomplete="off">
-          <span style="color:var(--text-muted)">/</span>
-          <input name="debtor_den" type="number" value="${escapeHtml(ratio.denominator)}" placeholder="分母" style="width:90px" autocomplete="off">
+      <div class="field-row">
+        <div class="field">
+          <label>債務額比例</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input name="debtor_num" type="number" value="${escapeHtml(ratio.numerator)}" placeholder="分子" style="width:90px" autocomplete="off">
+            <span style="color:var(--text-muted)">/</span>
+            <input name="debtor_den" type="number" value="${escapeHtml(ratio.denominator)}" placeholder="分母" style="width:90px" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label>擔保債權總金額(元)</label>
+          <input name="secured_amount" inputmode="numeric" value="${escapeHtml(formatSecuredAmount(e.secured_amount))}" placeholder="例:3,600,000" autocomplete="off">
         </div>
       </div>
       <div class="modal-footer">
@@ -108,6 +126,7 @@ function openEncumbranceFormModal(encumbrance) {
       right_type: (fd.get("right_type") || "").trim() || null,
       right_holder: (fd.get("right_holder") || "").trim() || null,
       debtor_info: numerator && denominator ? `${denominator}分之${numerator}` : null,
+      secured_amount: parseSecuredAmount(fd.get("secured_amount")),
     };
     try {
       if (isEdit) {

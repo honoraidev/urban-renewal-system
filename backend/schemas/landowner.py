@@ -71,6 +71,7 @@ class BuildingRecordCreate(BaseModel):
     floors_detail: list | None = None
     accessories_detail: list | None = None
     registration_order: str | None = None
+    related_encumbrance_orders: str | None = None
     structure_area_sqm: float = 0
     auxiliary_area_sqm: float = 0
     common_area_sqm: float = 0
@@ -88,6 +89,7 @@ class BuildingRecordUpdate(BaseModel):
     floor: str | None = None
     total_floors: str | None = None
     registration_order: str | None = None
+    related_encumbrance_orders: str | None = None
     structure_area_sqm: float | None = None
     auxiliary_area_sqm: float | None = None
     common_area_sqm: float | None = None
@@ -108,6 +110,7 @@ class BuildingRecordRead(BaseModel):
     floors_detail: list | None = None
     accessories_detail: list | None = None
     registration_order: str | None = None
+    related_encumbrance_orders: str | None = None
     structure_area_sqm: float
     auxiliary_area_sqm: float
     common_area_sqm: float

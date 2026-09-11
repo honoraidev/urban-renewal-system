@@ -54,6 +54,9 @@ function normalizeTitleDeedData(raw) {
       ownership_numerator: o.ownership_numerator || 1,
       ownership_denominator: o.ownership_denominator || 1,
       address: cleanAddr(o.address),
+      related_encumbrance_orders: Array.isArray(o.related_encumbrance_orders)
+        ? o.related_encumbrance_orders.join(", ")
+        : (o.related_encumbrance_orders || ""),
       _pooled: !!(o.is_pooled || o._pooled),
     };
   };
@@ -66,6 +69,7 @@ function normalizeTitleDeedData(raw) {
       right_type: e.right_type || "",
       right_holder: e.right_holder || "",
       debtor_info: e.debtor_info || "",
+      secured_amount: parseSecuredAmount(e.secured_amount),
     };
   };
 
@@ -1274,6 +1278,9 @@ function encumbranceRowHtml(e, labels) {
         </div>
       </div>
     </div>
+    <div class="field-row">
+      <div class="field" style="flex:1 1 200px"><label>擔保債權總金額(元)</label><input class="enc-amount" inputmode="numeric" value="${escapeHtml(formatSecuredAmount(e.secured_amount))}" placeholder="例:3,600,000" autocomplete="off"></div>
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:8px;border-top:1px dashed var(--border-light, #e2e8f0)">
       <button type="button" class="btn-link btn-sm remove-wizard-row-btn" style="color:var(--danger)">刪除此筆</button>
       <button type="button" class="btn-secondary btn-sm enc-insert-row-btn">+ 新增他項權利</button>
@@ -1290,6 +1297,7 @@ function readEncumbranceRowsRaw(containerId) {
       right_type: (row.querySelector(".enc-type")?.value || "").trim(),
       right_holder: (row.querySelector(".enc-holder")?.value || "").trim(),
       debtor_info: numerator && denominator ? `${denominator}分之${numerator}` : "",
+      secured_amount: parseSecuredAmount(row.querySelector(".enc-amount")?.value),
     };
   });
 }
@@ -1307,7 +1315,7 @@ function renderEncumbranceRows(containerId, list) {
   if (!list.length) {
     wrap.innerHTML = `<button type="button" class="btn-secondary btn-sm enc-add-first-btn">+ 新增他項權利</button>`;
     wrap.querySelector(".enc-add-first-btn").addEventListener("click", () => {
-      list.push({ registration_order: "", applies_to_parcels: "", right_type: "", right_holder: "", debtor_info: "" });
+      list.push({ registration_order: "", applies_to_parcels: "", right_type: "", right_holder: "", debtor_info: "", secured_amount: null });
       renderEncumbranceRows(containerId, list);
       document.querySelector(`#${containerId} .wizard-row .enc-order`)?.focus();
     });
@@ -1368,6 +1376,7 @@ function renderEncumbranceRows(containerId, list) {
         right_type: "",
         right_holder: "",
         debtor_info: "",
+        secured_amount: null,
       });
       renderEncumbranceRows(containerId, list);
       const inserted = wrap.querySelector(`.wizard-row[data-index="${index + 1}"]`);
@@ -1390,6 +1399,7 @@ function readEncumbranceRows(containerId) {
         right_type: row.querySelector(".enc-type").value.trim(),
         right_holder: row.querySelector(".enc-holder").value.trim(),
         debtor_info: numerator && denominator ? `${denominator}分之${numerator}` : "",
+        secured_amount: parseSecuredAmount(row.querySelector(".enc-amount")?.value),
       };
     })
     .filter((e) => e.right_type || e.right_holder);
@@ -1864,6 +1874,7 @@ async function submitTitleDeedWizardInner() {
               .filter((a) => a.use || String(a.area_sqm) !== "")
               .map((a) => ({ use: a.use || "", area_sqm: Number(a.area_sqm) || 0 })),
             registration_order: owner.registration_order || null,
+            related_encumbrance_orders: (owner.related_encumbrance_orders || "").trim() || null,
             structure_area_sqm: floorAreaSqm,
             auxiliary_area_sqm: auxAreaSqm,
             common_area_sqm: 0,

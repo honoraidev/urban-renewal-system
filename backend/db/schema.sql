@@ -143,6 +143,8 @@ CREATE TABLE building_records (
     floor VARCHAR(20),
     total_floors VARCHAR(50),
     registration_order VARCHAR(50),
+    -- 「相關他項權利登記次序」from the 建物所有權部 (comma-separated); blank = owner has no 他項權利
+    related_encumbrance_orders VARCHAR(255) NULL,
     structure_area_sqm DECIMAL(12,2) NOT NULL DEFAULT 0,
     auxiliary_area_sqm DECIMAL(12,2) NOT NULL DEFAULT 0,
     common_area_sqm DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -170,6 +172,8 @@ CREATE TABLE encumbrances (
     right_type VARCHAR(100),
     right_holder VARCHAR(255),
     debtor_info TEXT,
+    -- 擔保債權總金額(元)
+    secured_amount BIGINT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_encumbrances_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,

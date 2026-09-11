@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -16,5 +16,7 @@ class Encumbrance(Base):
     right_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     right_holder: Mapped[str | None] = mapped_column(String(255), nullable=True)
     debtor_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 擔保債權總金額(新臺幣元)
+    secured_amount: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -1,8 +1,9 @@
 """地主清冊 Excel 匯出 - 版面依 clientside「清冊範本」(範本.pdf):兩列表頭(群組列 +
 欄位列),一列資料 = 一筆土地登記(地號 × 所有權人),對應建物依號碼比對帶入。
 
-群組:土地標示部 / 土地所有權部 / 建物標示部 / 建物所有權部 / 共有建號。
-他項權利欄已依範本移除。
+群組:土地標示部 / 土地所有權部 / 土地他項權利部 / 建物標示部 / 建物所有權部 / 建物他項權利部 / 共有建號。
+他項權利部只出「他項權利人 / 擔保債權總金額」兩欄,靠所有權部的「相關他項權利登記次序」對到該列
+(沒有這一行 = 該所有權人沒有他項權利,留白);同一人有多筆時權利人用「、」串接、金額加總。
 
 「建物標示部」的「層次面積(㎡)」欄組**依每個案件的實際樓層客製化**:掃過該案件所有
 建物的「層數 / 層次」,地上最高到 N 層就出 1F~NF、地下最深到 M 層就出「地下1F~地下MF」,
@@ -36,6 +37,8 @@ _COLS_HEAD: list[tuple[str, str]] = [
     ("土地所有權部", "持分面積(㎡)"),
     ("土地所有權部", "持分面積(坪)"),
     ("土地所有權部", "所有權人戶籍地址"),
+    ("土地他項權利部", "他項權利人"),
+    ("土地他項權利部", "擔保債權總金額"),
     ("建物標示部", "建號"),
     ("建物標示部", "建號門牌"),
     ("建物標示部", "坐落地號"),
@@ -65,6 +68,8 @@ _COLS_TAIL: list[tuple[str, str]] = [
     ("建物所有權部", "持份權狀面積(㎡)"),
     ("建物所有權部", "持份權狀面積(坪)"),
     ("建物所有權部", "所有權人戶籍地址"),
+    ("建物他項權利部", "他項權利人"),
+    ("建物他項權利部", "擔保債權總金額"),
     ("共有建號", "共有建號"),
     ("共有建號", "共有面積"),
     ("共有建號", "共有權利範圍(分子)"),
@@ -237,11 +242,59 @@ def _common_share_map(common_records: list) -> dict:
     return out
 
 
+_NO_RE = re.compile(r"(\d{1,5})\s*-\s*(\d{1,4})")
+
+
+def _no_keys(text) -> set:
+    """地號 / 建號字串 -> {(種類, 前段, 後段)}。地號後段 4 碼、建號後段 3 碼,靠位數分開,
+    數字剛好相同的地號與建號(0590-0000 vs 00590-000)才不會對在一起。"""
+    return {
+        ("L" if len(b) == 4 else "B", int(a), int(b))
+        for a, b in _NO_RE.findall(str(text or ""))
+    }
+
+
+def _order_key(v) -> tuple:
+    """「0004-000」「0004」-> (4,);「0001-001」-> (1, 1)。"""
+    parts = [int(p) for p in re.findall(r"\d+", str(v or ""))]
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
+
+
+def _enc_cells(encumbrances: list, related_orders, own_number) -> list:
+    """[他項權利人, 擔保債權總金額]。只收登記次序列在該所有權人「相關他項權利登記次序」
+    裡、且對應地號/建號包含本筆的他項權利(對應欄空白或寫「全部」時不限)。"""
+    orders = {_order_key(t) for t in re.split(r"[,，、\s]+", str(related_orders or ""))}
+    orders.discard(())
+    if not orders:
+        return ["", ""]
+    own = _no_keys(own_number)
+    holders: list[str] = []
+    total = None
+    seen_orders: set = set()
+    for e in encumbrances:
+        ok = _order_key(e.registration_order)
+        if ok not in orders or ok in seen_orders:
+            continue
+        targets = _no_keys(e.applies_to_parcels)
+        if own and targets and not (own & targets):
+            continue
+        seen_orders.add(ok)
+        holder = (e.right_holder or "").strip()
+        if holder and holder not in holders:
+            holders.append(holder)
+        if e.secured_amount is not None:
+            total = (total or 0) + int(e.secured_amount)
+    return ["、".join(holders), total if total is not None else ""]
+
+
 def build_roster_workbook(
     project,
     land_records: list,
     building_records: list,
     landowners_by_id: dict,
+    encumbrances: list,
 ) -> bytes:
     # 共有部分建號(main_use=="共有部分")不自己成列;拆出來做「主建物建號 -> 共有持分」對照表。
     common_records = [b for b in building_records if _is_common_part(b)]
@@ -298,6 +351,7 @@ def build_roster_workbook(
         return "面積" in h or "㎡" in h or "坪" in h or h == "防空避難室"
 
     area_cols = {i for i, (_g, h) in enumerate(columns, start=1) if _is_area_header(h)}
+    amount_cols = {i for i, (_g, h) in enumerate(columns, start=1) if h == "擔保債權總金額"}
 
     wb = Workbook()
     ws = wb.active
@@ -516,6 +570,8 @@ def build_roster_workbook(
             cell.alignment = Alignment(vertical="center", wrap_text=True)
             if cidx in area_cols:
                 cell.number_format = "0.00"
+            elif cidx in amount_cols:
+                cell.number_format = "#,##0"
         r += 1
 
     r = 3
@@ -534,11 +590,13 @@ def build_roster_workbook(
             _num(lr.total_area_sqm) if lr.total_area_sqm is not None else "",
         ]
         row += _land_owner_cells(lr)
+        row += _enc_cells(encumbrances, lr.related_encumbrance_orders, lr.parcel_number)
         std = _bld_std_cells(b)
         if b:
             std[2] = _bld_parcel(b) or lr.parcel_number or ""
         row += std
         row += _bld_owner_cells(b)
+        row += _enc_cells(encumbrances, b.related_encumbrance_orders, b.building_number) if b else ["", ""]
         row += _common_cells(b)
         _emit(row)
 
@@ -548,11 +606,12 @@ def build_roster_workbook(
         if b.id in used_building_ids:
             continue
         row_seq += 1
-        row = [row_seq, "", "", "", "", ""] + [""] * 8
+        row = [row_seq, "", "", "", "", ""] + [""] * 10
         std = _bld_std_cells(b)
         std[2] = _bld_parcel(b) or ""
         row += std
         row += _bld_owner_cells(b)
+        row += _enc_cells(encumbrances, b.related_encumbrance_orders, b.building_number)
         row += _common_cells(b)
         _emit(row)
 
@@ -561,6 +620,10 @@ def build_roster_workbook(
         w = 10
         if "地址" in header:
             w = 32
+        elif header == "他項權利人":
+            w = 28
+        elif header == "擔保債權總金額":
+            w = 14
         elif header == "所有權人":
             w = 20
         elif "編號" in header or "門牌" in header:

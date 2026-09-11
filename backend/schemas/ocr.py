@@ -63,6 +63,7 @@ class EncumbranceEntry(BaseModel):
     right_type: str | None = None
     right_holder: str | None = None
     debtor_info: str | None = None
+    secured_amount: int | None = None
 
 
 class LandParcelExtraction(BaseModel):
@@ -89,6 +90,8 @@ class BuildingOwnershipEntry(BaseModel):
     ownership_denominator: int | None = None
     address: str | None = None
     is_pooled: bool | None = None
+    # 建物所有權部的「相關他項權利登記次序」,用途同 LandOwnershipEntry。
+    related_encumbrance_orders: list[str] = []
 
 
 class CommonPartShare(BaseModel):
