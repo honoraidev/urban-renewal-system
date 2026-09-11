@@ -425,7 +425,6 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
       <table>
         <thead><tr>
           <th>編號</th><th>姓名</th><th>統一編號</th><th>門牌地址</th><th>${isLand ? "土地" : "建物"}持分</th>
-          <th>操作</th>
         </tr></thead>
         <tbody>
           ${landowners
@@ -441,11 +440,7 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
               <td>${escapeHtml(o.id_number) || "-"}</td>
               <td>${escapeHtml(o.address) || "-"}</td>
               <td>${shareLabel}</td>
-              <td class="actions-cell">
-                <button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
-              </td>
             </tr>
-            ${ownerDetailRowHtml(o, 6)}
           `;
       })
       .join("")}
@@ -468,10 +463,6 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
         const ownerId = Number(row.dataset.rowOwner);
         const visible = !matchSet || matchSet.has(ownerId);
         row.classList.toggle("hidden", !visible);
-        if (!visible) {
-          const detailRow = document.getElementById(`detail-row-${ownerId}`);
-          if (detailRow) detailRow.classList.add("hidden");
-        }
       });
     };
     statCards.forEach((card) => {
@@ -485,7 +476,6 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
     });
   }
 
-  wireOwnerDetailRows(el, landowners);
   const addBtn = document.getElementById("add-landowner-btn");
   if (addBtn) addBtn.addEventListener("click", isLand ? openAddLandownerModal : openAddBuildingByNumberModal);
   // 土地/建物登記匯入按鈕搬到「SOP > 第1關」的清冊需求旁邊了(見 sop.js),這裡不再放。

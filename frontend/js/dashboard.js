@@ -820,7 +820,10 @@ function initDashboard() {
     backToDashboardDetailBtn.addEventListener("click", goToDashboard);
   }
 
-  document.querySelectorAll(".tab-btn").forEach((btn) => {
+  // 「整合清冊」的 details/summary 下拉不走這個通用 click-即-換頁的邏輯 - 它自己
+  // 決定什麼時候才需要真的重新渲染(見下面),不然單純點開/關下拉選單看選項也會
+  // 冒泡觸發整頁重整。
+  document.querySelectorAll(".tab-btn:not(#tab-integrated-details)").forEach((btn) => {
     btn.addEventListener("click", async () => {
       document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
       state.activeTab = btn.dataset.tab;
@@ -828,16 +831,25 @@ function initDashboard() {
     });
   });
 
-  // 「整合清冊」分頁按鈕本身就是切換土地/建物個別檢視的下拉(details/summary)。點選項
-  // 先記住選到的檢視模式、關掉選單,事件再往上冒泡到 details 本身,由上面那個通用
-  // .tab-btn 監聽器接手做「切到整合清冊分頁 + 重新渲染」,不用重複寫一次。
   const tabIntegratedDetails = document.getElementById("tab-integrated-details");
   if (tabIntegratedDetails) {
+    const activateIntegratedTab = async () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === tabIntegratedDetails));
+      state.activeTab = "integrated";
+      await renderTab("integrated");
+    };
+    // 點標題本身(不是選單裡的選項)只是要打開/關閉下拉看選項,已經在整合清冊分頁
+    // 時完全不用重新整理;只有從別的分頁切過來時才需要真的換頁渲染。
+    tabIntegratedDetails.querySelector(".tab-select-trigger").addEventListener("click", () => {
+      if (state.activeTab !== "integrated") activateIntegratedTab();
+    });
     tabIntegratedDetails.querySelectorAll(".tab-select-option").forEach((opt) => {
       opt.addEventListener("click", () => {
+        const changed = state.integratedViewMode !== opt.dataset.value || state.activeTab !== "integrated";
         state.integratedViewMode = opt.dataset.value;
         setIntegratedTabLabel(opt.dataset.value);
         tabIntegratedDetails.open = false;
+        if (changed) activateIntegratedTab();
       });
     });
     document.addEventListener("click", (e) => {
