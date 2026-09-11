@@ -31,7 +31,7 @@ function renderDocRows(docs) {
         <td>${escapeHtml(latest.description) || "-"}</td>
         <td class="actions-cell">
           <button class="btn-secondary btn-sm" data-download="${latest.id}" data-filename="${escapeHtml(latest.file_name)}">下載</button>
-          ${canOcr() ? `<button class="btn-danger btn-sm" data-delete-doc="${latest.id}">刪除</button>` : ""}
+          <button class="btn-secondary btn-sm" data-view="${latest.id}">檢視</button>
         </td>
       </tr>`);
 
@@ -94,16 +94,6 @@ async function renderDocumentsTab(el) {
   });
   el.querySelectorAll("[data-view]").forEach((btn) => {
     btn.addEventListener("click", () => viewDocument(Number(btn.dataset.view)));
-  });
-  el.querySelectorAll("[data-delete-doc]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("確定要刪除此文件嗎?")) return;
-      try {
-        await api(`/projects/${pid}/documents/${btn.dataset.deleteDoc}`, { method: "DELETE" });
-        toast("已刪除", "success");
-        renderTab("documents");
-      } catch (err) { }
-    });
   });
   const uploadBtn = document.getElementById("upload-doc-btn");
   if (uploadBtn) uploadBtn.addEventListener("click", openUploadDocumentModal);

@@ -439,6 +439,10 @@ async function renderSopTab(el) {
         });
         toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
         renderSopTab(el);
+        // 確認地主清冊正確的當下就順手把 Excel 匯出下載,不用再切去整合清冊按一次。
+        if (key === "landowner_roster_confirmed" && !currentlyConfirmed) {
+          await downloadRosterExcel(pid);
+        }
       } catch (err) { }
     });
   });

@@ -56,16 +56,12 @@ async function renderIntegratedRosterTab(el) {
 
 async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   const pid = state.currentProjectId;
-  const [owners, alerts, contactSummary, sop] = await Promise.all([
+  const [owners, alerts, contactSummary] = await Promise.all([
     api(`/projects/${pid}/landowners`),
     api(`/projects/${pid}/alerts`, { silent: true }).catch(() => []),
     api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
-    api(`/projects/${pid}/sop`, { silent: true }).catch(() => null),
   ]);
   const contactBy = new Map(contactSummary.map((c) => [c.landowner_id, c]));
-  // 「確認地主清冊正確」的確認鈕在 SOP 第1關那邊(見 sop.js),這裡只依確認狀態
-  // 決定「產生地主清冊 Excel」按鈕能不能按。
-  const rosterConfirmed = !!sop?.stages?.["1"]?.data?.checklist?.landowner_roster_confirmed;
   const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
 
   const fmt2 = fmtArea;
@@ -97,14 +93,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
           { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        ${rosterConfirmed && !isLandowner()
-      ? `<button type="button" class="btn-primary btn-sm" id="roster-xlsx-btn">📊 產生地主清冊 Excel</button>`
-      : !isLandowner()
-        ? `<span class="helper-text" style="margin:0">請至「SOP 進度・第1關」確認地主清冊正確,才能匯出 Excel</span>`
-        : ""
-    }
       </div>
     </div>
     <style>
@@ -222,33 +210,25 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
   wireOwnerDetailRows(el, owners);
+}
 
-  const rosterXlsxBtn = document.getElementById("roster-xlsx-btn");
-  if (rosterXlsxBtn) {
-    rosterXlsxBtn.addEventListener("click", async () => {
-      rosterXlsxBtn.disabled = true;
-      const orig = rosterXlsxBtn.textContent;
-      rosterXlsxBtn.textContent = "產生中…";
-      try {
-        const res = await api(`/projects/${pid}/roster.xlsx`);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        const proj = state.currentProject || {};
-        a.download = `${proj.name || proj.project_code || "roster"}清冊.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        toast("地主清冊已下載", "success");
-      } catch (err) {
-      } finally {
-        rosterXlsxBtn.disabled = false;
-        rosterXlsxBtn.textContent = orig;
-      }
-    });
-  }
+// 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊
+// 正確」確認完之後自動觸發,共用同一份。
+async function downloadRosterExcel(pid) {
+  try {
+    const res = await api(`/projects/${pid}/roster.xlsx`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const proj = state.currentProject || {};
+    a.download = `${proj.name || proj.project_code || "roster"}清冊.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("地主清冊已下載", "success");
+  } catch (err) { }
 }
 
 // 一位地主的「查看明細」展開列:土地/建物逐筆列表 + 各自的新增/編輯/刪除。
