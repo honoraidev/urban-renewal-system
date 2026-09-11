@@ -242,7 +242,7 @@ CREATE TABLE documents (
     project_id INT NOT NULL,
     landowner_id INT NULL,
     folder_id INT NULL,
-    doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other','consent_form_template','contract_template','cadastral_map','consultant_document','roi_report') NOT NULL DEFAULT 'other',
+    doc_type ENUM('property_register','building_register','consent_form','briefing_material','contract','photo','other','consent_form_template','contract_template','cadastral_map','consultant_document','roi_report','willingness_form') NOT NULL DEFAULT 'other',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size_bytes BIGINT NOT NULL DEFAULT 0,

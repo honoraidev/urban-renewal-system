@@ -908,7 +908,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   }
   const idx = siblings ? siblings.indexOf(landownerId) : -1;
   const titleHtml = siblings
-    ? `編輯${currentLandownerLabel} <span class="helper-text" style="font-size:12.5px;font-weight:400;display:inline-flex;align-items:center;gap:2px">
+    ? `編輯${currentLandownerLabel}<span class="lo-editor-nav helper-text" style="font-size:12.5px;font-weight:400;display:inline-flex;align-items:center;gap:2px">
         (${idx + 1}/${siblings.length}
         <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(-1)" title="上一位">▲</button>
         <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(1)" title="下一位">▼</button>)
@@ -924,12 +924,28 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
       </div>
       <div class="field">
-        <label>拜訪 / 簽約狀態(未拜訪不能選已簽約)</label>
-        <div id="lo-status-group" style="display:flex;flex-wrap:wrap;gap:8px 22px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-visit-status" data-sg="visit" value="visited" ${owner.visit_status === "visited" ? "checked" : ""} style="width:auto">已拜訪</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-visit-status" data-sg="visit" value="not_visited" ${(owner.visit_status || "not_visited") === "not_visited" ? "checked" : ""} style="width:auto">未拜訪</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-agreement-status" data-sg="agreement" value="signed" ${owner.agreement_status === "signed" ? "checked" : ""} style="width:auto">已簽約</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer"><input type="radio" name="lo-agreement-status" data-sg="agreement" value="not_signed" ${(owner.agreement_status || "not_signed") === "not_signed" ? "checked" : ""} style="width:auto">未簽約</label>
+        <label>拜訪 / 簽約狀態</label>
+        <div class="sop-checklist" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div class="sop-checklist-item ${owner.visit_status === "visited" ? "done" : ""}">
+            <div class="sop-checklist-icon">${owner.visit_status === "visited" ? "✓" : ""}</div>
+            <div style="flex:1">
+              <div class="sop-checklist-label">已拜訪</div>
+              <div class="sop-checklist-sub">${owner.visit_status === "visited" ? "已上傳意願書" : "上傳意願書即完成拜訪"}</div>
+            </div>
+            ${owner.visit_status === "visited" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="visit">取消</button>` : ""}
+            <button type="button" class="btn-secondary btn-sm" data-lo-upload="willingness_form">${owner.visit_status === "visited" ? "重新上傳" : "上傳意願書"}</button>
+            <input type="file" data-lo-upload-input="willingness_form" style="display:none">
+          </div>
+          <div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
+            <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
+            <div style="flex:1">
+              <div class="sop-checklist-label">已簽約</div>
+              <div class="sop-checklist-sub">${owner.visit_status !== "visited" ? "需先完成拜訪" : owner.agreement_status === "signed" ? "已上傳合約" : "上傳合約即完成簽約"}</div>
+            </div>
+            ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
+            <button type="button" class="btn-secondary btn-sm" data-lo-upload="contract" ${owner.visit_status !== "visited" ? "disabled title=\"未拜訪不能簽約\"" : ""}>${owner.agreement_status === "signed" ? "重新上傳" : "上傳合約"}</button>
+            <input type="file" data-lo-upload-input="contract" style="display:none">
+          </div>
         </div>
       </div>
       <div class="field"><label>回覆狀態</label>
@@ -964,7 +980,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
             </div>
             <div class="field" id="lo-c-followup"><label>下次跟進日期(選填)</label><input type="date" name="c_next_follow_up_date"></div>
           </div>
-          <div class="field"><label>聯絡備註</label><textarea name="c_notes" rows="2"></textarea></div>
+          <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
         </div>
       </div>
 
@@ -996,28 +1012,55 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     _loEditorCurrentId = null;
   }
 
-  // 拜訪 / 簽約狀態:each group(visit / agreement)用 radio 讓瀏覽器原生保證「一定
-  // 剛好選一個」——之前用 checkbox 自己模擬互斥,點已經選定的那個時 checkbox 原生
-  // 行為是先取消勾選再被我們的程式碼強制勾回去,使用者會覺得「按了沒反應/按不
-  // 了」;radio 點已選定的選項本來就什麼事都不會發生,不會有這種卡住的錯覺。
-  const statusGroup = document.getElementById("lo-status-group");
-  const visitBoxes = [...statusGroup.querySelectorAll('[data-sg="visit"]')];
-  const agreementBoxes = [...statusGroup.querySelectorAll('[data-sg="agreement"]')];
-  const signedBox = statusGroup.querySelector('[data-sg="agreement"][value="signed"]');
-  const notSignedBox = statusGroup.querySelector('[data-sg="agreement"][value="not_signed"]');
-  const notVisitedBox = statusGroup.querySelector('[data-sg="visit"][value="not_visited"]');
-  const syncStatusGuard = () => {
-    const isNotVisited = notVisitedBox.checked;
-    signedBox.disabled = isNotVisited;
-    signedBox.parentElement.style.opacity = isNotVisited ? "0.5" : "1";
-    signedBox.parentElement.style.cursor = isNotVisited ? "not-allowed" : "pointer";
-    if (isNotVisited && signedBox.checked) {
-      signedBox.checked = false;
-      notSignedBox.checked = true;
-    }
-  };
-  [...visitBoxes, ...agreementBoxes].forEach((rb) => rb.addEventListener("change", syncStatusGuard));
-  syncStatusGuard();
+  // 拜訪 / 簽約狀態改成 SOP 關卡那種「上傳文件即完成」的做法:點「上傳意願書」/
+  // 「上傳合約」選檔案,通過內容比對確認後,文件存進「文件」分頁、同時把狀態標記
+  // 為已拜訪 / 已簽約;「取消」只重設狀態旗標,不會動已上傳的檔案。做完直接整個
+  // 重開這個編輯視窗刷新畫面,做法跟共有人上下鍵切換一致。
+  document.querySelectorAll("[data-lo-upload]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      document.querySelector(`[data-lo-upload-input="${btn.dataset.loUpload}"]`).click();
+    });
+  });
+  document.querySelectorAll("[data-lo-upload-input]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const docType = input.dataset.loUploadInput;
+      const confirmed = await inspectAndConfirmDocumentUpload(file, docType);
+      if (!confirmed) {
+        input.value = "";
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("doc_type", docType);
+      fd.append("landowner_id", landownerId);
+      try {
+        await api(`/projects/${state.currentProjectId}/documents`, { method: "POST", body: fd, isForm: true });
+        const statusPayload =
+          docType === "willingness_form" ? { visit_status: "visited" } : { agreement_status: "signed" };
+        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: statusPayload });
+        toast("已上傳並更新狀態", "success");
+        syncProjectAggregates();
+        openEditLandownerModal(landownerId, siblingIds);
+      } catch (err) {
+        input.value = "";
+      }
+    });
+  });
+  document.querySelectorAll("[data-lo-reset]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const statusPayload =
+        btn.dataset.loReset === "visit" ? { visit_status: "not_visited" } : { agreement_status: "not_signed" };
+      try {
+        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: statusPayload });
+        toast("已取消", "success");
+        syncProjectAggregates();
+        openEditLandownerModal(landownerId, siblingIds);
+      } catch (err) { }
+    });
+  });
 
   // 綁定登入帳號下拉:載入所有地主角色帳號
   (async () => {
@@ -1055,8 +1098,6 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       name: data.name,
       id_number: data.id_number || null,
       phone: data.phone || null,
-      agreement_status: agreementBoxes.find((b) => b.checked)?.value || "not_signed",
-      visit_status: visitBoxes.find((b) => b.checked)?.value || "not_visited",
       reply_status: data.reply_status,
       address: data.address || null,
       user_id: data.user_id ? Number(data.user_id) : null,

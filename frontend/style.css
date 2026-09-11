@@ -743,6 +743,8 @@
     position: sticky; top: 0; background: var(--surface); z-index: 1; border-radius: 16px 16px 0 0;
   }
   .modal-header h3 { margin: 0; font-size: 17.5px; font-weight: 800; }
+  /* 編輯地主標題後面的共有人切換(N/M ▲▼)靠右貼齊關閉鈕,不擠在標題文字後面 */
+  .modal-header h3:has(.lo-editor-nav) { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .modal-close { background: none; color: var(--text-muted); font-size: 21.5px; padding: 2px 6px; border-radius: var(--radius-sm); line-height: 1; }
   .modal-close:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
   .modal-body { padding: 22px; }

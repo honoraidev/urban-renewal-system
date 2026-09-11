@@ -62,9 +62,11 @@ const DOC_TYPE_LABEL = {
   roi_report: "投報表",
   consent_form_template: "同意書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
+  willingness_form: "意願書",
 };
 
 const DOC_TYPE_KEYWORDS = {
+  willingness_form: ["意願書", "都更意願書", "willingness"],
   roi_report: ["投報表", "投資報酬", "投報", "財務試算", "投資效益", "收益試算", "roi"],
   consent_form_template: ["同意書", "都更同意", "更新同意", "consent"],
   consent_form: ["同意書", "都更同意", "更新同意", "consent"],

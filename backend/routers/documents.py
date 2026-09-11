@@ -44,9 +44,11 @@ VALID_DOC_TYPES = {
     "cadastral_map",
     "consultant_document",
     "roi_report",
+    "willingness_form",
 }
 
 DOC_TYPE_LABELS_MAP = {
+    "willingness_form": "意願書",
     "roi_report": "投報表",
     "consent_form_template": "同意書",
     "consent_form": "同意書",
@@ -62,6 +64,7 @@ DOC_TYPE_LABELS_MAP = {
 }
 
 DOC_TYPE_CONTENT_KEYWORDS = {
+    "willingness_form": ["意願書", "參與都市更新意願書", "都市更新事業意願書", "都更意願書"],
     "roi_report": ["投報表", "投資報酬", "投資效益", "投報分析", "收益試算", "財務試算", "投資報酬率"],
     "consent_form_template": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
     "consent_form": ["同意書", "事業計畫同意書", "都市更新同意書", "權利變換同意書", "更新單元同意書"],
@@ -208,6 +211,7 @@ async def inspect_document_content(
         "cadastral_map",
         "property_register",
         "building_register",
+        "willingness_form",
     }
 
     matched = True
