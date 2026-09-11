@@ -874,9 +874,21 @@ function openAddBuildingByNumberModal() {
   });
 }
 
-// siblingIds:同一個樓棟視圖格子裡的共有人 id 清單(依序),讓編輯視窗能用上下鍵切換
-// 到下一 / 上一位,不用先跳一層「此門牌共有人」清單再點進去。單筆編輯(從整合清冊
-// 等清單點「編輯」進來)不傳這個參數,就不會出現切換提示、也不會裝上下鍵監聽。
+// 目前開著的編輯視窗屬於哪組共有人(樓棟視圖同一格門牌)、目前是第幾位 - 給標題列
+// 的 ▲▼ 按鈕、以及上下鍵監聽共用,單筆編輯(沒有 siblingIds)時維持 null。
+let _loEditorSiblings = null;
+let _loEditorCurrentId = null;
+
+function switchLandownerSibling(delta) {
+  if (!_loEditorSiblings) return;
+  const idx = _loEditorSiblings.indexOf(_loEditorCurrentId);
+  const next = (idx + delta + _loEditorSiblings.length) % _loEditorSiblings.length;
+  openEditLandownerModal(_loEditorSiblings[next], _loEditorSiblings);
+}
+
+// siblingIds:同一個樓棟視圖格子裡的共有人 id 清單(依序),讓編輯視窗能用標題列的
+// ▲▼ 按鈕或上下鍵切換到下一 / 上一位,不用先跳一層「此門牌共有人」清單再點進去。
+// 單筆編輯(從整合清冊等清單點「編輯」進來)不傳這個參數,就不會出現切換 UI。
 async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
   // 抓的地主清單沒有寫回這個快取,只有登記資料分頁會寫,所以在整合清冊儲存過一次
@@ -890,8 +902,17 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   }
   if (!owner) return;
   const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
+  if (siblings) {
+    _loEditorSiblings = siblings;
+    _loEditorCurrentId = landownerId;
+  }
+  const idx = siblings ? siblings.indexOf(landownerId) : -1;
   const titleHtml = siblings
-    ? `編輯${currentLandownerLabel} <span class="helper-text" style="font-size:12.5px;font-weight:400">(${siblings.indexOf(landownerId) + 1}/${siblings.length} · ↑↓ 切換共有人)</span>`
+    ? `編輯${currentLandownerLabel} <span class="helper-text" style="font-size:12.5px;font-weight:400;display:inline-flex;align-items:center;gap:2px">
+        (${idx + 1}/${siblings.length}
+        <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(-1)" title="上一位">▲</button>
+        <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(1)" title="下一位">▼</button>)
+      </span>`
     : `編輯${currentLandownerLabel}`;
   openModal(
     titleHtml,
@@ -966,12 +987,13 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       if (e.target.closest("#landowner-edit-form")) return;
       e.preventDefault();
-      const idx = siblings.indexOf(landownerId);
-      const nextIdx = e.key === "ArrowUp" ? (idx - 1 + siblings.length) % siblings.length : (idx + 1) % siblings.length;
       document.removeEventListener("keydown", onKey);
-      openEditLandownerModal(siblings[nextIdx], siblings);
+      switchLandownerSibling(e.key === "ArrowUp" ? -1 : 1);
     };
     document.addEventListener("keydown", onKey);
+  } else {
+    _loEditorSiblings = null;
+    _loEditorCurrentId = null;
   }
 
   // 拜訪 / 簽約狀態:each group(visit / agreement)用 radio 讓瀏覽器原生保證「一定
