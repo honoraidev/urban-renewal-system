@@ -50,12 +50,14 @@ def is_shared_building_record(b) -> bool:
     return "房屋地下" in addr or "共同使用" in addr
 
 
-_DOOR_NUMBER_RE = re.compile(r"^(.*?)(\d+)\s*號")
+# 「16號」-> 16;「16之2號」/「16號之2」-> 16 之 2(獨立門牌,跟 16 號同一側)
+_DOOR_NUMBER_RE = re.compile(r"^(.*?)(\d+)(?:\s*之\s*(\d+))?\s*號(?:\s*之\s*(\d+))?")
 
 
-def parse_address(address: str | None) -> tuple[str, int] | None:
-    """Splits an address into (street, door_number) for building-view grouping - e.g.
-    "信義路五段150巷335弄15號二樓" -> ("信義路五段150巷335弄", 15). Anything after the
+def parse_address(address: str | None) -> tuple[str, int, int] | None:
+    """Splits an address into (street, door_number, door_sub) for building-view grouping - e.g.
+    "信義路五段150巷335弄15號二樓" -> ("信義路五段150巷335弄", 15, 0),
+    "內湖路一段47巷8弄16之2號" -> ("內湖路一段47巷8弄", 16, 2). Anything after the
     door number (a floor suffix, room number, etc.) is dropped; floor comes from the
     building record's own `floor` field instead. Returns None if no "<number>號" pattern
     is found (the address is missing or doesn't look like a street address)."""
@@ -67,7 +69,7 @@ def parse_address(address: str | None) -> tuple[str, int] | None:
     street = m.group(1).strip()
     if not street:
         return None
-    return street, int(m.group(2))
+    return street, int(m.group(2)), int(m.group(3) or m.group(4) or 0)
 
 
 def floor_sort_key_and_label(floor_text: str | None) -> tuple[int, str]:
@@ -81,22 +83,22 @@ def floor_sort_key_and_label(floor_text: str | None) -> tuple[int, str]:
     return (n, f"{n}F" if n > 0 else f"B{-n}")
 
 
-# A single group card gets unwieldy past this many door-number columns (the reference
-# design shows ~7), so a long street/side is split into several group cards instead of
-# one very wide table.
-MAX_DOORS_PER_GROUP = 8
+def _door_key(door_number: int, door_sub: int):
+    return f"{door_number}之{door_sub}" if door_sub else door_number
 
 
 def group_building_records(records: list[dict]) -> list[dict]:
     """Groups building-view rows (each a dict with address/floor/owners) by street and
-    odd/even door-number side, chunked to MAX_DOORS_PER_GROUP columns per group - mirrors
-    how a scanned door-to-door canvass sheet is usually organized (e.g. "OO街 奇數側
-    1-13號"). Records whose address doesn't parse into a street+door number are returned
-    separately under an "地址待確認" catch-all so they aren't silently dropped.
+    odd/even door-number side - one card per street side, mirroring how a scanned
+    door-to-door canvass sheet is usually organized (e.g. "OO街 奇數側 1-13號"); a long
+    side scrolls horizontally inside its card instead of being split into several cards.
+    「16之2號」 gets its own column right after 16號 (same side as 16). Records whose
+    address doesn't parse into a street+door number are returned separately under an
+    "地址待確認" catch-all so they aren't silently dropped.
 
-    Each input record must have: street, door_number, floor_sort, floor_label, owners.
-    Returns a list of group dicts: {key, title, doors: [int], floors: [{sort,label}],
-    cells: {"<floor_sort>|<door>": {status, owners}}}."""
+    Each input record must have: street, door_number, door_sub (0 if none), floor_sort,
+    floor_label, owners. Returns a list of group dicts: {key, title, doors: [int | "N之M"],
+    floors: [{sort,label}], cells: {"<floor_sort>|<door>": {status, owners}}}."""
     by_street_side: dict[tuple[str, int], list[dict]] = {}
     for r in records:
         if r.get("street") is None or r.get("door_number") is None:
@@ -106,28 +108,29 @@ def group_building_records(records: list[dict]) -> list[dict]:
 
     groups: list[dict] = []
     for (street, side), items in sorted(by_street_side.items(), key=lambda kv: (kv[0][0], kv[0][1])):
-        doors_sorted = sorted({r["door_number"] for r in items})
-        for chunk_start in range(0, len(doors_sorted), MAX_DOORS_PER_GROUP):
-            chunk_doors = doors_sorted[chunk_start : chunk_start + MAX_DOORS_PER_GROUP]
-            chunk_items = [r for r in items if r["door_number"] in chunk_doors]
-            floors_seen: dict[int, str] = {}
-            cells: dict[str, dict] = {}
-            for r in chunk_items:
-                floors_seen[r["floor_sort"]] = r["floor_label"]
-                cell_key = f"{r['floor_sort']}|{r['door_number']}"
-                cell = cells.setdefault(cell_key, {"owners": []})
-                cell["owners"].extend(r["owners"])
-            floors = [{"sort": s, "label": floors_seen[s]} for s in sorted(floors_seen.keys(), reverse=True)]
-            side_label = "奇數側" if side == 1 else "偶數側"
-            groups.append(
-                {
-                    "key": f"{street}::{side}::{chunk_doors[0]}",
-                    "title": f"{street} {side_label} {chunk_doors[0]}-{chunk_doors[-1]}號",
-                    "doors": chunk_doors,
-                    "floors": floors,
-                    "cells": cells,
-                }
-            )
+        doors = [
+            _door_key(n, s) for n, s in sorted({(r["door_number"], r.get("door_sub") or 0) for r in items})
+        ]
+        floors_seen: dict[int, str] = {}
+        cells: dict[str, dict] = {}
+        for r in items:
+            floors_seen[r["floor_sort"]] = r["floor_label"]
+            cell_key = f"{r['floor_sort']}|{_door_key(r['door_number'], r.get('door_sub') or 0)}"
+            cell = cells.setdefault(cell_key, {"owners": []})
+            cell["owners"].extend(r["owners"])
+        floors = [{"sort": s, "label": floors_seen[s]} for s in sorted(floors_seen.keys(), reverse=True)]
+        side_label = "奇數側" if side == 1 else "偶數側"
+        mains = sorted({r["door_number"] for r in items})
+        groups.append(
+            {
+                # 維持「街::側::第一個門牌」格式,之前拖曳排好的卡片順序不會亂掉
+                "key": f"{street}::{side}::{doors[0]}",
+                "title": f"{street} {side_label} {mains[0]}-{mains[-1]}號",
+                "doors": doors,
+                "floors": floors,
+                "cells": cells,
+            }
+        )
 
     unmatched = [r for r in records if r.get("street") is None]
     if unmatched:

@@ -877,6 +877,7 @@
 .bv-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
 .bv-drag-handle { cursor: grab; color: var(--text-muted); font-size: 20px; user-select: none; }
 .bv-group.bv-dragging { opacity: .4; }
+.bv-group-wide { grid-column: 1 / -1; }
 .bv-group-title { font-weight: 700; flex: 1 1 auto; font-size: 16px; }
 .bv-group-meta {
   font-size: 12.5px; color: var(--text-muted); white-space: nowrap; background: var(--surface-2);
@@ -1205,6 +1206,9 @@
 .bv-owner-name:hover { color: var(--brand-dark, var(--brand)); }
 .bv-owner-row:hover .bv-owner-name .bv-owner-go { opacity: 1; }
 .bv-owner-phone { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.bv-status-chips { display: flex; gap: 6px; flex: none; white-space: nowrap; }
+.bv-status-chip { border: 1px solid var(--border); }
+.bv-status-chip:disabled { opacity: .6; }
 .bv-owner-phone.is-empty { font-style: italic; opacity: .8; }
 
 /* 登入錯誤提示 */

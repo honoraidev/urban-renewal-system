@@ -68,11 +68,14 @@ def get_building_view(
             "name": r.landowner.name if r.landowner else "",
             "phone": r.landowner.phone if r.landowner else None,
             "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
+            "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
+            "visit_status": r.landowner.visit_status if r.landowner else "not_visited",
         }
         rows.append(
             {
                 "street": parsed[0] if parsed else None,
                 "door_number": parsed[1] if parsed else None,
+                "door_sub": parsed[2] if parsed else 0,
                 "floor_sort": floor_sort,
                 "floor_label": floor_label,
                 "owners": [owner],
@@ -110,6 +113,8 @@ def get_building_view(
                 "name": r.landowner.name if r.landowner else "",
                 "phone": r.landowner.phone if r.landowner else None,
                 "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
+                "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
+                "visit_status": r.landowner.visit_status if r.landowner else "not_visited",
                 "parcels": [],
             },
         )

@@ -33,6 +33,57 @@ function applyBuildingViewSavedOrder(pid, groups) {
 
 const BUILDING_VIEW_STATUS_LABEL = { agreed: "同意", opposed: "反對", pending: "待確認" };
 
+// 簽約 / 拜訪狀態在樓棟視圖直接顯示、點擊切換(整合清冊與登記清冊不再顯示)。
+const BUILDING_VIEW_TOGGLES = {
+  agreement_status: { on: "signed", off: "not_signed", labels: AGREEMENT_STATUS_LABEL },
+  visit_status: { on: "visited", off: "not_visited", labels: VISIT_STATUS_LABEL },
+};
+// landowner_id -> { agreement_status, visit_status };同一位地主可能出現在好幾格,切換後每格都要一致。
+let buildingViewOwnerStatus = new Map();
+
+function buildingViewStatusChipsHtml(o) {
+  const current = buildingViewOwnerStatus.get(o.landowner_id) || o;
+  return Object.entries(BUILDING_VIEW_TOGGLES)
+    .map(([field, t]) => {
+      const on = current[field] === t.on;
+      const label = escapeHtml(t.labels[on ? t.on : t.off]);
+      return isEditor()
+        ? `<button type="button" class="mini-badge bv-status-chip ${on ? "gate-ok" : ""}" data-bv-toggle="${field}" data-bv-owner="${o.landowner_id}" title="點擊切換">${label}</button>`
+        : `<span class="mini-badge ${on ? "gate-ok" : ""}">${label}</span>`;
+    })
+    .join("");
+}
+
+function wireBuildingViewStatusChips(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-bv-toggle]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.disabled) return;
+      const field = btn.dataset.bvToggle;
+      const id = Number(btn.dataset.bvOwner);
+      const t = BUILDING_VIEW_TOGGLES[field];
+      const pid = state.currentProjectId;
+      const current = buildingViewOwnerStatus.get(id) || {};
+      const next = current[field] === t.on ? t.off : t.on;
+      btn.disabled = true;
+      try {
+        await api(`/projects/${pid}/landowners/${id}`, { method: "PATCH", body: { [field]: next } });
+        buildingViewOwnerStatus.set(id, { ...current, [field]: next });
+        const cached = (state.projectCache[pid]?.landowners || []).find((x) => x.id === id);
+        if (cached) cached[field] = next;
+        btn.classList.toggle("gate-ok", next === t.on);
+        btn.textContent = t.labels[next];
+        syncProjectAggregates();
+      } catch (err) {
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
 function buildingViewCellClass(status) {
   if (status === "agreed") return "bv-cell-agreed";
   if (status === "opposed") return "bv-cell-opposed";
@@ -74,7 +125,7 @@ function buildingViewGroupCardHtml(g) {
     .join("");
 
   return `
-    <div class="card bv-group" draggable="true" data-bv-group-key="${g.key}">
+    <div class="card bv-group${!flipped && cols.length > 8 ? " bv-group-wide" : ""}" draggable="true" data-bv-group-key="${g.key}">
       <div class="bv-group-header">
         <span class="bv-drag-handle" title="拖曳調整順序">⠿</span>
         <span class="bv-group-title">🏢 ${escapeHtml(g.title)}</span>
@@ -95,7 +146,6 @@ function buildingViewGroupCardHtml(g) {
 function buildingViewLandOnlyOwnerRowHtml(o) {
   const nm = escapeHtml(o.name) || "-";
   const initial = (o.name || "?").trim().charAt(0) || "?";
-  const st = o.consent_status === "agreed" ? "status-active" : o.consent_status === "opposed" ? "status-suspended" : "status-closed";
   const phone = (o.phone || "").trim();
   const parcels = [...new Set(o.parcels || [])].join("、") || "-";
   return `
@@ -106,7 +156,7 @@ function buildingViewLandOnlyOwnerRowHtml(o) {
         <div class="bv-owner-phone ${phone ? "" : "is-empty"}">🗺️ 地號:${escapeHtml(parcels)}</div>
         <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
       </div>
-      <span class="status-badge ${st}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
+      <span class="bv-status-chips">${buildingViewStatusChipsHtml(o)}</span>
     </div>`;
 }
 
@@ -125,6 +175,7 @@ function buildingViewLandOnlySectionHtml(owners) {
 }
 
 function wireLandOnlyOwnerLinks(el) {
+  wireBuildingViewStatusChips(el);
   el.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
     a.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -149,6 +200,12 @@ async function renderBuildingViewTab(el) {
   }
   const groups = applyBuildingViewSavedOrder(pid, payload.groups || []);
   const landOnlyOwners = payload.land_only_owners || [];
+  buildingViewOwnerStatus = new Map(
+    [...groups.flatMap((g) => Object.values(g.cells).flatMap((c) => c.owners)), ...landOnlyOwners].map((o) => [
+      o.landowner_id,
+      { agreement_status: o.agreement_status, visit_status: o.visit_status },
+    ])
+  );
 
   if (!groups.length) {
     el.innerHTML = `
@@ -237,12 +294,14 @@ function openBuildingViewCellModal(cell) {
           <a href="#" data-bv-open-owner="${o.landowner_id}" class="bv-owner-name">${nm}<span class="bv-owner-go">查看 ›</span></a>
           <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
         </div>
+        <span class="bv-status-chips">${buildingViewStatusChipsHtml(o)}</span>
         <span class="status-badge ${st}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
       </div>`;
     })
     .join("");
   const title = cell.label || cell.address ? `此門牌共有人 · ${escapeHtml(cell.label || cell.address)}` : "此門牌共有人";
-  openModal(title, `<div class="bv-owner-list">${rowsHtml}</div>`, { width: "400px" });
+  openModal(title, `<div class="bv-owner-list">${rowsHtml}</div>`, { width: "480px" });
+  wireBuildingViewStatusChips(document.getElementById("modal-root"));
   document.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
     a.addEventListener("click", async (e) => {
       e.preventDefault();

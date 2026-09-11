@@ -93,10 +93,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       <h3>${titleText} (<span id="integ-count">${rows.length}</span>)</h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
-        ${ddHtml("integ-state-dd", "狀態", [
-          { v: "visited", t: "已拜訪" }, { v: "not_visited", t: "未拜訪" },
-          { v: "signed", t: "已簽約" }, { v: "not_signed", t: "未簽約" },
-        ])}
         ${ddHtml("integ-visit-dd", "拜訪紀錄", [
           { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
@@ -130,7 +126,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .col-name { font-weight:600; }
       #integ-roster .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
       #integ-roster th.num { text-align:right; }
-      #integ-roster .cell-state, #integ-roster .cell-visit { white-space:nowrap; }
+      #integ-roster .cell-visit { white-space:nowrap; }
       #integ-roster .cell-visit .mini-badge { margin-right:6px; }
       #integ-roster .row-actions { white-space:nowrap; text-align:right; }
       #integ-roster .row-actions .btn-sm { padding:3px 10px; }
@@ -139,7 +135,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th><th>狀態</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th>拜訪紀錄</th><th class="row-actions">操作</th>
         </tr></thead>
@@ -155,17 +151,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
       : `<span style="color:var(--text-muted)">尚無</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
-    const stateTok = `${o.visit_status} ${o.agreement_status}`;
     const visitTok = `${o.reply_status} ${contactTokens(o).join(" ")}`;
-    return `<tr data-hay="${escapeHtml(hay)}" data-state-tok="${stateTok}" data-visit-tok="${visitTok}">
+    return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}">
             <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
-            <td class="cell-state">
-              <span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span>
-              <span class="mini-badge ${o.visit_status === "visited" ? "gate-ok" : ""}" style="margin-left:4px">${VISIT_STATUS_LABEL[o.visit_status] || "未拜訪"}</span>
-            </td>
             <td class="num">${fmt2(landSqm)}</td>
             <td class="num">${fmt2(landSqm * 0.3025)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
@@ -187,16 +178,13 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
   const applyIntegratedFilter = () => {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
-    const st = checked("integ-state-dd");
     const vt = checked("integ-visit-dd");
     let shown = 0;
     el.querySelectorAll("tbody tr").forEach((tr) => {
       const okSearch = !q || (tr.dataset.hay || "").includes(q);
-      const rowSt = (tr.dataset.stateTok || "").split(" ");
       const rowVt = (tr.dataset.visitTok || "").split(" ");
-      const okSt = !st.length || st.some((x) => rowSt.includes(x));
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
-      const show = okSearch && okSt && okVt;
+      const show = okSearch && okVt;
       tr.classList.toggle("hidden", !show);
       if (show) shown++;
     });
@@ -273,14 +261,12 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
   const isLand = type === "land";
   currentLandownerLabel = isLand ? "地主" : "屋主";
   // 地主帳號沒有 documents 權限,個別呼叫失敗不應讓整頁掛掉
-  const [allLandowners, documents, alerts, contactSummary] = await Promise.all([
+  const [allLandowners, documents, alerts] = await Promise.all([
     api(`/projects/${pid}/landowners`),
     api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
     api(`/projects/${pid}/alerts`, { silent: true }).catch(() => []),
-    api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
   ]);
   state.projectCache[pid].landowners = allLandowners;
-  const contactByOwner = new Map(contactSummary.map((c) => [c.landowner_id, c]));
 
   const landowners = allLandowners.filter((o) => (isLand ? o.land_records : o.building_records).length > 0);
   const landownerIds = new Set(landowners.map((o) => o.id));
@@ -318,7 +304,7 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
       <table>
         <thead><tr>
           <th>編號</th><th>姓名</th><th>統一編號</th><th>門牌地址</th><th>${isLand ? "土地" : "建物"}持分</th>
-          <th>意願狀態</th><th>聯繫狀態</th><th>操作</th>
+          <th>操作</th>
         </tr></thead>
         <tbody>
           ${landowners
@@ -327,7 +313,6 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
         const shareLabel = records.length
           ? `${records[0].ownership_numerator}/${records[0].ownership_denominator}${records.length > 1 ? ` 等${records.length}筆` : ""}`
           : "-";
-        const contact = contactByOwner.get(o.id);
         return `
             <tr data-row-owner="${o.id}">
               <td>${String(rowIdx + 1).padStart(3, "0")}</td>
@@ -335,11 +320,6 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
               <td>${escapeHtml(o.id_number) || "-"}</td>
               <td>${escapeHtml(o.address) || "-"}</td>
               <td>${shareLabel}</td>
-              <td><span class="agreement-status-badge as-${o.agreement_status}">${AGREEMENT_STATUS_LABEL[o.agreement_status]}</span></td>
-              <td>${contact && contact.is_overdue
-            ? `<span class="contact-overdue-flag">⚠ 提醒</span>`
-            : `<span class="contact-status-badge cs-${o.contact_status}">${CONTACT_STATUS_LABEL[o.contact_status]}</span>`
-          }</td>
               <td class="actions-cell">
                 <button class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
               </td>
