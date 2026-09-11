@@ -31,8 +31,6 @@ function applyBuildingViewSavedOrder(pid, groups) {
   return [...ordered, ...remaining];
 }
 
-const BUILDING_VIEW_STATUS_LABEL = { agreed: "同意", opposed: "反對", pending: "待確認" };
-
 // 簽約 / 拜訪狀態在樓棟視圖直接顯示、點擊切換(整合清冊與登記清冊不再顯示)。
 const BUILDING_VIEW_TOGGLES = {
   agreement_status: { on: "signed", off: "not_signed", labels: AGREEMENT_STATUS_LABEL },
@@ -249,7 +247,11 @@ async function renderBuildingViewTab(el) {
     card.querySelectorAll("[data-bv-cell]").forEach((td) => {
       td.addEventListener("click", () => {
         const cell = groupsByKey.get(td.dataset.bvGroup).cells[td.dataset.bvCell];
-        openBuildingViewCellModal(cell);
+        if (!cell || !cell.owners.length) return;
+        // 這格只有一位就直接開編輯;好幾位共有人時帶上整組 id,編輯視窗裡用上下鍵切換,
+        // 不再多一層「此門牌共有人」清單視窗。
+        const ids = cell.owners.map((o) => o.landowner_id);
+        openEditLandownerModal(ids[0], ids);
       });
     });
     const flipBtn = card.querySelector("[data-bv-flip]");
@@ -285,39 +287,3 @@ async function renderBuildingViewTab(el) {
   groups.forEach((g) => wireGroupCard(g.key));
 }
 
-function openBuildingViewCellModal(cell) {
-  if (!cell || !cell.owners.length) return;
-  const rowsHtml = cell.owners
-    .map((o) => {
-      const nm = escapeHtml(o.name) || "-";
-      const initial = (o.name || "?").trim().charAt(0) || "?";
-      const st = o.consent_status === "agreed" ? "status-active" : o.consent_status === "opposed" ? "status-suspended" : "status-closed";
-      const phone = (o.phone || "").trim();
-      return `
-      <div class="bv-owner-row">
-        <span class="bv-owner-avatar">${escapeHtml(initial)}</span>
-        <div class="bv-owner-main">
-          <a href="#" data-bv-open-owner="${o.landowner_id}" class="bv-owner-name">${nm}<span class="bv-owner-go">查看 ›</span></a>
-          <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
-        </div>
-        <span class="bv-status-chips">${buildingViewStatusChipsHtml(o)}</span>
-        <span class="status-badge ${st}">${BUILDING_VIEW_STATUS_LABEL[o.consent_status] || o.consent_status}</span>
-      </div>`;
-    })
-    .join("");
-  const title = cell.label || cell.address ? `此門牌共有人 · ${escapeHtml(cell.label || cell.address)}` : "此門牌共有人";
-  openModal(title, `<div class="bv-owner-list">${rowsHtml}</div>`, { width: "480px" });
-  wireBuildingViewStatusChips(document.getElementById("modal-root"));
-  document.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
-    a.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const landownerId = Number(a.dataset.bvOpenOwner);
-      const pid = state.currentProjectId;
-      if (!state.projectCache[pid].landowners) {
-        state.projectCache[pid].landowners = await api(`/projects/${pid}/landowners`);
-      }
-      closeModal();
-      openEditLandownerModal(landownerId);
-    });
-  });
-}

@@ -874,7 +874,10 @@ function openAddBuildingByNumberModal() {
   });
 }
 
-async function openEditLandownerModal(landownerId) {
+// siblingIds:同一個樓棟視圖格子裡的共有人 id 清單(依序),讓編輯視窗能用上下鍵切換
+// 到下一 / 上一位,不用先跳一層「此門牌共有人」清單再點進去。單筆編輯(從整合清冊
+// 等清單點「編輯」進來)不傳這個參數,就不會出現切換提示、也不會裝上下鍵監聽。
+async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
   // 抓的地主清單沒有寫回這個快取,只有登記資料分頁會寫,所以在整合清冊儲存過一次
   // 之後,快取還是舊的,再點編輯會看到儲存前的舊狀態(例如拜訪/簽約狀態一直顯示
@@ -886,10 +889,12 @@ async function openEditLandownerModal(landownerId) {
     return;
   }
   if (!owner) return;
-  const now = new Date();
-  const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
+  const titleHtml = siblings
+    ? `編輯${currentLandownerLabel} <span class="helper-text" style="font-size:12.5px;font-weight:400">(${siblings.indexOf(landownerId) + 1}/${siblings.length} · ↑↓ 切換共有人)</span>`
+    : `編輯${currentLandownerLabel}`;
   openModal(
-    `編輯${currentLandownerLabel}`,
+    titleHtml,
     `
     <form id="landowner-edit-form">
       <div class="field-row">
@@ -920,13 +925,10 @@ async function openEditLandownerModal(landownerId) {
       </div>
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
-        <label for="lo-add-contact-toggle" style="display:inline-flex;align-items:center;gap:8px;font-weight:700;cursor:pointer;margin:0">
-          <input type="checkbox" id="lo-add-contact-toggle" style="width:17px;height:17px;flex:none;margin:0;accent-color:var(--brand);cursor:pointer">
-          <span>同時新增一筆聯絡紀錄</span>
-        </label>
-        <div id="lo-contact-fields" class="hidden" style="margin-top:10px">
+        <label style="font-weight:700;margin:0">同時新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></label>
+        <div id="lo-contact-fields" style="margin-top:10px">
           <div class="field-row">
-            <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date" value="${localIso}"></div>
+            <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date"></div>
             <div class="field"><label>聯絡方式</label>
               <select name="c_contact_method">
                 ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
@@ -951,9 +953,26 @@ async function openEditLandownerModal(landownerId) {
       </div>
     </form>`
   );
-  const contactToggle = document.getElementById("lo-add-contact-toggle");
-  const contactFields = document.getElementById("lo-contact-fields");
-  contactToggle.addEventListener("change", () => contactFields.classList.toggle("hidden", !contactToggle.checked));
+
+  // 好幾位共有人共用同一格門牌時,上下鍵切到上一 / 下一位,直接重開這個編輯視窗
+  // (每次都是新的 openModal,舊的按鍵監聽要先拆掉,不然切幾次就疊了好幾份)。且只
+  // 在焦點不在表單欄位上時生效,才不會搶掉 <select>/radio 原生的上下鍵操作。
+  if (siblings) {
+    const onKey = (e) => {
+      if (!document.getElementById("landowner-edit-form")) {
+        document.removeEventListener("keydown", onKey);
+        return;
+      }
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (e.target.closest("#landowner-edit-form")) return;
+      e.preventDefault();
+      const idx = siblings.indexOf(landownerId);
+      const nextIdx = e.key === "ArrowUp" ? (idx - 1 + siblings.length) % siblings.length : (idx + 1) % siblings.length;
+      document.removeEventListener("keydown", onKey);
+      openEditLandownerModal(siblings[nextIdx], siblings);
+    };
+    document.addEventListener("keydown", onKey);
+  }
 
   // 拜訪 / 簽約狀態:each group(visit / agreement)用 radio 讓瀏覽器原生保證「一定
   // 剛好選一個」——之前用 checkbox 自己模擬互斥,點已經選定的那個時 checkbox 原生
@@ -1022,7 +1041,7 @@ async function openEditLandownerModal(landownerId) {
     };
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
-      if (contactToggle.checked && data.c_contact_date) {
+      if (data.c_contact_date) {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
           method: "POST",
           body: {

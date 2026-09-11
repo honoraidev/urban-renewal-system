@@ -736,6 +736,17 @@ function renderProjectHeader(p) {
   }
 }
 
+// 更新分頁列「整合清冊」下拉顯示的目前選項文字 + 高亮選中項,呼叫端負責先設好
+// state.integratedViewMode 本身。
+function setIntegratedTabLabel(mode) {
+  const details = document.getElementById("tab-integrated-details");
+  if (!details) return;
+  const opt = details.querySelector(`.tab-select-option[data-value="${mode}"]`);
+  const label = document.getElementById("tab-integrated-current");
+  if (label && opt) label.textContent = opt.textContent;
+  details.querySelectorAll(".tab-select-option").forEach((b) => b.classList.toggle("is-selected", b.dataset.value === mode));
+}
+
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
@@ -745,8 +756,7 @@ async function renderTab(tab) {
     state.integratedViewMode = "building";
     tab = "integrated";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
-    const integratedSelect = document.getElementById("tab-integrated-view-select");
-    if (integratedSelect) integratedSelect.value = "building";
+    setIntegratedTabLabel("building");
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
   if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
@@ -818,15 +828,22 @@ function initDashboard() {
     });
   });
 
-  // 「整合清冊」分頁按鈕本身就是切換土地/建物個別檢視的下拉,選項改變時除了點擊
-  // 分頁按鈕本身會做的事(切到整合清冊分頁)之外,還要記住選到的檢視模式。
-  const tabIntegratedSelect = document.getElementById("tab-integrated-view-select");
-  if (tabIntegratedSelect) {
-    tabIntegratedSelect.addEventListener("change", async (e) => {
-      state.integratedViewMode = e.target.value;
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
-      state.activeTab = "integrated";
-      await renderTab("integrated");
+  // 「整合清冊」分頁按鈕本身就是切換土地/建物個別檢視的下拉(details/summary)。點選項
+  // 先記住選到的檢視模式、關掉選單,事件再往上冒泡到 details 本身,由上面那個通用
+  // .tab-btn 監聽器接手做「切到整合清冊分頁 + 重新渲染」,不用重複寫一次。
+  const tabIntegratedDetails = document.getElementById("tab-integrated-details");
+  if (tabIntegratedDetails) {
+    tabIntegratedDetails.querySelectorAll(".tab-select-option").forEach((opt) => {
+      opt.addEventListener("click", () => {
+        state.integratedViewMode = opt.dataset.value;
+        setIntegratedTabLabel(opt.dataset.value);
+        tabIntegratedDetails.open = false;
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (tabIntegratedDetails.open && !e.target.closest("#tab-integrated-details")) {
+        tabIntegratedDetails.open = false;
+      }
     });
   }
 }

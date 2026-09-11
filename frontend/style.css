@@ -527,6 +527,35 @@
   .tab-btn.active { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 700; }
   .tab-btn.active:hover { background: none; }
 
+  /* 「整合清冊」分頁按鈕本身的檢視切換下拉 - details/summary,跟 .integ-filter 同一套做法,
+     樣式可控,不像原生 <select> 展開清單完全交給瀏覽器畫。 */
+  .tab-select { position: relative; padding: 0; }
+  .tab-select-trigger {
+    display: flex; align-items: center; gap: 6px; list-style: none;
+    padding: 10px 16px; cursor: pointer; color: inherit; font: inherit;
+  }
+  .tab-select-trigger::-webkit-details-marker { display: none; }
+  .tab-select-trigger::after {
+    content: "▾"; font-size: 10px; color: var(--text-muted); transition: transform .15s ease;
+  }
+  .tab-select[open] .tab-select-trigger::after { transform: rotate(180deg); }
+  .tab-select-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 168px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-modal, 0 8px 24px rgba(0,0,0,.14)); padding: 6px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .tab-select-option {
+    display: block; width: 100%; text-align: left; border: none; background: none;
+    padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 14px;
+    color: var(--text); cursor: pointer; white-space: nowrap;
+  }
+  .tab-select-option:hover { background: var(--surface-2); opacity: 1; }
+  .tab-select-option.is-selected {
+    background: color-mix(in srgb, var(--brand) 12%, transparent);
+    color: var(--brand-dark, var(--brand)); font-weight: 700;
+  }
+
   table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
   thead th {
     text-align: left; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
