@@ -1655,24 +1655,23 @@ function renderBuildingEncumbranceSubStep(idx) {
 }
 
 // 沒有獨立的「確認建立」頁面了 —— 逐筆核對到最後一筆(或按「⚡ 一鍵建立」跳過核對)
-// 時,跳原生確認對話框;按確定才真的送出建立,取消就留在原頁面繼續編輯。
-function confirmAndSubmitTitleDeedWizard() {
+// 時,跳頁面內確認視窗;按確定才真的送出建立,取消就留在原頁面繼續編輯。
+async function confirmAndSubmitTitleDeedWizard() {
   const d = titleDeedWizard.data;
   if (!d || (!d.parcels.length && !d.buildings.length)) {
     toast("沒有可建立的資料", "error");
     return;
   }
   const total = d.parcels.length + d.buildings.length;
-  const ok = confirm(
-    `確定要建立這 ${total} 筆土地／建物資料嗎？\n` +
-      "系統會自動比對／建立地主，並寫入土地、建物、他項權利資料;同一人出現在多筆地號／建號只會建立一筆地主。\n\n" +
-      "請確認方才核對的姓名、地址、面積等 AI 辨識內容無誤 —— 建立後不會再跳出確認畫面。"
+  const ok = await confirmDialog(
+    "系統會自動比對／建立地主，並寫入土地、建物、他項權利資料;同一人出現在多筆地號／建號只會建立一筆地主。\n\n" +
+      "請確認方才核對的姓名、地址、面積等 AI 辨識內容無誤 —— 建立後不會再跳出確認畫面。",
+    { title: `確定要建立這 ${total} 筆土地／建物資料嗎？`, confirmText: "確定建立" }
   );
   if (ok) submitTitleDeedWizard();
 }
 
-async function findOrCreateLandownerByOwner(owner, createdCache) {
-  const pid = state.currentProjectId;
+async function findOrCreateLandownerByOwner(owner, createdCache, pid = state.currentProjectId) {
   const idKey = (owner.id_number || "").trim();
   const nameKey = owner.owner_name.trim();
   const addrKey = (owner.address || "").trim();
@@ -1747,13 +1746,68 @@ async function findOrCreateLandownerByOwner(owner, createdCache) {
 let wizardSubmitInFlight = false;
 
 async function submitTitleDeedWizard() {
-  if (wizardSubmitInFlight) return;
+  if (wizardSubmitInFlight) {
+    toast("上一批謄本資料還在建立中,請等它完成再送出", "error");
+    return;
+  }
   wizardSubmitInFlight = true;
+  const warnUnload = (e) => {
+    e.preventDefault();
+    e.returnValue = "";
+  };
+  window.addEventListener("beforeunload", warnUnload);
   try {
     await submitTitleDeedWizardInner();
   } finally {
+    window.removeEventListener("beforeunload", warnUnload);
     wizardSubmitInFlight = false;
   }
+}
+
+// 建立謄本資料時畫面底部的浮動進度條:不擋畫面,建立過程中可以繼續操作其他頁面。
+function showImportProgressPanel(total) {
+  document.getElementById("import-progress-panel")?.remove();
+  const panel = document.createElement("div");
+  panel.id = "import-progress-panel";
+  panel.setAttribute("role", "status");
+  panel.style.cssText =
+    "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:190;background:var(--surface);" +
+    "border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-modal);padding:12px 16px;" +
+    "width:340px;max-width:calc(100vw - 40px)";
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700">
+      <span class="ipp-label">謄本資料建立中…</span>
+      <span class="ipp-count" style="margin-left:auto;font-variant-numeric:tabular-nums">(0/${total})</span>
+    </div>
+    <div style="margin-top:8px;height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden">
+      <div class="ipp-bar" style="height:100%;width:0;background:var(--brand);transition:width .2s"></div>
+    </div>
+    <div class="ipp-sub" style="margin-top:6px;font-size:12px;color:var(--text-muted)">可以繼續操作其他頁面,完成後會通知你</div>`;
+  document.body.appendChild(panel);
+  const $ = (sel) => panel.querySelector(sel);
+  const paint = (done) => {
+    $(".ipp-count").textContent = `(${done}/${total})`;
+    $(".ipp-bar").style.width = `${total ? Math.round((done / total) * 100) : 100}%`;
+  };
+  return {
+    update(done, sub) {
+      paint(done);
+      if (sub) $(".ipp-sub").textContent = sub;
+    },
+    finish(done, message) {
+      paint(done);
+      $(".ipp-label").textContent = message;
+      $(".ipp-sub").textContent = "";
+      setTimeout(() => panel.remove(), 4000);
+    },
+    fail(done, message) {
+      paint(done);
+      $(".ipp-label").textContent = "建立中斷";
+      $(".ipp-bar").style.background = "var(--danger)";
+      $(".ipp-sub").innerHTML = `${escapeHtml(message)} <button type="button" class="btn-link btn-sm" style="padding:0 4px">關閉</button>`;
+      $(".ipp-sub button").addEventListener("click", () => panel.remove());
+    },
+  };
 }
 
 async function submitTitleDeedWizardInner() {
@@ -1769,17 +1823,34 @@ async function submitTitleDeedWizardInner() {
     return;
   }
 
-  const btn = document.getElementById("wizard-confirm-btn");
-  const totalUnits = d.parcels.length + d.buildings.length;
-  let doneUnits = 0;
-  const setProgress = () => {
-    if (btn) btn.textContent = `建立中… ${doneUnits}/${totalUnits}`;
-  };
-  if (btn) {
-    btn.disabled = true;
-    setProgress();
-  }
   const pid = state.currentProjectId;
+  const namedOwners = (owners) => (owners || []).filter((o) => o.owner_name);
+  const activeEncs = (list) => (list || []).filter((enc) => enc.right_type || enc.right_holder);
+  const isCommonPart = (b) => (b.common_part_of || []).length > 0 || b.main_use === "共有部分";
+  const totalUnits =
+    d.parcels.reduce((s, p) => s + namedOwners(p.owners).length + activeEncs(p.encumbrances).length, 0) +
+    activeEncs(d.encumbrances).length +
+    d.buildings.reduce(
+      (s, b) => s + namedOwners(b.owners).length + (isCommonPart(b) ? 1 : 0) + activeEncs(b.encumbrances).length,
+      0
+    );
+
+  // 送出後精靈先關掉,改用畫面底部的浮動進度條顯示 (n/N),不擋住畫面。
+  closeModal();
+  titleDeedWizard = null;
+  const progress = showImportProgressPanel(totalUnits);
+  let doneUnits = 0;
+  const tick = (sub) => {
+    doneUnits++;
+    progress.update(doneUnits, sub);
+  };
+  const postEncumbrances = (list, sub) =>
+    Promise.all(
+      activeEncs(list).map((enc) =>
+        api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }).then(() => tick(sub))
+      )
+    );
+
   const createdCache = new Map();
   const landRecordIdByParcelOwner = new Map();
   const ownerIdentityKey = (owner) => (owner.id_number || "").trim() || `name:${(owner.owner_name || owner.name || "").trim()}`;
@@ -1799,9 +1870,11 @@ async function submitTitleDeedWizardInner() {
     }
 
     for (const p of d.parcels) {
+      const sub = `地號 ${p.parcel_number}`;
+      progress.update(doneUnits, sub);
       for (const owner of p.owners) {
         if (!owner.owner_name) continue;
-        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache);
+        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, pid);
         // 前次移轉現值或原規定地價 is per-owner (see declared_value_per_sqm on the owner,
         // not the parcel - co-owners of the same parcel often acquired their share at
         // different times/prices). Multiply by this owner's own owned area (same
@@ -1831,23 +1904,16 @@ async function submitTitleDeedWizardInner() {
         });
         if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);
         landRecordIdByParcelOwner.set(parcelOwnerKey(p.parcel_number, ownerIdentityKey(owner)), created.id);
+        tick(sub);
       }
-      await Promise.all(
-        (p.encumbrances || [])
-          .filter((enc) => enc.right_type || enc.right_holder)
-          .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
-      );
-      doneUnits++;
-      setProgress();
+      await postEncumbrances(p.encumbrances, sub);
     }
 
-    await Promise.all(
-      d.encumbrances
-        .filter((enc) => enc.right_type || enc.right_holder)
-        .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
-    );
+    await postEncumbrances(d.encumbrances, "他項權利");
 
     for (const b of d.buildings) {
+      const sub = `建號 ${b.building_number}`;
+      progress.update(doneUnits, sub);
       // 建物總面積 = 主建物 + 附屬建物(見 landowners.js _compute_building_totals /
       // roster_excel.py 的定義)。b.total_area_sqm 是謄本印的「總面積」欄位,代表主
       // 建物本身的面積(有些舊謄本排版總面積欄位剛好已經含附屬建物,那是那份謄本
@@ -1857,7 +1923,7 @@ async function submitTitleDeedWizardInner() {
       const auxAreaSqm = (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
       for (const owner of b.owners) {
         if (!owner.owner_name) continue;
-        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache);
+        const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, pid);
         await api(`/projects/${pid}/landowners/${landownerId}/building-records`, {
           method: "POST",
           body: {
@@ -1884,10 +1950,11 @@ async function submitTitleDeedWizardInner() {
           },
         });
         if (b._sourceOcrJobId) sourceOcrJobIds.add(b._sourceOcrJobId);
+        tick(sub);
       }
       // 共有部分建號(公設/樓梯間):沒有所有權人,獨立建一筆 record,持分靠
       // common_part_shares 分給各主建物,地主清冊據此填「共有建號」欄位。
-      if ((b.common_part_of || []).length || b.main_use === "共有部分") {
+      if (isCommonPart(b)) {
         await api(`/projects/${pid}/building-parts`, {
           method: "POST",
           body: {
@@ -1907,29 +1974,23 @@ async function submitTitleDeedWizardInner() {
           },
         });
         if (b._sourceOcrJobId) sourceOcrJobIds.add(b._sourceOcrJobId);
+        tick(sub);
       }
-      await Promise.all(
-        (b.encumbrances || [])
-          .filter((enc) => enc.right_type || enc.right_holder)
-          .map((enc) => api(`/projects/${pid}/encumbrances`, { method: "POST", body: enc }))
-      );
-      doneUnits++;
-      setProgress();
+      await postEncumbrances(b.encumbrances, sub);
     }
 
     const hadParcels = d.parcels.length > 0;
-    closeModal();
+    progress.finish(doneUnits, "謄本資料建立完成");
     toast("謄本資料已匯入", "success");
-    titleDeedWizard = null;
+    // 建立期間可能已切到別的案件:只有還停在同一案件時才刷新清冊 / 詢問匯入建物。
+    if (state.currentProjectId !== pid) return;
     // 匯入後留在原本的分頁(清冊會自動刷新),不再自動跳到 OCR 批次詳情頁。
     // 要看批次可從「文件」分頁的謄本匯入批次進入。
     await renderTab(state.activeTab);
-    if (hadParcels) offerBuildingImportFollowUp();
+    const modalOpen = !!(document.getElementById("modal-root")?.innerHTML || "").trim();
+    if (hadParcels && !modalOpen) offerBuildingImportFollowUp();
   } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "建立";
-    }
+    progress.fail(doneUnits, "已建立的資料會保留,請到清冊確認後再補匯入缺的部分");
   }
 }
 
