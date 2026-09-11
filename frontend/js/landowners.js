@@ -131,6 +131,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .row-actions { white-space:nowrap; text-align:right; }
       #integ-roster .row-actions .btn-sm { padding:3px 10px; }
       #integ-roster .visit-date { color:var(--text-muted); }
+      #integ-roster .cell-sub {
+        white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
+        line-height:1.35; margin-top:2px; word-break:break-word;
+      }
     </style>
     <div id="integ-roster"><div class="table-wrap">
       <table>
@@ -155,16 +159,19 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
     const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
-    const muted = (s) => (s ? ` <span style="color:var(--text-muted);font-weight:400">(${escapeHtml(s)})</span>` : "");
+    // 附加資訊(段小段/持分)獨立一行放在主要內容下面,不要跟主要內容擠在同一行 -
+    // 一人名下好幾筆土地/建物、持分分子分母又長時,擠成一行會把儲存格撐爆、逼名字
+    // 斷行,獨立成行、允許正常換行,版面才不會跑掉。
+    const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}">
             <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
-            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${muted(sectionInfo)}</td>
-            <td class="col-name">${escapeHtml(o.name)}${muted(landShare)}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
+            <td class="col-name">${escapeHtml(o.name)}${sub(landShare)}</td>
             <td class="num">${fmt2(landSqm)}</td>
             <td class="num">${fmt2(landSqm * 0.3025)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
-            <td class="num">${fmt2(bldSqm * 0.3025)}${muted(bldShare)}</td>
+            <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="cell-visit">
               <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
               <span class="visit-date">${visit}</span>
