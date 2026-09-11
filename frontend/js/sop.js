@@ -313,6 +313,9 @@ async function renderSopTab(el) {
     const contactRate = landowners.length > 0 ? contactedCount / landowners.length : 0;
     const confirmedChecklist = (selectedStage.data && selectedStage.data.checklist) || {};
     const stageForms = (selectedStage.data && selectedStage.data.forms) || {};
+    // 已確認地主清冊後鎖住土地/建物謄本匯入 - 清冊確認過就代表資料已經盤點完成,
+    // 這時候再匯入會讓清冊跟實際登記資料兜不起來;要匯入得先按「取消確認」。
+    const rosterLocked = !!confirmedChecklist.landowner_roster_confirmed;
     checklistAllDone = true;
 
     const itemsHtml = checklistConfig
@@ -363,11 +366,14 @@ async function renderSopTab(el) {
             : "";
         // 土地/建物登記謄本匯入(原本放在「整合清冊」頁工具列,搬過來跟關卡需求放一起)。
         // 建物匯入要先有土地資料(建號比對地號用),沒有就整個鎖住。
+        const actionLabel = item.action === "land" ? "土地登記匯入" : "建物登記匯入";
         const actionBtn =
           item.action && canOcr()
-            ? item.action === "building" && landCount === 0
-              ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記">建物登記匯入</button>`
-              : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}">${item.action === "land" ? "土地登記匯入" : "建物登記匯入"}</button>`
+            ? rosterLocked
+              ? `<button type="button" class="btn-secondary btn-sm" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入">${actionLabel}</button>`
+              : item.action === "building" && landCount === 0
+                ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記">${actionLabel}</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}">${actionLabel}</button>`
             : "";
         // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
         const rosterBtn = "";
