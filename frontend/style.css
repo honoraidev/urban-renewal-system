@@ -711,6 +711,24 @@
   .sop-checklist-label { font-weight: 700; font-size: 13.5px; color: var(--text); }
   .sop-checklist-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
+  /* 編輯地主視窗的「拜訪/簽約狀態」- 沿用 .sop-checklist 版面,額外加卡片感、置中
+     對齊、完成時淡色底,「已拜訪」整行都能點(不用只瞄準那顆小勾選框)。 */
+  .lo-visit-checklist {
+    margin-top: 0; border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; background: var(--surface);
+  }
+  .lo-visit-checklist .sop-checklist-item {
+    align-items: center; margin: 0; padding: 12px 14px; transition: background .15s ease;
+  }
+  .lo-visit-checklist .sop-checklist-item.done { background: color-mix(in srgb, var(--success) 7%, transparent); }
+  .lo-check-row { position: relative; cursor: pointer; }
+  .lo-check-row:has(.lo-check-input:checked) { background: color-mix(in srgb, var(--success) 7%, transparent); }
+  .lo-check-row:hover:not(:has(.lo-check-input:checked)) { background: var(--surface-2); }
+  .lo-check-input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+  .lo-check-icon { transition: background .15s ease, border-color .15s ease; }
+  .lo-check-input:checked + .lo-check-icon { background: var(--success); border-color: var(--success); color: #fff; }
+  .lo-check-input:focus-visible + .lo-check-icon { outline: 2px solid var(--brand); outline-offset: 2px; }
+
   .gate-bars { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
   .gate-bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
   .final-banner {

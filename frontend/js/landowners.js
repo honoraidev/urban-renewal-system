@@ -929,14 +929,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       </div>
       <div class="field">
         <label>拜訪 / 簽約狀態</label>
-        <div class="sop-checklist" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <div class="sop-checklist-item">
-            <input type="checkbox" data-lo-visit-toggle ${owner.visit_status === "visited" ? "checked" : ""} style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);cursor:pointer">
+        <div class="sop-checklist lo-visit-checklist">
+          <label class="sop-checklist-item lo-check-row">
+            <input type="checkbox" data-lo-visit-toggle ${owner.visit_status === "visited" ? "checked" : ""} class="lo-check-input">
+            <span class="sop-checklist-icon lo-check-icon">✓</span>
             <div style="flex:1">
               <div class="sop-checklist-label">已拜訪</div>
               <div class="sop-checklist-sub">${owner.visit_status === "visited" ? "已完成拜訪" : "勾選即完成拜訪"}</div>
             </div>
-          </div>
+          </label>
           ${owner.visit_status === "visited"
       ? `<div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
                 <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
@@ -944,8 +945,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
                   <div class="sop-checklist-label">已簽約</div>
                   <div class="sop-checklist-sub">${owner.agreement_status === "signed" ? "已上傳意願書" : "上傳意願書即完成簽約"}</div>
                 </div>
-                ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
-                <button type="button" class="btn-secondary btn-sm" data-lo-upload="willingness_form">${owner.agreement_status === "signed" ? "重新上傳" : "上傳意願書"}</button>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                  ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
+                  <button type="button" class="btn-${owner.agreement_status === "signed" ? "secondary" : "primary"} btn-sm" data-lo-upload="willingness_form">${owner.agreement_status === "signed" ? "重新上傳" : "上傳意願書"}</button>
+                </div>
                 <input type="file" data-lo-upload-input="willingness_form" style="display:none">
               </div>`
       : ""
