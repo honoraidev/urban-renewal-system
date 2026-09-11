@@ -8,7 +8,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
+from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -305,7 +305,6 @@ class ActivityLogMiddleware:
 app.add_middleware(ActivityLogMiddleware)
 
 app.include_router(auth.router)
-app.include_router(sso.router)
 app.include_router(projects.router)
 app.include_router(dashboard.router)
 app.include_router(landowners.router)
