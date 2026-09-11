@@ -330,6 +330,15 @@ async function renderLandownersTypeTab(el, type, extraToolbarHtml = "") {
   const alertIds = new Set(alerts.filter((a) => landownerIds.has(a.landowner_id)).map((a) => a.landowner_id));
 
   el.innerHTML = `
+    <div class="section-toolbar">
+      <h3 style="display:flex;align-items:center;gap:2px">${extraToolbarHtml || (isLand ? "土地登記清冊" : "建物登記清冊")} (${landowners.length})</h3>
+      ${isEditor()
+      ? `<div style="display:flex;gap:8px">
+              <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>
+            </div>`
+      : ""
+    }
+    </div>
     <div class="dashboard-stat-row" style="margin-bottom:20px">
       <div class="dashboard-stat-item accent-brand" data-stat-filter="all" role="button" tabindex="0">
         <div class="dashboard-stat-icon">👥</div>
@@ -343,15 +352,6 @@ async function renderLandownersTypeTab(el, type, extraToolbarHtml = "") {
         <div class="dashboard-stat-icon">🔔</div>
         <div><div class="dashboard-stat-num">${alertIds.size}</div><div class="dashboard-stat-lbl">待聯繫提醒</div></div>
       </div>
-    </div>
-    <div class="section-toolbar">
-      <h3 style="display:flex;align-items:center;gap:2px">${extraToolbarHtml || (isLand ? "土地登記清冊" : "建物登記清冊")} (${landowners.length})</h3>
-      ${isEditor()
-      ? `<div style="display:flex;gap:8px">
-              <button class="btn-primary btn-sm" id="add-landowner-btn">+ 新增${currentLandownerLabel}</button>
-            </div>`
-      : ""
-    }
     </div>
     <div class="table-wrap">
       <table>
