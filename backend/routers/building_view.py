@@ -9,6 +9,7 @@ from models.consent_record import ConsentRecord
 from models.land_record import LandRecord
 from models.landowner import Landowner
 from models.project import Project
+from routers.contacts import _last_contact_result_by_landowner
 from utils.building_view import (
     floor_sort_key_and_label,
     group_building_records,
@@ -18,16 +19,25 @@ from utils.building_view import (
 
 router = APIRouter(prefix="/projects/{project_id}/building-view", tags=["building-view"])
 
+# 格子底色改依「最新一次聯絡結果」(contact_logs.contact_result)上色,不是正式的
+# SOP 關卡同意紀錄(consent_status)——現場人員要的是「這戶最近聯絡起來反應怎樣」
+# 的即時提醒,同一格好幾位共有人時,越需要注意的結果優先蓋過其他人(反對 > 需回電
+# > 未接聽 > 未決定 > 全部同意才算同意 > 完全沒聯絡過)。
+_CONTACT_RESULT_PRIORITY = ["opposed", "callback_needed", "no_answer", "undecided"]
+
 
 def _cell_status(owners: list[dict]) -> str:
-    statuses = {o["consent_status"] for o in owners}
     if not owners:
         return "empty"
-    if "opposed" in statuses:
-        return "opposed"
-    if statuses == {"agreed"}:
+    results = {o.get("last_contact_result") for o in owners if o.get("last_contact_result")}
+    if not results:
+        return "none"
+    for candidate in _CONTACT_RESULT_PRIORITY:
+        if candidate in results:
+            return candidate
+    if results == {"agreed"}:
         return "agreed"
-    return "pending"
+    return "undecided"
 
 
 @router.get("")
@@ -59,6 +69,8 @@ def get_building_view(
         ).all():
             consent_by_landowner[lo_id] = status_value
 
+    last_contact_result_by_landowner = _last_contact_result_by_landowner(db, project_id)
+
     rows: list[dict] = []
     for r in records:
         parsed = parse_address(r.address)
@@ -71,6 +83,7 @@ def get_building_view(
             "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
             "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
             "visit_status": r.landowner.visit_status if r.landowner else "not_visited",
+            "last_contact_result": last_contact_result_by_landowner.get(r.landowner_id),
         }
         rows.append(
             {
@@ -116,6 +129,7 @@ def get_building_view(
                 "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
                 "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
                 "visit_status": r.landowner.visit_status if r.landowner else "not_visited",
+                "last_contact_result": last_contact_result_by_landowner.get(r.landowner_id),
                 "parcels": [],
             },
         )

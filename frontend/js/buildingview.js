@@ -91,15 +91,35 @@ function buildingViewCellTooltip(cell) {
       const parts = [o.name || "(未填姓名)"];
       if (o.phone) parts.push(o.phone);
       if (o.address) parts.push(o.address);
+      parts.push(o.last_contact_result ? CONTACT_RESULT_LABEL[o.last_contact_result] || o.last_contact_result : "尚無聯絡紀錄");
       return parts.join(" · ");
     })
     .join("\n");
 }
 
+// 格子底色改依「最新一次聯絡結果」上色(見 backend/routers/building_view.py 的
+// _cell_status),不是正式的簽約/同意狀態 - 同意(綠)/未接聽(棕)/需回電(黃)/
+// 反對(紅)/未決定(淺藍),跟 CONTACT_RESULT_LABEL 的 5 種值對應。"none" 是這格
+// 有共有人但完全沒打過聯絡紀錄,沿用「未決定」的淺藍當預設色。
+function buildingViewLegendHtml() {
+  const items = [
+    { cls: "bv-cell-agreed", label: "同意" },
+    { cls: "bv-cell-noanswer", label: "未接聽" },
+    { cls: "bv-cell-callback", label: "需回電" },
+    { cls: "bv-cell-opposed", label: "反對" },
+    { cls: "bv-cell-pending", label: "未決定" },
+  ];
+  return items
+    .map((it) => `<span class="bv-legend-item"><span class="bv-legend-swatch ${it.cls}"></span>${it.label}</span>`)
+    .join("");
+}
+
 function buildingViewCellClass(status) {
   if (status === "agreed") return "bv-cell-agreed";
   if (status === "opposed") return "bv-cell-opposed";
-  if (status === "pending") return "bv-cell-pending";
+  if (status === "callback_needed") return "bv-cell-callback";
+  if (status === "no_answer") return "bv-cell-noanswer";
+  if (status === "undecided" || status === "none") return "bv-cell-pending";
   return "bv-cell-empty";
 }
 
@@ -240,6 +260,7 @@ async function renderBuildingViewTab(el) {
       <h3>樓棟視圖</h3>
       <span class="helper-text">💡 拖曳區塊可調整順序</span>
     </div>
+    <div class="bv-legend">${buildingViewLegendHtml()}</div>
     <div id="bv-groups" class="bv-groups-grid">${groups.map(buildingViewGroupCardHtml).join("")}</div>
     ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
   `;

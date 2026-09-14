@@ -183,8 +183,11 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const vt = checked("integ-visit-dd");
     let shown = 0;
     // 明細展開列不是本體(沒有 data-hay/data-visit-tok),跳過不篩,只跟著上面那筆
-    // 摘要列一起關 - 不然搜尋/篩選一重跑,展開狀態就會被強制打開或關不掉。
-    el.querySelectorAll("tbody tr:not(.detail-row)").forEach((tr) => {
+    // 摘要列一起關 - 不然搜尋/篩選一重跑,展開狀態就會被強制打開或關不掉。這裡一定
+    // 要用 > 限定成外層 tbody 的「直接」子列,不然展開列裡土地/建物子表格自己的
+    // <tr>(巢狀在同一個 el 底下的另一個 <tbody>)也會被選到、一起被當成沒比對到
+    // 關鍵字而隱藏,結果變成搜尋到人卻看不到底下的土地/建物資料。
+    el.querySelectorAll("#integ-roster > .table-wrap > table > tbody > tr:not(.detail-row)").forEach((tr) => {
       const okSearch = !q || (tr.dataset.hay || "").includes(q);
       const rowVt = (tr.dataset.visitTok || "").split(" ");
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
@@ -874,6 +877,9 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     return;
   }
   if (!owner) return;
+  // 已經聯絡到「同意」了,底下就不用再逼人多填一筆聯絡紀錄 - 除非之後又有新狀況
+  // (反對/需回電等),那本來就會再點進來新增一筆蓋過去,不受這裡影響。
+  const alreadyAgreed = latestContact && latestContact.contact_result === "agreed";
   const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
   if (siblings) {
     _loEditorSiblings = siblings;
@@ -938,7 +944,9 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
       </div>
 
-      <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
+      ${alreadyAgreed
+      ? ""
+      : `<div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
         <label style="font-weight:700;margin:0">同時新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></label>
         <div id="lo-contact-fields" style="margin-top:10px">
           <div class="field-row">
@@ -959,7 +967,8 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
           </div>
           <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
         </div>
-      </div>
+      </div>`
+    }
 
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -1050,13 +1059,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
 
   const cResult = document.getElementById("lo-c-result");
   const cFollowup = document.getElementById("lo-c-followup");
-  const syncFollowupVisibility = () => {
-    const hide = cResult.value === "agreed" || cResult.value === "opposed";
-    cFollowup.classList.toggle("hidden", hide);
-    if (hide) cFollowup.querySelector("input").value = "";
-  };
-  cResult.addEventListener("change", syncFollowupVisibility);
-  syncFollowupVisibility();
+  if (cResult && cFollowup) {
+    const syncFollowupVisibility = () => {
+      const hide = cResult.value === "agreed" || cResult.value === "opposed";
+      cFollowup.classList.toggle("hidden", hide);
+      if (hide) cFollowup.querySelector("input").value = "";
+    };
+    cResult.addEventListener("change", syncFollowupVisibility);
+    syncFollowupVisibility();
+  }
 
   document.getElementById("landowner-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1066,7 +1077,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     // (見下面 if (data.c_contact_date))。使用者常常會填了聯絡結果/備註卻忘了填聯絡
     // 時間,存檔會顯示「已更新」成功(因為地主基本資料真的存成功了),但這筆聯絡紀錄
     // 其實整個沒建立、悄悄不見 —— 擋下來提醒使用者補填,不要放給它默默漏掉。
-    const contactDetailFilled = data.c_contact_result !== "undecided" || (data.c_notes || "").trim() || data.c_next_follow_up_date;
+    // 已同意時這整組欄位根本沒渲染出來(見上面 alreadyAgreed),data.c_contact_result
+    // 會是 undefined 而不是預設值 "undecided" - 用 && 短路,undefined 一定跳過,不會
+    // 誤判成「填了聯絡結果卻沒填時間」。
+    const contactDetailFilled = (data.c_contact_result && data.c_contact_result !== "undecided") || (data.c_notes || "").trim() || data.c_next_follow_up_date;
     if (!data.c_contact_date && contactDetailFilled) {
       toast("已填聯絡結果/紀錄,但「聯絡時間」還沒填 —— 這筆聯絡紀錄不會被建立,請補上聯絡時間再儲存", "error");
       document.querySelector('[name="c_contact_date"]')?.focus();
