@@ -18,7 +18,10 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
 
   let res;
   try {
-    res = await fetch(url, { method, headers, body: fetchBody });
+    // 明確關掉瀏覽器 HTTP cache —— 案件資料常常在不同分頁/裝置間跳來跳去改,絕對不能
+    // 讓任何一層(瀏覽器本身、行動裝置內嵌瀏覽器等)把 GET 回應快取住,不然切分頁看到
+    // 的可能是編輯前的舊資料。
+    res = await fetch(url, { method, headers, body: fetchBody, cache: "no-store" });
   } catch (err) {
     toast("無法連線到伺服器", "error");
     throw err;
