@@ -10,6 +10,7 @@ from deps import get_current_user, require_manager
 from models.company_document import CompanyDocument
 from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
+from models.news_item import NewsItem
 from models.regulation import Regulation
 from models.user import User
 from models.website import Website
@@ -21,6 +22,9 @@ from schemas.resource import (
     InventoryItemCreate,
     InventoryItemRead,
     InventoryItemUpdate,
+    NewsItemCreate,
+    NewsItemRead,
+    NewsItemUpdate,
     RegulationCreate,
     RegulationRead,
     RegulationUpdate,
@@ -172,6 +176,47 @@ def delete_regulation(
     if regulation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Regulation not found")
     db.delete(regulation)
+    db.commit()
+
+
+# ================= 新聞 (news) =================
+
+@router.get("/news", response_model=list[NewsItemRead])
+def list_news_items(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.scalars(select(NewsItem).order_by(NewsItem.category, NewsItem.created_at.desc())).all()
+
+
+@router.post("/news", response_model=NewsItemRead, status_code=status.HTTP_201_CREATED)
+def create_news_item(
+    payload: NewsItemCreate, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
+):
+    item = NewsItem(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/news/{news_id}", response_model=NewsItemRead)
+def update_news_item(
+    news_id: int, payload: NewsItemUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
+):
+    item = db.get(NewsItem, news_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="News item not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/news/{news_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_news_item(news_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
+    item = db.get(NewsItem, news_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="News item not found")
+    db.delete(item)
     db.commit()
 
 

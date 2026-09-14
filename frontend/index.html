@@ -93,6 +93,7 @@
         <div class="sb-sec">工具與資源</div>
         <div class="nav-links">
           <button class="nav-link" data-nav="companydocs"><span style="margin-right:6px">📄</span> 公版文件</button>
+          <button class="nav-link" data-nav="news"><span style="margin-right:6px">📰</span>新聞</button>
           <button class="nav-link" data-nav="regulations"><span style="margin-right:6px">⚖️</span>相關法規</button>
           <button class="nav-link" data-nav="websites"><span style="margin-right:6px">🌐</span>相關網站</button>
           <button class="nav-link" data-nav="faq"><span style="margin-right:6px">💬</span>知識庫</button>
@@ -334,6 +335,19 @@
             <div id="companydocs-table-wrap"></div>
           </div>
 
+          <!-- 新聞 -->
+          <div id="view-news" class="hidden">
+            <div class="page-header">
+              <h2>新聞</h2>
+              <div style="display:flex;gap:8px">
+                <button class="btn-secondary hidden" id="manage-news-cats-btn">⚙ 管理分類</button>
+                <button class="btn-secondary hidden" id="toggle-news-edit-btn">✏️ 修改</button>
+                <button class="btn-primary hidden" id="new-news-btn">+ 新增連結</button>
+              </div>
+            </div>
+            <div id="news-list"></div>
+          </div>
+
           <!-- 相關法規 -->
           <div id="view-regulations" class="hidden">
             <div class="page-header">
@@ -566,7 +580,7 @@
                   <ul>
                     <li><strong>總覽</strong> — <em>工作看板</em>(個人待辦行事曆、今日要跟進的地主、今日操作紀錄)、<em>都更案件進度總覽</em>(所有案件的關卡狀態一覽)。</li>
                     <li><strong>案件管理</strong> — 依縣市分組的案件清單,點案件名稱進入該案件。</li>
-                    <li><strong>工具與資源</strong> — 公版文件、相關法規、相關網站、知識庫、部門物品管制表。</li>
+                    <li><strong>工具與資源</strong> — 公版文件、新聞、相關法規、相關網站、知識庫、部門物品管制表。</li>
                     <li><strong>系統指南</strong> — 本使用手冊、功能區。</li>
                   </ul>
                   <p>右上角頭像:編輯個人資料、切換深／淺色、登出;管理者另有「使用者管理」「登入紀錄」。系統會記住你最後停留的頁面與頁籤,重新整理瀏覽器不會被彈回首頁。手機版左上角 ☰ 開合側欄。</p>
@@ -655,7 +669,7 @@
                   <h3 id="manual-resources">工具與資源</h3>
                   <ul>
                     <li><strong>公版文件</strong> — 發函、意願書、同意書、合約等範本下載。</li>
-                    <li><strong>相關法規</strong> / <strong>相關網站</strong> — 都更相關法令與常用外部連結。</li>
+                    <li><strong>新聞</strong> / <strong>相關法規</strong> / <strong>相關網站</strong> — 都更相關新聞、法令與常用外部連結。</li>
                     <li><strong>知識庫</strong> — 常見問答。</li>
                     <li><strong>部門物品管制表</strong> — 部門物品借還與盤點。</li>
                   </ul>
@@ -744,7 +758,7 @@
   <script src="js/api.js?v=20260914_1"></script>
   <script src="js/modals.js?v=20260911_1"></script>
   <script src="js/auth.js?v=20260909_2"></script>
-  <script src="js/dashboard.js?v=20260914_4"></script>
+  <script src="js/dashboard.js?v=20260914_5"></script>
   <script src="js/progress_report.js?v=20260914_5"></script>
   <script src="js/mywork.js?v=20260914_1"></script>
   <script src="js/sop.js?v=20260914_5"></script>
@@ -756,11 +770,11 @@
   <script src="js/encumbrances.js?v=20260911_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260914_2"></script>
-  <script src="js/resources.js?v=20260909_1"></script>
+  <script src="js/resources.js?v=20260914_1"></script>
   <script src="js/inventory.js?v=20260909_1"></script>
   <script src="js/buildingview.js?v=20260914_2"></script>
   <script src="js/land_value_tax.js?v=20260909_1"></script>
-  <script src="js/main.js?v=20260909_2"></script>
+  <script src="js/main.js?v=20260914_1"></script>
 </body>
 
 </html>

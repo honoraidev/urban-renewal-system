@@ -214,14 +214,18 @@ function renderLinkListPage(items, listElId, isManagerView) {
 
 let currentLoadedRegulations = [];
 let currentLoadedWebsites = [];
+let currentLoadedNews = [];
 
 function openLinkFormModal(title, endpoint, item, onSaved) {
   const isWebsite = endpoint.includes("website");
+  const isNews = endpoint.includes("news");
   const defaultCats = isWebsite
     ? ["地籍 & 地圖", "都更 GIS", "建管查詢", "不動產行情", "謄本 & 產權", "其他工具"]
-    : ["中央法規", "地方自治條例", "都更配套子法", "行政命令/函釋", "其他"];
+    : isNews
+      ? NEWS_DEFAULT_CATS
+      : ["中央法規", "地方自治條例", "都更配套子法", "行政命令/函釋", "其他"];
 
-  const currentItems = isWebsite ? currentLoadedWebsites : currentLoadedRegulations;
+  const currentItems = isWebsite ? currentLoadedWebsites : isNews ? currentLoadedNews : currentLoadedRegulations;
   const existingCats = [...new Set((currentItems || []).map((i) => (i.category || "").trim()).filter(Boolean))];
   const allCats = [...new Set([...defaultCats, ...existingCats])];
 
@@ -298,8 +302,46 @@ function openLinkFormModal(title, endpoint, item, onSaved) {
   });
 }
 
+let newsEditMode = false;
 let regulationsEditMode = false;
 let websitesEditMode = false;
+
+async function goToNews() {
+  setActiveNav("news");
+  showView("view-news");
+  newsEditMode = false;
+  document.getElementById("new-news-btn")?.classList.toggle("hidden", !isManager());
+  document.getElementById("toggle-news-edit-btn")?.classList.toggle("hidden", !isManager());
+  document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
+  await loadNews();
+}
+
+async function loadNews() {
+  const el = document.getElementById("news-list");
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const items = await api("/news");
+  currentLoadedNews = items || [];
+  renderLinkListPage(items, "news-list", isManager() && newsEditMode);
+  if (isManager() && newsEditMode) {
+    el.querySelectorAll("[data-edit-link]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        openLinkFormModal("編輯新聞連結", "/news", item, loadNews);
+      });
+    });
+    el.querySelectorAll("[data-delete-link]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("確定要刪除此連結嗎?")) return;
+        try {
+          await api(`/news/${btn.dataset.deleteLink}`, { method: "DELETE" });
+          toast("已刪除", "success");
+          loadNews();
+        } catch (err) { }
+      });
+    });
+  }
+}
 
 async function goToRegulations() {
   setActiveNav("regulations");
@@ -771,6 +813,14 @@ const WEBSITE_DEFAULT_CATS = [
   "其他工具",
 ];
 
+const NEWS_DEFAULT_CATS = [
+  "都更政策",
+  "法規異動",
+  "市場動態",
+  "案件報導",
+  "其他",
+];
+
 function openManageCategoryModal(config) {
   const realCats = new Set((config.items || []).map((i) => (i.category || "").trim()).filter(Boolean));
   const allCats = [...new Set([...(config.defaultCats || []), ...realCats])];
@@ -886,6 +936,26 @@ function initResources() {
       onReload: loadCompanyDocs,
       isFormUpload: true,
     });
+  });
+
+  document.getElementById("manage-news-cats-btn")?.addEventListener("click", () => {
+    openManageCategoryModal({
+      title: "新聞",
+      items: currentLoadedNews,
+      defaultCats: NEWS_DEFAULT_CATS,
+      endpoint: "/news",
+      onReload: loadNews,
+    });
+  });
+
+  document.getElementById("new-news-btn")?.addEventListener("click", () => {
+    openLinkFormModal("新增新聞連結", "/news", null, loadNews);
+  });
+  document.getElementById("toggle-news-edit-btn")?.addEventListener("click", (e) => {
+    newsEditMode = !newsEditMode;
+    e.currentTarget.classList.toggle("btn-primary", newsEditMode);
+    e.currentTarget.classList.toggle("btn-secondary", !newsEditMode);
+    loadNews();
   });
 
   document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {

@@ -368,6 +368,16 @@ CREATE TABLE websites (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 17b. news_items (新聞 - manageable link list, starts empty, same shape as regulations/websites)
+CREATE TABLE news_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    name VARCHAR(255) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 18. faq_items (知識庫 - manageable Q&A list, starts empty)
 CREATE TABLE faq_items (
     id INT AUTO_INCREMENT PRIMARY KEY,

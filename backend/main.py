@@ -25,6 +25,7 @@ def _auto_migrate() -> None:
         models.InventoryItem.__table__.create(bind=engine, checkfirst=True)
         models.ProjectNote.__table__.create(bind=engine, checkfirst=True)
         models.DocumentFolder.__table__.create(bind=engine, checkfirst=True)
+        models.NewsItem.__table__.create(bind=engine, checkfirst=True)
     except Exception as exc:
         print(f"[auto_migrate] table create skipped: {exc}", flush=True)
 

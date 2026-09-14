@@ -57,6 +57,7 @@ function showView(id) {
     "view-users",
     "view-loginlogs",
     "view-companydocs",
+    "view-news",
     "view-regulations",
     "view-websites",
     "view-faq",
@@ -147,6 +148,9 @@ async function restoreLastView() {
         break;
       case "view-companydocs":
         await goToCompanyDocs();
+        break;
+      case "view-news":
+        await goToNews();
         break;
       case "view-regulations":
         await goToRegulations();

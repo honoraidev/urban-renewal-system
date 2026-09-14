@@ -47,6 +47,31 @@ class RegulationRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class NewsItemCreate(BaseModel):
+    category: str | None = None
+    name: str
+    url: str
+    description: str | None = None
+
+
+class NewsItemUpdate(BaseModel):
+    category: str | None = None
+    name: str | None = None
+    url: str | None = None
+    description: str | None = None
+
+
+class NewsItemRead(BaseModel):
+    id: int
+    category: str | None = None
+    name: str
+    url: str
+    description: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class WebsiteCreate(BaseModel):
     category: str | None = None
     name: str

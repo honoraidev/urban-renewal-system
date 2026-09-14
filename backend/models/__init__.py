@@ -18,6 +18,7 @@ from models.calendar_event import CalendarEvent
 from models.company_document import CompanyDocument
 from models.regulation import Regulation
 from models.website import Website
+from models.news_item import NewsItem
 from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
 from models.project_note import ProjectNote
@@ -46,6 +47,7 @@ __all__ = [
     "CompanyDocument",
     "Regulation",
     "Website",
+    "NewsItem",
     "FaqItem",
     "InventoryItem",
     "ProjectNote",
