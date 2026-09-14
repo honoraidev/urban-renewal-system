@@ -880,6 +880,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 已經聯絡到「同意」了,底下就不用再逼人多填一筆聯絡紀錄 - 除非之後又有新狀況
   // (反對/需回電等),那本來就會再點進來新增一筆蓋過去,不受這裡影響。
   const alreadyAgreed = latestContact && latestContact.contact_result === "agreed";
+  // 門牌地址(建物登記的 address)跟「地址」(地主自己的戶籍地址)是兩件事 - 同一位
+  // 地主可能同時持有好幾戶,這裡去重後全部列出來,唯讀顯示,不是真的可以在這裡改。
+  const doorAddress =
+    [...new Set((owner.building_records || []).map((r) => r.address).filter(Boolean))].join("、") || "—";
   const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
   if (siblings) {
     _loEditorSiblings = siblings;
@@ -930,6 +934,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
         </div>
       </div>
+      <div class="field"><label>門牌地址</label><input value="${escapeHtml(doorAddress)}" readonly style="background:var(--surface-2);color:var(--text-muted)" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」"></div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
