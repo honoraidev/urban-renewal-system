@@ -80,19 +80,10 @@ services:
     depends_on:
       - api
 
-  # Public HTTPS access without router port forwarding (not available on this NAS -
-  # see 後端開發_CLAUDE.md). Cloudflare's Quick Tunnel gives a public
-  # https://*.trycloudflare.com URL that proxies straight to nginx - no account, no
-  # domain, no open ports needed. The URL is random and changes every restart; once a
-  # real domain is available this should become a named tunnel
-  # (`cloudflared tunnel create` + `tunnel route dns`) for a stable hostname instead.
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    network_mode: "host"
-    restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://localhost:8090
-    depends_on:
-      - nginx
+  # Cloudflare Quick Tunnel (public *.trycloudflare.com URL, no auth) removed 2026-09 -
+  # public access now goes through Tailscale Funnel instead (same NAS, configured
+  # outside this compose file via `tailscale funnel`). Having both open at once was two
+  # separate unauthenticated public entry points into the same app for no reason.
 
 volumes:
   paddle_models:
