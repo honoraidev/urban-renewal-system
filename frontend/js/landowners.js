@@ -861,8 +861,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 之後,快取還是舊的,再點編輯會看到儲存前的舊狀態(例如拜訪/簽約狀態一直顯示
   // 未拜訪/未簽約)。
   let owner;
+  let latestContact = null;
   try {
-    owner = await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`);
+    const [ownerResult, contacts] = await Promise.all([
+      api(`/projects/${state.currentProjectId}/landowners/${landownerId}`),
+      api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, { silent: true }).catch(() => []),
+    ]);
+    owner = ownerResult;
+    // 後端已依 contact_date 新到舊排序(見 routers/contacts.py list_contacts),第一筆就是最近一次。
+    latestContact = contacts[0] || null;
   } catch (e) {
     return;
   }
@@ -918,6 +925,18 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
+
+      <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
+        <label style="font-weight:700;margin:0">最近一次聯絡紀錄</label>
+        ${latestContact
+      ? `<div class="helper-text" style="margin-top:4px;line-height:1.6">
+              ${fmtDateTime(latestContact.contact_date)} · ${escapeHtml(CONTACT_METHOD_LABEL[latestContact.contact_method] || latestContact.contact_method)} ·
+              <span class="mini-badge ${latestContact.contact_result === "agreed" ? "gate-ok" : ""}">${escapeHtml(CONTACT_RESULT_LABEL[latestContact.contact_result] || latestContact.contact_result)}</span>
+              ${latestContact.notes ? `<br>${escapeHtml(latestContact.notes)}` : ""}
+            </div>`
+      : `<div class="helper-text" style="margin-top:4px">尚無聯絡紀錄</div>`
+    }
+      </div>
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
         <label style="font-weight:700;margin:0">同時新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></label>
