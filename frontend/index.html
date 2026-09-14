@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260911_7">
+  <link rel="stylesheet" href="style.css?v=20260914_1">
 </head>
 
 <body>
@@ -86,6 +86,7 @@
         <div class="nav-links">
           <button class="nav-link" data-nav="mywork"><span style="margin-right:6px">🗂️</span>工作看板</button>
           <button class="nav-link" data-nav="dashboard"><span style="margin-right:6px">📊</span>都更案件進度總覽</button>
+          <button class="nav-link" data-nav="progressreport"><span style="margin-right:6px">📈</span>都更進度報表</button>
         </div>
         <div class="sb-sec">案件管理</div>
         <div id="sb-cases"></div>
@@ -150,6 +151,57 @@
               </div>
             </div>
             <div id="project-grid" class="project-grid"></div>
+          </div>
+
+          <!-- 都更進度報表 -->
+          <div id="view-progress-report" class="hidden">
+            <div class="page-header">
+              <div>
+                <h2>都更進度報表</h2>
+                <p class="helper-text" style="margin:2px 0 0">都握專案進度，提升執行效率</p>
+              </div>
+            </div>
+            <div class="pr-filter-bar" id="pr-filter-bar">
+              <div class="pr-filter-field">
+                <label>案件狀態</label>
+                <select id="pr-f-status">
+                  <option value="">全部</option>
+                  <option value="active">進行中</option>
+                  <option value="suspended">暫停</option>
+                  <option value="closed">已結案</option>
+                </select>
+              </div>
+              <div class="pr-filter-field">
+                <label>案件階段</label>
+                <select id="pr-f-stage"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field">
+                <label>負責人</label>
+                <select id="pr-f-handler"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field">
+                <label>行政區</label>
+                <select id="pr-f-district"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field pr-filter-search">
+                <label>關鍵字</label>
+                <div class="search-box">
+                  <span class="search-box-icon">🔍</span>
+                  <input type="text" id="pr-f-q" class="search-input-pill" placeholder="搜尋案件、地段...">
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-stat-row" id="pr-stat-row"></div>
+
+            <div class="pr-chart-grid" id="pr-chart-grid"></div>
+
+            <div class="pr-table-section">
+              <div class="pr-table-title" id="pr-table-title">案件列表</div>
+              <div class="table-wrap" id="pr-table-wrap"></div>
+            </div>
+
+            <div id="pr-detail-panel"></div>
           </div>
 
           <!-- 個人工作看板 -->
@@ -689,6 +741,7 @@
   <script src="js/modals.js?v=20260911_1"></script>
   <script src="js/auth.js?v=20260909_2"></script>
   <script src="js/dashboard.js?v=20260911_4"></script>
+  <script src="js/progress_report.js?v=20260914_1"></script>
   <script src="js/mywork.js?v=20260909_7"></script>
   <script src="js/sop.js?v=20260911_4"></script>
   <script src="js/board.js?v=20260909_9"></script>

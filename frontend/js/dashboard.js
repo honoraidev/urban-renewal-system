@@ -44,6 +44,7 @@ function alertTiers(alerts) {
 function showView(id) {
   [
     "view-dashboard",
+    "view-progress-report",
     "view-mywork",
     "view-new-project",
     "view-project-detail",
@@ -126,6 +127,9 @@ async function restoreLastView() {
             await renderTab(saved.tab);
           }
         }
+        break;
+      case "view-progress-report":
+        await goToProgressReport();
         break;
       case "view-mywork":
         await goToMyWork();

@@ -407,6 +407,51 @@
   .users-filter-btn.active {
     background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-light);
   }
+  /* 都更進度報表 */
+  .pr-filter-bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 20px; }
+  .pr-filter-field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+  .pr-filter-field label { font-size: 12.5px; color: var(--text-muted); font-weight: 700; margin: 0; }
+  .pr-filter-field select { padding: 8px 10px; font-size: 13.5px; }
+  .pr-filter-search { flex: 1; min-width: 220px; }
+  .pr-filter-search .search-box { max-width: none; }
+  .pr-stat-sub { font-size: 13px; font-weight: 700; color: var(--text-muted); }
+  .pr-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin: 20px 0; }
+  .pr-chart-card { display: flex; flex-direction: column; gap: 14px; }
+  .pr-chart-title { font-size: 15px; font-weight: 800; }
+  .pr-chart-body { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .pr-chart-body svg { flex-shrink: 0; }
+  .pr-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 140px; }
+  .pr-legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .pr-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pr-legend-label { flex: 1; color: var(--text); }
+  .pr-legend-value { color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  .pr-bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .pr-bar-row { display: grid; grid-template-columns: 70px 1fr 28px; align-items: center; gap: 10px; font-size: 13px; }
+  .pr-bar-label { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-bar-track { background: var(--surface-2); border-radius: 6px; height: 14px; overflow: hidden; }
+  .pr-bar-fill { background: linear-gradient(90deg, var(--brand), var(--brand-dark)); height: 100%; border-radius: 6px; }
+  .pr-bar-value { text-align: right; font-weight: 700; color: var(--text); }
+  .pr-table-section { margin-top: 6px; }
+  .pr-table-title { font-size: 16px; font-weight: 800; margin-bottom: 10px; }
+  .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .pr-table th, .pr-table td { padding: 10px 14px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }
+  .pr-table th { color: var(--text-muted); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+  .pr-table-row { cursor: pointer; }
+  .pr-table-row:hover { background: var(--surface-2); }
+  .pr-table-row.selected { background: var(--brand-light); }
+  .pr-detail-card { margin-top: 20px; }
+  .pr-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pr-stage-list { display: flex; flex-direction: column; gap: 4px; }
+  .pr-stage-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; }
+  .pr-stage-item.pr-stage-current { background: var(--brand-light); font-weight: 700; }
+  .pr-stage-item.pr-stage-done { color: var(--text-muted); }
+  .pr-stage-name { flex: 1; }
+  .pr-stage-state { font-size: 12px; color: var(--text-muted); }
+  .pr-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  .pr-detail-metric { text-align: center; background: var(--surface-2); border-radius: 12px; padding: 14px; }
+  .pr-detail-metric-num { font-size: 22px; font-weight: 800; }
+  .pr-detail-tiers { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
   .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
   .card {
     background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
