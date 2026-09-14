@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from models.building_record import BuildingRecord
 from models.contact_log import ContactLog
+from models.document import Document
 from models.land_record import LandRecord
 from models.landowner import Landowner
 
@@ -15,10 +16,13 @@ _OWNED_BUILDING_AREA = BuildingRecord.total_area_sqm * BuildingRecord.ownership_
 
 def _agreed_landowner_ids(db: Session, project_id: int) -> set[int]:
     """A landowner counts as "agreed" for the consent ratio (dashboard rings + the
-    dual-gate check at SOP stages 4/8/9 - see DUAL_GATE_STAGES in routers/sop.py) when
-    their MOST RECENT contact_logs entry has contact_result == "agreed" - changed 2026-09
-    per request to track live 聯絡結果 instead of the formal 同意書/已簽約 flow, so the
-    ring moves the moment a call is logged as 同意, not only once paperwork is in."""
+    dual-gate check at SOP stages 4/8/9 - see DUAL_GATE_STAGES in routers/sop.py) only
+    when BOTH are true - changed 2026-09 per request:
+      - their MOST RECENT contact_logs entry has contact_result == "agreed" (電話同意), AND
+      - they have at least one uploaded document with doc_type == "consent_form"
+        (已上傳同意書) - a phone "同意" alone is not enough, the paperwork still has to
+        be in, but conversely a stray uploaded 同意書 with no matching phone agreement
+        (or a since-changed 反對/需回電) doesn't count either."""
     latest_result_by_landowner: dict[int, str] = {}
     for landowner_id, contact_result in db.execute(
         select(ContactLog.landowner_id, ContactLog.contact_result)
@@ -29,7 +33,19 @@ def _agreed_landowner_ids(db: Session, project_id: int) -> set[int]:
         # 的就是最新一筆 - 跟 routers/contacts.py 的 _last_contact_result_by_landowner
         # 同一招。
         latest_result_by_landowner[landowner_id] = contact_result
-    return {lo_id for lo_id, result in latest_result_by_landowner.items() if result == "agreed"}
+    phone_agreed_ids = {lo_id for lo_id, result in latest_result_by_landowner.items() if result == "agreed"}
+
+    consent_form_ids = set(
+        db.scalars(
+            select(Document.landowner_id).where(
+                Document.project_id == project_id,
+                Document.doc_type == "consent_form",
+                Document.landowner_id.isnot(None),
+            )
+        ).all()
+    )
+
+    return phone_agreed_ids & consent_form_ids
 
 
 def agreed_landowner_names(db: Session, project_id: int) -> list[str]:
