@@ -546,6 +546,7 @@ async function goToNewProject() {
         <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
         <div class="field"><label>案件名稱</label><input name="name" required></div>
       </div>
+      <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date"></div>
       <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -566,6 +567,7 @@ async function goToNewProject() {
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
+    payload.expected_completion_date = payload.expected_completion_date || null;
     try {
       const project = await api("/projects", { method: "POST", body: payload });
       toast("案件已建立", "success");
@@ -655,6 +657,7 @@ async function openProjectEditModal(projectId) {
         <div class="field"><label>案件名稱</label><input name="name" value="${escapeHtml(p.name || "")}" required></div>
       </div>
       <div class="field"><label>案件地址</label><input name="address" value="${escapeHtml(p.address || "")}"></div>
+      <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date" value="${p.expected_completion_date || ""}"></div>
       <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -682,6 +685,7 @@ async function openProjectEditModal(projectId) {
   document.getElementById("project-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
+    payload.expected_completion_date = payload.expected_completion_date || null;
     try {
       const updated = await api(`/projects/${projectId}`, { method: "PATCH", body: payload });
       toast("案件資料已更新", "success");

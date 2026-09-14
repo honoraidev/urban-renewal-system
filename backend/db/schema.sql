@@ -51,6 +51,7 @@ CREATE TABLE projects (
     current_stage TINYINT NOT NULL DEFAULT 0,
     is_force_closed TINYINT(1) NOT NULL DEFAULT 0,
     description TEXT,
+    expected_completion_date DATE NULL,
     created_by INT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

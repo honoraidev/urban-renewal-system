@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Boolean, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -19,6 +19,9 @@ class Project(Base):
     current_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_force_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 手動填寫的預計完成日 - 沒有任何自動排程或關卡日期資料可推算,純粹讓承辦人自己
+    # 估一個日期,供進度報表的簡化時程進度條跟「預計完成日」欄位使用。
+    expected_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

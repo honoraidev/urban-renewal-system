@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,7 @@ class ProjectCreate(BaseModel):
     city: str | None = None
     district: str | None = None
     description: str | None = None
+    expected_completion_date: date | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -20,6 +21,7 @@ class ProjectUpdate(BaseModel):
     district: str | None = None
     status: str | None = Field(default=None, pattern="^(active|closed|suspended)$")
     description: str | None = None
+    expected_completion_date: date | None = None
 
 
 class ProjectRead(BaseModel):
@@ -33,6 +35,7 @@ class ProjectRead(BaseModel):
     current_stage: int
     is_force_closed: bool
     description: str | None = None
+    expected_completion_date: date | None = None
     created_by: int | None = None
     created_at: datetime
     updated_at: datetime
@@ -73,6 +76,8 @@ class DashboardProjectItem(BaseModel):
     city: str | None = None
     district: str | None = None
     status: str
+    expected_completion_date: date | None = None
+    updated_at: datetime
     land_record_count: int
     building_record_count: int
     # None when the project has no OCR import job yet (e.g. all-manual data entry).

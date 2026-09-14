@@ -170,6 +170,8 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
                 city=p.city,
                 district=p.district,
                 status=p.status,
+                expected_completion_date=p.expected_completion_date,
+                updated_at=p.updated_at,
                 land_record_count=land_counts.get(p.id, 0),
                 building_record_count=building_counts.get(p.id, 0),
                 latest_ocr_job_status=latest_job_by_project[p.id].status if p.id in latest_job_by_project else None,

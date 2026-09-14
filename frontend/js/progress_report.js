@@ -276,7 +276,7 @@ function renderProgressReportTable(filtered) {
       <thead>
         <tr>
           <th>案件編號</th><th>案件名稱</th><th>行政區</th><th>案件階段</th>
-          <th>同意度(人數/土地)</th><th>負責人</th><th>狀態</th><th style="text-align:right">操作</th>
+          <th>同意度(人數/土地)</th><th>預計完成日</th><th>負責人</th><th>狀態</th><th>更新時間</th><th style="text-align:right">操作</th>
         </tr>
       </thead>
       <tbody>
@@ -296,8 +296,10 @@ function renderProgressReportTable(filtered) {
                 <div class="helper-text" style="margin-top:0">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
               </td>
               <td>${fmtPct(p.headcount_ratio)} / ${fmtPct(p.land_share_ratio)}</td>
+              <td>${p.expected_completion_date ? fmtDate(p.expected_completion_date) : "—"}</td>
               <td>${escapeHtml(handler)}</td>
               <td><span class="status-badge ${PR_TIER_BADGE_CLASS[tier]}">${PR_TIER_LABEL[tier]}</span></td>
+              <td>${fmtDate(p.updated_at)}</td>
               <td style="text-align:right"><button type="button" class="btn-secondary btn-sm" data-pr-view="${p.id}">查看</button></td>
             </tr>`;
           })
@@ -416,6 +418,7 @@ function renderProgressReportDetailTab(tab, p, full) {
 
   // overview
   return `
+    ${full ? prTimelineBarHtml(full.created_at, p.expected_completion_date, p.current_stage) : ""}
     <div class="pr-detail-grid">
       <div><div class="helper-text">案件編號</div><div>${escapeHtml(p.project_code)}</div></div>
       <div><div class="helper-text">行政區</div><div>${escapeHtml([p.city, p.district].filter(Boolean).join(" ") || "—")}</div></div>
@@ -424,6 +427,47 @@ function renderProgressReportDetailTab(tab, p, full) {
       <div><div class="helper-text">主管</div><div>${escapeHtml(p.case_manager_name || "—")}</div></div>
       <div><div class="helper-text">地號 / 建號數</div><div>${p.land_record_count} / ${p.building_record_count}</div></div>
       ${full ? `<div><div class="helper-text">建立日期</div><div>${fmtDate(full.created_at)}</div></div>` : ""}
+      <div><div class="helper-text">預計完成日</div><div>${p.expected_completion_date ? fmtDate(p.expected_completion_date) : "未設定"}</div></div>
       ${full && full.address ? `<div><div class="helper-text">地址</div><div>${escapeHtml(full.address)}</div></div>` : ""}
+    </div>`;
+}
+
+// 簡化版時程進度條 —— 沒有每一關的起訖日期資料(SOP 十關只有勾選完成/未完成),
+// 做不出真正的甘特圖,所以只能用「案件建立日 → 預計完成日」這一條時間軸,疊上
+// 「時間已過幾成」跟「關卡實際走到幾成」兩條刻度,方便一眼比較進度是超前還落後。
+// 沒填預計完成日就不畫,不要瞎猜一個日期出來騙自己。
+function prTimelineBarHtml(createdAt, expectedDate, currentStage) {
+  if (!expectedDate) {
+    return `<div class="pr-timeline-empty helper-text">尚未設定「預計完成日」，無法顯示時程進度條。可到「案件一覽」卡片選單的「編輯案件資料」補上。</div>`;
+  }
+  const start = new Date(createdAt);
+  const end = new Date(expectedDate);
+  const now = new Date();
+  const totalMs = end - start;
+  const timePct = totalMs > 0 ? Math.max(0, Math.min(100, ((now - start) / totalMs) * 100)) : 100;
+  const stagePct = Math.round((currentStage / 9) * 100);
+  const overdue = now > end && stagePct < 100;
+
+  return `
+    <div class="pr-timeline">
+      <div class="pr-timeline-row">
+        <span class="pr-timeline-label">時間進度</span>
+        <div class="pr-timeline-track">
+          <div class="pr-timeline-fill pr-timeline-fill-time" style="width:${timePct}%"></div>
+        </div>
+        <span class="pr-timeline-pct">${Math.round(timePct)}%</span>
+      </div>
+      <div class="pr-timeline-row">
+        <span class="pr-timeline-label">關卡進度</span>
+        <div class="pr-timeline-track">
+          <div class="pr-timeline-fill pr-timeline-fill-stage" style="width:${stagePct}%"></div>
+        </div>
+        <span class="pr-timeline-pct">${stagePct}%</span>
+      </div>
+      <div class="pr-timeline-dates">
+        <span>案件建立：${fmtDate(createdAt)}</span>
+        ${overdue ? `<span class="pr-timeline-overdue">⚠ 已超過預計完成日，關卡進度落後</span>` : ""}
+        <span>預計完成：${fmtDate(expectedDate)}</span>
+      </div>
     </div>`;
 }

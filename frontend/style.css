@@ -457,6 +457,17 @@
   .pr-detail-metric { text-align: center; background: var(--surface-2); border-radius: 12px; padding: 14px; }
   .pr-detail-metric-num { font-size: 22px; font-weight: 800; }
   .pr-detail-tiers { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .pr-timeline { margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .pr-timeline-empty { margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .pr-timeline-row { display: grid; grid-template-columns: 70px 1fr 44px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .pr-timeline-label { color: var(--text-muted); white-space: nowrap; }
+  .pr-timeline-track { background: var(--surface-2); border-radius: 6px; height: 12px; overflow: hidden; }
+  .pr-timeline-fill { height: 100%; border-radius: 6px; }
+  .pr-timeline-fill-time { background: linear-gradient(90deg, var(--info), var(--brand)); }
+  .pr-timeline-fill-stage { background: linear-gradient(90deg, var(--success), var(--brand)); }
+  .pr-timeline-pct { text-align: right; font-weight: 700; color: var(--text); }
+  .pr-timeline-dates { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
+  .pr-timeline-overdue { color: var(--danger); font-weight: 700; }
 
   .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
   .card {
