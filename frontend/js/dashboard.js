@@ -336,7 +336,7 @@ async function loadDashboard() {
               }
               <h3 style="flex:1">${escapeHtml(p.name)}</h3>
               ${p.city ? `<span class="mini-badge">${escapeHtml(p.city)}</span>` : ""}
-              ${isManager() ? `<button type="button" class="project-card-menu-btn" data-project-menu="${p.id}" title="案件選項">⋮</button>` : ""}
+              ${isEditor() ? `<button type="button" class="project-card-menu-btn" data-project-menu="${p.id}" title="案件選項">⋮</button>` : ""}
             </div>
             <div class="project-card-stage">
               <div class="project-stage-bar">
@@ -596,11 +596,13 @@ function toggleProjectCardMenu(btn, project) {
   closeAllProjectCardMenus();
   if (alreadyOpen || !card) return;
 
+  // 編輯資料 L0~L3(isEditor,對齊後端 require_project_editor)都能用;刪除案件是
+  // 不可逆的破壞性操作,維持 L0~L2(isManager,對齊後端 require_project_manager)。
   const pop = document.createElement("div");
   pop.className = "project-card-menu-pop";
   pop.innerHTML = `
     <button type="button" data-pm="edit">✏️ 編輯案件資料</button>
-    <button type="button" data-pm="delete" class="danger">🗑️ 刪除案件</button>`;
+    ${isManager() ? `<button type="button" data-pm="delete" class="danger">🗑️ 刪除案件</button>` : ""}`;
   pop.addEventListener("click", (e) => {
     e.stopPropagation();
     const act = e.target.closest("[data-pm]")?.dataset.pm;

@@ -73,8 +73,7 @@ function populateProgressReportFilterOptions() {
   const stageSel = document.getElementById("pr-f-stage");
   const handlerSel = document.getElementById("pr-f-handler");
   const districtSel = document.getElementById("pr-f-district");
-  const projectSel = document.getElementById("pr-f-project");
-  if (!stageSel || !handlerSel || !districtSel || !projectSel) return;
+  if (!stageSel || !handlerSel || !districtSel) return;
 
   const stages = [...new Set(progressReportState.projects.map((p) => p.current_stage))].sort((a, b) => a - b);
   const keepValue = (sel, buildOptions) => {
@@ -90,25 +89,47 @@ function populateProgressReportFilterOptions() {
 
   const districts = [...new Set(progressReportState.projects.map((p) => p.district).filter(Boolean))].sort();
   keepValue(districtSel, () => districts.map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join(""));
-
-  const projectsSorted = [...progressReportState.projects].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
-  keepValue(projectSel, () => projectsSorted.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(""));
 }
 
-function progressReportFilteredProjects() {
+// excludeKeys:算「案件名稱」下拉自己選項用的 —— 那格要跟著其他篩選條件(行政區等)
+// 一起縮小範圍,但不能被自己的選值篩掉自己,不然選了行政區之後選單只剩「全部」。
+function progressReportFilteredProjects(excludeKeys = []) {
   const f = progressReportState.filters;
   return progressReportState.projects.filter((p) => {
-    if (f.status && p.status !== f.status) return false;
-    if (f.stage !== "" && String(p.current_stage) !== String(f.stage)) return false;
-    if (f.handler && p.case_handler_name !== f.handler && p.case_manager_name !== f.handler) return false;
-    if (f.district && p.district !== f.district) return false;
-    if (f.project && String(p.id) !== f.project) return false;
-    if (f.q && !`${p.name} ${p.project_code} ${p.district || ""} ${p.city || ""}`.toLowerCase().includes(f.q)) return false;
+    if (!excludeKeys.includes("status") && f.status && p.status !== f.status) return false;
+    if (!excludeKeys.includes("stage") && f.stage !== "" && String(p.current_stage) !== String(f.stage)) return false;
+    if (!excludeKeys.includes("handler") && f.handler && p.case_handler_name !== f.handler && p.case_manager_name !== f.handler) return false;
+    if (!excludeKeys.includes("district") && f.district && p.district !== f.district) return false;
+    if (!excludeKeys.includes("project") && f.project && String(p.id) !== f.project) return false;
+    if (!excludeKeys.includes("q") && f.q && !`${p.name} ${p.project_code} ${p.district || ""} ${p.city || ""}`.toLowerCase().includes(f.q)) return false;
     return true;
   });
 }
 
+// 「案件名稱」下拉的選項要跟著其他篩選條件(行政區/案件狀態/階段/負責人)即時縮小,
+// 不然選了行政區之後,案件名稱選單還是列出全部案件,選了也選不到那個行政區的案子。
+function populateProjectNameOptions() {
+  const projectSel = document.getElementById("pr-f-project");
+  if (!projectSel) return;
+  const candidates = [...progressReportFilteredProjects(["project"])].sort((a, b) =>
+    a.name.localeCompare(b.name, "zh-Hant")
+  );
+  const prev = projectSel.value;
+  projectSel.innerHTML =
+    `<option value="">全部</option>` +
+    candidates.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  if ([...projectSel.options].some((o) => o.value === prev)) {
+    projectSel.value = prev;
+  } else {
+    // 目前選的案件被其他篩選條件濾掉了(比如選了別的行政區)- 選單重置回「全部」,
+    // state 也要跟著清空,不然畫面顯示「全部」但篩選條件裡還殘留舊的 project id。
+    projectSel.value = "";
+    progressReportState.filters.project = "";
+  }
+}
+
 function renderProgressReportBody() {
+  populateProjectNameOptions();
   const filtered = progressReportFilteredProjects();
 
   // 統計卡/圖表/列表一律用篩選後的結果 —— 選了特定案件名稱或行政區之後,下方每一
