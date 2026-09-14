@@ -1,16 +1,17 @@
 from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import MANAGE_ROLES, LANDOWNER_ROLE, get_current_user
+from deps import EDIT_ROLES, MANAGE_ROLES, LANDOWNER_ROLE, get_current_user
 from models.activity_log import ActivityLog
 from models.calendar_event import CalendarEvent
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project, ProjectMember
+from models.project_note import ProjectNote
 from models.user import User
 from schemas.dashboard import (
     CalendarEventCreate,
@@ -26,13 +27,20 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 def _visible_project_ids(db: Session, user: User) -> list[int]:
-    # 全站權限模型:除了地主,每個角色都能看到每一個案件(見 deps.require_project_
-    # viewer),ProjectMember 名單已經不是可視範圍的關卡了,這裡跟著一致 —— 否則像
-    # L3/L4 在自己不是「案件人員」的案件上做的事,這裡的案名對照表會漏查不到那個
-    # project_id,今日跟進/操作紀錄就會少了案名。
+    # 跟 deps._has_project_access 同一套規則:L0~L2 全站可見;L3~L5 只看得到自己
+    # 建立、或被加入成員名單的案件;地主完全不算(工作看板本來就不給地主用)。
     if user.role == LANDOWNER_ROLE:
         return []
-    return list(db.scalars(select(Project.id)))
+    if user.role in MANAGE_ROLES:
+        return list(db.scalars(select(Project.id)))
+    return list(
+        db.scalars(
+            select(Project.id)
+            .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(or_(Project.created_by == user.id, ProjectMember.user_id == user.id))
+            .distinct()
+        )
+    )
 
 
 def _month_bounds(month: str | None) -> tuple[str, date, date]:
@@ -98,23 +106,33 @@ def get_my_work(
             )
         )
 
-    # --- 今日操作紀錄 ---
-    # team 模式只看跟案件有關的動作(project_id 不為空),帳號設定這類非案件操作不算
-    # 「團隊」的事;personal 維持原本(自己做的任何事都算,不限案件)。
-    activity_query = select(ActivityLog).where(
-        ActivityLog.created_at >= day_start, ActivityLog.created_at < day_end
-    )
+    # --- 操作紀錄(不再限「今天」,跟案件頁「公告/進度通知」卡片一樣看得到過去的) ---
+    # 系統自動記錄(activity_logs)+ 手動補充的公告(project_notes)合併成同一條時間軸。
+    # team 模式只看跟案件有關的動作/公告(project_id 不為空),帳號設定這類非案件操作
+    # 不算「團隊」的事;personal 維持原本(自己做的/自己寫的,不限案件)。
+    activity_query = select(ActivityLog)
     if is_team:
         activity_query = activity_query.where(ActivityLog.project_id.in_(project_ids))
     else:
         activity_query = activity_query.where(ActivityLog.user_id == current_user.id)
     activity_rows = db.scalars(activity_query.order_by(ActivityLog.created_at.desc()).limit(200)).all()
-    activity_user_ids = {a.user_id for a in activity_rows if a.user_id}
-    activity_user_names = dict(
-        db.execute(select(User.id, User.display_name).where(User.id.in_(activity_user_ids))).all()
-    ) if activity_user_ids else {}
-    today_activities = [
+
+    notes_query = select(ProjectNote)
+    if is_team:
+        notes_query = notes_query.where(ProjectNote.project_id.in_(project_ids))
+    else:
+        notes_query = notes_query.where(ProjectNote.author_id == current_user.id)
+    note_rows = db.scalars(notes_query.order_by(ProjectNote.occurred_at.desc()).limit(200)).all()
+
+    feed_user_ids = {a.user_id for a in activity_rows if a.user_id} | {n.author_id for n in note_rows if n.author_id}
+    feed_user_names = dict(
+        db.execute(select(User.id, User.display_name).where(User.id.in_(feed_user_ids))).all()
+    ) if feed_user_ids else {}
+    can_delete_notes = current_user.role in EDIT_ROLES
+
+    feed_items = [
         TodayActivityItem(
+            kind="auto",
             id=a.id,
             action=a.action,
             method=a.method,
@@ -122,10 +140,24 @@ def get_my_work(
             project_id=a.project_id,
             project_name=project_name_by_id.get(a.project_id) if a.project_id else None,
             created_at=a.created_at,
-            user_name=activity_user_names.get(a.user_id) if is_team else None,
+            user_name=feed_user_names.get(a.user_id) if is_team else None,
         )
         for a in activity_rows
+    ] + [
+        TodayActivityItem(
+            kind="note",
+            id=n.id,
+            action=n.content,
+            project_id=n.project_id,
+            project_name=project_name_by_id.get(n.project_id),
+            created_at=n.occurred_at,
+            user_name=feed_user_names.get(n.author_id) if is_team else None,
+            can_delete=can_delete_notes,
+        )
+        for n in note_rows
     ]
+    feed_items.sort(key=lambda item: item.created_at, reverse=True)
+    today_activities = feed_items[:200]
 
     # --- 行事曆 (this month) ---
     norm_month, first_day, next_month = _month_bounds(month)

@@ -12,14 +12,18 @@ class TodayFollowUpItem(BaseModel):
 
 
 class TodayActivityItem(BaseModel):
+    # "auto" = activity_logs 系統自動記錄;"note" = project_notes 手動補充的公告/跟進
+    # 事項 —— 跟案件頁「公告/進度通知」卡片同一套資料,合併在同一份時間軸裡。
+    kind: str = "auto"
     id: int
     action: str
-    method: str
-    path: str
+    method: str | None = None
+    path: str | None = None
     project_id: int | None = None
     project_name: str | None = None
     created_at: datetime
     user_name: str | None = None  # 只在 scope=team 時填,personal 不需要顯示是誰做的
+    can_delete: bool = False  # 只有 kind="note" 且使用者對該案件有編輯權時才 true
 
 
 class CalendarEventItem(BaseModel):

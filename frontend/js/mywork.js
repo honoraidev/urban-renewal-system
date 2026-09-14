@@ -41,11 +41,16 @@ function myWorkEnsureStyle() {
     .mw-scope-toggle button:hover:not(.active) { color:var(--text); }
     .mw-tile { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:14px; background:var(--surface); margin-bottom:16px; }
     .mw-tile .num { font-size:30px; font-weight:800; color:var(--brand,#0d9488); line-height:1; }
-    .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:10px; }
+    .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:8px; align-items:flex-start; }
     .mw-act:last-child { border-bottom:none; }
-    .mw-act .tm { color:var(--text-muted,#6b7280); white-space:nowrap; font-variant-numeric:tabular-nums; }
-    .mw-board h3 { display:flex; align-items:center; gap:6px; }
-    .mw-board .mw-board-body { }
+    .mw-act-tag { flex:0 0 auto; font-size:11px; font-weight:700; padding:2px 7px; border-radius:10px; white-space:nowrap; }
+    .mw-act-tag.tag-note { background:rgba(13,148,136,.12); color:#0d9488; }
+    .mw-act-tag.tag-auto { background:var(--surface-2,#f1f5f9); color:var(--text-muted,#6b7280); }
+    .mw-act-text { flex:1; min-width:0; word-break:break-word; }
+    .mw-act-meta { flex:0 0 auto; text-align:right; font-size:12px; color:var(--text-muted,#6b7280); white-space:nowrap; }
+    .mw-board-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; }
+    .mw-board-head h3 { margin:0; display:flex; align-items:center; gap:6px; }
+    .mw-board-head .btn-sm { padding:5px 12px; font-size:13px; }
     .mw-act-scroll { max-height:172px; overflow-y:auto; }
     .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px;
       white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
@@ -144,18 +149,26 @@ function renderMyWork() {
     }</span></div>`)
     .join("") || `<div class="helper-text">${isTeam ? "今天團隊還沒有聯絡紀錄" : "今天還沒有聯絡紀錄"}</div>`;
 
+  // 系統自動紀錄(kind="auto")+ 手動補充的公告(kind="note"),跟案件頁「公告/進度
+  // 通知」卡片同一套資料合併時間軸,不再只限「今天」— 捲動可以往下看到更早之前的。
   const _acts = d.today_activities || [];
   const _actRow = (a) => {
-    const t = new Date(/[Zz]|[+-]\d\d:?\d\d$/.test(a.created_at) ? a.created_at : a.created_at + "Z");
-    const hm = isNaN(t) ? "" : `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    return `<div class="mw-act"><span class="tm">${hm}</span><span>${a.user_name ? `<strong>${escapeHtml(a.user_name)}</strong> ` : ""}${escapeHtml(a.action)}${
+    const isNote = a.kind === "note";
+    const icon = isNote ? "📝" : typeof _activityIcon === "function" ? _activityIcon(a.action) : "🔄";
+    return `<div class="mw-act">
+      <span class="mw-act-tag ${isNote ? "tag-note" : "tag-auto"}">${icon}</span>
+      <span class="mw-act-text">${a.user_name ? `<strong>${escapeHtml(a.user_name)}</strong> ` : ""}${escapeHtml(a.action)}${
       a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
-    }</span></div>`;
+    }</span>
+      <span class="mw-act-meta">${fmtDateTime(a.created_at)}${
+      isNote && a.can_delete ? ` <button type="button" class="btn-link btn-sm" data-mw-del-note="${a.project_id}:${a.id}">刪除</button>` : ""
+    }</span>
+    </div>`;
   };
   // 卷軸式:全部列出來、用捲動看更多,不用「展開全部」按鈕 — 捲動區下方用
   // #mw-act-more 顯示「目前捲動位置以下還有幾則」,會隨捲動即時更新。
   const actList = !_acts.length
-    ? `<div class="helper-text">今天還沒有操作紀錄</div>`
+    ? `<div class="helper-text">尚無操作紀錄或公告</div>`
     : `<div class="mw-act-scroll" id="mw-act-scroll">${_acts.map(_actRow).join("")}</div>
        <div class="mw-act-more" id="mw-act-more"></div>`;
 
@@ -193,7 +206,10 @@ function renderMyWork() {
           ${followList}
         </div>
         <div class="mw-card mw-board">
-          <h3>📋 今日操作紀錄</h3>
+          <div class="mw-board-head">
+            <h3>📋 公告 / 進度通知</h3>
+            ${isEditor() ? `<button type="button" class="btn-primary btn-sm" id="mw-add-note-btn" style="background:#0d9488;border-color:#0d9488">＋ 新增</button>` : ""}
+          </div>
           <div class="mw-board-body">${actList}</div>
         </div>
       </div>
@@ -235,6 +251,66 @@ function renderMyWork() {
     actScroll.addEventListener("scroll", updateActMore);
     updateActMore();
   }
+
+  document.getElementById("mw-add-note-btn")?.addEventListener("click", () => openMyWorkAddNoteModal(d.project_options || []));
+  body.querySelectorAll("[data-mw-del-note]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要刪除這筆公告嗎?")) return;
+      const [pid, noteId] = btn.dataset.mwDelNote.split(":");
+      try {
+        await api(`/projects/${pid}/notes/${noteId}`, { method: "DELETE" });
+        await loadMyWork();
+      } catch (err) { }
+    });
+  });
+}
+
+// 工作看板的「公告/進度通知」新增 —— 跟案件頁那顆同名按鈕做的事一樣(POST
+// /projects/{id}/notes),差別是這裡不在特定案件頁面裡,要先讓使用者選是哪個案件。
+function openMyWorkAddNoteModal(projectOptions) {
+  if (!projectOptions.length) {
+    toast("目前沒有你能新增公告的案件", "error");
+    return;
+  }
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  openModal(
+    "新增公告",
+    `
+    <form id="mw-note-form">
+      <div class="field">
+        <label>案件</label>
+        <select name="project_id" required>
+          <option value="">— 請選擇案件 —</option>
+          ${projectOptions.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><label>時間</label><input type="datetime-local" name="occurred_at" value="${nowLocal}" required></div>
+      <div class="field"><label>內容</label><textarea name="content" rows="3" placeholder="例:已致電陳先生確認同意書進度" required></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">新增</button>
+      </div>
+    </form>`,
+    { width: "440px" }
+  );
+  document.getElementById("mw-note-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const pid = fd.get("project_id");
+    const occurred = fd.get("occurred_at");
+    try {
+      await api(`/projects/${pid}/notes`, {
+        method: "POST",
+        body: {
+          content: fd.get("content"),
+          occurred_at: occurred ? new Date(occurred).toISOString() : null,
+        },
+      });
+      closeModal();
+      toast("已新增", "success");
+      await loadMyWork();
+    } catch (err) { }
+  });
 }
 
 function openMyWorkDay(dateIso, events) {
