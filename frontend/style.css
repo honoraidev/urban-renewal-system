@@ -773,12 +773,15 @@
   .sop-nav-item.current {
     --sop-arc-color: var(--brand);
   }
-  /* 只用 border-radius + 透明邊框「切半圓」在寬<高的盒子上會留下難看的小突起 —— 上
-     下兩邊直角那端的邊框顏色還在,不會因為左/右邊被設成透明就一起消失,看起來像個
-     勾子而不是乾淨的半月形。改用 clip-path 直接裁掉一半,不靠邊框透明度取巧。 */
+  /* 用 border-radius + 透明邊框「切半圓」在寬<高的盒子上會留下難看的小突起 —— 上下
+     兩邊直角那端的邊框顏色還在,不會因為左/右邊被設成透明就一起消失,看起來像個
+     勾子而不是乾淨的半月形。改用 clip-path 直接裁掉一半,不靠邊框透明度取巧。實心
+     填色(漸層 + 陰影)比空心描邊更有份量感,像一節一節鎖鏈環扣在一起。 */
   .sop-nav-item::before {
     content: ""; position: absolute; top: -26px; left: 19px; width: 20px; height: 26px;
-    border: 4px solid var(--sop-arc-color); border-radius: 999px; background: transparent;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--sop-arc-color), color-mix(in srgb, var(--sop-arc-color) 65%, #000));
+    box-shadow: 0 2px 4px -1px color-mix(in srgb, var(--sop-arc-color) 50%, transparent);
     animation: sop-arc-wave 2.4s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -.15s);
   }
