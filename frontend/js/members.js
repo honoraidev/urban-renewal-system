@@ -58,7 +58,9 @@ async function renderMembersTab(el) {
 
 async function openAddMemberModal(existingMembers) {
   const pid = state.currentProjectId;
-  const allUsers = await api("/users");
+  // 這裡故意打 /users/assignable 而不是 /users - 後者限 L0~L2(使用者管理頁用),
+  // L3 案件負責人打會 403,新增人員的挑選清單整個跑不出來。
+  const allUsers = await api("/users/assignable");
   const existingIds = new Set(existingMembers.map((m) => m.user_id));
   const candidates = allUsers.filter((u) => !existingIds.has(u.id));
 

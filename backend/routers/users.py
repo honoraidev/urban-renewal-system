@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_manager, require_sys_admin
+from deps import get_current_user, require_edit_role, require_manager, require_sys_admin
 from models.user import User
 from schemas.user import UserActiveUpdate, UserCreate, UserRead, UserUpdate
 from security import hash_password
@@ -38,6 +38,15 @@ def user_directory(db: Session = Depends(get_db), current_user: User = Depends(g
         select(User).where(User.is_active == True).order_by(User.display_name)  # noqa: E712
     ).all()
     return [{"display_name": u.display_name, "departments": u.departments or []} for u in users]
+
+
+@router.get("/assignable")
+def list_assignable_users(db: Session = Depends(get_db), current_user: User = Depends(require_edit_role)):
+    """給「新增案件人員」選人用 - L0~L3(require_edit_role)都能叫,不像 list_users
+    那樣限 L0~L2(使用者管理頁);只回挑人用得到的欄位(不含 email/phone/
+    last_login_at 等),範圍比完整的使用者管理清單窄。"""
+    users = db.scalars(select(User).order_by(User.created_at)).all()
+    return [{"id": u.id, "username": u.username, "display_name": u.display_name, "role": u.role} for u in users]
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)

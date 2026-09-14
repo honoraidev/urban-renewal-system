@@ -57,6 +57,15 @@ def require_manager(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_edit_role(user: User = Depends(get_current_user)) -> User:
+    """Role-only (no project context) check for L0~L3 - e.g. GET /users/assignable,
+    which the「新增案件人員」picker needs but is a plain EDIT_ROLES check, not tied to
+    any one project."""
+    if user.role not in EDIT_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2/L3 role required")
+    return user
+
+
 def require_ocr_role(user: User = Depends(get_current_user)) -> User:
     """Role-only check (no project context) for the pre-project batch-import detection
     endpoints in ocr_intake.py, which run before the user has picked which project(s) a
