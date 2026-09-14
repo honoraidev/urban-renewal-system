@@ -20,13 +20,6 @@ function sopStageLabel(key, stageObj) {
   return labels[Number(key)] || `第${key}關`;
 }
 
-// 每關對應一個示意 icon,純裝飾用(關卡清單卡片標題前面那顆),跟關卡的實際業務邏輯
-// 完全無關 —— 只是讓每張卡片一眼就能分辨是哪個階段,不用逐字讀標題。
-const SOP_STAGE_ICON = {
-  0: "🏛️", 1: "📋", 2: "🗳️", 3: "📢", 4: "✍️",
-  5: "📐", 6: "🏗️", 7: "⚖️", 8: "✍️", 9: "📤",
-};
-
 const SOP_STAGE_CHECKLISTS = {
   0: [
     { key: "roi_report", label: "上傳投報表", docType: "roi_report" },
@@ -278,7 +271,7 @@ async function renderSopTab(el) {
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
         </div>
         <div class="sop-nav-text">
-          <div class="sop-nav-label"><span class="sop-nav-icon">${SOP_STAGE_ICON[num] || "📌"}</span>第${key}關 ${escapeHtml(label)}</div>
+          <div class="sop-nav-label">第${key}關 ${escapeHtml(label)}</div>
           <div class="sop-nav-status">${statusText}</div>
         </div>
       </div>`;
