@@ -760,12 +760,12 @@
   /* 卡片間的連接件改回單純直線,貫穿相鄰卡片間的縫隙,貼齊圓圈中心那條線
      (x = 29px = 卡片 padding-left 12px + 圓圈半徑 17px)。 */
   .sop-nav-item {
-    /* 之前預設用 var(--border)(#e4ebec,極淺灰)畫線,對比度太低,在白底上幾乎
-       看不見 —— 改用 --text-muted,才是真的看得到顏色的灰。 */
-    --sop-arc-color: var(--text-muted);
+    /* 未完成(鎖住)的線顏色淺一點,完成之後的線顏色深一點,拉開對比、一眼就看得出
+       哪幾段已經走過。 */
+    --sop-arc-color: color-mix(in srgb, var(--text-muted) 45%, var(--surface-2));
   }
   .sop-nav-item.done {
-    --sop-arc-color: var(--success);
+    --sop-arc-color: color-mix(in srgb, var(--success) 75%, #000);
   }
   .sop-nav-item.current {
     --sop-arc-color: var(--brand);
