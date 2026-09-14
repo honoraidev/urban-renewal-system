@@ -89,8 +89,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       <h3>${titleText} (<span id="integ-count">${rows.length}</span>)</h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
-        ${ddHtml("integ-visit-dd", "拜訪紀錄", [
-          { v: "replied", t: "已回覆" }, { v: "not_replied", t: "未回覆" },
+        ${ddHtml("integ-visit-dd", "聯絡結果", [
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
       </div>
@@ -130,7 +129,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         <thead><tr>
           <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
-          <th>拜訪紀錄</th><th class="row-actions">操作</th>
+          <th>聯絡結果</th><th class="row-actions">操作</th>
         </tr></thead>
         <tbody>
         ${rows.map((o, i) => {
@@ -144,7 +143,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
       : `<span style="color:var(--text-muted)">尚無</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
-    const visitTok = `${o.reply_status} ${contactTokens(o).join(" ")}`;
+    const visitTok = contactTokens(o).join(" ");
+    const resultBadge = c && c.last_contact_result
+      ? `<span class="mini-badge ${c.last_contact_result === "agreed" ? "gate-ok" : ""}">${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</span>`
+      : "";
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
     const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
@@ -162,7 +164,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="cell-visit">
-              <span class="mini-badge ${o.reply_status === "replied" ? "gate-ok" : ""}">${REPLY_STATUS_LABEL[o.reply_status] || "未回覆"}</span>
+              ${resultBadge}
               <span class="visit-date">${visit}</span>
             </td>
             <td class="row-actions">
@@ -915,13 +917,6 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
         </div>
       </div>
-      <div class="field"><label>回覆狀態</label>
-        <select name="reply_status">
-          ${Object.entries(REPLY_STATUS_LABEL)
-            .map(([k, v]) => `<option value="${k}" ${(owner.reply_status || "not_replied") === k ? "selected" : ""}>${v}</option>`)
-            .join("")}
-        </select>
-      </div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
@@ -1054,7 +1049,6 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       name: data.name,
       id_number: data.id_number || null,
       phone: data.phone || null,
-      reply_status: data.reply_status,
       address: data.address || null,
     };
     try {

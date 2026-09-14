@@ -38,4 +38,5 @@ class AlertItem(BaseModel):
 class ContactSummaryItem(BaseModel):
     landowner_id: int
     last_contact_date: datetime | None = None
+    last_contact_result: str | None = None
     is_overdue: bool

@@ -108,6 +108,20 @@ def _contactable_landowners_with_last_contact(db: Session, project_id: int):
     return landowners, last_contact_by_landowner
 
 
+def _last_contact_result_by_landowner(db: Session, project_id: int) -> dict[int, str]:
+    """Latest contact_logs row per landowner (by contact_date), just the result field -
+    separate from _contactable_landowners_with_last_contact's max(date) query since that
+    one doesn't tell us which row the max date actually came from. Backs the roster
+    table's 聯絡結果 column (replaced the old reply_status field there)."""
+    result: dict[int, str] = {}
+    logs = db.scalars(
+        select(ContactLog).where(ContactLog.project_id == project_id).order_by(ContactLog.contact_date.asc())
+    ).all()
+    for log in logs:
+        result[log.landowner_id] = log.contact_result
+    return result
+
+
 def _is_overdue(owner: Landowner, last_contact: datetime | None) -> bool:
     # A landowner who has already signed (意願狀態 = 已簽約) no longer needs follow-up.
     if owner.agreement_status == "signed":
@@ -162,10 +176,12 @@ def list_contact_summary(
     landowners, last_contact_by_landowner = _contactable_landowners_with_last_contact(db, project.id)
     if current_user.role == LANDOWNER_ROLE:
         landowners = [o for o in landowners if o.user_id == current_user.id]
+    last_result_by_landowner = _last_contact_result_by_landowner(db, project.id)
     return [
         ContactSummaryItem(
             landowner_id=owner.id,
             last_contact_date=last_contact_by_landowner.get(owner.id),
+            last_contact_result=last_result_by_landowner.get(owner.id),
             is_overdue=_is_overdue(owner, last_contact_by_landowner.get(owner.id)),
         )
         for owner in landowners
