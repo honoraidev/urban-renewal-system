@@ -106,17 +106,30 @@ def _landowner_owns_something(db: Session, project_id: int, user_id: int) -> boo
     )
 
 
+def _has_project_access(db: Session, project: Project, user: User) -> bool:
+    """L0~L2(MANAGE_ROLES)一律全站可見/可寫,不需要是 ProjectMember - 改回
+    2026-09 之前的「全站權限模型」只保留給這三個角色。L3 案件負責人 / L4 案件工作
+    人員 / L5 檢視者現在只能碰自己建立的、或被加進 ProjectMember 名單的案件。"""
+    if user.role in MANAGE_ROLES:
+        return True
+    if project.created_by == user.id:
+        return True
+    return _is_project_member(db, project.id, user.id)
+
+
 def require_project_viewer(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """全站唯讀權限:除了 L7 地主(只能看自己被綁定的案件),每個角色都能看到每一個
-    案件 - 不再需要是該案件的 ProjectMember 才看得到。是否能「寫」由
-    require_project_editor / require_project_ocr_editor 另外把關。"""
+    """L0~L2 全站唯讀;L3~L5 只能看自己建立或被加入成員的案件;L7 地主只能看自己
+    被綁定的案件。是否能「寫」由 require_project_editor / require_project_ocr_editor
+    另外把關。"""
     project = _get_project_or_404(db, project_id)
     if user.role == LANDOWNER_ROLE:
         if not _landowner_owns_something(db, project_id, user.id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a landowner of this project")
         return project
+    if not _has_project_access(db, project, user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this project")
     return project
 
 
@@ -133,22 +146,26 @@ def require_project_staff_viewer(
 def require_project_editor(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """只有 L0~L3(EDIT_ROLES)可以自行讀寫任何案件,不再需要是 ProjectMember;
-    L4 案件工作人員 / L5 檢視者一律唯讀,「案件人員」名單不再是寫入權限的關卡。"""
+    """L0~L3(EDIT_ROLES)可以寫,但 L3 案件負責人一樣只限自己建立或被加入成員的
+    案件(見 _has_project_access);L4 案件工作人員 / L5 檢視者一律唯讀。"""
     project = _get_project_or_404(db, project_id)
     if user.role not in EDIT_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
+    if not _has_project_access(db, project, user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this project")
     return project
 
 
 def require_project_ocr_editor(
     project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> Project:
-    """OCR/文件上傳一樣比照 require_project_editor:只有 L0~L3(OCR_ROLES)可以用,
-    不再需要是 ProjectMember。"""
+    """OCR/文件上傳一樣比照 require_project_editor:L0~L3(OCR_ROLES)可以用,L3 一樣
+    限自己建立或被加入成員的案件。"""
     project = _get_project_or_404(db, project_id)
     if user.role not in OCR_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="OCR/editor role required")
+    if not _has_project_access(db, project, user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this project")
     return project
 
 

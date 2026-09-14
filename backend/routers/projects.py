@@ -116,10 +116,19 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
             select(Landowner.project_id).where(Landowner.user_id == current_user.id).distinct()
         ).all()
         projects_stmt = select(Project).where(Project.id.in_(lo_project_ids)).order_by(Project.created_at.desc())
-    else:
-        # 全站權限模型:除了地主,每個角色都能看到每一個案件(唯讀)- 不再限制只看
-        # 自己是 ProjectMember 的案件。能不能「寫」由 require_project_editor 另外把關。
+    elif current_user.role in MANAGE_ROLES:
+        # L0~L2:全站可見,不限自己是不是 ProjectMember。
         projects_stmt = select(Project).order_by(Project.created_at.desc())
+    else:
+        # L3~L5:只看得到自己建立、或被加入成員名單的案件(見 deps._has_project_access
+        # 同一套規則)。
+        projects_stmt = (
+            select(Project)
+            .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id))
+            .distinct()
+            .order_by(Project.created_at.desc())
+        )
     projects = db.scalars(projects_stmt).all()
     project_ids = [p.id for p in projects]
 
@@ -212,10 +221,18 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
             .distinct()
             .order_by(Project.created_at.desc())
         )
-    else:
-        # 除了地主,每個角色都能看到每一個案件(唯讀);能不能「寫」由
-        # require_project_editor 另外把關,不再靠這裡的清單過濾。
+    elif current_user.role in MANAGE_ROLES:
+        # L0~L2:全站可見。
         stmt = select(Project).order_by(Project.created_at.desc())
+    else:
+        # L3~L5:只看得到自己建立、或被加入成員名單的案件(同 deps._has_project_access)。
+        stmt = (
+            select(Project)
+            .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id))
+            .distinct()
+            .order_by(Project.created_at.desc())
+        )
     return db.scalars(stmt).all()
 
 
