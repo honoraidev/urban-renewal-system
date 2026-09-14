@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260914_3">
+  <link rel="stylesheet" href="style.css?v=20260914_4">
 </head>
 
 <body>
@@ -161,54 +161,48 @@
                 <p class="helper-text" style="margin:2px 0 0">都握專案進度，提升執行效率</p>
               </div>
             </div>
-            <div class="pr-project-picker-row">
-              <div class="pr-filter-field pr-project-picker-field">
-                <label>選擇案件</label>
-                <select id="pr-project-picker">
-                  <option value="">全部案件總覽</option>
+            <div class="pr-filter-bar" id="pr-filter-bar">
+              <div class="pr-filter-field">
+                <label>案件狀態</label>
+                <select id="pr-f-status">
+                  <option value="">全部</option>
+                  <option value="active">進行中</option>
+                  <option value="suspended">暫停</option>
+                  <option value="closed">已結案</option>
                 </select>
               </div>
+              <div class="pr-filter-field">
+                <label>案件階段</label>
+                <select id="pr-f-stage"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field">
+                <label>負責人</label>
+                <select id="pr-f-handler"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field">
+                <label>行政區</label>
+                <select id="pr-f-district"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field">
+                <label>案件名稱</label>
+                <select id="pr-f-project"><option value="">全部</option></select>
+              </div>
+              <div class="pr-filter-field pr-filter-search">
+                <label>關鍵字</label>
+                <div class="search-box">
+                  <span class="search-box-icon">🔍</span>
+                  <input type="text" id="pr-f-q" class="search-input-pill" placeholder="搜尋案件、地段...">
+                </div>
+              </div>
             </div>
-            <div id="pr-overview">
-              <div class="pr-filter-bar" id="pr-filter-bar">
-                <div class="pr-filter-field">
-                  <label>案件狀態</label>
-                  <select id="pr-f-status">
-                    <option value="">全部</option>
-                    <option value="active">進行中</option>
-                    <option value="suspended">暫停</option>
-                    <option value="closed">已結案</option>
-                  </select>
-                </div>
-                <div class="pr-filter-field">
-                  <label>案件階段</label>
-                  <select id="pr-f-stage"><option value="">全部</option></select>
-                </div>
-                <div class="pr-filter-field">
-                  <label>負責人</label>
-                  <select id="pr-f-handler"><option value="">全部</option></select>
-                </div>
-                <div class="pr-filter-field">
-                  <label>行政區</label>
-                  <select id="pr-f-district"><option value="">全部</option></select>
-                </div>
-                <div class="pr-filter-field pr-filter-search">
-                  <label>關鍵字</label>
-                  <div class="search-box">
-                    <span class="search-box-icon">🔍</span>
-                    <input type="text" id="pr-f-q" class="search-input-pill" placeholder="搜尋案件、地段...">
-                  </div>
-                </div>
-              </div>
 
-              <div class="dashboard-stat-row" id="pr-stat-row"></div>
+            <div class="dashboard-stat-row" id="pr-stat-row"></div>
 
-              <div class="pr-chart-grid" id="pr-chart-grid"></div>
+            <div class="pr-chart-grid" id="pr-chart-grid"></div>
 
-              <div class="pr-table-section">
-                <div class="pr-table-title" id="pr-table-title">案件列表</div>
-                <div class="table-wrap" id="pr-table-wrap"></div>
-              </div>
+            <div class="pr-table-section">
+              <div class="pr-table-title" id="pr-table-title">案件列表</div>
+              <div class="table-wrap" id="pr-table-wrap"></div>
             </div>
 
             <div id="pr-detail-panel"></div>
@@ -751,7 +745,7 @@
   <script src="js/modals.js?v=20260911_1"></script>
   <script src="js/auth.js?v=20260909_2"></script>
   <script src="js/dashboard.js?v=20260911_4"></script>
-  <script src="js/progress_report.js?v=20260914_2"></script>
+  <script src="js/progress_report.js?v=20260914_3"></script>
   <script src="js/mywork.js?v=20260909_7"></script>
   <script src="js/sop.js?v=20260911_4"></script>
   <script src="js/board.js?v=20260909_9"></script>
