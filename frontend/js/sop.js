@@ -272,12 +272,10 @@ async function renderSopTab(el) {
           : "🔒 未解鎖";
       const cls = isDone ? "done" : isCurrent ? "current" : "locked";
       const label = sopStageLabel(key, stage);
-      const isLast = i === stageKeys.length - 1;
       return `
       <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}" style="--i:${i}">
         <div class="sop-nav-circle-wrap">
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
-          ${isLast ? "" : `<div class="sop-nav-line ${isDone ? "done" : ""}"></div>`}
         </div>
         <div class="sop-nav-text">
           <div class="sop-nav-label"><span class="sop-nav-icon">${SOP_STAGE_ICON[num] || "📌"}</span>第${key}關 ${escapeHtml(label)}</div>

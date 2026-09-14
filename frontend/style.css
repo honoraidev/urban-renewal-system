@@ -735,7 +735,7 @@
 
   /* ---------- SOP tab: left timeline stage list + right detail card ---------- */
   .sop-panel-layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
-  .sop-nav-list { width: 272px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+  .sop-nav-list { width: 272px; flex-shrink: 0; display: flex; flex-direction: column; gap: 26px; }
   .sop-nav-item {
     position: relative; display: flex; gap: 14px; cursor: pointer; padding: 12px 14px 12px 12px;
     border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
@@ -769,13 +769,13 @@
     --sop-arc-color: var(--success);
   }
   .sop-nav-item::before {
-    content: ""; position: absolute; top: -10px; width: 10px; height: 10px;
-    border: 3px solid var(--sop-arc-color);
+    content: ""; position: absolute; top: -26px; width: 16px; height: 26px;
+    border: 4px solid var(--sop-arc-color);
     animation: sop-arc-wave 2.4s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -.15s);
   }
-  .sop-nav-item:nth-child(even)::before { left: 29px; border-radius: 0 10px 10px 0; border-left-color: transparent; }
-  .sop-nav-item:nth-child(odd)::before { left: 19px; border-radius: 10px 0 0 10px; border-right-color: transparent; }
+  .sop-nav-item:nth-child(even)::before { left: 29px; border-radius: 0 999px 999px 0; border-left-color: transparent; }
+  .sop-nav-item:nth-child(odd)::before { left: 13px; border-radius: 999px 0 0 999px; border-right-color: transparent; }
   .sop-nav-item:first-child::before { display: none; }
   @keyframes sop-arc-wave {
     0%, 100% { opacity: .5; transform: scale(1); }
@@ -800,8 +800,6 @@
     70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--brand) 0%, transparent); }
     100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent); }
   }
-  .sop-nav-line { width: 2px; flex: 1; background: var(--border); margin: 4px 0; min-height: 10px; }
-  .sop-nav-line.done { background: var(--success); }
   .sop-nav-text { padding-top: 3px; flex: 1; min-width: 0; }
   .sop-nav-icon { margin-right: 5px; }
   .sop-nav-label { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.35; }
