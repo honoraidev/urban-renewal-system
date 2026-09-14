@@ -84,6 +84,9 @@ class DashboardProjectItem(BaseModel):
     headcount_ratio: float
     land_share_ratio: float
     building_share_ratio: float
+    # 目前算「同意」的地主姓名清單(依最新一次聯絡結果=agreed 判定,見
+    # utils/consent_ratio.py) - 總覽卡片同意度環的 hover 提示用。
+    agreed_landowner_names: list[str] = []
     # Contact follow-up tiers by days overdue - see _alert_tier_counts in routers/projects.py.
     reminder_count: int
     warning_count: int

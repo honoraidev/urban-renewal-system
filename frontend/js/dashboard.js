@@ -18,10 +18,15 @@ function donutSvg(pct, size = 62) {
   </svg>`;
 }
 
-function projectRingHtml(ratio, label) {
+// names:目前算「同意」的地主姓名清單(依最新聯絡結果=同意判定,見
+// utils/consent_ratio.py 的 agreed_landowner_names)- 滑鼠停在環上用原生 title
+// 屬性列出來,不用點進案件才知道是哪幾位在算同意。三個環(人數/土地/建物同意)
+// 是同一批地主換算出來的比例,共用同一份名單。
+function projectRingHtml(ratio, label, names) {
   const pct = Math.round((ratio || 0) * 100);
+  const tooltip = names && names.length ? `同意名單：${names.join("、")}` : "目前尚無人同意";
   return `
-    <div class="project-ring">
+    <div class="project-ring" title="${escapeHtml(tooltip)}">
       <div class="project-ring-svg-wrap">
         ${donutSvg(pct, 62)}
         <span class="project-ring-pct">${pct}%</span>
@@ -340,9 +345,9 @@ async function loadDashboard() {
               <div class="helper-text">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             <div class="project-card-rings">
-              ${projectRingHtml(p.headcount_ratio, "人數同意")}
-              ${projectRingHtml(p.land_share_ratio, "土地同意")}
-              ${projectRingHtml(p.building_share_ratio, "建物同意")}
+              ${projectRingHtml(p.headcount_ratio, "人數同意", p.agreed_landowner_names)}
+              ${projectRingHtml(p.land_share_ratio, "土地同意", p.agreed_landowner_names)}
+              ${projectRingHtml(p.building_share_ratio, "建物同意", p.agreed_landowner_names)}
             </div>
             <div class="project-card-tiers">
               <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>

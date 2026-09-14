@@ -42,7 +42,7 @@ from schemas.project import (
     ProjectUpdate,
 )
 from security import verify_password
-from utils.consent_ratio import calculate_consent_ratio
+from utils.consent_ratio import agreed_landowner_names, calculate_consent_ratio
 from utils.document_folders import seed_project_folders
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -159,6 +159,7 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
     project_items = []
     for p in projects:
         ratio = calculate_consent_ratio(db, p.id, p.current_stage)
+        agreed_names = agreed_landowner_names(db, p.id)
         alert_tiers = _alert_tier_counts(db, p.id)
         handler_name, manager_name = _case_handler_names(db, p.id)
         project_items.append(
@@ -179,6 +180,7 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
                 headcount_ratio=ratio["headcount_ratio"],
                 land_share_ratio=ratio["land_share_ratio"],
                 building_share_ratio=ratio["building_share_ratio"],
+                agreed_landowner_names=agreed_names,
                 reminder_count=alert_tiers["reminder"],
                 warning_count=alert_tiers["warning"],
                 urgent_count=alert_tiers["urgent"],
