@@ -67,6 +67,7 @@ def get_building_view(
             "landowner_id": r.landowner_id,
             "name": r.landowner.name if r.landowner else "",
             "phone": r.landowner.phone if r.landowner else None,
+            "address": r.landowner.address if r.landowner else None,
             "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
             "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
             "visit_status": r.landowner.visit_status if r.landowner else "not_visited",

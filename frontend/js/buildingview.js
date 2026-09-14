@@ -82,6 +82,20 @@ function wireBuildingViewStatusChips(root) {
   });
 }
 
+// 格子 hover 提示 —— 姓名/電話/地址不在格子本身顯示(只顯示門牌號 + 簽約狀態底
+// 色),滑鼠停在格子上用原生 title 屬性補上,不用另外點進編輯視窗才看得到。多位
+// 共有人時逐位換行列出。
+function buildingViewCellTooltip(cell) {
+  return cell.owners
+    .map((o) => {
+      const parts = [o.name || "(未填姓名)"];
+      if (o.phone) parts.push(o.phone);
+      if (o.address) parts.push(o.address);
+      return parts.join(" · ");
+    })
+    .join("\n");
+}
+
 function buildingViewCellClass(status) {
   if (status === "agreed") return "bv-cell-agreed";
   if (status === "opposed") return "bv-cell-opposed";
@@ -121,7 +135,7 @@ function buildingViewGroupCardHtml(g) {
           const wide = wideCls(cellLabel);
           if (!cell) return `<div class="bv-cell bv-cell-empty${wide}">${escapeHtml(String(cellLabel))}</div>`;
           const badge = cell.owners.length > 1 ? `<span class="bv-cell-badge">×${cell.owners.length}</span>` : "";
-          return `<div class="bv-cell${wide} ${buildingViewCellClass(cell.status)}" data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
+          return `<div class="bv-cell${wide} ${buildingViewCellClass(cell.status)}" data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}" title="${escapeHtml(buildingViewCellTooltip(cell))}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
         })
         .join("");
       return rowLabelHtml + cellsHtml;
