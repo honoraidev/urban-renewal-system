@@ -763,10 +763,15 @@
      疊起來就是一節一節連續的波浪鏈。每節用 --i(JS 帶入的順序)錯開動畫時間,做出
      一路往下流動的感覺,不是全部同步跳動。 */
   .sop-nav-item {
-    --sop-arc-color: var(--border);
+    /* 之前預設用 var(--border)(#e4ebec,極淺灰)畫弧線,對比度太低,在白底上幾乎
+       看不見 —— 改用 --text-muted,才是真的看得到顏色的灰。 */
+    --sop-arc-color: var(--text-muted);
   }
   .sop-nav-item.done {
     --sop-arc-color: var(--success);
+  }
+  .sop-nav-item.current {
+    --sop-arc-color: var(--brand);
   }
   .sop-nav-item::before {
     content: ""; position: absolute; top: -26px; width: 16px; height: 26px;
