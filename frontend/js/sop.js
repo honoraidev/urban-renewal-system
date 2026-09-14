@@ -274,7 +274,7 @@ async function renderSopTab(el) {
       const label = sopStageLabel(key, stage);
       const isLast = i === stageKeys.length - 1;
       return `
-      <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}">
+      <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}" style="--i:${i}">
         <div class="sop-nav-circle-wrap">
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
           ${isLast ? "" : `<div class="sop-nav-line ${isDone ? "done" : ""}"></div>`}

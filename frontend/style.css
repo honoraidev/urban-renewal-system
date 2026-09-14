@@ -757,13 +757,30 @@
     border-width: 1px 1px 1px 4px; border-color: color-mix(in srgb, var(--success) 55%, var(--border));
     background: linear-gradient(135deg, var(--success-light), var(--surface) 75%);
   }
-  /* 每張卡片內的圓圈只往下延伸半段線、往上延伸半段線,兩張卡片中間的縫隙剛好接起來,
-     看起來像一條貫穿整份清單的連續時間軸,而不是每張卡片各自獨立的短線段。 */
-  .sop-nav-item::before {
-    content: ""; position: absolute; left: 29px; top: -10px; width: 2px; height: 10px; background: var(--border);
+  /* 卡片間的連接件改成一節一節左右交錯的半圓弧(像麻花辮/鎖鏈那種波浪連接),不是
+     直直一條線 —— 參考圖是橫向的一串半圓拱,這裡轉成直向:相鄰兩張卡片間的縫隙裡
+     放一個只露一半的圓(border-radius 只留右邊或左邊),單數/雙數卡片交替左右邊,
+     疊起來就是一節一節連續的波浪鏈。每節用 --i(JS 帶入的順序)錯開動畫時間,做出
+     一路往下流動的感覺,不是全部同步跳動。 */
+  .sop-nav-item {
+    --sop-arc-color: var(--border);
   }
+  .sop-nav-item.done {
+    --sop-arc-color: var(--success);
+  }
+  .sop-nav-item::before {
+    content: ""; position: absolute; top: -10px; width: 10px; height: 10px;
+    border: 3px solid var(--sop-arc-color);
+    animation: sop-arc-wave 2.4s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -.15s);
+  }
+  .sop-nav-item:nth-child(even)::before { left: 29px; border-radius: 0 10px 10px 0; border-left-color: transparent; }
+  .sop-nav-item:nth-child(odd)::before { left: 19px; border-radius: 10px 0 0 10px; border-right-color: transparent; }
   .sop-nav-item:first-child::before { display: none; }
-  .sop-nav-item.done::before { background: var(--success); }
+  @keyframes sop-arc-wave {
+    0%, 100% { opacity: .5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.18); }
+  }
   .sop-nav-circle-wrap { display: flex; flex-direction: column; align-items: center; z-index: 1; }
   .sop-nav-circle {
     width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
