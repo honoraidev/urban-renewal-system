@@ -1043,6 +1043,16 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
+    // 「同時新增一筆聯絡紀錄」整組是選填,唯獨「聯絡時間」是這筆會不會被建立的開關
+    // (見下面 if (data.c_contact_date))。使用者常常會填了聯絡結果/備註卻忘了填聯絡
+    // 時間,存檔會顯示「已更新」成功(因為地主基本資料真的存成功了),但這筆聯絡紀錄
+    // 其實整個沒建立、悄悄不見 —— 擋下來提醒使用者補填,不要放給它默默漏掉。
+    const contactDetailFilled = data.c_contact_result !== "undecided" || (data.c_notes || "").trim() || data.c_next_follow_up_date;
+    if (!data.c_contact_date && contactDetailFilled) {
+      toast("已填聯絡結果/紀錄,但「聯絡時間」還沒填 —— 這筆聯絡紀錄不會被建立,請補上聯絡時間再儲存", "error");
+      document.querySelector('[name="c_contact_date"]')?.focus();
+      return;
+    }
     // 聯絡狀態不再讓人手動改 —— 有新增聯絡紀錄時,後端會照這筆的「聯絡結果」自動
     // 更新聯絡狀態(見 routers/contacts.py create_contact),這裡不用也不能送這個欄位。
     const payload = {
