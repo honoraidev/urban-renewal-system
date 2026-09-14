@@ -273,7 +273,7 @@ async function renderSopTab(el) {
       const cls = isDone ? "done" : isCurrent ? "current" : "locked";
       const label = sopStageLabel(key, stage);
       return `
-      <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}" style="--i:${i}">
+      <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}">
         <div class="sop-nav-circle-wrap">
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
         </div>

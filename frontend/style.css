@@ -759,9 +759,8 @@
   }
   /* 卡片間的連接件改成一節一節左右交錯的半圓弧(像麻花辮/鎖鏈那種波浪連接),不是
      直直一條線 —— 參考圖是橫向的一串半圓拱,這裡轉成直向:相鄰兩張卡片間的縫隙裡
-     放一個只露一半的圓(border-radius 只留右邊或左邊),單數/雙數卡片交替左右邊,
-     疊起來就是一節一節連續的波浪鏈。每節用 --i(JS 帶入的順序)錯開動畫時間,做出
-     一路往下流動的感覺,不是全部同步跳動。 */
+     放一個只露一半的圓(clip-path 只留右邊或左邊),單數/雙數卡片交替左右邊,疊起來
+     就是一節一節連續的波浪鏈。純線條裝飾,不填色、不做動畫。 */
   .sop-nav-item {
     /* 之前預設用 var(--border)(#e4ebec,極淺灰)畫弧線,對比度太低,在白底上幾乎
        看不見 —— 改用 --text-muted,才是真的看得到顏色的灰。 */
@@ -775,25 +774,17 @@
   }
   /* 用 border-radius + 透明邊框「切半圓」在寬<高的盒子上會留下難看的小突起 —— 上下
      兩邊直角那端的邊框顏色還在,不會因為左/右邊被設成透明就一起消失,看起來像個
-     勾子而不是乾淨的半月形。改用 clip-path 直接裁掉一半,不靠邊框透明度取巧。實心
-     填色(漸層 + 陰影)比空心描邊更有份量感,像一節一節鎖鏈環扣在一起。 */
+     勾子而不是乾淨的半月形。改用 clip-path 直接裁掉一半,不靠邊框透明度取巧。線條
+     描邊、不填色、不做動畫,單純線條裝飾。 */
   .sop-nav-item::before {
     content: ""; position: absolute; top: -26px; left: 19px; width: 20px; height: 26px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, var(--sop-arc-color), color-mix(in srgb, var(--sop-arc-color) 65%, #000));
-    box-shadow: 0 2px 4px -1px color-mix(in srgb, var(--sop-arc-color) 50%, transparent);
-    animation: sop-arc-wave 2.4s ease-in-out infinite;
-    animation-delay: calc(var(--i, 0) * -.15s);
+    border: 3px solid var(--sop-arc-color); border-radius: 999px; background: transparent;
   }
   /* 圓圈中心 x = 29px(卡片 padding-left 12px + 圓圈半徑 17px),盒子寬 20px、置中對齊
      在 29px,裁掉一半後,露出來的半月形「平的那一側」剛好貼齊圓圈中心那條線。 */
   .sop-nav-item:nth-child(even)::before { clip-path: inset(0 0 0 50%); }
   .sop-nav-item:nth-child(odd)::before { clip-path: inset(0 50% 0 0); }
   .sop-nav-item:first-child::before { display: none; }
-  @keyframes sop-arc-wave {
-    0%, 100% { opacity: .5; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.18); }
-  }
   .sop-nav-circle-wrap { display: flex; flex-direction: column; align-items: center; z-index: 1; }
   .sop-nav-circle {
     width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
