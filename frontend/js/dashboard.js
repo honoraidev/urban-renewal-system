@@ -722,8 +722,9 @@ async function openProject(id) {
     btn.classList.toggle("hidden", hideForLandowner);
     btn.classList.toggle("active", btn.dataset.tab === "sop");
   });
-  const membersTabBtn = document.getElementById("tab-btn-members");
-  if (membersTabBtn) membersTabBtn.classList.toggle("hidden", !isManager() || isLandowner());
+  // 「人員」分頁本身已經在上面的 landownerHiddenTabs 迴圈處理過(只有地主看不到,
+  // 其餘 L0~L5 都能看)- 頁籤內能不能新增/移除人員,由 renderMembersTab 自己依
+  // isEditor()(L0~L3)決定,L4/L5 進來是唯讀。
   state.activeTab = "sop";
   // renderTab() 本身現在就會刷新公告卡片,這裡不用再額外呼叫一次。
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);

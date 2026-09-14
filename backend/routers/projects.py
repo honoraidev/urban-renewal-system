@@ -466,7 +466,7 @@ def list_project_members(db: Session = Depends(get_db), project: Project = Depen
 def add_project_member(
     payload: ProjectMemberCreate,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_manager),
+    project: Project = Depends(require_project_editor),
 ):
     user = db.get(User, payload.user_id)
     if user is None:
@@ -498,7 +498,7 @@ def add_project_member(
 def remove_project_member(
     user_id: int,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_manager),
+    project: Project = Depends(require_project_editor),
 ):
     member = db.scalar(
         select(ProjectMember).where(
