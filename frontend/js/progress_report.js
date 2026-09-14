@@ -41,6 +41,9 @@ function initProgressReport() {
       renderProgressReportBody();
     });
   }
+  document.getElementById("pr-project-picker")?.addEventListener("change", (e) => {
+    selectProgressReportProject(e.target.value ? Number(e.target.value) : null);
+  });
 }
 
 async function goToProgressReport() {
@@ -73,12 +76,13 @@ function populateProgressReportFilterOptions() {
   const stageSel = document.getElementById("pr-f-stage");
   const handlerSel = document.getElementById("pr-f-handler");
   const districtSel = document.getElementById("pr-f-district");
-  if (!stageSel || !handlerSel || !districtSel) return;
+  const pickerSel = document.getElementById("pr-project-picker");
+  if (!stageSel || !handlerSel || !districtSel || !pickerSel) return;
 
   const stages = [...new Set(progressReportState.projects.map((p) => p.current_stage))].sort((a, b) => a - b);
-  const keepValue = (sel, buildOptions) => {
+  const keepValue = (sel, buildOptions, placeholder = "全部") => {
     const prev = sel.value;
-    sel.innerHTML = `<option value="">全部</option>` + buildOptions();
+    sel.innerHTML = `<option value="">${placeholder}</option>` + buildOptions();
     if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
   };
 
@@ -89,6 +93,13 @@ function populateProgressReportFilterOptions() {
 
   const districts = [...new Set(progressReportState.projects.map((p) => p.district).filter(Boolean))].sort();
   keepValue(districtSel, () => districts.map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join(""));
+
+  const projectsSorted = [...progressReportState.projects].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+  keepValue(
+    pickerSel,
+    () => projectsSorted.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}（${escapeHtml(p.project_code)}）</option>`).join(""),
+    "全部案件總覽"
+  );
 }
 
 function progressReportFilteredProjects() {
@@ -104,20 +115,22 @@ function progressReportFilteredProjects() {
 }
 
 function renderProgressReportBody() {
-  const all = progressReportState.projects;
-  const filtered = progressReportFilteredProjects();
+  const overview = document.getElementById("pr-overview");
+  const isDetailMode = !!progressReportState.selectedId;
+  if (overview) overview.classList.toggle("hidden", isDetailMode);
 
-  renderProgressReportStats(all);
-  renderProgressReportCharts(filtered);
-  renderProgressReportTable(filtered);
+  if (!isDetailMode) {
+    const all = progressReportState.projects;
+    const filtered = progressReportFilteredProjects();
 
-  const title = document.getElementById("pr-table-title");
-  if (title) title.textContent = `案件列表（共 ${filtered.length} 筆）`;
+    renderProgressReportStats(all);
+    renderProgressReportCharts(filtered);
+    renderProgressReportTable(filtered);
 
-  // 篩選後若選取的案件不在名單裡，收起詳情面板
-  if (progressReportState.selectedId && !filtered.some((p) => p.id === progressReportState.selectedId)) {
-    progressReportState.selectedId = null;
+    const title = document.getElementById("pr-table-title");
+    if (title) title.textContent = `案件列表（共 ${filtered.length} 筆）`;
   }
+
   renderProgressReportDetailPanel();
 }
 
@@ -309,15 +322,17 @@ function renderProgressReportTable(filtered) {
   });
 }
 
+// 案件選擇統一由這裡進出 —— 不管是點上方「選擇案件」下拉、點總覽表格的列/查看
+// 按鈕,一律走這個函式,才能保證下拉的值、總覽區塊顯不顯示、詳情面板三者不會兜不
+// 起來。選了案件就整個切到「該案詳細分析」畫面(蓋掉總覽,不是總覽下面再多一塊)。
 function selectProgressReportProject(id) {
-  progressReportState.selectedId = progressReportState.selectedId === id ? null : id;
+  progressReportState.selectedId = id;
   progressReportState.detailTab = "overview";
-  document.querySelectorAll("[data-pr-row]").forEach((row) => {
-    row.classList.toggle("selected", Number(row.dataset.prRow) === progressReportState.selectedId);
-  });
-  renderProgressReportDetailPanel();
-  if (progressReportState.selectedId) {
-    document.getElementById("pr-detail-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const picker = document.getElementById("pr-project-picker");
+  if (picker) picker.value = id ? String(id) : "";
+  renderProgressReportBody();
+  if (id) {
+    document.getElementById("pr-detail-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
@@ -356,7 +371,7 @@ async function renderProgressReportDetailPanel() {
         <div style="display:flex;gap:8px;align-items:center">
           <span class="status-badge ${PR_TIER_BADGE_CLASS[prTierOf(p)]}">${PR_TIER_LABEL[prTierOf(p)]}</span>
           <button type="button" class="btn-primary btn-sm" id="pr-open-project-btn">前往案件完整頁面</button>
-          <button type="button" class="btn-secondary btn-sm" id="pr-close-detail-btn">✕</button>
+          <button type="button" class="btn-secondary btn-sm" id="pr-close-detail-btn">← 返回總覽</button>
         </div>
       </div>
       <div class="tab-bar">
@@ -366,7 +381,7 @@ async function renderProgressReportDetailPanel() {
     </div>`;
 
   panel.querySelector("#pr-open-project-btn")?.addEventListener("click", () => openProject(id));
-  panel.querySelector("#pr-close-detail-btn")?.addEventListener("click", () => selectProgressReportProject(id));
+  panel.querySelector("#pr-close-detail-btn")?.addEventListener("click", () => selectProgressReportProject(null));
   panel.querySelectorAll("[data-pr-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       progressReportState.detailTab = btn.dataset.prTab;

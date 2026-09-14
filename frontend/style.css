@@ -414,6 +414,12 @@
     background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-light);
   }
   /* 都更進度報表 */
+  .pr-project-picker-row {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 20px;
+  }
+  .pr-project-picker-field { min-width: 0; }
+  .pr-project-picker-field select { width: 100%; max-width: 480px; font-size: 14.5px; font-weight: 700; padding: 9px 12px; }
   .pr-filter-bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 20px; }
   .pr-filter-field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
   .pr-filter-field label { font-size: 12.5px; color: var(--text-muted); font-weight: 700; margin: 0; }
@@ -528,6 +534,9 @@
   .mini-badge { font-size: 12.5px; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
   .mini-badge.alert { background: var(--danger-light); color: var(--danger); font-weight: 700; }
   .mini-badge.gate-ok { background: var(--success-light); color: var(--success); font-weight: 700; }
+  .mini-badge.warn { background: var(--warning-light); color: var(--warning); font-weight: 700; }
+  .mini-badge.brown { background: var(--brown-light); color: var(--brown); font-weight: 700; }
+  .mini-badge.info { background: var(--info-light); color: var(--info); font-weight: 700; }
   .empty-state { text-align: center; color: var(--text-muted); padding: 70px 20px; font-size: 15px; }
   .stg-dots { display: flex; gap: 3px; flex: 1; }
   .stg-dots .sd { height: 5px; flex: 1; border-radius: 3px; background: var(--surface-2); }

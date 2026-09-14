@@ -145,7 +145,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
     const resultBadge = c && c.last_contact_result
-      ? `<span class="mini-badge ${c.last_contact_result === "agreed" ? "gate-ok" : ""}">${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</span>`
+      ? `<span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[c.last_contact_result] || ""}">${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</span>`
       : "";
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
     const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
@@ -937,7 +937,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         ${latestContact
       ? `<div class="helper-text" style="margin-top:4px;line-height:1.6">
               ${fmtDateTime(latestContact.contact_date)} · ${escapeHtml(CONTACT_METHOD_LABEL[latestContact.contact_method] || latestContact.contact_method)} ·
-              <span class="mini-badge ${latestContact.contact_result === "agreed" ? "gate-ok" : ""}">${escapeHtml(CONTACT_RESULT_LABEL[latestContact.contact_result] || latestContact.contact_result)}</span>
+              <span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[latestContact.contact_result] || ""}">${escapeHtml(CONTACT_RESULT_LABEL[latestContact.contact_result] || latestContact.contact_result)}</span>
               ${latestContact.notes ? `<br>${escapeHtml(latestContact.notes)}` : ""}
             </div>`
       : `<div class="helper-text" style="margin-top:4px">尚無聯絡紀錄</div>`
