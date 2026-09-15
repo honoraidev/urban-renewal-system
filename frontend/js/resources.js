@@ -170,13 +170,14 @@ function initCompanyDocs() {
 
 const LINK_SECTION_ACCENTS = ["accent-brand", "accent-success", "accent-info", "accent-danger"];
 
-function renderLinkListPage(items, listElId, isManagerView) {
+function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
   const el = document.getElementById(listElId);
   if (!el) return;
   if (!items.length) {
     el.innerHTML = `<div class="empty-state">尚無連結,${isManagerView ? "點右上角新增" : "請洽管理員新增"}</div>`;
     return;
   }
+  const grid = !!opts.grid;
   const byCategory = {};
   items.forEach((item) => {
     const cat = item.category || "未分類";
@@ -187,6 +188,7 @@ function renderLinkListPage(items, listElId, isManagerView) {
       ([cat, rows], catIdx) => `
       <div class="link-section">
         <div class="link-section-hdr">${escapeHtml(cat)}</div>
+        <div class="${grid ? "link-cards-grid" : ""}">
         ${rows
           .map(
             (r) => `
@@ -212,6 +214,7 @@ function renderLinkListPage(items, listElId, isManagerView) {
           </div>`
           )
           .join("")}
+        </div>
       </div>`
     )
     .join("");
@@ -328,7 +331,7 @@ async function loadNews() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/news");
   currentLoadedNews = items || [];
-  renderLinkListPage(items, "news-list", isManager() && newsEditMode);
+  renderLinkListPage(items, "news-list", isManager() && newsEditMode, { grid: true });
   if (isManager() && newsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {

@@ -944,6 +944,13 @@
   .link-card {
     display: flex; align-items: center; gap: 14px; padding: 16px 20px; margin-bottom: 10px;
   }
+  .link-cards-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .link-cards-grid .link-card { margin-bottom: 0; }
+  @media (max-width: 900px) {
+    .link-cards-grid { grid-template-columns: 1fr; }
+  }
   .link-card-dot {
     width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
     background: var(--stat-accent, var(--brand));
