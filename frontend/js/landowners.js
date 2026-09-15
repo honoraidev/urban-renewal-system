@@ -936,10 +936,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       </div>
       <div class="field">
         <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
-        <div style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);line-height:1.8" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
+        <div class="badge-row" style="padding:8px 2px" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
           ${doorAddresses.length
-      ? doorAddresses.map((a) => `<div>${doorAddresses.length > 1 ? "・ " : ""}${escapeHtml(a)}</div>`).join("")
-      : "—"
+      ? doorAddresses.map((a) => `<span class="mini-badge">${escapeHtml(a)}</span>`).join("")
+      : `<span class="mini-badge">—</span>`
     }
         </div>
       </div>
