@@ -213,7 +213,13 @@ def _backfill_owners_from_raw(data: dict, page_texts: list[str] | None) -> dict:
     # 依頁首「XXXX-XXXX 地號」/「XXXXX-XXX 建號」把原文切段,每段配一個地/建號。
     # 批次謄本的登記次序會跨地號/建號重複,一定要切段後「逐地號 / 逐建號」比對,
     # 不能只靠整份文件的 global_map(那個 key 會撞在一起,建物尤其嚴重)。
-    hdrs = list(re.finditer(r"([0-9]{3,5}-[0-9]{3,5})\s*[地建]\s*號", raw))
+    # 【重要】一定要用「後面緊接著列印時間」這個條件鎖定「真的頁首」,不然像
+    # 「共有部分：西湖段二小段01854-000建號」「地上建物建號：...01563-000
+    # 01564-000...」這種內文裡順帶提到的地號/建號也會被誤判成頁首、把這一頁
+    # 切成兩段,導致所有權部整段被切給錯的（通常是共有部分那個)建號/地號,
+    # 這一頁自己反而查無所有權人資料、只能退回去查 global_map——而 global_map
+    # 的登記次序 key 本來就會跨好幾十筆建物重複撞在一起,撞到就直接漏資料。
+    hdrs = list(re.finditer(r"([0-9]{3,5}-[0-9]{3,5})\s*[地建]\s*號(?=\s{0,40}列印時間)", raw))
     sections: list[tuple[str, str]] = []
     for idx, m in enumerate(hdrs):
         end = hdrs[idx + 1].start() if idx + 1 < len(hdrs) else len(raw)
