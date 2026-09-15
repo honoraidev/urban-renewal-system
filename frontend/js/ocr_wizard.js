@@ -1711,19 +1711,30 @@ async function confirmAndSubmitTitleDeedWizard() {
   if (ok) submitTitleDeedWizard();
 }
 
+// 地址比對用的正規化:只去掉開頭前 8 個字裡的「縣市鎮鄉區」這類行政區劃字,不動後面
+// 的路名/巷弄/樓層 —— 專門用來消掉「桃園縣中壢市」vs「桃園市中壢區」這種 2010 年後縣市
+// 改制造成的假差異,不是真的地址不同,拿原始字串一字不差比對會誤判成兩個不同人(見
+// findOrCreateLandownerByOwner 下面的說明)。
+function _normalizeAddrRegionForMatch(addr) {
+  const s = (addr || "").trim();
+  const head = s.slice(0, 8).replace(/[縣市鎮鄉區]/g, "");
+  return head + s.slice(8);
+}
+
 async function findOrCreateLandownerByOwner(owner, createdCache, pid = state.currentProjectId) {
   const idKey = (owner.id_number || "").trim();
   const nameKey = owner.owner_name.trim();
   const addrKey = (owner.address || "").trim();
+  const addrMatchKey = _normalizeAddrRegionForMatch(addrKey);
   // 第二類謄本的統一編號被遮罩(「A220*****1」)、姓名也可能被遮罩(「鄭＊＊」)。
   // 遮罩後的統編/姓名不是唯一鍵 - 同姓氏的不同人會長得一模一樣,若拿來比對就會把
   // 兩個不同的人併成同一位地主,清冊上後面那位就抓到前一位的統編/地址。
   const masked = (s) => /[*＊○●·﹡﹒]/.test(s || "");
   const idUsable = !!idKey && !masked(idKey);
   const nameUsable = !!nameKey && !masked(nameKey);
-  // 快取鍵:能用真統編就用統編;否則姓名/統編/地址三者一起當鍵,
+  // 快取鍵:能用真統編就用統編;否則姓名/統編/地址(正規化後)三者一起當鍵,
   // 三者不全一致就視為不同人(各自新建)。
-  const cacheKey = idUsable ? idKey : `nm:${nameKey}|id:${idKey}|ad:${addrKey}`;
+  const cacheKey = idUsable ? idKey : `nm:${nameKey}|id:${idKey}|ad:${addrMatchKey}`;
   if (createdCache.has(cacheKey)) return createdCache.get(cacheKey);
 
   // Match against every existing landowner, not just ones that already have this
@@ -1745,13 +1756,17 @@ async function findOrCreateLandownerByOwner(owner, createdCache, pid = state.cur
     existing = existingList.find((o) => o.name === nameKey && !o.id_number);
   } else {
     // 統編與姓名都被遮罩(「鄭＊＊ / A220*****1」):必須姓名、(遮罩)統編、戶籍地址
-    // 三者完全一致才視為同一人,否則一律新建 - 避免同姓氏的不同人互相抓資料。
+    // 三者一致才視為同一人,否則一律新建 - 避免同姓氏的不同人互相抓資料。地址比對用
+    // 正規化後的版本(去掉開頭縣市區劃字),同一人的土地謄本/建物謄本常常隔了幾年才
+    // 各自匯入,遇到縣市改制字面就不一樣,原樣比對會誤判成不同人、各自建一筆地主
+    // (production 已抓到多起:同統編同姓名,土地謄本掛一筆、建物謄本掛另一筆,兩邊互不
+    // 相連,清冊上明明有建物卻被歸到「純土地地主」)。
     existing = existingList.find(
       (o) =>
         o.name === nameKey &&
         (o.id_number || "") === idKey &&
-        (o.address || "").trim() === addrKey &&
-        (idKey || addrKey) !== "",
+        _normalizeAddrRegionForMatch(o.address) === addrMatchKey &&
+        (idKey || addrMatchKey) !== "",
     );
   }
 
