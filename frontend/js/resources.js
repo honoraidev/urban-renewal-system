@@ -178,6 +178,7 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
     return;
   }
   const grid = !!opts.grid;
+  const newsCard = !!opts.newsCard;
   const byCategory = {};
   items.forEach((item) => {
     const cat = item.category || "未分類";
@@ -190,8 +191,30 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
         <div class="link-section-hdr">${escapeHtml(cat)}</div>
         <div class="${grid ? "link-cards-grid" : ""}">
         ${rows
-          .map(
-            (r) => `
+          .map((r) =>
+            newsCard
+              ? `
+          <div class="card news-card" data-id="${r.id}">
+            <div class="news-card-top">
+              <span class="news-card-date">🕐 ${fmtDate(r.created_at)}</span>
+              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn" title="開啟原文">↗</a>
+            </div>
+            <a class="news-card-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
+            ${r.description
+                ? r.description.startsWith("來源:")
+                  ? `<span class="mini-badge info news-card-tag">${escapeHtml(r.description)}</span>`
+                  : `<div class="helper-text">${escapeHtml(r.description)}</div>`
+                : ""
+              }
+            ${isManagerView
+                ? `<div class="news-card-actions">
+                     <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+                     <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>
+                   </div>`
+                : ""
+              }
+          </div>`
+              : `
           <div class="card link-card" data-id="${r.id}">
             <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
             <div style="flex:1;min-width:0">
@@ -204,7 +227,7 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
               }
             </div>
             <div class="actions-cell">
-              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm">開啟 ↗</a>
+              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn" title="開啟">↗</a>
               ${isManagerView
                 ? `<button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
                      <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>`
@@ -331,7 +354,7 @@ async function loadNews() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/news");
   currentLoadedNews = items || [];
-  renderLinkListPage(items, "news-list", isManager() && newsEditMode, { grid: true });
+  renderLinkListPage(items, "news-list", isManager() && newsEditMode, { grid: true, newsCard: true });
   if (isManager() && newsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
