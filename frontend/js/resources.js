@@ -391,7 +391,7 @@ async function loadRegulations() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/regulations");
   currentLoadedRegulations = items || [];
-  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode);
+  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode, { grid: true, newsCard: true });
   if (isManager() && regulationsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -422,108 +422,13 @@ async function goToWebsites() {
   await loadWebsites();
 }
 
-const WEBSITE_CAT_ICONS = {
-  "地籍 & 地圖": "🔗",
-  "都更 GIS": "🔗",
-  "建管查詢": "🔗",
-  "不動產行情": "🔗",
-  "其他工具": "🔗",
-  "謄本 & 產權": "🔗",
-};
-
-const WEBSITE_ITEM_ICONS = {
-  "地政司地籍圖資查詢": "🗺️",
-  "內政部全國通用電子地圖": "🏷️",
-  "台北市都更雲地圖": "🏷️",
-  "台北市歷史都市計畫GIS": "🏛️",
-  "台北市政府都更雲地圖": "🏷️",
-  "新北市都更GIS": "📊",
-  "台北市建管處": "🏗️",
-  "新北市建管處": "🏗️",
-  "591不動產實價": "🏷️",
-  "樂居房仲資訊": "🏷️",
-  "地下管線總查詢": "🏷️",
-  "郵遞區號查詢": "📮",
-  "民航局航高管制查詢": "🏷️",
-  "電子謄本申請系統": "📜",
-};
-
-const WEBSITE_BG_COLORS = {
-  "地籍 & 地圖": "#e0f2fe",
-  "都更 GIS": "#dcfce7",
-  "建管查詢": "#ffedd5",
-  "不動產行情": "#d1fae5",
-  "其他工具": "#f3f4f6",
-  "謄本 & 產權": "#fef9c3",
-};
-
-function renderWebsitesGrid(items, el, isManagerView) {
-  const byCat = {};
-  items.forEach((item) => {
-    let cat = item.category || "其他工具";
-    if (cat === "謄本 & 謄本") cat = "謄本 & 產權";
-    (byCat[cat] = byCat[cat] || []).push(item);
-  });
-
-  const leftCats = ["地籍 & 地圖", "都更 GIS"];
-  const rightCats = ["建管查詢", "不動產行情", "其他工具", "謄本 & 產權"];
-  Object.keys(byCat).forEach((c) => {
-    if (!leftCats.includes(c) && !rightCats.includes(c)) rightCats.push(c);
-  });
-
-  function renderCategorySection(catName) {
-    const list = byCat[catName] || [];
-    if (!list.length) return "";
-    const bg = WEBSITE_BG_COLORS[catName] || "#f3f4f6";
-
-    return `
-      <div style="margin-bottom:24px">
-        <div style="font-size:14px;font-weight:700;color:var(--text-main);margin-bottom:12px">
-          ${escapeHtml(catName)}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          ${list.map((r) => {
-      const itemIcon = WEBSITE_ITEM_ICONS[r.name] || "🔗";
-      return `
-              <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
-                <div style="display:flex;align-items:center;gap:16px;flex:1;min-width:0">
-                  <div style="width:44px;height:44px;border-radius:12px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
-                    ${itemIcon}
-                  </div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:15px;font-weight:700;color:var(--text-main);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</div>
-                    <div style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.description) || "-"}</div>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                  <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="border-radius:10px;padding:6px 14px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:4px">
-                    開啟 <span style="font-size:12px">↗</span>
-                  </a>
-                  ${isManagerView ? `
-                    <button class="btn-secondary btn-sm" data-edit-link="${r.id}" style="border-radius:10px">編輯</button>
-                    <button class="btn-danger btn-sm" data-delete-link="${r.id}" style="border-radius:10px">刪除</button>
-                  ` : ""}
-                </div>
-              </div>`;
-    }).join("")}
-        </div>
-      </div>`;
-  }
-
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:24px">
-      <div>${leftCats.map(renderCategorySection).join("")}</div>
-      <div>${rightCats.map(renderCategorySection).join("")}</div>
-    </div>`;
-}
-
 async function loadWebsites() {
   const el = document.getElementById("websites-list");
   if (!el) return;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/websites");
   currentLoadedWebsites = items || [];
-  renderWebsitesGrid(items, el, isManager() && websitesEditMode);
+  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode, { grid: true, newsCard: true });
   if (isManager() && websitesEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
