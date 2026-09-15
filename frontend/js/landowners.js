@@ -884,6 +884,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 地主可能同時持有好幾戶,這裡去重後全部列出來,唯讀顯示,不是真的可以在這裡改。
   // 多筆時逐行列出(不再擠成一行用「、」串接被輸入框裁掉看不到後面),方便一眼看完。
   const doorAddresses = [...new Set((owner.building_records || []).map((r) => r.address).filter(Boolean))];
+  // 同一案件底下每戶的路名/幾段幾乎都一樣,每個膠囊都重複顯示一次很雜訊 - 只留巷弄號樓
+  // 那段(真正能分辨是哪一戶的部分);完整地址還是留在 title,滑鼠移上去看得到。
+  const stripRoadPrefix = (addr) =>
+    (addr || "").replace(/^[一-龥]+?[路街道](?:[0-9一二三四五六七八九十]+段)?/, "") || addr;
   const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
   if (siblings) {
     _loEditorSiblings = siblings;
@@ -938,7 +942,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
         <div class="badge-row" style="padding:8px 2px" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
           ${doorAddresses.length
-      ? doorAddresses.map((a) => `<span class="mini-badge">${escapeHtml(a)}</span>`).join("")
+      ? doorAddresses.map((a) => `<span class="mini-badge" title="${escapeHtml(a)}">${escapeHtml(stripRoadPrefix(a))}</span>`).join("")
       : `<span class="mini-badge">—</span>`
     }
         </div>
