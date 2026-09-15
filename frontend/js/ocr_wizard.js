@@ -716,6 +716,26 @@ function floorRowHtml(f) {
   </div>`;
 }
 
+// 謄本原始的「前次移轉現值或原規定地價」下拉選單被選到某一筆時,把那一筆的年月/金額
+// 套進上面正式的(會送出存檔的)年月選擇器跟金額欄位 - 下拉選單本身只是參考清單,
+// 不是另一個資料來源,選了以後兩邊要同步。
+function applyDeclaredValueHistoryOption(selectEl) {
+  const opt = selectEl.selectedOptions[0];
+  if (!opt) return;
+  const field = selectEl.closest("[data-declared-value-field]");
+  if (!field) return;
+  const valueEl = field.querySelector(".lo-declared-value");
+  if (valueEl) valueEl.value = opt.dataset.value || "";
+  const wrap = field.querySelector(".ymp");
+  if (wrap && opt.dataset.year && opt.dataset.month) {
+    wrap.dataset.ympYear = opt.dataset.year;
+    wrap.dataset.ympMonth = opt.dataset.month;
+    wrap.querySelector('input[name$="_year"]').value = opt.dataset.year;
+    wrap.querySelector('input[name$="_month"]').value = opt.dataset.month;
+    wrap.querySelector(".ymp-trigger-label").textContent = `${opt.dataset.year}年${String(opt.dataset.month).padStart(2, "0")}月`;
+  }
+}
+
 function buildingSummaryHtml(b) {
   const catSelector = deedCategorySelectorHtml("wizard-building-owners", "bo");
   return `${catSelector}<span>建號 ${escapeHtml(b.building_number || "-")} · ${escapeHtml(b.building_address || "(未填寫門牌)")} · ${b.owners.length} 位所有權人</span>`;
@@ -745,13 +765,23 @@ function ownerRowHtml(prefix, o, areaSqm) {
   }
   const declaredValueHistoryHtml =
     Array.isArray(o.transfer_history) && o.transfer_history.length > 1
-      ? `<div class="helper-text" style="margin-top:4px">謄本原始記錄共 ${o.transfer_history.length} 筆:${o.transfer_history
-          .map((h) => `${escapeHtml(h.period || "")} ${escapeHtml(h.value != null ? h.value : "")}元/m²`)
-          .join("、")}(下方欄位僅顯示系統挑選的最新一筆)</div>`
+      ? `<div style="margin-top:4px">
+          <select class="lo-declared-history-select" style="width:100%" onchange="applyDeclaredValueHistoryOption(this)">
+            ${o.transfer_history
+              .map((h) => {
+                const m = /(\d{2,3})\s*年\s*(\d{1,2})\s*月/.exec(h.period || "");
+                const year = m ? m[1] : "";
+                const month = m ? m[2] : "";
+                const selected = (h.period || "") === (o.declared_value_period || "") ? " selected" : "";
+                return `<option value="" data-year="${escapeHtml(year)}" data-month="${escapeHtml(month)}" data-value="${escapeHtml(h.value ?? "")}"${selected}>謄本原始記錄:${escapeHtml(h.period || "")} ${escapeHtml(h.value != null ? h.value : "")}元/m²</option>`;
+              })
+              .join("")}
+          </select>
+        </div>`
       : "";
   const declaredValueFieldHtml =
     prefix === "lo"
-      ? `<div class="field" style="flex:1 1 220px;min-width:220px">
+      ? `<div class="field" data-declared-value-field style="flex:1 1 220px;min-width:220px">
           <label>前次移轉現值或原規定地價(元/m²)</label>
           <div style="display:flex;gap:6px;align-items:center">
             <span style="flex:0 0 100px">${minguoYearMonthPickerHtml(`${prefix}-declared-period`, o.declared_value_period)}</span>
