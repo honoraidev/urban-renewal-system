@@ -166,19 +166,15 @@ function initCompanyDocs() {
   }
 }
 
-/* ================= 相關法規 / 相關網站 (共用邏輯) ================= */
+/* ================= 相關法規 / 相關網站 / 新聞 (共用邏輯) ================= */
 
-const LINK_SECTION_ACCENTS = ["accent-brand", "accent-success", "accent-info", "accent-danger"];
-
-function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
+function renderLinkListPage(items, listElId, isManagerView) {
   const el = document.getElementById(listElId);
   if (!el) return;
   if (!items.length) {
     el.innerHTML = `<div class="empty-state">尚無連結,${isManagerView ? "點右上角新增" : "請洽管理員新增"}</div>`;
     return;
   }
-  const grid = !!opts.grid;
-  const newsCard = !!opts.newsCard;
   const byCategory = {};
   items.forEach((item) => {
     const cat = item.category || "未分類";
@@ -186,19 +182,15 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
   });
   el.innerHTML = Object.entries(byCategory)
     .map(
-      ([cat, rows], catIdx) => `
+      ([cat, rows]) => `
       <div class="link-section">
         <div class="link-section-hdr">${escapeHtml(cat)}</div>
-        <div class="${grid ? "link-cards-grid" : ""}">
+        <div class="link-cards-grid">
         ${rows
-          .map((r) =>
-            newsCard
-              ? `
+          .map(
+            (r) => `
           <div class="card news-card" data-id="${r.id}">
-            <div class="news-card-top">
-              <span class="news-card-date">🕐 ${fmtDate(r.created_at)}</span>
-              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn" title="開啟原文">↗</a>
-            </div>
+            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn news-card-open" title="開啟原文">↗</a>
             <a class="news-card-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
             ${r.description
                 ? r.description.startsWith("來源:")
@@ -213,27 +205,6 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
                    </div>`
                 : ""
               }
-          </div>`
-              : `
-          <div class="card link-card" data-id="${r.id}">
-            <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
-            <div style="flex:1;min-width:0">
-              <a class="link-card-name" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
-              ${r.description
-                ? r.description.startsWith("來源:")
-                  ? `<span class="mini-badge" style="margin-top:6px;display:inline-block">${escapeHtml(r.description)}</span>`
-                  : `<div class="helper-text">${escapeHtml(r.description)}</div>`
-                : ""
-              }
-            </div>
-            <div class="actions-cell">
-              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn" title="開啟">↗</a>
-              ${isManagerView
-                ? `<button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
-                     <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>`
-                : ""
-              }
-            </div>
           </div>`
           )
           .join("")}
@@ -354,7 +325,7 @@ async function loadNews() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/news");
   currentLoadedNews = items || [];
-  renderLinkListPage(items, "news-list", isManager() && newsEditMode, { grid: true, newsCard: true });
+  renderLinkListPage(items, "news-list", isManager() && newsEditMode);
   if (isManager() && newsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -391,7 +362,7 @@ async function loadRegulations() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/regulations");
   currentLoadedRegulations = items || [];
-  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode, { grid: true, newsCard: true });
+  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode);
   if (isManager() && regulationsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -428,7 +399,7 @@ async function loadWebsites() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/websites");
   currentLoadedWebsites = items || [];
-  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode, { grid: true, newsCard: true });
+  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode);
   if (isManager() && websitesEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
