@@ -37,6 +37,9 @@ function normalizeTitleDeedData(raw) {
       // share at different times/prices, each with their own 前次移轉現值或原規定地價.
       declared_value_per_sqm: o.declared_value_per_sqm ?? "",
       declared_value_period: o.declared_value_period || "",
+      // 謄本上這個欄位常有好幾筆歷史記錄(每次移轉都會多一筆);上面兩個欄位只放
+      // 系統挑出的最新一筆(供土增稅估算用),這裡把全部原始記錄留著給審核畫面顯示。
+      transfer_history: Array.isArray(o.transfer_history) ? o.transfer_history : [],
       // 「相關他項權利登記次序」- kept as a comma string; drives whether the roster
       // export fills this owner's 土地他項權利部 columns (empty => leave blank).
       related_encumbrance_orders: Array.isArray(o.related_encumbrance_orders)
@@ -387,7 +390,7 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 45, labelPrefix
     const elapsed = (Date.now() - startedAt) / 1000;
     const pct = 92 * (1 - Math.exp(-elapsed / tauSeconds));
     fill.style.width = `${pct}%`;
-    label.textContent = `${phaseFor(pct)}…(請勿關閉視窗)`;
+    label.textContent = `${phaseFor(pct)}…`;
   }, 250);
   return {
     finish() {
@@ -438,7 +441,7 @@ async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60
     // 單一條連續曲線,從 0 一路爬到接近 100%,不再跟假進度條那段分開算、接手時銜
     // 接不上。tau 拉到 200 秒,大份謄本常常要跑好幾分鐘,爬升速度才不會看起來突兀。
     if (ui.fill) ui.fill.style.width = `${97 * (1 - Math.exp(-sec / 200))}%`;
-    if (ui.label) ui.label.textContent = `${phase}…(請勿關閉視窗)`;
+    if (ui.label) ui.label.textContent = `${phase}…`;
   };
   paint();
   while (Date.now() - started < maxMs) {
@@ -468,7 +471,7 @@ async function runTitleDeedOcr() {
   }
   const btn = document.getElementById("wizard-start-ocr-btn");
   btn.disabled = true;
-  btn.textContent = "辨識中...(請稍候，勿關閉視窗)";
+  btn.textContent = "辨識中...";
   const progress = startFakeProgress(
     "wizard-ocr-progress-wrap",
     "wizard-ocr-progress-fill",
@@ -740,6 +743,12 @@ function ownerRowHtml(prefix, o, areaSqm) {
         <div class="${prefix}-area-ping" style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600">${ownedPing.toFixed(3)}</div>
       </div>`;
   }
+  const declaredValueHistoryHtml =
+    Array.isArray(o.transfer_history) && o.transfer_history.length > 1
+      ? `<div class="helper-text" style="margin-top:4px">謄本原始記錄共 ${o.transfer_history.length} 筆:${o.transfer_history
+          .map((h) => `${escapeHtml(h.period || "")} ${escapeHtml(h.value != null ? h.value : "")}元/m²`)
+          .join("、")}(下方欄位僅顯示系統挑選的最新一筆)</div>`
+      : "";
   const declaredValueFieldHtml =
     prefix === "lo"
       ? `<div class="field" style="flex:1 1 220px;min-width:220px">
@@ -748,6 +757,7 @@ function ownerRowHtml(prefix, o, areaSqm) {
             <span style="flex:0 0 100px">${minguoYearMonthPickerHtml(`${prefix}-declared-period`, o.declared_value_period)}</span>
             <input class="${prefix}-declared-value" type="number" step="1" value="${escapeHtml(o.declared_value_per_sqm)}" autocomplete="off" style="flex:1;min-width:0">
           </div>
+          ${declaredValueHistoryHtml}
         </div>`
       : "";
 
@@ -988,7 +998,7 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
     const btn = document.getElementById("wizard-rescan-btn");
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "重新辨識中...(請稍候，勿關閉視窗)";
+      btn.textContent = "重新辨識中...";
       const wrap = document.createElement("div");
       wrap.id = "wizard-rescan-progress-wrap";
       wrap.style.marginTop = "8px";
