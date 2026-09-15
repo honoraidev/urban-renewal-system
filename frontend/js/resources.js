@@ -313,6 +313,7 @@ async function goToNews() {
   document.getElementById("new-news-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-news-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
+  document.getElementById("fetch-news-now-btn")?.classList.toggle("hidden", !isManager());
   await loadNews();
 }
 
@@ -956,6 +957,20 @@ function initResources() {
     e.currentTarget.classList.toggle("btn-primary", newsEditMode);
     e.currentTarget.classList.toggle("btn-secondary", !newsEditMode);
     loadNews();
+  });
+  document.getElementById("fetch-news-now-btn")?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    e.currentTarget.textContent = "抓取中...";
+    try {
+      const created = await api("/news/fetch-now", { method: "POST" });
+      toast(created.length ? `新增了 ${created.length} 筆新聞` : "沒有新的相關新聞", "success");
+      loadNews();
+    } catch (err) {
+      toast(err.message || "抓取失敗", "error");
+    } finally {
+      e.currentTarget.disabled = false;
+      e.currentTarget.textContent = "🔄 立即抓新聞";
+    }
   });
 
   document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {

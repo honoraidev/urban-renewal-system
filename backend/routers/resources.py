@@ -220,6 +220,15 @@ def delete_news_item(news_id: int, db: Session = Depends(get_db), current_user: 
     db.commit()
 
 
+@router.post("/news/fetch-now", response_model=list[NewsItemRead])
+def fetch_news_now(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
+    """手動立即跑一次每日新聞抓取(見 utils/news_fetch),不用等到隔天 9:00 的排程 -
+    主要給部署後測試用。"""
+    from utils.news_fetch import fetch_and_store_news
+
+    return fetch_and_store_news(db)
+
+
 # ================= 相關網站 (websites) =================
 
 DEFAULT_WEBSITES = [

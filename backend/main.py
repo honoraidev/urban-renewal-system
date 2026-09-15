@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 
 import anyio
 from fastapi import FastAPI
@@ -206,6 +208,28 @@ def _auto_migrate() -> None:
         print(f"[auto_migrate] document folder seed/backfill skipped: {exc}", flush=True)
 
 
+async def _daily_news_fetch_loop() -> None:
+    """背景常駐迴圈:每天本機時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
+    失敗只印警告,不能讓這個迴圈掛掉 - 掛掉就永遠不會再排下一次。"""
+    from utils.news_fetch import fetch_and_store_news
+
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        await asyncio.sleep((target - now).total_seconds())
+        try:
+            db = SessionLocal()
+            try:
+                created = fetch_and_store_news(db)
+                print(f"[news_fetch] daily run added {len(created)} item(s)", flush=True)
+            finally:
+                db.close()
+        except Exception as exc:
+            print(f"[news_fetch] daily run failed (ignored): {exc}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     wait_for_db()
@@ -221,7 +245,9 @@ async def lifespan(app: FastAPI):
     # Deliberately NOT eagerly loading the PaddleOCR engine here at startup - lazily
     # loading on first OCR call (see _get_paddle_ocr_engine in utils/ocr.py) prevents
     # memory pressure on limited RAM systems while preserving optimal inference speed.
+    news_task = asyncio.create_task(_daily_news_fetch_loop())
     yield
+    news_task.cancel()
 
 
 app = FastAPI(title="Urban Renewal Management System API", version="0.1.0", lifespan=lifespan)
