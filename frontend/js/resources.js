@@ -967,8 +967,12 @@ function initResources() {
     loadNews();
   });
   document.getElementById("fetch-news-now-btn")?.addEventListener("click", async (e) => {
-    e.currentTarget.disabled = true;
-    e.currentTarget.textContent = "抓取中...";
+    // 要先把按鈕存成區域變數 - e.currentTarget 只在事件同步派送期間有效,await 之後
+    // 瀏覽器會把它重置成 null,finally 裡再讀 e.currentTarget 會是 null、reset 悄悄
+    // 失敗,按鈕就永遠卡在「抓取中...」(之前就是這樣卡住的)。
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "抓取中...";
     try {
       const created = await api("/news/fetch-now", { method: "POST" });
       toast(created.length ? `新增了 ${created.length} 筆新聞` : "沒有新的相關新聞", "success");
@@ -976,8 +980,8 @@ function initResources() {
     } catch (err) {
       // api() 已經在失敗時跳過 toast 了,這裡不用重複顯示
     } finally {
-      e.currentTarget.disabled = false;
-      e.currentTarget.textContent = "🔄 立即抓新聞";
+      btn.disabled = false;
+      btn.textContent = "🔄 立即抓新聞";
     }
   });
 
