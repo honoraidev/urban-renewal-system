@@ -967,7 +967,7 @@
   .news-card:has(.news-card-title:hover) { border-color: var(--brand); box-shadow: var(--shadow-hover); }
   .news-card-open { position: absolute; top: 10px; right: 10px; }
   .news-card-title {
-    display: block; font-size: 15px; font-weight: 700; color: var(--text); text-decoration: none;
+    display: block; font-size: 17.5px; font-weight: 700; color: var(--text); text-decoration: none;
     line-height: 1.45;
   }
   .news-card-title:hover { color: var(--brand); text-decoration: underline; }
