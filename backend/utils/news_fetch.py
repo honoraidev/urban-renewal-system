@@ -86,6 +86,11 @@ def _fetch_query(query: str) -> list[dict]:
         if not title or not link:
             continue
         source = _extract_source(item.findtext("description") or "")
+        # Google 新聞固定在標題最後加上「 - 來源網站」,跟下面另外顯示的「來源:XXX」
+        # 標籤重複,卡片上一次要看兩遍同一個來源名稱。來源名稱已經從 <font> 標籤精準
+        # 抓出來了,直接拿來比對、砍掉標題尾端那段,比盲目切最後一個「-」更準。
+        if source and title.endswith(f" - {source}"):
+            title = title[: -(len(source) + 3)].strip()
         items.append(
             {
                 "title": title,
