@@ -120,6 +120,7 @@ CREATE TABLE land_records (
     -- 土增稅(land value increment tax) general-rate estimate inputs - total NT$ amounts, see models/land_record.py
     ltt_original_value DECIMAL(14,2) NULL,
     ltt_original_value_period VARCHAR(50) NULL,
+    ltt_original_value_history JSON NULL,
     ltt_current_value DECIMAL(14,2) NULL,
     ltt_holding_years INT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

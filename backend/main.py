@@ -74,6 +74,7 @@ def _auto_migrate() -> None:
         ("projects", "expected_completion_date", "DATE NULL"),
         ("encumbrances", "secured_amount", "BIGINT NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
+        ("land_records", "ltt_original_value_history", "JSON NULL"),
     ):
         try:
             with engine.connect() as _conn:

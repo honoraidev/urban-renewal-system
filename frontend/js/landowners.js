@@ -1161,7 +1161,19 @@ function landRecordFormFields(record) {
         <input name="ltt_original_value_period" value="${escapeHtml(r.ltt_original_value_period) || ""}" placeholder="年月 (例: 95年12月)" style="flex:1" autocomplete="off">
         <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="金額 (例: 123000)" style="flex:1" autocomplete="off">
       </div>
+      ${landRecordLttHistoryHtml(r)}
     </div>`;
+}
+
+// 謄本原始的「前次移轉現值或原規定地價」全部歷史記錄(同一筆地每次移轉都會多一筆) -
+// 上面欄位只存系統挑出的最新一筆(供土增稅試算用),這裡純粹列出來給人工核對,不能編輯。
+function landRecordLttHistoryHtml(r) {
+  const history = Array.isArray(r.ltt_original_value_history) ? r.ltt_original_value_history : [];
+  if (history.length <= 1) return "";
+  const items = history
+    .map((h) => `${escapeHtml(h.period || "")} ${h.value != null ? Number(h.value).toLocaleString() : "-"}元`)
+    .join("、");
+  return `<div class="helper-text" style="margin-top:4px">謄本原始記錄共 ${history.length} 筆:${items}(上方欄位僅顯示系統挑選的最新一筆)</div>`;
 }
 
 // 編輯土地/建物登記時,依總面積與權利範圍即時重算持分面積,讓使用者存檔前就看到結果

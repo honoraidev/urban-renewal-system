@@ -16,6 +16,7 @@ class LandRecordCreate(BaseModel):
     ownership_denominator: int = Field(default=1, gt=0)
     ltt_original_value: float | None = None
     ltt_original_value_period: str | None = None
+    ltt_original_value_history: list[dict] | None = None
     ltt_cpi_index: float | None = None
 
 
@@ -31,6 +32,7 @@ class LandRecordUpdate(BaseModel):
     ownership_denominator: int | None = Field(default=None, gt=0)
     ltt_original_value: float | None = None
     ltt_original_value_period: str | None = None
+    ltt_original_value_history: list[dict] | None = None
     ltt_current_value: float | None = None
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
@@ -53,6 +55,7 @@ class LandRecordRead(BaseModel):
     ownership_share_pct: float | None = None
     ltt_original_value: float | None = None
     ltt_original_value_period: str | None = None
+    ltt_original_value_history: list[dict] | None = None
     ltt_current_value: float | None = None
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None

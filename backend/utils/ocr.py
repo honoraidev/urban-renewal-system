@@ -122,9 +122,21 @@ def _clean_address(addr: str) -> str:
         "华": "華", "园": "園", "宁": "寧", "国": "國", "长": "長",
         # OCR 常見字形誤認
         "叚": "段", "衖": "巷", "衕": "巷", "俚": "里", "裏": "里",
-        "羲": "義", "叅": "參", "巿": "市", "毫": "台",
+        "羲": "義", "叅": "參", "巿": "市", "毫": "台", "薹": "台",
     }
     addr = addr.translate({ord(k): v for k, v in _S2T_ADDR.items()})
+    # 「郏」在門牌地址裡沒有意義,純屬 OCR 雜訊,整段拿掉即可(不像上面那些字形誤認,
+    # 「郏」不是哪個正確字被認錯,只是憑空多出來的雜訊字)。
+    addr = addr.replace("郏", "")
+    # 已知常被漏字/認錯的特定路名/區名(不是單一字形誤認,是整個詞漏了中間一個字,
+    # 所以只能整詞比對取代,不能像上面那樣逐字 translate)。
+    for _wrong, _right in (
+        ("重北路", "重慶北路"),
+        ("桃園市中區", "桃園市中壢區"),
+        ("立晨街", "立農街"),
+        ("葫街", "葫蘆街"),
+    ):
+        addr = addr.replace(_wrong, _right)
 
     # 2. Section numbers (段) use Chinese numerals (e.g. 5段 -> 五段, 1段 -> 一段)
     cn_num_map_rev = {"1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六", "7": "七", "8": "八", "9": "九", "10": "十"}
@@ -1135,6 +1147,9 @@ OCR 引擎的辨識結果偶爾會混入簡體字或簡體/繁體之間的中間
 - 【address 結尾的「之X」千萬不要漏掉】台灣地址常見門牌號碼後面接「之一」「之2」這種同一個門牌再分割出的次編號\
 (例如「2樓之1」「65號之3」),這個「之X」後綴是地址不可或缺的一部分,絕對不可以因為它印得比較小、比較靠後面\
 就漏抄——填入 address 欄位時要包含完整的「之X」,不要只填到「2樓」就結束,漏掉後面的「之一」。
+- 【門牌號碼前的「臨」字千萬不要漏掉】台灣地址裡,路街名跟門牌號碼之間有時會多一個「臨」字(表示臨時門牌,\
+例如「濱江街臨298號」),這個字印得小、常被漏抄成「濱江街298號」。只要路街名跟數字門牌中間原文有這個字,\
+一定要照樣填進 address,不可以省略。
 - 【address 開頭的縣市/行政區字形校正】OCR 常把地址開頭的縣市名稱認錯成字形相近但意思不通的字,例如把\
 「臺北市」「台北市」誤認成「壹北市」「基北市」(臺/台 vs 壹/基),把「信義區」誤認成「信羲區」(義 vs 羲)。台灣\
 地址開頭一定是「臺北市/台北市/新北市/桃園市...」等實際存在的縣市名稱,不可能是「壹北市」「基北市」這種不存在的\
@@ -1267,6 +1282,7 @@ land_parcels 的 area_sqm。
      - ownership_numerator:「權利範圍:」欄位的分子(不是「歷次取得權利範圍:」欄位)
      - ownership_denominator:「權利範圍:」欄位的分母(不是「歷次取得權利範圍:」欄位)
      - address:所有權人戶籍地址
+     - related_encumbrance_orders(陣列):該位所有權人區塊裡「相關他項權利登記次序:」這一行後面的登記次序(例如「0004-000」),逐筆放進陣列(可能有多筆)。這條是把這位所有權人連到建物他項權利部裡設定在他持分上的那筆抵押權/他項權利用的。若該所有權人區塊裡**沒有出現**「相關他項權利登記次序:」這一行,就回傳空陣列 [],不要臆測、不要從別的所有權人或標示部借。
    - main_use:「主要用途:」欄位的文字(例如「住家用」「共有部分」);沒有就填 null。
    - common_part_of(陣列):【只有當這筆建物的「主要用途」是「共有部分」時才填】。共有部分\
 建號(樓梯間/公共設施)的建物標示部裡會連續列出「主建物資料:○○段○○小段XXXXX-XXXX建號」以及\
@@ -1336,8 +1352,18 @@ _BUILDING_OWNER_ITEM_SCHEMA = {
         "ownership_denominator": _n("integer"),
         "address": _n("string"),
         "is_pooled": _n("boolean"),
+        "related_encumbrance_orders": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["registration_order", "owner_name", "id_number", "ownership_numerator", "ownership_denominator", "address", "is_pooled"],
+    "required": [
+        "registration_order",
+        "owner_name",
+        "id_number",
+        "ownership_numerator",
+        "ownership_denominator",
+        "address",
+        "is_pooled",
+        "related_encumbrance_orders",
+    ],
     "additionalProperties": False,
 }
 

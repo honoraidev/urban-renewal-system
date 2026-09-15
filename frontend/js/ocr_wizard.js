@@ -1895,6 +1895,16 @@ async function submitTitleDeedWizardInner() {
         const denominator = owner.ownership_denominator || 1;
         const ownedAreaSqm = ((Number(p.area_sqm) || 0) * numerator) / denominator;
         const declaredValuePerSqm = Number(owner.declared_value_per_sqm) || 0;
+        // 跟 ltt_original_value 用同一個「單價 × 持分面積」公式換算成總額,把謄本原始的
+        // 每一筆歷史記錄都留著(不是只留最新一筆),供編輯畫面顯示核對用。
+        const lttHistory =
+          Array.isArray(owner.transfer_history) && owner.transfer_history.length
+            ? owner.transfer_history.map((h) => ({
+                period: h.period || null,
+                value_per_sqm: h.value != null ? Number(h.value) : null,
+                value: h.value != null ? Math.round(Number(h.value) * ownedAreaSqm) : null,
+              }))
+            : null;
         const created = await api(`/projects/${pid}/landowners/${landownerId}/land-records`, {
           method: "POST",
           body: {
@@ -1910,6 +1920,7 @@ async function submitTitleDeedWizardInner() {
             source_ocr_job_id: p._sourceOcrJobId || null,
             ltt_original_value: declaredValuePerSqm ? Math.round(declaredValuePerSqm * ownedAreaSqm) : null,
             ltt_original_value_period: owner.declared_value_period || null,
+            ltt_original_value_history: lttHistory,
           },
         });
         if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);

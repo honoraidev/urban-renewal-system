@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -42,6 +42,11 @@ class LandRecord(Base):
     # not parsed into a real date, since OCR only ever has the printed string to go on
     # and a wrong calendar-conversion guess would be worse than just keeping the text.
     ltt_original_value_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 謄本上「前次移轉現值或原規定地價」原始的全部歷史記錄(同一筆地,每次移轉都會多一筆),
+    # 例如 [{"period": "090年05月", "value_per_sqm": 113000, "value": 24567800}, ...]。
+    # ltt_original_value/_period 只存系統挑出的最新一筆(供土增稅試算用);這個欄位純粹是
+    # 給編輯畫面顯示參考、供人工核對系統挑的是不是真的最新一筆,不參與稅額計算。
+    ltt_original_value_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
     ltt_current_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     ltt_holding_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 台灣地區消費者物價總指數(以前次移轉/原規定地價那期為基期 100)。漲價總數額 =
