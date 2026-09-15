@@ -21,8 +21,10 @@ from openpyxl.utils import get_column_letter
 
 PING_PER_SQM = 0.3025
 
-# 「層次面積」欄組前面、固定不變的欄位(群組, 標題)
-_COLS_HEAD: list[tuple[str, str]] = [
+# 「層次面積」欄組前面、固定不變的欄位(群組, 標題)。不含「土地他項權利部」那兩欄——
+# 同一位所有權人可能有好幾筆他項權利,固定寫死 2 欄的話多筆只能擠在一格裡;改成依本
+# 案件實際最多筆數,動態插入「他項權利人N / 擔保債權總金額N」欄對,見 _enc_layout()。
+_COLS_LAND_STD: list[tuple[str, str]] = [
     ("土地標示部", "土地清冊編號"),
     ("土地標示部", "鄉鎮市區"),
     ("土地標示部", "地段"),
@@ -37,8 +39,8 @@ _COLS_HEAD: list[tuple[str, str]] = [
     ("土地所有權部", "持分面積(㎡)"),
     ("土地所有權部", "持分面積(坪)"),
     ("土地所有權部", "所有權人戶籍地址"),
-    ("土地他項權利部", "他項權利人"),
-    ("土地他項權利部", "擔保債權總金額"),
+]
+_COLS_BLD_STD: list[tuple[str, str]] = [
     ("建物標示部", "建號"),
     ("建物標示部", "建號門牌"),
     ("建物標示部", "坐落地號"),
@@ -49,7 +51,7 @@ _COLS_HEAD: list[tuple[str, str]] = [
     ("建物標示部", "共有建號持分面積"),
     ("建物標示部", "權狀面積(㎡)"),
 ]
-_HEAD_BLD_COLS = 9  # 建號 … 權狀面積(㎡):_bld_std_cells 回傳的前 9 欄
+_HEAD_BLD_COLS = len(_COLS_BLD_STD)  # 建號 … 權狀面積(㎡):_bld_std_cells 回傳的前 9 欄
 
 # 「層次面積」欄組後面的固定附屬欄(建物標示部尾)
 _COLS_ACCESSORY: list[tuple[str, str]] = [
@@ -58,8 +60,8 @@ _COLS_ACCESSORY: list[tuple[str, str]] = [
     ("建物標示部", "防空避難室"),
 ]
 
-# 「層次面積」欄組後面、固定不變的欄位
-_COLS_TAIL: list[tuple[str, str]] = [
+# 「層次面積」欄組後面、固定不變的欄位(不含「建物他項權利部」,理由同上)
+_COLS_BLD_OWNER: list[tuple[str, str]] = [
     ("建物所有權部", "登記次序"),
     ("建物所有權部", "所有權人"),
     ("建物所有權部", "統一編號"),
@@ -68,8 +70,8 @@ _COLS_TAIL: list[tuple[str, str]] = [
     ("建物所有權部", "持份權狀面積(㎡)"),
     ("建物所有權部", "持份權狀面積(坪)"),
     ("建物所有權部", "所有權人戶籍地址"),
-    ("建物他項權利部", "他項權利人"),
-    ("建物他項權利部", "擔保債權總金額"),
+]
+_COLS_COMMON: list[tuple[str, str]] = [
     ("共有建號", "共有建號"),
     ("共有建號", "共有面積"),
     ("共有建號", "共有權利範圍(分子)"),
@@ -77,6 +79,19 @@ _COLS_TAIL: list[tuple[str, str]] = [
     ("共有建號", "持分面積(㎡)"),
     ("共有建號", "持分面積(坪)"),
 ]
+
+
+def _enc_layout(group: str, n: int) -> list[tuple[str, str]]:
+    """他項權利部動態欄組:依這個案件實際最多筆數開對應數量的
+    「他項權利人N / 擔保債權總金額N」欄對。只有 1 筆(或完全沒有)時欄名不加編號,
+    維持原本的樣子;2 筆以上才從 1 開始編號,一筆一欄不合併。"""
+    n = max(n, 1)
+    slots: list[tuple[str, str]] = []
+    for i in range(1, n + 1):
+        suffix = str(i) if n > 1 else ""
+        slots.append((group, f"他項權利人{suffix}"))
+        slots.append((group, f"擔保債權總金額{suffix}"))
+    return slots
 
 
 def _digits(v) -> str:
@@ -262,17 +277,17 @@ def _order_key(v) -> tuple:
     return tuple(parts)
 
 
-def _enc_cells(encumbrances: list, related_orders, own_number) -> list:
-    """[他項權利人, 擔保債權總金額]。只收登記次序列在該所有權人「相關他項權利登記次序」
-    裡、且對應地號/建號包含本筆的他項權利(對應欄空白或寫「全部」時不限)。有多筆時每筆
-    各自一行(不合併金額、不去重複銀行名稱),兩欄用同樣的行數對齊,方便一筆一筆核對。"""
+def _enc_pairs(encumbrances: list, related_orders, own_number) -> list[tuple[str, str]]:
+    """[(他項權利人, 擔保債權總金額), …],一筆他項權利一組,不合併金額、不去重複銀行
+    名稱。只收登記次序列在該所有權人「相關他項權利登記次序」裡、且對應地號/建號包含
+    本筆的他項權利(對應欄空白或寫「全部」時不限)。不補空、不裁切——欄數由呼叫端依
+    這個案件實際最多筆數決定,見 _enc_layout() / _enc_row()。"""
     orders = {_order_key(t) for t in re.split(r"[,，、\s]+", str(related_orders or ""))}
     orders.discard(())
     if not orders:
-        return ["", ""]
+        return []
     own = _no_keys(own_number)
-    holders: list[str] = []
-    amounts: list[str] = []
+    pairs: list[tuple[str, str]] = []
     seen_orders: set = set()
     for e in encumbrances:
         ok = _order_key(e.registration_order)
@@ -282,13 +297,21 @@ def _enc_cells(encumbrances: list, related_orders, own_number) -> list:
         if own and targets and not (own & targets):
             continue
         seen_orders.add(ok)
-        holders.append((e.right_holder or "").strip())
-        amounts.append(f"{int(e.secured_amount):,}" if e.secured_amount is not None else "")
-    if not holders:
-        return ["", ""]
-    if len(holders) == 1:
-        return [holders[0], amounts[0]]
-    return ["\n".join(holders), "\n".join(amounts)]
+        holder = (e.right_holder or "").strip()
+        amount = f"{int(e.secured_amount):,}" if e.secured_amount is not None else ""
+        pairs.append((holder, amount))
+    return pairs
+
+
+def _enc_row(pairs: list[tuple[str, str]], n: int) -> list:
+    """把 _enc_pairs() 的結果攤平成 2×n 個儲存格(他項權利人1, 擔保債權總金額1,
+    他項權利人2, …),筆數不足 n 的補空欄。"""
+    flat: list = []
+    for i in range(n):
+        holder, amount = pairs[i] if i < len(pairs) else ("", "")
+        flat.append(holder)
+        flat.append(amount)
+    return flat
 
 
 def build_roster_workbook(
@@ -340,11 +363,29 @@ def build_roster_workbook(
     n_layer = len(layer_slots)
     _BLD_STD_LEN = _HEAD_BLD_COLS + n_layer + len(_COLS_ACCESSORY)
 
+    # ---- 依本案件每位所有權人實際最多幾筆他項權利,決定「他項權利部」欄組 ----
+    # 先把每一筆土地/建物登記比對出來的他項權利算好、存起來,欄數決定了(掃過全案件
+    # 取最大值)之後,下面組資料列時直接複用,不用同一筆記錄算兩次。
+    land_enc_cache: dict[int, list[tuple[str, str]]] = {
+        lr.id: _enc_pairs(encumbrances, lr.related_encumbrance_orders, lr.parcel_number)
+        for lr in land_records
+    }
+    bld_enc_cache: dict[int, list[tuple[str, str]]] = {
+        b.id: _enc_pairs(encumbrances, b.related_encumbrance_orders, b.building_number)
+        for b in building_records
+    }
+    n_land_enc = max((len(v) for v in land_enc_cache.values()), default=0)
+    n_bld_enc = max((len(v) for v in bld_enc_cache.values()), default=0)
+
     columns: list[tuple[str, str]] = (
-        _COLS_HEAD
+        _COLS_LAND_STD
+        + _enc_layout("土地他項權利部", n_land_enc)
+        + _COLS_BLD_STD
         + [("建物標示部", header) for _, header in layer_slots]
         + _COLS_ACCESSORY
-        + _COLS_TAIL
+        + _COLS_BLD_OWNER
+        + _enc_layout("建物他項權利部", n_bld_enc)
+        + _COLS_COMMON
     )
 
     # 面積類欄位:數值一律顯示到小數後 2 位(整數也是,例:80 -> 80.00);
@@ -353,7 +394,7 @@ def build_roster_workbook(
         return "面積" in h or "㎡" in h or "坪" in h or h == "防空避難室"
 
     area_cols = {i for i, (_g, h) in enumerate(columns, start=1) if _is_area_header(h)}
-    amount_cols = {i for i, (_g, h) in enumerate(columns, start=1) if h == "擔保債權總金額"}
+    amount_cols = {i for i, (_g, h) in enumerate(columns, start=1) if h.startswith("擔保債權總金額")}
 
     wb = Workbook()
     ws = wb.active
@@ -592,13 +633,13 @@ def build_roster_workbook(
             _num(lr.total_area_sqm) if lr.total_area_sqm is not None else "",
         ]
         row += _land_owner_cells(lr)
-        row += _enc_cells(encumbrances, lr.related_encumbrance_orders, lr.parcel_number)
+        row += _enc_row(land_enc_cache.get(lr.id, []), n_land_enc)
         std = _bld_std_cells(b)
         if b:
             std[2] = _bld_parcel(b) or lr.parcel_number or ""
         row += std
         row += _bld_owner_cells(b)
-        row += _enc_cells(encumbrances, b.related_encumbrance_orders, b.building_number) if b else ["", ""]
+        row += _enc_row(bld_enc_cache.get(b.id, []) if b else [], n_bld_enc)
         row += _common_cells(b)
         _emit(row)
 
@@ -608,12 +649,12 @@ def build_roster_workbook(
         if b.id in used_building_ids:
             continue
         row_seq += 1
-        row = [row_seq, "", "", "", "", ""] + [""] * 10
+        row = [row_seq, "", "", "", "", ""] + [""] * (8 + n_land_enc * 2)
         std = _bld_std_cells(b)
         std[2] = _bld_parcel(b) or ""
         row += std
         row += _bld_owner_cells(b)
-        row += _enc_cells(encumbrances, b.related_encumbrance_orders, b.building_number)
+        row += _enc_row(bld_enc_cache.get(b.id, []), n_bld_enc)
         row += _common_cells(b)
         _emit(row)
 
@@ -622,9 +663,9 @@ def build_roster_workbook(
         w = 10
         if "地址" in header:
             w = 32
-        elif header == "他項權利人":
+        elif header.startswith("他項權利人"):
             w = 28
-        elif header == "擔保債權總金額":
+        elif header.startswith("擔保債權總金額"):
             w = 14
         elif header == "所有權人":
             w = 20
