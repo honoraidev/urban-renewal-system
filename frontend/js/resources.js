@@ -195,7 +195,7 @@ function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
           <div class="card link-card" data-id="${r.id}">
             <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
             <div style="flex:1;min-width:0">
-              <div class="link-card-name">${escapeHtml(r.name)}</div>
+              <a class="link-card-name" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
               ${r.description
                 ? r.description.startsWith("來源:")
                   ? `<span class="mini-badge" style="margin-top:6px;display:inline-block">${escapeHtml(r.description)}</span>`
