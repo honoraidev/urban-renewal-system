@@ -882,8 +882,8 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   const alreadyAgreed = latestContact && latestContact.contact_result === "agreed";
   // 門牌地址(建物登記的 address)跟「地址」(地主自己的戶籍地址)是兩件事 - 同一位
   // 地主可能同時持有好幾戶,這裡去重後全部列出來,唯讀顯示,不是真的可以在這裡改。
-  const doorAddress =
-    [...new Set((owner.building_records || []).map((r) => r.address).filter(Boolean))].join("、") || "—";
+  // 多筆時逐行列出(不再擠成一行用「、」串接被輸入框裁掉看不到後面),方便一眼看完。
+  const doorAddresses = [...new Set((owner.building_records || []).map((r) => r.address).filter(Boolean))];
   const siblings = siblingIds && siblingIds.length > 1 ? siblingIds : null;
   if (siblings) {
     _loEditorSiblings = siblings;
@@ -934,7 +934,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
         </div>
       </div>
-      <div class="field"><label>門牌地址</label><input value="${escapeHtml(doorAddress)}" readonly style="background:var(--surface-2);color:var(--text-muted)" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」"></div>
+      <div class="field">
+        <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
+        <div style="padding:9px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);line-height:1.8" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
+          ${doorAddresses.length
+      ? doorAddresses.map((a) => `<div>${doorAddresses.length > 1 ? "・ " : ""}${escapeHtml(a)}</div>`).join("")
+      : "—"
+    }
+        </div>
+      </div>
       <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
 
       <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
