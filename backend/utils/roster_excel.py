@@ -264,14 +264,15 @@ def _order_key(v) -> tuple:
 
 def _enc_cells(encumbrances: list, related_orders, own_number) -> list:
     """[他項權利人, 擔保債權總金額]。只收登記次序列在該所有權人「相關他項權利登記次序」
-    裡、且對應地號/建號包含本筆的他項權利(對應欄空白或寫「全部」時不限)。"""
+    裡、且對應地號/建號包含本筆的他項權利(對應欄空白或寫「全部」時不限)。有多筆時每筆
+    各自一行(不合併金額、不去重複銀行名稱),兩欄用同樣的行數對齊,方便一筆一筆核對。"""
     orders = {_order_key(t) for t in re.split(r"[,，、\s]+", str(related_orders or ""))}
     orders.discard(())
     if not orders:
         return ["", ""]
     own = _no_keys(own_number)
     holders: list[str] = []
-    total = None
+    amounts: list[str] = []
     seen_orders: set = set()
     for e in encumbrances:
         ok = _order_key(e.registration_order)
@@ -281,12 +282,13 @@ def _enc_cells(encumbrances: list, related_orders, own_number) -> list:
         if own and targets and not (own & targets):
             continue
         seen_orders.add(ok)
-        holder = (e.right_holder or "").strip()
-        if holder and holder not in holders:
-            holders.append(holder)
-        if e.secured_amount is not None:
-            total = (total or 0) + int(e.secured_amount)
-    return ["、".join(holders), total if total is not None else ""]
+        holders.append((e.right_holder or "").strip())
+        amounts.append(f"{int(e.secured_amount):,}" if e.secured_amount is not None else "")
+    if not holders:
+        return ["", ""]
+    if len(holders) == 1:
+        return [holders[0], amounts[0]]
+    return ["\n".join(holders), "\n".join(amounts)]
 
 
 def build_roster_workbook(
