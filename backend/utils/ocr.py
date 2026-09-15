@@ -141,6 +141,7 @@ def _clean_address(addr: str) -> str:
         ("新北市歌區鳳里", "新北市鶯歌區鳳鳴里"),
         ("桃園縣中市", "桃園縣中壢市"),
         ("龍罔路", "龍岡路"),
+        ("龍路二段", "龍岡路二段"),
     ):
         addr = addr.replace(_wrong, _right)
 
