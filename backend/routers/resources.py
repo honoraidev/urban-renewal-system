@@ -197,6 +197,16 @@ def create_news_item(
     return item
 
 
+@router.post("/news/fetch-now", response_model=list[NewsItemRead])
+def fetch_news_now(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
+    """手動立即跑一次每日新聞抓取(見 utils/news_fetch),不用等到隔天 9:00 的排程 -
+    主要給部署後測試用。放在 /news/{news_id} 之前註冊,避免跟該參數化路由的比對順序有
+    任何疑慮(雖然 Starlette 理論上會找到完整比對的路由,但字面路由放前面更保險)。"""
+    from utils.news_fetch import fetch_and_store_news
+
+    return fetch_and_store_news(db)
+
+
 @router.patch("/news/{news_id}", response_model=NewsItemRead)
 def update_news_item(
     news_id: int, payload: NewsItemUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
@@ -218,15 +228,6 @@ def delete_news_item(news_id: int, db: Session = Depends(get_db), current_user: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="News item not found")
     db.delete(item)
     db.commit()
-
-
-@router.post("/news/fetch-now", response_model=list[NewsItemRead])
-def fetch_news_now(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
-    """手動立即跑一次每日新聞抓取(見 utils/news_fetch),不用等到隔天 9:00 的排程 -
-    主要給部署後測試用。"""
-    from utils.news_fetch import fetch_and_store_news
-
-    return fetch_and_store_news(db)
 
 
 # ================= 相關網站 (websites) =================

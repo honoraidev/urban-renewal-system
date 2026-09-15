@@ -11,6 +11,7 @@
 是 git pull + uvicorn --reload、不 rebuild image,新套件不會自動裝進容器。
 """
 
+import html
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -43,8 +44,16 @@ def _guess_category(title: str) -> str:
     return "其他"
 
 
-def _strip_html(text: str) -> str:
-    return re.sub(r"<[^>]+>", "", text or "").strip()
+def _extract_source(description_html: str) -> str | None:
+    """Google 新聞 RSS 的 <description> 固定格式是
+    '<a href="...">標題</a>&nbsp;&nbsp;<font color="...">來源網站</font>',
+    整段拿掉標籤存起來只會跟 title 重複、還帶一堆 &nbsp; 雜訊(顯示出來很醜)。
+    只挑最後 <font> 裡的來源網站名稱,不留其餘內容。"""
+    m = re.search(r"<font[^>]*>(.*?)</font>", description_html or "", re.DOTALL)
+    if not m:
+        return None
+    source = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
+    return source or None
 
 
 def _parse_pubdate(text: str) -> datetime | None:
@@ -68,16 +77,17 @@ def _fetch_query(query: str) -> list[dict]:
     root = ET.fromstring(resp.content)
     items = []
     for item in root.findall(".//item"):
-        title = (item.findtext("title") or "").strip()
+        title = html.unescape((item.findtext("title") or "").strip())
         link = (item.findtext("link") or "").strip()
         if not title or not link:
             continue
+        source = _extract_source(item.findtext("description") or "")
         items.append(
             {
                 "title": title,
                 "link": link,
                 "pub_date": _parse_pubdate(item.findtext("pubDate") or ""),
-                "description": _strip_html(item.findtext("description") or ""),
+                "description": f"來源:{source}" if source else None,
             }
         )
     return items
@@ -113,7 +123,7 @@ def fetch_and_store_news(db: Session) -> list[NewsItem]:
             category=_guess_category(it["title"]),
             name=it["title"][:255],
             url=it["link"][:500],
-            description=(it["description"][:1000] or None),
+            description=(it["description"][:1000] if it["description"] else None),
         )
         db.add(item)
         created.append(item)

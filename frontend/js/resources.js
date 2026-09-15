@@ -194,7 +194,12 @@ function renderLinkListPage(items, listElId, isManagerView) {
             <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
             <div style="flex:1;min-width:0">
               <div class="link-card-name">${escapeHtml(r.name)}</div>
-              ${r.description ? `<div class="helper-text">${escapeHtml(r.description)}</div>` : ""}
+              ${r.description
+                ? r.description.startsWith("來源:")
+                  ? `<span class="mini-badge" style="margin-top:6px;display:inline-block">${escapeHtml(r.description)}</span>`
+                  : `<div class="helper-text">${escapeHtml(r.description)}</div>`
+                : ""
+              }
             </div>
             <div class="actions-cell">
               <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm">開啟 ↗</a>
@@ -966,7 +971,7 @@ function initResources() {
       toast(created.length ? `新增了 ${created.length} 筆新聞` : "沒有新的相關新聞", "success");
       loadNews();
     } catch (err) {
-      toast(err.message || "抓取失敗", "error");
+      // api() 已經在失敗時跳過 toast 了,這裡不用重複顯示
     } finally {
       e.currentTarget.disabled = false;
       e.currentTarget.textContent = "🔄 立即抓新聞";
