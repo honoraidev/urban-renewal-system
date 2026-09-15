@@ -156,7 +156,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}">
             <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
-            <td class="col-nowrap">${escapeHtml(uniqJoin(br.map((r) => _shortDoorAddr(r.address)))) || "-"}</td>
+            <td>${(() => {
+      const addrs = [...new Set(br.map((r) => _shortDoorAddr(r.address)).filter(Boolean))];
+      return addrs.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${addrs.map((a) => `<span class="mini-badge">${escapeHtml(a)}</span>`).join("")}</div>`
+        : `<span style="color:var(--text-muted)">-</span>`;
+    })()}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
