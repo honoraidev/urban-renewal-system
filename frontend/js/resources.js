@@ -170,13 +170,14 @@ function initCompanyDocs() {
 
 const LINK_SECTION_ACCENTS = ["accent-brand", "accent-success", "accent-info", "accent-danger"];
 
-function renderLinkListPage(items, listElId, isManagerView) {
+function renderLinkListPage(items, listElId, isManagerView, opts = {}) {
   const el = document.getElementById(listElId);
   if (!el) return;
   if (!items.length) {
     el.innerHTML = `<div class="empty-state">尚無連結,${isManagerView ? "點右上角新增" : "請洽管理員新增"}</div>`;
     return;
   }
+  const sidePanel = !!opts.sidePanel;
   const byCategory = {};
   items.forEach((item) => {
     const cat = item.category || "未分類";
@@ -193,7 +194,7 @@ function renderLinkListPage(items, listElId, isManagerView) {
           <div class="card link-card" data-id="${r.id}">
             <div class="link-card-dot ${LINK_SECTION_ACCENTS[catIdx % LINK_SECTION_ACCENTS.length]}"></div>
             <div style="flex:1;min-width:0">
-              <div class="link-card-name">${escapeHtml(r.name)}</div>
+              <div class="link-card-name"${sidePanel ? ` data-panel-id="${r.id}" style="cursor:pointer"` : ""}>${escapeHtml(r.name)}</div>
               ${r.description
                 ? r.description.startsWith("來源:")
                   ? `<span class="mini-badge" style="margin-top:6px;display:inline-block">${escapeHtml(r.description)}</span>`
@@ -215,6 +216,14 @@ function renderLinkListPage(items, listElId, isManagerView) {
       </div>`
     )
     .join("");
+  if (sidePanel) {
+    el.querySelectorAll("[data-panel-id]").forEach((nameEl) => {
+      nameEl.addEventListener("click", () => {
+        const item = items.find((r) => r.id === Number(nameEl.dataset.panelId));
+        if (item) openNewsSidePanel(item);
+      });
+    });
+  }
 }
 
 let currentLoadedRegulations = [];
@@ -311,6 +320,55 @@ let newsEditMode = false;
 let regulationsEditMode = false;
 let websitesEditMode = false;
 
+// 新聞右側彈窗:嘗試把原始新聞頁面用 iframe 嵌進來看,不用離開系統跳新分頁。很多新聞
+// 網站(自由時報、風傳媒等)會用 X-Frame-Options / CSP 擋掉被嵌入,擋到的話 iframe 那塊
+// 只會顯示空白(瀏覽器不會丟出 JS 可以攔到的錯誤,沒辦法自動偵測、自動切換備援畫面),
+// 所以標題旁邊固定放一顆「開啟新分頁」按鈕當備援,不是只在失敗時才出現。
+function openNewsSidePanel(item) {
+  let backdrop = document.getElementById("news-panel-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "news-panel-backdrop";
+    backdrop.addEventListener("click", closeNewsSidePanel);
+    document.body.appendChild(backdrop);
+  }
+  let panel = document.getElementById("news-side-panel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "news-side-panel";
+    panel.className = "news-side-panel";
+    document.body.appendChild(panel);
+  }
+  panel.innerHTML = `
+    <div class="news-side-panel-header">
+      <div style="flex:1;min-width:0">
+        <div class="news-side-panel-title">${escapeHtml(item.name)}</div>
+        <div class="helper-text" style="margin-top:4px">若下方空白,代表該網站不允許嵌入顯示,請改用右邊按鈕開新分頁</div>
+      </div>
+      <div class="news-side-panel-actions">
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="white-space:nowrap">開啟新分頁 ↗</a>
+        <button type="button" class="modal-close" onclick="closeNewsSidePanel()">✕</button>
+      </div>
+    </div>
+    <div class="news-side-panel-body">
+      <iframe src="${escapeHtml(item.url)}" referrerpolicy="no-referrer"></iframe>
+    </div>`;
+  requestAnimationFrame(() => {
+    backdrop.classList.add("show");
+    panel.classList.add("show");
+  });
+}
+
+function closeNewsSidePanel() {
+  document.getElementById("news-panel-backdrop")?.classList.remove("show");
+  const panel = document.getElementById("news-side-panel");
+  panel?.classList.remove("show");
+  // 等收合動畫跑完再清空 iframe,不然關閉當下會先閃一下空白畫面。
+  setTimeout(() => {
+    if (panel) panel.innerHTML = "";
+  }, 260);
+}
+
 async function goToNews() {
   setActiveNav("news");
   showView("view-news");
@@ -328,7 +386,7 @@ async function loadNews() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/news");
   currentLoadedNews = items || [];
-  renderLinkListPage(items, "news-list", isManager() && newsEditMode);
+  renderLinkListPage(items, "news-list", isManager() && newsEditMode, { sidePanel: true });
   if (isManager() && newsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {

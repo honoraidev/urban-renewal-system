@@ -26,6 +26,7 @@ _RSS_URL = "https://news.google.com/rss/search"
 _QUERIES = ["都更 OR 都市更新", "危老重建", "老宅延壽"]
 _MAX_PER_RUN = 5
 _MAX_AGE_DAYS = 2
+_URL_MAX_LEN = 1000  # 跟 NewsItem.url 的欄位長度一致(見 models/news_item.py)
 
 # 標題關鍵字 -> news_items 既有分類(NEWS_DEFAULT_CATS,見 frontend/js/resources.js),
 # 由上到下比對,第一個命中的就用;都沒命中歸「其他」。
@@ -78,7 +79,10 @@ def _fetch_query(query: str) -> list[dict]:
     items = []
     for item in root.findall(".//item"):
         title = html.unescape((item.findtext("title") or "").strip())
-        link = (item.findtext("link") or "").strip()
+        # 截斷要在這裡做一次就好,之後去重比對跟真正存進 DB 用的都是同一個(已截斷)值 -
+        # 之前在存入時才截斷,比對時卻用截斷前的完整字串,兩篇不同文章只要截斷後前 500
+        # 字剛好相同就會比對不到、被當成新資料誤植入重複列。
+        link = (item.findtext("link") or "").strip()[:_URL_MAX_LEN]
         if not title or not link:
             continue
         source = _extract_source(item.findtext("description") or "")
@@ -97,17 +101,24 @@ def fetch_and_store_news(db: Session) -> list[NewsItem]:
     """抓新聞、過濾、寫入,回傳這次新增的 NewsItem。任一查詢字串失敗只印警告跳過,不中斷
     其他查詢;呼叫端(排程迴圈)另外包一層 try/except,單次執行失敗不影響下次排程。"""
     existing_urls = {u for (u,) in db.query(NewsItem.url).all()}
+    # 網址之外多比對標題一次 - Google 新聞的轉址連結偶爾會在不同時間查同一篇文章給出
+    # 不同 token,單靠網址去重不夠保險,標題完全相同基本可以認定是同一篇報導。
+    existing_names = {n for (n,) in db.query(NewsItem.name).all()}
     cutoff = datetime.now(timezone.utc) - timedelta(days=_MAX_AGE_DAYS)
 
     candidates: dict[str, dict] = {}
+    seen_titles: set[str] = set()
     for q in _QUERIES:
         try:
             for it in _fetch_query(q):
                 if it["link"] in existing_urls or it["link"] in candidates:
                     continue
+                if it["title"] in existing_names or it["title"] in seen_titles:
+                    continue
                 if it["pub_date"] and it["pub_date"] < cutoff:
                     continue
                 candidates[it["link"]] = it
+                seen_titles.add(it["title"])
         except Exception as exc:  # noqa: BLE001
             print(f"[news_fetch] query {q!r} failed (ignored): {exc}", flush=True)
 
@@ -122,7 +133,7 @@ def fetch_and_store_news(db: Session) -> list[NewsItem]:
         item = NewsItem(
             category=_guess_category(it["title"]),
             name=it["title"][:255],
-            url=it["link"][:500],
+            url=it["link"],
             description=(it["description"][:1000] if it["description"] else None),
         )
         db.add(item)

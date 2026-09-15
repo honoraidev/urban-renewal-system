@@ -90,6 +90,17 @@ def _auto_migrate() -> None:
         except Exception as exc:
             print(f"[auto_migrate] ALTER {_tbl} {_col} skipped: {exc}", flush=True)
 
+    # news_items.url 原本是 VARCHAR(500),但 Google 新聞 RSS 的轉址連結常常超過 500 字
+    # (實測看過將近 900 字),存進去會被截斷成打不開的網址,還會讓不同文章的截斷結果
+    # 剛好前綴相同、去重比對打架誤判成新資料。加大到 VARCHAR(1000)。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(_sql_text("ALTER TABLE news_items MODIFY COLUMN url VARCHAR(1000) NOT NULL"))
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] news_items.url widen skipped: {exc}", flush=True)
+
     # documents.doc_type ENUM: 拿掉已停用的 dev_letter_template / willingness_form_template,
     # 加入 roi_report(投報表)、willingness_form(地主編輯視窗「已拜訪」上傳的意願書,跟
     # 已移除的 willingness_form_template 是不同東西 - 那是公司文件範本庫的分類,這個是
