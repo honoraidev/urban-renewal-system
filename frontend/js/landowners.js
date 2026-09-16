@@ -922,13 +922,13 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     _loEditorCurrentId = landownerId;
   }
   const idx = siblings ? siblings.indexOf(landownerId) : -1;
+  const canAddContact = isEditor() && !isLandowner() && !alreadyAgreed;
   const editToggleBtnHtml = landownerEditMode
     ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn">👁 檢視模式</button>`
     : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn">✏️ 編輯</button>`;
-  const addContactBtnHtml =
-    landownerEditMode && !alreadyAgreed
-      ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 建立一筆拜訪資料</button>`
-      : "";
+  const addContactBtnHtml = canAddContact
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 建立一筆拜訪資料</button>`
+    : "";
   const siblingNavHtml = siblings
     ? `<span class="lo-sibling-nav">
         <button type="button" class="lo-sibling-btn" onclick="switchLandownerSibling(-1)" title="上一位">‹</button>
@@ -969,7 +969,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </details>
 
-      ${!landownerEditMode || alreadyAgreed || !landownerShowContactForm
+      ${!canAddContact || !landownerShowContactForm
       ? ""
       : `<div class="lo-edit-section">
         <div class="lo-edit-section-title">新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></div>
@@ -996,31 +996,6 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </div>`
     }
-
-      <details class="lo-edit-section">
-        <summary>拜訪紀錄${contacts.length ? ` (${contacts.length})` : ""}</summary>
-        <div class="lo-edit-section-body">
-          ${contacts.length
-      ? `<div class="clm-list">
-                ${contacts
-        .map((c) => {
-          const rk = c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending";
-          return `<div class="clm-item">
-                    <div class="clm-item-head">
-                      <span class="clm-date">${fmtDateTime(c.contact_date)}</span>
-                      <span class="clm-method">${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span>
-                      <span class="consent-status-badge cs-${rk}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span>
-                    </div>
-                    ${c.notes ? `<div class="clm-row"><span class="clm-label">備註</span><span>${escapeHtml(c.notes)}</span></div>` : ""}
-                    ${c.next_follow_up_date ? `<div class="clm-row"><span class="clm-label">下次跟進</span><span>${fmtDate(c.next_follow_up_date)}</span></div>` : ""}
-                  </div>`;
-        })
-        .join("")}
-              </div>`
-      : `<div class="helper-text">尚無聯絡紀錄</div>`
-    }
-        </div>
-      </details>
 
       <div class="field">
         <label>拜訪 / 簽約狀態</label>
@@ -1057,8 +1032,33 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
       </div>
 
+      <details class="lo-edit-section">
+        <summary>拜訪紀錄${contacts.length ? ` (${contacts.length})` : ""}</summary>
+        <div class="lo-edit-section-body">
+          ${contacts.length
+      ? `<div class="clm-list">
+                ${contacts
+        .map((c) => {
+          const rk = c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending";
+          return `<div class="clm-item">
+                    <div class="clm-item-head">
+                      <span class="clm-date">${fmtDateTime(c.contact_date)}</span>
+                      <span class="clm-method">${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span>
+                      <span class="consent-status-badge cs-${rk}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span>
+                    </div>
+                    ${c.notes ? `<div class="clm-row"><span class="clm-label">備註</span><span>${escapeHtml(c.notes)}</span></div>` : ""}
+                    ${c.next_follow_up_date ? `<div class="clm-row"><span class="clm-label">下次跟進</span><span>${fmtDate(c.next_follow_up_date)}</span></div>` : ""}
+                  </div>`;
+        })
+        .join("")}
+              </div>`
+      : `<div class="helper-text">尚無聯絡紀錄</div>`
+    }
+        </div>
+      </details>
+
       <div class="modal-footer">
-        ${landownerEditMode
+        ${landownerEditMode || (canAddContact && landownerShowContactForm)
       ? `<button type="button" class="btn-secondary" id="lo-cancel-btn">取消</button>
            <button type="submit" class="btn-primary">儲存</button>`
       : `<button type="button" class="btn-secondary" id="lo-cancel-btn">關閉</button>`
@@ -1195,16 +1195,21 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
     // 聯絡狀態不再讓人手動改 —— 有新增聯絡紀錄時,後端會照這筆的「聯絡結果」自動
     // 更新聯絡狀態(見 routers/contacts.py create_contact),這裡不用也不能送這個欄位。
-    const payload = {
-      name: data.name,
-      id_number: data.id_number || null,
-      phone: data.phone || null,
-      line_id: data.line_id || null,
-      email: data.email || null,
-      address: data.address || null,
-    };
     try {
-      await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
+      // 唯讀模式下只展開了「新增一筆聯絡紀錄」表單,地主基本資料那些欄位根本不存在
+      // (是純顯示的 div,不是 input)- 這時候 data.name 等於 undefined,絕對不能照
+      // 原本 `data.field || null` 的寫法送出去,不然會把姓名以外的欄位全部清空。
+      if (landownerEditMode) {
+        const payload = {
+          name: data.name,
+          id_number: data.id_number || null,
+          phone: data.phone || null,
+          line_id: data.line_id || null,
+          email: data.email || null,
+          address: data.address || null,
+        };
+        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
+      }
       if (data.c_contact_date) {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
           method: "POST",

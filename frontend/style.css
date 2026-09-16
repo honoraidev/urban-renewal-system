@@ -1525,8 +1525,7 @@
   border-color: var(--brand-dark, #0d9488) !important;
 }
 
-/* 聯絡紀錄視窗 */
-#contact-log-list { width: 100%; }
+/* 聯絡紀錄清單(編輯地主視窗的「拜訪紀錄」區塊用) */
 .clm-list { display: flex; flex-direction: column; gap: 10px; }
 .clm-item {
   border: 1px solid var(--border);

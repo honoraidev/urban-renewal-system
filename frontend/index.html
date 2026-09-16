@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260916_8">
+  <link rel="stylesheet" href="style.css?v=20260916_9">
 </head>
 
 <body>
@@ -262,7 +262,6 @@
                 </div>
               </details>
               <button class="tab-btn" data-tab="buildingview">樓棟視圖</button>
-              <button class="tab-btn" data-tab="contacts">地主聯絡簿</button>
               <button class="tab-btn" data-tab="documents">文件</button>
               <button class="tab-btn" data-tab="encumbrances">他項權利部</button>
               <button class="tab-btn" data-tab="expenses">費用</button>
@@ -606,7 +605,7 @@
                     <li>展開 <strong>第1關</strong>,上傳地籍圖;接著到 <span class="manual-path">登記資料 › 土地登記／建物登記</span>,點 <strong>「自動掃描謄本(OCR)」</strong> 上傳謄本 PDF,辨識完成後一鍵匯入。</li>
                     <li>回 <span class="manual-path">登記資料</span> 逐筆對照謄本校正(地號、建號、所有權人、持分分子／分母、面積、他項權利、戶籍地址)。</li>
                     <li>第1關的「確認地主清冊正確」步驟點 <strong>「產生地主清冊 Excel」</strong>,下載檔名為「<em>案件名稱</em>清冊.xlsx」。</li>
-                    <li>之後依序推進第2關以後:地主聯絡簿記錄聯絡狀況、文件頁維護同意書、系統即時算聯絡率與同意度。</li>
+                    <li>之後依序推進第2關以後:在各地主的「編輯地主」視窗記錄聯絡狀況、文件頁維護同意書、系統即時算聯絡率與同意度。</li>
                   </ol>
 
                   <h3 id="manual-sop">SOP 十關逐關說明</h3>
@@ -617,7 +616,7 @@
                       <tbody>
                         <tr><td>第0關 · 初始核定立案</td><td>上傳發函、意願書、同意書、合約 4 份範本</td></tr>
                         <tr><td>第1關 · 謄本 OCR／地主清冊</td><td>上傳地籍圖;匯入土地與建物謄本並校正;確認地主清冊正確、產出 Excel</td></tr>
-                        <tr><td>第2關 · 聯絡率 &gt; 95%</td><td>地主聯絡簿記錄聯絡狀況,系統自動算聯絡率達標</td></tr>
+                        <tr><td>第2關 · 聯絡率 &gt; 95%</td><td>編輯地主視窗記錄聯絡狀況,系統自動算聯絡率達標</td></tr>
                         <tr><td>第3關 · 說明會 #1</td><td>上傳說明會資料並確認</td></tr>
                         <tr><td>第4關 · 同意度 &gt; 80%(雙門檻)</td><td>人數同意率、土地持分同意率兩者都要 ≥ 80%</td></tr>
                         <tr><td>第5關 · 顧問文件主管審核</td><td>上傳顧問文件,主管審核確認</td></tr>
@@ -628,7 +627,7 @@
                       </tbody>
                     </table>
                   </div>
-                  <p class="manual-note">同意度與聯絡率是由「登記資料」「地主聯絡簿」「文件(同意書狀態)」的資料<strong>即時彙算</strong>的,不用手動填百分比。</p>
+                  <p class="manual-note">同意度與聯絡率是由「登記資料」「地主聯絡紀錄」「文件(同意書狀態)」的資料<strong>即時彙算</strong>的,不用手動填百分比。</p>
 
                   <h3 id="manual-tabs">案件內各頁籤</h3>
                   <div class="manual-tw">
@@ -638,8 +637,7 @@
                         <tr><td>SOP 進度</td><td>十關進度、檢核清單、關卡文件上傳、完成／退回關卡</td></tr>
                         <tr><td>登記資料</td><td>土地登記、建物登記、地主三個子頁。可「自動掃描謄本(OCR)」批次匯入再逐筆校正;土地登記可填「前次移轉現值或原規定地價」供土增稅試算</td></tr>
                         <tr><td>整合清冊</td><td>土地 × 建物 × 地主的整合檢視</td></tr>
-                        <tr><td>樓棟視圖</td><td>依門牌／樓層排的棟別格狀圖,格內顏色 = 同意狀態,角標數字 = 該戶共有人數;共有部分／純地下室建號不列入</td></tr>
-                        <tr><td>地主聯絡簿</td><td>每位地主的聯絡紀錄與跟進狀態;聯絡率、逾期未聯絡提醒由此彙算</td></tr>
+                        <tr><td>樓棟視圖</td><td>依門牌／樓層排的棟別格狀圖,格內顏色 = 同意狀態,角標數字 = 該戶共有人數;共有部分／純地下室建號不列入;點格子開「編輯地主」視窗可查看/新增聯絡紀錄</td></tr>
                         <tr><td>文件</td><td>案件文件庫,含同意書狀態(影響同意度)</td></tr>
                         <tr><td>他項權利部</td><td>抵押權、地上權等他項權利登記</td></tr>
                         <tr><td>費用</td><td>案件支出登錄;可用「發票掃描」拍照／上傳自動回填金額</td></tr>
@@ -770,16 +768,15 @@
   <script src="js/api.js?v=20260914_1"></script>
   <script src="js/modals.js?v=20260911_1"></script>
   <script src="js/auth.js?v=20260909_2"></script>
-  <script src="js/dashboard.js?v=20260916_4"></script>
+  <script src="js/dashboard.js?v=20260916_5"></script>
   <script src="js/progress_report.js?v=20260916_1"></script>
   <script src="js/mywork.js?v=20260914_1"></script>
   <script src="js/sop.js?v=20260916_3"></script>
   <script src="js/development.js?v=20260916_3"></script>
   <script src="js/board.js?v=20260909_9"></script>
   <script src="js/ocr_wizard.js?v=20260916_2"></script>
-  <script src="js/landowners.js?v=20260916_5"></script>
+  <script src="js/landowners.js?v=20260916_6"></script>
   <script src="js/documents.js?v=20260911_2"></script>
-  <script src="js/contacts.js?v=20260916_1"></script>
   <script src="js/encumbrances.js?v=20260916_2"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
