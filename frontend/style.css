@@ -1052,6 +1052,7 @@
   .lo-sibling-btn:hover { background: var(--surface); color: var(--brand-dark, var(--brand)); }
   .modal-close { background: none; color: var(--text-muted); font-size: 21.5px; padding: 2px 6px; border-radius: var(--radius-sm); line-height: 1; }
   .modal-close:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
+  .modal-side-panel { margin-left: 16px; align-self: flex-start; max-height: 88vh; }
   .modal-body { padding: 22px; }
   .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 
@@ -1208,7 +1209,7 @@
     #sb-toggle .brand-dot { display: flex; align-items: center; flex-shrink: 0; }
     #sb-toggle .brand-dot img { height: 34px; width: auto; display: block; }
     #sb-toggle .brand-text {
-      font-size: 20px; font-weight: 900; letter-spacing: .01em;
+      font-size: 26px; font-weight: 900; letter-spacing: .01em;
       background: linear-gradient(135deg, var(--brand), var(--brand-dark));
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
@@ -1229,7 +1230,7 @@
     .sb.sb-open { transform: none; }
     /* The drawer's own brand row is redundant with the top bar's title - hide it. */
     .sb .navbar { display: none; }
-    .nav-link { padding: 9px 12px; font-size: 14px; }
+    .nav-link { padding: 9px 12px; font-size: 13px; }
     .sb-sec:first-of-type { padding-top: 12px; }
     .sb-sec { padding: 16px 20px 6px; }
     #sb-cases { max-height: 42vh; }
@@ -1250,6 +1251,17 @@
       padding: 40px 16px 24px; overflow-y: auto;
     }
     .login-footer { position: static; margin-top: 24px; text-align: center; }
+
+    /* Modals: 表單本來左右並排的欄位在窄螢幕擠成一團,一律改直排;彈窗本身貼齊螢幕
+       邊緣少留白,才裝得下。次要面板(modal-side-panel)在桌機是並排在主視窗右邊,
+       手機版寬度不夠並排,改成往下堆疊。 */
+    .modal-overlay { padding: 10px; }
+    .modal-overlay:has(.modal-side-panel) { flex-direction: column; }
+    .modal-dialog { max-width: 100% !important; width: 100%; }
+    .modal-side-panel { margin-left: 0; margin-top: 12px; align-self: stretch; }
+    .field-row { flex-direction: column; gap: 0; }
+    .lo-modal-title-row { flex-wrap: wrap; row-gap: 8px; }
+    .lo-modal-title-right { flex-wrap: wrap; }
   }
 
 /* ============ Building View (樓棟視圖) ============ */

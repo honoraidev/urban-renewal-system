@@ -176,6 +176,32 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] doc_type ENUM update skipped: {exc}", flush=True)
 
+    # 拜訪紀錄新增「LINE」聯絡方式 - 既有資料庫的 ENUM 沒有這個值,用跟上面 doc_type
+    # 一樣的做法動態加寬,不影響既有資料(只是允許的值變多)。
+    try:
+        with engine.connect() as _conn:
+            _cur_type = _conn.execute(
+                _sql_text(
+                    "SELECT COLUMN_TYPE FROM information_schema.columns "
+                    "WHERE table_schema = DATABASE() AND table_name = 'contact_logs' "
+                    "AND column_name = 'contact_method'"
+                )
+            ).scalar() or ""
+            _want_method = "ENUM('phone','visit','line','mail','email','briefing','other')".lower().replace(" ", "")
+            if _cur_type.lower().replace(" ", "") != _want_method:
+                _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+                _conn.execute(
+                    _sql_text(
+                        "ALTER TABLE contact_logs MODIFY COLUMN contact_method "
+                        "ENUM('phone','visit','line','mail','email','briefing','other') "
+                        "NOT NULL DEFAULT 'phone'"
+                    )
+                )
+                _conn.commit()
+                print("[auto_migrate] contact_logs.contact_method ENUM updated (+line)", flush=True)
+    except Exception as exc:
+        print(f"[auto_migrate] contact_method ENUM update skipped: {exc}", flush=True)
+
     # 謄本辨識現在跑在背景執行緒;若上次是重啟中斷,job 會永遠停在 processing。
     # 開機時把卡超過 30 分鐘的 processing job 標成 failed,前端輪詢才不會一直等。
     try:

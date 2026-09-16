@@ -80,7 +80,7 @@ const DOC_TYPE_KEYWORDS = {
   briefing_material: ["說明會", "簡報", "簡報資料", "會議記錄", "briefing", "presentation"],
 };
 
-const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
+const CONTACT_METHOD_LABEL = { phone: "電話", visit: "訪視", line: "LINE", mail: "郵寄", email: "電子郵件", briefing: "說明會", other: "其他" };
 const CONTACT_RESULT_LABEL = { no_answer: "未接聽", agreed: "同意", opposed: "反對", undecided: "未決定", callback_needed: "需回電" };
 // 同意(綠)/未接聽(棕)/需回電(黃)/反對(紅)/未決定(淺藍) - 樓棟視圖格子底色跟整合
 // 清冊「聯絡結果」欄共用同一套顏色語意,對應 .mini-badge 的顏色修飾 class。

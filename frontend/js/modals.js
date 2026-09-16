@@ -38,6 +38,33 @@ function closeModal() {
   if (root) root.innerHTML = "";
 }
 
+// 掛在既有 modal 旁邊的次要面板(例如「編輯地主」視窗點「+建立一筆拜訪資料」彈出的
+// 快速建立表單)- 附加在同一個 .modal-overlay 底下當手足元素,overlay 本身是
+// display:flex,兩個 .modal-dialog 自然並排、整體置中,不用另外算座標。要關掉主視窗
+// (closeModal)時 #modal-root 整包清空,這個面板也會一起消失,不用另外處理。
+function openSidePanel(title, bodyHtml, { width = "380px" } = {}) {
+  const overlay = document.getElementById("modal-overlay");
+  if (!overlay) return openModal(title, bodyHtml, { width });
+  document.getElementById("modal-side-panel")?.remove();
+  const panel = document.createElement("div");
+  panel.className = "modal-dialog modal-side-panel";
+  panel.id = "modal-side-panel";
+  panel.style.maxWidth = width;
+  panel.innerHTML = `
+    <div class="modal-header">
+      <h3>${title}</h3>
+      <button class="modal-close" id="modal-side-close-btn" type="button">&times;</button>
+    </div>
+    <div class="modal-body">${bodyHtml}</div>`;
+  overlay.appendChild(panel);
+  panel.querySelector("#modal-side-close-btn").onclick = () => panel.remove();
+  return panel;
+}
+
+function closeSidePanel() {
+  document.getElementById("modal-side-panel")?.remove();
+}
+
 // 疊在現有 modal 之上的頁面內確認框;不動 #modal-root,底下的精靈不會被蓋掉。
 function confirmDialog(message, { title = "確認", confirmText = "確定", cancelText = "取消", danger = false } = {}) {
   return new Promise((resolve) => {

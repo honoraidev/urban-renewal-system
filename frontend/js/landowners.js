@@ -866,8 +866,6 @@ function switchLandownerSibling(delta) {
 // 編輯模式就失去保護意義了。
 let landownerEditMode = false;
 let _landownerEditModeFor = null;
-// 「新增一筆聯絡紀錄」表單預設收起來,按標題列的「+ 建立一筆拜訪資料」才展開。
-let landownerShowContactForm = false;
 
 function loFieldHtml(label, name, value, extra) {
   if (landownerEditMode) {
@@ -882,7 +880,6 @@ function loFieldHtml(label, name, value, extra) {
 async function openEditLandownerModal(landownerId, siblingIds = null) {
   if (_landownerEditModeFor !== landownerId) {
     landownerEditMode = false;
-    landownerShowContactForm = false;
     _landownerEditModeFor = landownerId;
   }
   // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
@@ -911,7 +908,8 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 門牌地址(建物登記的 address)跟「地址」(地主自己的戶籍地址)是兩件事 - 同一位
   // 地主可能同時持有好幾戶,這裡去重後全部列出來,唯讀顯示,不是真的可以在這裡改。
   // 多筆時逐行列出(不再擠成一行用「、」串接被輸入框裁掉看不到後面),方便一眼看完。
-  const doorAddresses = [...new Set((owner.building_records || []).map((r) => r.address).filter(Boolean))];
+  const buildingRecordsList = owner.building_records || [];
+  const doorAddresses = [...new Set(buildingRecordsList.map((r) => r.address).filter(Boolean))];
   // 同一案件底下每戶的路名/幾段幾乎都一樣,每個膠囊都重複顯示一次很雜訊 - 只留巷弄號樓
   // 那段(真正能分辨是哪一戶的部分);完整地址還是留在 title,滑鼠移上去看得到。
   const stripRoadPrefix = (addr) =>
@@ -958,44 +956,28 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
           </div>
           <div class="field">
             <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
-            <div class="badge-row" style="padding:8px 2px" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
+            ${landownerEditMode
+      ? (buildingRecordsList.length
+        ? `<div style="display:flex;flex-direction:column;gap:6px">
+                  ${buildingRecordsList
+          .map(
+            (r) =>
+              `<input data-building-address-id="${r.id}" value="${escapeHtml(r.address) || ""}" placeholder="建號${escapeHtml(r.building_number) || r.id} 門牌地址" autocomplete="off">`
+          )
+          .join("")}
+                </div>`
+        : `<div class="helper-text">尚無建物登記資料,請先到「登記資料 → 建物登記」新增</div>`)
+      : `<div class="badge-row" style="padding:8px 2px">
               ${doorAddresses.length
-      ? doorAddresses.map((a) => `<span class="mini-badge" title="${escapeHtml(a)}">${escapeHtml(stripRoadPrefix(a))}</span>`).join("")
-      : `<span class="mini-badge">—</span>`
+        ? doorAddresses.map((a) => `<span class="mini-badge" title="${escapeHtml(a)}">${escapeHtml(stripRoadPrefix(a))}</span>`).join("")
+        : `<span class="mini-badge">—</span>`
+      }
+            </div>`
     }
-            </div>
           </div>
           ${loFieldHtml("地址", "address", owner.address)}
         </div>
       </details>
-
-      ${!canAddContact || !landownerShowContactForm
-      ? ""
-      : `<div class="lo-edit-section">
-        <div class="lo-edit-section-title">新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></div>
-        <div class="lo-edit-section-body">
-          <div id="lo-contact-fields">
-            <div class="field-row">
-              <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date"></div>
-              <div class="field"><label>聯絡方式</label>
-                <select name="c_contact_method">
-                  ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
-                </select>
-              </div>
-            </div>
-            <div class="field-row">
-              <div class="field"><label>聯絡結果</label>
-                <select name="c_contact_result" id="lo-c-result">
-                  ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
-                </select>
-              </div>
-              <div class="field" id="lo-c-followup"><label>下次跟進日期(選填)</label><input type="date" name="c_next_follow_up_date"></div>
-            </div>
-            <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
-          </div>
-        </div>
-      </div>`
-    }
 
       <div class="field">
         <label>拜訪 / 簽約狀態</label>
@@ -1058,7 +1040,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       </details>
 
       <div class="modal-footer">
-        ${landownerEditMode || (canAddContact && landownerShowContactForm)
+        ${landownerEditMode
       ? `<button type="button" class="btn-secondary" id="lo-cancel-btn">取消</button>
            <button type="submit" class="btn-primary">儲存</button>`
       : `<button type="button" class="btn-secondary" id="lo-cancel-btn">關閉</button>`
@@ -1069,19 +1051,16 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
 
   document.getElementById("lo-cancel-btn").addEventListener("click", () => {
     landownerEditMode = false;
-    landownerShowContactForm = false;
     closeModal();
   });
 
   document.getElementById("lo-edit-toggle-btn").addEventListener("click", () => {
     landownerEditMode = !landownerEditMode;
-    if (!landownerEditMode) landownerShowContactForm = false;
     openEditLandownerModal(landownerId, siblingIds);
   });
 
   document.getElementById("lo-add-contact-btn")?.addEventListener("click", () => {
-    landownerShowContactForm = true;
-    openEditLandownerModal(landownerId, siblingIds);
+    openContactSidePanel(landownerId, siblingIds);
   });
 
   // 好幾位共有人共用同一格門牌時,上下鍵切到上一 / 下一位,直接重開這個編輯視窗
@@ -1164,71 +1143,94 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     });
   });
 
-  const cResult = document.getElementById("lo-c-result");
-  const cFollowup = document.getElementById("lo-c-followup");
-  if (cResult && cFollowup) {
-    const syncFollowupVisibility = () => {
-      const hide = cResult.value === "agreed" || cResult.value === "opposed";
-      cFollowup.classList.toggle("hidden", hide);
-      if (hide) cFollowup.querySelector("input").value = "";
-    };
-    cResult.addEventListener("change", syncFollowupVisibility);
-    syncFollowupVisibility();
-  }
-
   document.getElementById("landowner-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    // 表單只有在編輯模式才會渲染出可送出的欄位(檢視模式沒有「儲存」鈕,見上面
+    // modal-footer),送到這裡一定是編輯模式,可以放心讀 input 的值。
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
-    // 「同時新增一筆聯絡紀錄」整組是選填,唯獨「聯絡時間」是這筆會不會被建立的開關
-    // (見下面 if (data.c_contact_date))。使用者常常會填了聯絡結果/備註卻忘了填聯絡
-    // 時間,存檔會顯示「已更新」成功(因為地主基本資料真的存成功了),但這筆聯絡紀錄
-    // 其實整個沒建立、悄悄不見 —— 擋下來提醒使用者補填,不要放給它默默漏掉。
-    // 已同意時這整組欄位根本沒渲染出來(見上面 alreadyAgreed),data.c_contact_result
-    // 會是 undefined 而不是預設值 "undecided" - 用 && 短路,undefined 一定跳過,不會
-    // 誤判成「填了聯絡結果卻沒填時間」。
-    const contactDetailFilled = (data.c_contact_result && data.c_contact_result !== "undecided") || (data.c_notes || "").trim() || data.c_next_follow_up_date;
-    if (!data.c_contact_date && contactDetailFilled) {
-      toast("已填聯絡結果/紀錄,但「聯絡時間」還沒填 —— 這筆聯絡紀錄不會被建立,請補上聯絡時間再儲存", "error");
-      document.querySelector('[name="c_contact_date"]')?.focus();
-      return;
-    }
-    // 聯絡狀態不再讓人手動改 —— 有新增聯絡紀錄時,後端會照這筆的「聯絡結果」自動
-    // 更新聯絡狀態(見 routers/contacts.py create_contact),這裡不用也不能送這個欄位。
     try {
-      // 唯讀模式下只展開了「新增一筆聯絡紀錄」表單,地主基本資料那些欄位根本不存在
-      // (是純顯示的 div,不是 input)- 這時候 data.name 等於 undefined,絕對不能照
-      // 原本 `data.field || null` 的寫法送出去,不然會把姓名以外的欄位全部清空。
-      if (landownerEditMode) {
-        const payload = {
-          name: data.name,
-          id_number: data.id_number || null,
-          phone: data.phone || null,
-          line_id: data.line_id || null,
-          email: data.email || null,
-          address: data.address || null,
-        };
-        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
-      }
-      if (data.c_contact_date) {
-        await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
-          method: "POST",
-          body: {
-            landowner_id: landownerId,
-            contact_date: new Date(data.c_contact_date).toISOString(),
-            contact_method: data.c_contact_method,
-            contact_result: data.c_contact_result,
-            notes: data.c_notes || null,
-            next_follow_up_date: data.c_next_follow_up_date || null,
-          },
-        });
-      }
+      const payload = {
+        name: data.name,
+        id_number: data.id_number || null,
+        phone: data.phone || null,
+        line_id: data.line_id || null,
+        email: data.email || null,
+        address: data.address || null,
+      };
+      await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
+
+      const addressInputs = [...document.querySelectorAll("[data-building-address-id]")];
+      await Promise.all(
+        addressInputs.map((inp) => {
+          const rid = Number(inp.dataset.buildingAddressId);
+          const orig = buildingRecordsList.find((r) => r.id === rid);
+          const val = inp.value.trim();
+          if (orig && (orig.address || "") === val) return null;
+          return api(`/projects/${state.currentProjectId}/landowners/${landownerId}/building-records/${rid}`, {
+            method: "PATCH",
+            body: { address: val || null },
+          });
+        })
+      );
+
       landownerEditMode = false;
-      landownerShowContactForm = false;
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);
       syncProjectAggregates();
+    } catch (err) { }
+  });
+}
+
+function contactSidePanelFieldsHtml() {
+  return `
+    <div class="field"><label>拜訪時間</label><input type="datetime-local" name="c_contact_date" required></div>
+    <div class="field"><label>拜訪方式</label>
+      <select name="c_contact_method">
+        ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field"><label>拜訪結果</label>
+      <select name="c_contact_result">
+        ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field"><label>紀錄備註</label><textarea name="c_notes" rows="3"></textarea></div>`;
+}
+
+function openContactSidePanel(landownerId, siblingIds) {
+  openSidePanel(
+    "建立一筆拜訪資料",
+    `<form id="lo-contact-side-form">
+      ${contactSidePanelFieldsHtml()}
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="lo-contact-side-cancel">取消</button>
+        <button type="submit" class="btn-primary">建立</button>
+      </div>
+    </form>`,
+    { width: "380px" }
+  );
+  document.getElementById("lo-contact-side-cancel").addEventListener("click", () => closeSidePanel());
+  document.getElementById("lo-contact-side-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    try {
+      await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
+        method: "POST",
+        body: {
+          landowner_id: landownerId,
+          contact_date: new Date(data.c_contact_date).toISOString(),
+          contact_method: data.c_contact_method,
+          contact_result: data.c_contact_result,
+          notes: data.c_notes || null,
+        },
+      });
+      closeSidePanel();
+      toast("已建立拜訪紀錄", "success");
+      syncProjectAggregates();
+      openEditLandownerModal(landownerId, siblingIds);
     } catch (err) { }
   });
 }

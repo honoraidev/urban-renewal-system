@@ -188,7 +188,7 @@ CREATE TABLE contact_logs (
     project_id INT NOT NULL,
     landowner_id INT NOT NULL,
     contact_date DATETIME NOT NULL,
-    contact_method ENUM('phone','visit','mail','email','briefing','other') NOT NULL DEFAULT 'phone',
+    contact_method ENUM('phone','visit','line','mail','email','briefing','other') NOT NULL DEFAULT 'phone',
     contact_result ENUM('no_answer','agreed','opposed','undecided','callback_needed') NOT NULL DEFAULT 'undecided',
     staff_id INT NULL,
     notes TEXT,

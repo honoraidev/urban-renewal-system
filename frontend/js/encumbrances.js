@@ -70,10 +70,24 @@ function encumbranceMatchesQuery(enc, q) {
   return haystack.includes(q);
 }
 
+// 分地號/建號兩個子分頁瀏覽 - parcel_kind 是近期才加的欄位,舊資料多半沒填,沒填的
+// 一律歸到「地號」分頁(都更他項權利登記本來就以地號為主),不會讓舊資料憑空消失。
+let encActiveKind = "land";
+
+function encumbranceKindOf(enc) {
+  return enc.parcel_kind === "building" ? "building" : "land";
+}
+
 async function renderEncumbrancesTab(el) {
   const pid = state.currentProjectId;
   const encumbrances = await api(`/projects/${pid}/encumbrances`);
   state.projectCache[pid].encumbrances = encumbrances;
+  const landCount = encumbrances.filter((e) => encumbranceKindOf(e) === "land").length;
+  const buildingCount = encumbrances.length - landCount;
+
+  function currentList() {
+    return encumbrances.filter((e) => encumbranceKindOf(e) === encActiveKind);
+  }
 
   el.innerHTML = `
     <div class="section-toolbar">
@@ -81,21 +95,26 @@ async function renderEncumbrancesTab(el) {
       <input type="search" id="encumbrance-search" class="search-input-pill" style="max-width:260px" placeholder="搜尋地號/門牌/權利種類/權利人...">
       ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
     </div>
-    ${encumbrances.length
-      ? `<div class="table-wrap">
-            <table>
-              <thead><tr>
-                <th>登記次序</th><th>對應地號/建號</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>義務人(債務額比例)</th><th style="text-align:right">擔保債權總金額</th>
-                ${isEditor() ? "<th>操作</th>" : ""}
-              </tr></thead>
-              <tbody id="encumbrance-tbody">
-                ${encumbrances.map(encumbranceRowHtml).join("")}
-              </tbody>
-            </table>
-          </div>`
-      : `<div class="empty-state">尚無他項權利資料</div>`
-    }
+    <div class="tab-bar" id="enc-kind-tabs" style="margin-bottom:14px">
+      <button type="button" class="tab-btn ${encActiveKind === "land" ? "active" : ""}" data-enc-kind="land">地號 (${landCount})</button>
+      <button type="button" class="tab-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建號 (${buildingCount})</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>登記次序</th><th>對應地號/建號</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>義務人(債務額比例)</th><th style="text-align:right">擔保債權總金額</th>
+          ${isEditor() ? "<th>操作</th>" : ""}
+        </tr></thead>
+        <tbody id="encumbrance-tbody">${renderEncumbranceTbody(currentList())}</tbody>
+      </table>
+    </div>
   `;
+
+  function renderEncumbranceTbody(list) {
+    return list.length
+      ? list.map(encumbranceRowHtml).join("")
+      : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無地號他項權利資料" : "尚無建號他項權利資料"}</td></tr>`;
+  }
 
   function wireRowButtons() {
     el.querySelectorAll("[data-delete-encumbrance]").forEach((btn) => {
@@ -117,23 +136,28 @@ async function renderEncumbrancesTab(el) {
   }
   wireRowButtons();
 
+  el.querySelectorAll("[data-enc-kind]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      encActiveKind = btn.dataset.encKind;
+      renderTab("encumbrances");
+    });
+  });
+
   const searchInput = document.getElementById("encumbrance-search");
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = encumbrances.filter((enc) => encumbranceMatchesQuery(enc, q));
+      const filtered = currentList().filter((enc) => encumbranceMatchesQuery(enc, q));
       const tbody = document.getElementById("encumbrance-tbody");
       if (tbody) {
-        tbody.innerHTML = filtered.length
-          ? filtered.map(encumbranceRowHtml).join("")
-          : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">查無符合的資料</td></tr>`;
+        tbody.innerHTML = renderEncumbranceTbody(filtered);
         wireRowButtons();
       }
     });
   }
 
   const addBtn = document.getElementById("add-encumbrance-btn");
-  if (addBtn) addBtn.addEventListener("click", () => openEncumbranceFormModal(null));
+  if (addBtn) addBtn.addEventListener("click", () => openEncumbranceFormModal(null, encActiveKind));
 }
 
 function obligorRowHtml(o) {
@@ -161,12 +185,12 @@ function wireObligorRows(wrap) {
   });
 }
 
-function openEncumbranceFormModal(encumbrance) {
+function openEncumbranceFormModal(encumbrance, defaultKind) {
   const isEdit = !!encumbrance;
   const e = encumbrance || {
     registration_order: "",
     applies_to_parcels: "",
-    parcel_kind: "",
+    parcel_kind: defaultKind || "",
     property_address: "",
     right_type: "",
     right_holder: "",
