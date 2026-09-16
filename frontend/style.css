@@ -259,7 +259,7 @@
     cursor: pointer; transition: all .15s ease;
   }
   .sb-collapse-btn:hover { color: var(--brand); }
-  .sb-collapse-btn svg { flex-shrink: 0; width: 20px; height: 20px; }
+  .sb-collapse-btn svg { flex-shrink: 0; width: 17px; height: 17px; }
   /* .collapsed 的效果只在桌機寬度生效 - collapsed 狀態是存在 localStorage 的,手機版
      用的是完全不同的抽屜模式(.sb-open,見下面 640px 那個 media query),寬度、隱藏
      文字這些規則要是漏到手機版,上次在桌機收合過一次,手機版的抽屜就會被壓成 56px
@@ -287,7 +287,7 @@
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
   .navbar .brand .brand-text {
-    font-size: 18px; font-weight: 900; letter-spacing: .01em; white-space: nowrap;
+    font-size: 16px; font-weight: 900; letter-spacing: .01em; white-space: nowrap;
     background: linear-gradient(135deg, var(--brand), var(--brand-dark));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
