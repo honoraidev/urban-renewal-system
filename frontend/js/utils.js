@@ -22,22 +22,28 @@ function fmtDate(iso) {
   return String(iso).slice(0, 10);
 }
 
+// 後端存的是沒有時區標記的 UTC 時間字串(如「2026-09-16T00:47:18」);JS 的
+// new Date(...) 對「沒有時區的日期時間字串」會當成瀏覽器當地時區解讀(不是 UTC),
+// 兩台裝置時區不同,同一個時間點解析出來會不一樣。要當成 UTC 解析就得自己補 Z。
+function parseApiDate(iso) {
+  if (!iso) return null;
+  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(isoWithZone);
+  return isNaN(d) ? null : d;
+}
+
 // 明確指定 Asia/Taipei,不依賴瀏覽器/裝置本身的時區設定 —— fmtDate/fmtDateTime 用的是
 // 當下裝置時區,同一個時間點在不同地方打開可能會顯示成不同日期(尤其後端存的是 UTC
 // 午夜前後的時間點)。新聞卡片日期、「同步於台灣時間」這類明確要求台灣時間的地方用這組。
 function fmtDateTW(iso) {
-  if (!iso) return "-";
-  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
-  const d = new Date(isoWithZone);
-  if (isNaN(d)) return String(iso).slice(0, 10);
+  const d = parseApiDate(iso);
+  if (!d) return iso ? String(iso).slice(0, 10) : "-";
   return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
 }
 
 function fmtDateTimeTW(iso) {
-  if (!iso) return "-";
-  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
-  const d = new Date(isoWithZone);
-  if (isNaN(d)) return iso;
+  const d = parseApiDate(iso);
+  if (!d) return iso || "-";
   return d.toLocaleString("zh-TW", {
     timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
   });
