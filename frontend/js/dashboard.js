@@ -538,48 +538,103 @@ function updateDistrictSelectOptions(city, defaultDistrict = "") {
 async function goToNewProject() {
   const cityOptions =
     `<option value="">請選擇</option>` + TAIWAN_CITIES.map((c) => `<option value="${c}">${c}</option>`).join("");
-  openModal(
-    "建立都更案",
-    `
-    <form id="project-form">
-      <div class="field-row">
-        <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
-        <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
-        <div class="field"><label>案件名稱</label><input name="name" required></div>
-      </div>
-      <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date"></div>
-      <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">建立</button>
-      </div>
-    </form>`,
-    { width: "560px" }
-  );
+  // L2 以上(isManager)可以在建案的同時客製化 SOP 關卡流程,跟案件內 SOP 頁的
+  // 「自訂關卡流程」是同一套編輯器 - 這裡先只存在這個 closure 的本地變數,案件建立
+  // 成功後才真正呼叫 PUT .../sop/stages(此時案件才有 id)。openSopStageFlowEditor
+  // 會用 openModal 蓋掉整個 #modal-root,所以編輯完要用 mountForm() 在同一個
+  // closure 裡重繪表單(不能整個重呼叫 goToNewProject,不然 customStageFlow 會重置)。
+  let customStageFlow = null;
+  const canCustomizeFlow = isManager();
 
-  updateDistrictSelectOptions("");
-  document.getElementById("np-code").value = await suggestNextProjectCode();
+  function flowSummaryText() {
+    if (!customStageFlow) return "預設流程(10關)";
+    return `已自訂(${customStageFlow.length}關)`;
+  }
 
-  document.getElementById("np-city").addEventListener("change", (e) => {
-    updateDistrictSelectOptions(e.target.value);
-  });
+  function mountForm(prevValues) {
+    openModal(
+      "建立都更案",
+      `
+      <form id="project-form">
+        <div class="field-row">
+          <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
+          <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
+          <div class="field"><label>案件名稱</label><input name="name" required></div>
+        </div>
+        <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date"></div>
+        <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
+        ${canCustomizeFlow
+          ? `<div class="field">
+               <label>SOP 關卡流程</label>
+               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                 <span class="helper-text" id="np-flow-summary" style="margin:0">${flowSummaryText()}</span>
+                 <button type="button" class="btn-secondary btn-sm" id="np-edit-flow-btn">⚙ 自訂關卡流程</button>
+               </div>
+             </div>`
+          : ""}
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+          <button type="submit" class="btn-primary">建立</button>
+        </div>
+      </form>`,
+      { width: "560px" }
+    );
 
-  document.getElementById("project-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const payload = Object.fromEntries(fd.entries());
-    payload.expected_completion_date = payload.expected_completion_date || null;
-    try {
-      const project = await api("/projects", { method: "POST", body: payload });
-      toast("案件已建立", "success");
-      closeModal();
-      await loadDashboard();
-      await openProject(project.id);
-    } catch (err) { }
-  });
+    const city = (prevValues && prevValues.city) || "";
+    updateDistrictSelectOptions(city, (prevValues && prevValues.district) || "");
+    document.getElementById("np-city").value = city;
+
+    (async () => {
+      document.getElementById("np-code").value = (prevValues && prevValues.project_code) || (await suggestNextProjectCode());
+    })();
+    if (prevValues) {
+      ["name", "expected_completion_date", "description"].forEach((k) => {
+        const field = document.querySelector(`#project-form [name="${k}"]`);
+        if (field && prevValues[k] != null) field.value = prevValues[k];
+      });
+    }
+
+    document.getElementById("np-city").addEventListener("change", (e) => {
+      updateDistrictSelectOptions(e.target.value);
+    });
+
+    const editFlowBtn = document.getElementById("np-edit-flow-btn");
+    if (editFlowBtn) {
+      editFlowBtn.addEventListener("click", () => {
+        const form = document.getElementById("project-form");
+        const snapshot = Object.fromEntries(new FormData(form).entries());
+        const startFrom = customStageFlow || SOP_DEFAULT_STAGE_DEFS;
+        openSopStageFlowEditor(startFrom, async (stages) => {
+          customStageFlow = stages;
+          mountForm(snapshot);
+        });
+      });
+    }
+
+    document.getElementById("project-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = Object.fromEntries(fd.entries());
+      payload.expected_completion_date = payload.expected_completion_date || null;
+      try {
+        const project = await api("/projects", { method: "POST", body: payload });
+        if (customStageFlow) {
+          try {
+            await api(`/projects/${project.id}/sop/stages`, { method: "PUT", body: { stages: customStageFlow } });
+          } catch (err) { }
+        }
+        toast("案件已建立", "success");
+        closeModal();
+        await loadDashboard();
+        await openProject(project.id);
+      } catch (err) { }
+    });
+  }
+
+  mountForm(null);
 }
 
 // 案件卡片右上角 ⋮ 的選單 - 直接以下拉方式貼在卡片上,不再開對話框
@@ -722,7 +777,7 @@ async function openProject(id) {
   }
 
   // 地主帳號:只保留 SOP 進度 / 土地登記 / 建物登記 / 聯絡紀錄 / 土增稅,其餘分頁隱藏
-  const landownerHiddenTabs = ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"];
+  const landownerHiddenTabs = ["buildingview", "documents", "encumbrances", "expenses", "members"];
   document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
     const hideForLandowner = isLandowner() && landownerHiddenTabs.includes(btn.dataset.tab);
     btn.classList.toggle("hidden", hideForLandowner);
@@ -779,7 +834,7 @@ async function renderTab(tab) {
     setIntegratedTabLabel("building");
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
-  if (isLandowner() && ["buildingview", "relations", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
+  if (isLandowner() && ["buildingview", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
     tab = "sop";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "sop"));
   }
@@ -792,7 +847,6 @@ async function renderTab(tab) {
     sop: renderSopTab,
     integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,
-    relations: renderRelationsTab,
     contacts: renderContactsTab,
     documents: renderDocumentsTab,
     encumbrances: renderEncumbrancesTab,

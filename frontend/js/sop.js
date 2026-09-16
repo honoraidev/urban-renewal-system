@@ -1,58 +1,209 @@
 "use strict";
 
-const DUAL_GATE_STAGES = [4, 8, 9];
+// 內建關卡代碼清單(跟 backend/routers/sop.py 的 STAGE_DEFINITIONS 同一份定義,同一套
+// 慣例:後端是權威來源,這裡只是給「客製化關卡流程」編輯器當可選清單/預設值用)。
+const SOP_DEFAULT_STAGE_DEFS = [
+  { key: "initial_approval", name: "初始核定立案" },
+  { key: "ocr_roster", name: "籌備階段" },
+  { key: "contact_rate", name: "意願調查" },
+  { key: "briefing_1", name: "都更說明會" },
+  { key: "consent_dual_1", name: "同意書簽署(第一輪)" },
+  { key: "consultant_review", name: "都更規劃與估價" },
+  { key: "briefing_2", name: "事業計畫說明會" },
+  { key: "briefing_3", name: "權利變換說明會" },
+  { key: "consent_dual_2", name: "同意書補強(第二輪)" },
+  { key: "consent_final", name: "送件審查" },
+];
+const DUAL_GATE_KEYS = ["consent_dual_1", "consent_dual_2", "consent_final"];
 const CONTACT_RATE_THRESHOLD = 0.95;
 
 function sopStageLabel(key, stageObj) {
+  if (stageObj && stageObj.name) return stageObj.name;
   if (stageObj && stageObj.custom_name) return stageObj.custom_name;
-  const labels = {
-    0: "初始核定立案",
-    1: "籌備階段",
-    2: "意願調查",
-    3: "都更說明會",
-    4: "同意書簽署(第一輪)",
-    5: "都更規劃與估價",
-    6: "事業計畫說明會",
-    7: "權利變換說明會",
-    8: "同意書補強(第二輪)",
-    9: "送件審查",
-  };
-  return labels[Number(key)] || `第${key}關`;
+  // dashboard.js / progress_report.js 只知道 current_stage 數字,沒有這個案件完整的
+  // stage 物件(拿不到客製化後的真實名稱)- 退回用內建預設流程的位置對照,對沒客製
+  // 化過的案件(絕大多數)結果會是對的,客製化過的頂多顯示成預設名稱。
+  const def = SOP_DEFAULT_STAGE_DEFS[Number(key)];
+  if (def) return def.name;
+  return `第${key}關`;
 }
 
+// 客製化關卡流程後,內建關卡不一定還在原本的位置(甚至可能被刪掉了/改名了) - 這裡
+// 一律用 stage.key(後端已經幫每一關解析好)去對 checklist 設定,不用陣列位置。
 const SOP_STAGE_CHECKLISTS = {
-  0: [
+  initial_approval: [
     { key: "roi_report", label: "上傳投報表", docType: "roi_report" },
   ],
-  1: [
+  ocr_roster: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
     { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land", action: "land" },
     { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building", action: "building" },
     { key: "landowner_roster_confirmed", label: "確認地主清冊正確", manual: true },
   ],
-  2: [
+  contact_rate: [
     { key: "contact_info_established", label: "地主聯絡方式建立", countOf: "landowner_with_phone" },
     { key: "contact_rate_95", label: "達到95%聯絡門檻", contactRate: true },
   ],
-  3: [
+  briefing_1: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
     { key: "briefing_reviewed_3", label: "主管審核通過", manual: true },
   ],
-  5: [
+  consultant_review: [
     { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document" },
     { key: "consultant_reviewed", label: "主管審核通過", manual: true },
   ],
-  6: [
+  briefing_2: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
     { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
     { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
     { key: "briefing_reviewed_6", label: "主管審核通過", manual: true },
   ],
-  7: [
+  briefing_3: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
     { key: "briefing_reviewed_7", label: "主管審核通過", manual: true },
   ],
 };
+
+// ========== 自訂關卡流程編輯器 ==========
+// 兩個地方共用:1) 案件內 SOP 頁「自訂關卡流程」按鈕(直接呼叫 API 儲存)
+// 2) 建立案件精靈(onSave 先只存進精靈的本地狀態,案件建立成功後才真正呼叫 API)。
+let sopFlowEditorState = null; // { stages: [{key,name}], onSave(stages) }
+
+function sopFlowEditorRowsHtml() {
+  const stages = sopFlowEditorState.stages;
+  const usedKeys = new Set(stages.map((s) => s.key).filter(Boolean));
+  return stages
+    .map((row, i) => {
+      const keyOptions = SOP_DEFAULT_STAGE_DEFS.filter((d) => row.key === d.key || !usedKeys.has(d.key))
+        .map((d) => `<option value="${d.key}" ${row.key === d.key ? "selected" : ""}>${escapeHtml(d.name)}(內建自動門檻)</option>`)
+        .join("");
+      return `
+      <div class="sop-flow-row">
+        <span class="sop-flow-row-num">${i + 1}</span>
+        <select class="sop-flow-row-type" data-flow-type="${i}">
+          <option value="" ${!row.key ? "selected" : ""}>自訂關卡(人工完成)</option>
+          ${keyOptions}
+        </select>
+        <input type="text" class="sop-flow-row-name" data-flow-name="${i}" value="${escapeHtml(row.name || "")}" placeholder="關卡名稱">
+        <div class="sop-flow-row-actions">
+          <button type="button" class="btn-secondary btn-sm" data-flow-up="${i}" ${i === 0 ? "disabled" : ""} title="上移">↑</button>
+          <button type="button" class="btn-secondary btn-sm" data-flow-down="${i}" ${i === stages.length - 1 ? "disabled" : ""} title="下移">↓</button>
+          <button type="button" class="btn-danger btn-sm" data-flow-remove="${i}" ${stages.length <= 1 ? "disabled" : ""} title="刪除">✕</button>
+        </div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderSopFlowEditorBody() {
+  return `
+    <div class="sop-flow-editor">
+      <p class="helper-text">自訂這個案件要跑的關卡流程:可新增、刪除、改名、排序。選「內建關卡」會沿用該關卡原本的自動門檻(同意度/聯絡率/應上傳文件);「自訂關卡」沒有自動門檻,只能用「完成本關卡」人工過關。</p>
+      <div class="sop-flow-rows" id="sop-flow-rows">${sopFlowEditorRowsHtml()}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" class="btn-secondary btn-sm" id="sop-flow-add-btn">+ 新增關卡</button>
+        <button type="button" class="btn-secondary btn-sm" id="sop-flow-reset-btn">還原成預設流程</button>
+      </div>
+      <div class="modal-footer" style="margin-top:20px">
+        <button type="button" class="btn-primary" id="sop-flow-save-btn">儲存</button>
+      </div>
+    </div>`;
+}
+
+function rerenderSopFlowEditor() {
+  const rowsEl = document.getElementById("sop-flow-rows");
+  if (rowsEl) rowsEl.innerHTML = sopFlowEditorRowsHtml();
+  wireSopFlowEditorRows();
+}
+
+function wireSopFlowEditorRows() {
+  const root = document.getElementById("modal-root");
+  root.querySelectorAll("[data-flow-name]").forEach((input) => {
+    input.oninput = () => {
+      sopFlowEditorState.stages[Number(input.dataset.flowName)].name = input.value;
+    };
+  });
+  root.querySelectorAll("[data-flow-type]").forEach((sel) => {
+    sel.onchange = () => {
+      const i = Number(sel.dataset.flowType);
+      const key = sel.value || null;
+      sopFlowEditorState.stages[i].key = key;
+      if (key) {
+        const def = SOP_DEFAULT_STAGE_DEFS.find((d) => d.key === key);
+        if (def) sopFlowEditorState.stages[i].name = def.name;
+      }
+      rerenderSopFlowEditor();
+    };
+  });
+  root.querySelectorAll("[data-flow-up]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.flowUp);
+      const arr = sopFlowEditorState.stages;
+      if (i > 0) {
+        [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+        rerenderSopFlowEditor();
+      }
+    };
+  });
+  root.querySelectorAll("[data-flow-down]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.flowDown);
+      const arr = sopFlowEditorState.stages;
+      if (i < arr.length - 1) {
+        [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+        rerenderSopFlowEditor();
+      }
+    };
+  });
+  root.querySelectorAll("[data-flow-remove]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.flowRemove);
+      if (sopFlowEditorState.stages.length > 1) {
+        sopFlowEditorState.stages.splice(i, 1);
+        rerenderSopFlowEditor();
+      }
+    };
+  });
+}
+
+function openSopStageFlowEditor(initialStages, onSave) {
+  sopFlowEditorState = {
+    stages: (initialStages && initialStages.length ? initialStages : SOP_DEFAULT_STAGE_DEFS).map((s) => ({
+      key: s.key || null,
+      name: s.name,
+    })),
+    onSave,
+  };
+  openModal("自訂關卡流程", renderSopFlowEditorBody(), { width: "640px" });
+  wireSopFlowEditorRows();
+
+  document.getElementById("sop-flow-add-btn").onclick = () => {
+    sopFlowEditorState.stages.push({ key: null, name: "" });
+    rerenderSopFlowEditor();
+  };
+  document.getElementById("sop-flow-reset-btn").onclick = async () => {
+    const ok = await confirmDialog("確定要還原成系統預設的10關流程嗎?目前編輯的內容會被取代。", {
+      title: "還原預設流程?",
+    });
+    if (!ok) return;
+    sopFlowEditorState.stages = SOP_DEFAULT_STAGE_DEFS.map((d) => ({ key: d.key, name: d.name }));
+    rerenderSopFlowEditor();
+  };
+  document.getElementById("sop-flow-save-btn").onclick = async () => {
+    const stages = sopFlowEditorState.stages.map((s) => ({ key: s.key || null, name: (s.name || "").trim() }));
+    if (stages.some((s) => !s.name)) {
+      toast("每一關都要有名稱", "error");
+      return;
+    }
+    const saveBtn = document.getElementById("sop-flow-save-btn");
+    saveBtn.disabled = true;
+    try {
+      await sopFlowEditorState.onSave(stages);
+    } catch (err) {
+      saveBtn.disabled = false;
+    }
+  };
+}
 
 function verifyDocumentFileType(file, docType) {
   if (!file || !docType) return { matched: true };
@@ -290,11 +441,11 @@ async function renderSopTab(el) {
       ? "進行中"
       : "未解鎖";
   const statusBadgeCls = selectedIsDone || selectedIsCurrent ? "status-active" : "status-closed";
-  const isDualGate = selectedIsCurrent && DUAL_GATE_STAGES.includes(Number(selected));
+  const isDualGate = selectedIsCurrent && DUAL_GATE_KEYS.includes(selectedStage.key);
 
   let checklistHtml = "";
   let checklistAllDone = true;
-  const checklistConfig = SOP_STAGE_CHECKLISTS[Number(selected)] || null;
+  const checklistConfig = (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
   if (checklistConfig) {
     const needsDocs = checklistConfig.some((item) => item.docType);
     const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate);
@@ -393,9 +544,17 @@ async function renderSopTab(el) {
     checklistHtml = `<div class="sop-checklist">${itemsHtml}</div>`;
   }
 
+  const canEditFlow =
+    isManager() &&
+    sop.current_stage === 0 &&
+    stageKeys.every((k) => (sop.stages[k].status || "pending") === "pending");
+
   el.innerHTML = `
     <div class="sop-panel-layout">
-      <div class="sop-nav-list">${navItemsHtml}</div>
+      <div class="sop-nav-list-wrap">
+        ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="sop-edit-flow-btn" style="margin-bottom:10px;width:100%">⚙ 自訂關卡流程</button>` : ""}
+        <div class="sop-nav-list">${navItemsHtml}</div>
+      </div>
       <div class="sop-detail-card">
         <div class="sop-detail-header">
           <h3>第${selected}關・${escapeHtml(selectedLabel)}</h3>
@@ -426,6 +585,20 @@ async function renderSopTab(el) {
       renderSopTab(el);
     });
   });
+
+  const editFlowBtn = document.getElementById("sop-edit-flow-btn");
+  if (editFlowBtn) {
+    editFlowBtn.addEventListener("click", () => {
+      const currentStages = stageKeys.map((k) => ({ key: sop.stages[k].key || null, name: sop.stages[k].name }));
+      openSopStageFlowEditor(currentStages, async (stages) => {
+        await api(`/projects/${pid}/sop/stages`, { method: "PUT", body: { stages } });
+        toast("關卡流程已更新", "success");
+        closeModal();
+        state.sopSelectedStage = null;
+        renderSopTab(el);
+      });
+    });
+  }
 
   el.querySelectorAll("[data-checklist-confirm]").forEach((btn) => {
     btn.addEventListener("click", async () => {

@@ -12,6 +12,17 @@ class SopStatusResponse(BaseModel):
     updated_at: datetime
 
 
+class SopStageDef(BaseModel):
+    # key=None 代表使用者自訂的關卡(沒有自動門檻,人工完成);key 給內建代碼(如
+    # "consent_dual_1")的話會沿用該內建關卡原本的自動門檻邏輯與門檻參數。
+    key: str | None = None
+    name: str
+
+
+class SopStageFlowRequest(BaseModel):
+    stages: list[SopStageDef]
+
+
 class SopCompleteRequest(BaseModel):
     force: bool = False
     reason: str | None = None
