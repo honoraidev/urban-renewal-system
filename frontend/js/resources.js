@@ -168,25 +168,6 @@ function initCompanyDocs() {
 
 /* ================= 相關法規 / 相關網站 / 新聞 (共用邏輯) ================= */
 
-// 新聞卡片有 published_at 這個欄位(就算是 null 也會有這個 key),相關法規/相關網站
-// 的資料形狀完全沒有這個欄位 - 用這個判斷是不是新聞清單,不用額外傳參數指定。
-function _isNewsList(items) {
-  return items.length > 0 && Object.prototype.hasOwnProperty.call(items[0], "published_at");
-}
-
-// 新聞依日期分「今日新聞 / 昨日新聞 / 更早」,不是像相關法規/相關網站那樣按分類分段 -
-// 分類改成印在每張卡片自己身上的標籤(見卡片模板),不會因為改成日期分段就看不到分類。
-function _newsDateBucket(iso) {
-  const d = parseApiDate(iso);
-  if (!d) return "更早";
-  const key = d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
-  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
-  if (key === today) return "今日新聞";
-  if (key === yesterday) return "昨日新聞";
-  return "更早";
-}
-
 function renderLinkListPage(items, listElId, isManagerView) {
   const el = document.getElementById(listElId);
   if (!el) return;
@@ -194,48 +175,33 @@ function renderLinkListPage(items, listElId, isManagerView) {
     el.innerHTML = `<div class="empty-state">尚無連結,${isManagerView ? "點右上角新增" : "請洽管理員新增"}</div>`;
     return;
   }
-  const isNews = _isNewsList(items);
-
-  let groups;
-  if (isNews) {
-    const byBucket = { "今日新聞": [], "昨日新聞": [], "更早": [] };
-    items.forEach((item) => byBucket[_newsDateBucket(item.published_at || item.created_at)].push(item));
-    Object.values(byBucket).forEach((rows) =>
-      rows.sort((a, b) => (parseApiDate(b.published_at || b.created_at) || 0) - (parseApiDate(a.published_at || a.created_at) || 0))
-    );
-    groups = Object.entries(byBucket).filter(([, rows]) => rows.length);
-  } else {
-    const byCategory = {};
-    items.forEach((item) => {
-      const cat = item.category || "未分類";
-      (byCategory[cat] = byCategory[cat] || []).push(item);
-    });
-    groups = Object.entries(byCategory);
-  }
-
-  el.innerHTML = groups
+  const byCategory = {};
+  items.forEach((item) => {
+    const cat = item.category || "未分類";
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+  el.innerHTML = Object.entries(byCategory)
     .map(
-      ([label, rows]) => `
+      ([cat, rows]) => `
       <div class="link-section">
-        <div class="link-section-hdr">${escapeHtml(label)}</div>
+        <div class="link-section-hdr">${escapeHtml(cat)}</div>
         <div class="link-cards-grid">
         ${rows
           .map(
             (r) => `
           <div class="card news-card" data-id="${r.id}">
             <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn news-card-open" title="開啟原文">↗</a>
-            ${isNews ? `<span class="news-card-date">🕐 ${fmtDateTW(r.published_at || r.created_at)}</span>` : ""}
-            <a class="news-card-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
-            <div style="display:flex;flex-wrap:wrap;gap:6px">
-              ${isNews && r.category ? `<span class="mini-badge">${escapeHtml(r.category)}</span>` : ""}
-              ${r.description
-                ? r.description.startsWith("來源:")
-                  ? `<span class="mini-badge info news-card-tag">${escapeHtml(r.description)}</span>`
-                  : ""
+            ${Object.prototype.hasOwnProperty.call(r, "published_at")
+                ? `<span class="news-card-date">🕐 ${fmtDateTW(r.published_at || r.created_at)}</span>`
                 : ""
               }
-            </div>
-            ${r.description && !r.description.startsWith("來源:") ? `<div class="helper-text">${escapeHtml(r.description)}</div>` : ""}
+            <a class="news-card-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
+            ${r.description
+                ? r.description.startsWith("來源:")
+                  ? `<span class="mini-badge info news-card-tag">${escapeHtml(r.description)}</span>`
+                  : `<div class="helper-text">${escapeHtml(r.description)}</div>`
+                : ""
+              }
             ${isManagerView
                 ? `<div class="news-card-actions">
                      <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
@@ -350,6 +316,9 @@ async function goToNews() {
   setActiveNav("news");
   showView("view-news");
   newsEditMode = false;
+  newsDateFilter = "";
+  const dateFilterEl = document.getElementById("news-date-filter");
+  if (dateFilterEl) dateFilterEl.value = "";
   document.getElementById("new-news-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-news-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
@@ -377,7 +346,24 @@ async function loadNews() {
   loadNewsSyncTime();
   const items = await api("/news");
   currentLoadedNews = items || [];
+  renderNewsList();
+}
+
+// 依右上角日期選擇器篩選(空字串 = 全部),篩選是在前端對已經抓回來的
+// currentLoadedNews 做,不用重新打 API - 換日期時反應才會快。
+let newsDateFilter = "";
+
+function renderNewsList() {
+  const el = document.getElementById("news-list");
+  if (!el) return;
+  const items = newsDateFilter
+    ? currentLoadedNews.filter((r) => fmtDateTW(r.published_at || r.created_at) === newsDateFilter)
+    : currentLoadedNews;
   renderLinkListPage(items, "news-list", isManager() && newsEditMode);
+  if (!items.length && newsDateFilter) {
+    el.innerHTML = `<div class="empty-state">這天沒有新聞,換個日期看看,或清除篩選看全部</div>`;
+    return;
+  }
   if (isManager() && newsEditMode) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -934,6 +920,10 @@ function initResources() {
       btn.disabled = false;
       btn.textContent = "🔄 立即抓新聞";
     }
+  });
+  document.getElementById("news-date-filter")?.addEventListener("change", (e) => {
+    newsDateFilter = e.currentTarget.value; // yyyy-mm-dd,清空(按瀏覽器內建的 x)就是全部
+    renderNewsList();
   });
 
   document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {
