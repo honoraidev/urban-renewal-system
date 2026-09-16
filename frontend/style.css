@@ -247,8 +247,36 @@
     height: 100vh;
     overflow-y: auto;
     z-index: 20;
+    transition: width .18s ease;
   }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ---------- 側邊欄收合成圖示小標(見 main.js applySidebarCollapsed) ---------- */
+  .sb-collapse-btn {
+    margin-left: auto; flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .sb-collapse-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--surface-2); }
+  /* .collapsed 的效果只在桌機寬度生效 - collapsed 狀態是存在 localStorage 的,手機版
+     用的是完全不同的抽屜模式(.sb-open,見下面 640px 那個 media query),寬度、隱藏
+     文字這些規則要是漏到手機版,上次在桌機收合過一次,手機版的抽屜就會被壓成 56px
+     寬、裡面文字全部消失,整個抽屜等於壞掉。 */
+  @media (min-width: 641px) {
+    .sb.collapsed { width: 56px; overflow-x: hidden; }
+    .sb.collapsed .navbar { padding: 20px 8px 16px; justify-content: center; }
+    .sb.collapsed .brand-text,
+    .sb.collapsed .sb-sec,
+    .sb.collapsed #sb-cases,
+    .sb.collapsed .nav-link-label,
+    .sb.collapsed .nav-user-name { display: none; }
+    .sb.collapsed .sb-collapse-btn { transform: rotate(180deg); margin-left: 0; }
+    .sb.collapsed .nav-links { padding: 0 8px; }
+    .sb.collapsed .nav-link { text-align: center; padding: 8px 0; }
+    .sb.collapsed .nav-user { flex-direction: column; padding: 14px 8px; }
+    .sb.collapsed .avatar-menu { flex: 0 0 auto; }
+  }
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
   .navbar .brand .brand-text {

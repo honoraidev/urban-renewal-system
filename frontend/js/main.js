@@ -29,6 +29,25 @@ function bootstrapApp() {
     if (e.target.closest(".nav-link, .sb-case-item, .avatar-dropdown-item")) setSidebar(false);
   });
 
+  // 桌機版側邊欄收合成圖示小標,用 localStorage 記住上次收合的狀態,重新整理/下次
+  // 登入還是維持一樣的收合狀態。手機版走上面的抽屜(.sb-open),兩套互不影響。
+  const sbCollapseBtn = document.getElementById("sb-collapse-btn");
+  const applySidebarCollapsed = (collapsed) => {
+    sb?.classList.toggle("collapsed", collapsed);
+    const label = collapsed ? "展開側邊欄" : "收合側邊欄";
+    sbCollapseBtn?.setAttribute("aria-label", label);
+    sbCollapseBtn?.setAttribute("title", label);
+    try {
+      localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+    } catch (e) { }
+  };
+  sbCollapseBtn?.addEventListener("click", () => applySidebarCollapsed(!sb?.classList.contains("collapsed")));
+  let savedSidebarCollapsed = "0";
+  try {
+    savedSidebarCollapsed = localStorage.getItem("sidebarCollapsed") || "0";
+  } catch (e) { }
+  applySidebarCollapsed(savedSidebarCollapsed === "1");
+
   document.querySelectorAll(".nav-link").forEach((btn) => {
     btn.addEventListener("click", () => {
       closeAvatarDropdown();
