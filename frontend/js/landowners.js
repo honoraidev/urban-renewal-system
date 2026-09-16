@@ -860,10 +860,28 @@ function switchLandownerSibling(delta) {
   openEditLandownerModal(_loEditorSiblings[next], _loEditorSiblings);
 }
 
+// 編輯地主視窗預設唯讀顯示,要先點視窗裡的「✏️ 編輯」才能改資料 - 避免誤觸(原本
+// 樓棟視圖格子上可直接點的簽約/拜訪標籤也一併拿掉,統一改成只能從這個視窗改)。
+// 要記住是「哪一位」地主開的編輯模式,不然切到別位地主(上下鍵切共有人)還留在
+// 編輯模式就失去保護意義了。
+let landownerEditMode = false;
+let _landownerEditModeFor = null;
+
+function loFieldHtml(label, name, value, extra) {
+  if (landownerEditMode) {
+    return `<div class="field"><label>${label}</label><input name="${name}" value="${escapeHtml(value) || ""}" ${extra || ""}></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="lo-readonly-value">${escapeHtml(value) || "-"}</div></div>`;
+}
+
 // siblingIds:同一個樓棟視圖格子裡的共有人 id 清單(依序),讓編輯視窗能用標題列的
 // ▲▼ 按鈕或上下鍵切換到下一 / 上一位,不用先跳一層「此門牌共有人」清單再點進去。
 // 單筆編輯(從整合清冊等清單點「編輯」進來)不傳這個參數,就不會出現切換 UI。
 async function openEditLandownerModal(landownerId, siblingIds = null) {
+  if (_landownerEditModeFor !== landownerId) {
+    landownerEditMode = false;
+    _landownerEditModeFor = landownerId;
+  }
   // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
   // 抓的地主清單沒有寫回這個快取,只有登記資料分頁會寫,所以在整合清冊儲存過一次
   // 之後,快取還是舊的,再點編輯會看到儲存前的舊狀態(例如拜訪/簽約狀態一直顯示
@@ -901,20 +919,24 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     _loEditorCurrentId = landownerId;
   }
   const idx = siblings ? siblings.indexOf(landownerId) : -1;
-  const titleHtml = siblings
+  const editToggleBtnHtml = landownerEditMode
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn" style="margin-left:10px;vertical-align:middle">👁 檢視模式</button>`
+    : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn" style="margin-left:10px;vertical-align:middle">✏️ 編輯</button>`;
+  const titleHtml = (siblings
     ? `編輯${currentLandownerLabel}<span class="lo-editor-nav helper-text" style="font-size:12.5px;font-weight:400;display:inline-flex;align-items:center;gap:2px">
         (${idx + 1}/${siblings.length}
         <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(-1)" title="上一位">▲</button>
         <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(1)" title="下一位">▼</button>)
       </span>`
-    : `編輯${currentLandownerLabel}`;
+    : `編輯${currentLandownerLabel}`) + editToggleBtnHtml;
   openModal(
     titleHtml,
     `
     <form id="landowner-edit-form">
       <div class="field">
         <label>拜訪 / 簽約狀態</label>
-        <div class="sop-checklist lo-visit-checklist">
+        ${landownerEditMode
+        ? `<div class="sop-checklist lo-visit-checklist">
           <label class="sop-checklist-item lo-check-row">
             <input type="checkbox" data-lo-visit-toggle ${owner.visit_status === "visited" ? "checked" : ""} class="lo-check-input">
             <span class="sop-checklist-icon lo-check-icon">✓</span>
@@ -924,7 +946,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
             </div>
           </label>
           ${owner.visit_status === "visited"
-      ? `<div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
+          ? `<div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
                 <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
                 <div style="flex:1">
                   <div class="sop-checklist-label">已簽約</div>
@@ -936,22 +958,27 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
                 </div>
                 <input type="file" data-lo-upload-input="willingness_form" style="display:none">
               </div>`
-      : ""
-    }
-        </div>
+          : ""
+        }
+        </div>`
+        : `<div class="badge-row" style="padding:8px 2px">
+          <span class="mini-badge ${owner.visit_status === "visited" ? "gate-ok" : ""}">${owner.visit_status === "visited" ? "✓ 已拜訪" : "未拜訪"}</span>
+          <span class="mini-badge ${owner.agreement_status === "signed" ? "gate-ok" : ""}">${owner.agreement_status === "signed" ? "✓ 已簽約" : "未簽約"}</span>
+        </div>`
+      }
       </div>
 
       <details class="lo-edit-section" open>
         <summary>地主基本資料</summary>
         <div class="lo-edit-section-body">
           <div class="field-row">
-            <div class="field"><label>姓名</label><input name="name" value="${escapeHtml(owner.name)}" required></div>
-            <div class="field"><label>統一編號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}" placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"></div>
-            <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
+            ${loFieldHtml("姓名", "name", owner.name, "required")}
+            ${loFieldHtml("統一編號", "id_number", owner.id_number, 'placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"')}
+            ${loFieldHtml("電話", "phone", owner.phone)}
           </div>
           <div class="field-row">
-            <div class="field"><label>LINE ID</label><input name="line_id" value="${escapeHtml(owner.line_id) || ""}" autocomplete="off"></div>
-            <div class="field"><label>電子郵箱</label><input type="email" name="email" value="${escapeHtml(owner.email) || ""}" autocomplete="off"></div>
+            ${loFieldHtml("LINE ID", "line_id", owner.line_id, 'autocomplete="off"')}
+            ${loFieldHtml("電子郵箱", "email", owner.email, 'type="email" autocomplete="off"')}
           </div>
           <div class="field">
             <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
@@ -962,11 +989,11 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
             </div>
           </div>
-          <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
+          ${loFieldHtml("地址", "address", owner.address)}
         </div>
       </details>
 
-      ${alreadyAgreed
+      ${!landownerEditMode || alreadyAgreed
       ? ""
       : `<details class="lo-edit-section" open>
         <summary>新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></summary>
@@ -1020,11 +1047,24 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       </details>
 
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">儲存</button>
+        ${landownerEditMode
+      ? `<button type="button" class="btn-secondary" id="lo-cancel-btn">取消</button>
+           <button type="submit" class="btn-primary">儲存</button>`
+      : `<button type="button" class="btn-secondary" id="lo-cancel-btn">關閉</button>`
+    }
       </div>
     </form>`
   );
+
+  document.getElementById("lo-cancel-btn").addEventListener("click", () => {
+    landownerEditMode = false;
+    closeModal();
+  });
+
+  document.getElementById("lo-edit-toggle-btn").addEventListener("click", () => {
+    landownerEditMode = !landownerEditMode;
+    openEditLandownerModal(landownerId, siblingIds);
+  });
 
   // 好幾位共有人共用同一格門牌時,上下鍵切到上一 / 下一位,直接重開這個編輯視窗
   // (每次都是新的 openModal,舊的按鍵監聽要先拆掉,不然切幾次就疊了好幾份)。且只
@@ -1160,6 +1200,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
           },
         });
       }
+      landownerEditMode = false;
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);

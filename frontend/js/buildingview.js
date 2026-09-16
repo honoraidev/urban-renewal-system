@@ -39,52 +39,18 @@ const BUILDING_VIEW_TOGGLES = {
 // landowner_id -> { agreement_status, visit_status };同一位地主可能出現在好幾格,切換後每格都要一致。
 let buildingViewOwnerStatus = new Map();
 
-// 簽約/拜訪狀態原本點一下格子上的小標籤就直接改資料,不小心點到就誤動到真實資料
-// - 改成要先按「✏️ 編輯」進入編輯模式,標籤才會變成可點擊的按鈕,平常瀏覽時就是
-// 純顯示。跟 buildingViewFlippedGroups 一樣是頁面內的暫存狀態,重新整理頁面才會重置。
-let buildingViewEditMode = false;
-
+// 簽約/拜訪狀態純顯示,不能直接在格子上點著改 - 要改請點格子開「編輯地主」視窗,
+// 裡面按「✏️ 編輯」才能改資料(見 landowners.js openEditLandownerModal),避免在
+// 樓棟視圖上滑鼠不小心點到就誤動到真實資料。
 function buildingViewStatusChipsHtml(o) {
   const current = buildingViewOwnerStatus.get(o.landowner_id) || o;
   return Object.entries(BUILDING_VIEW_TOGGLES)
     .map(([field, t]) => {
       const on = current[field] === t.on;
       const label = escapeHtml(t.labels[on ? t.on : t.off]);
-      return isEditor() && buildingViewEditMode
-        ? `<button type="button" class="mini-badge bv-status-chip ${on ? "gate-ok" : ""}" data-bv-toggle="${field}" data-bv-owner="${o.landowner_id}" title="點擊切換">${label}</button>`
-        : `<span class="mini-badge ${on ? "gate-ok" : ""}">${label}</span>`;
+      return `<span class="mini-badge ${on ? "gate-ok" : ""}">${label}</span>`;
     })
     .join("");
-}
-
-function wireBuildingViewStatusChips(root) {
-  if (!root) return;
-  root.querySelectorAll("[data-bv-toggle]").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (btn.disabled) return;
-      const field = btn.dataset.bvToggle;
-      const id = Number(btn.dataset.bvOwner);
-      const t = BUILDING_VIEW_TOGGLES[field];
-      const pid = state.currentProjectId;
-      const current = buildingViewOwnerStatus.get(id) || {};
-      const next = current[field] === t.on ? t.off : t.on;
-      btn.disabled = true;
-      try {
-        await api(`/projects/${pid}/landowners/${id}`, { method: "PATCH", body: { [field]: next } });
-        buildingViewOwnerStatus.set(id, { ...current, [field]: next });
-        const cached = (state.projectCache[pid]?.landowners || []).find((x) => x.id === id);
-        if (cached) cached[field] = next;
-        btn.classList.toggle("gate-ok", next === t.on);
-        btn.textContent = t.labels[next];
-        syncProjectAggregates();
-      } catch (err) {
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
 }
 
 // 格子 hover 提示 —— 姓名/電話/地址不在格子本身顯示(只顯示門牌號 + 簽約狀態底
@@ -218,7 +184,6 @@ function buildingViewLandOnlySectionHtml(owners) {
 }
 
 function wireLandOnlyOwnerLinks(el) {
-  wireBuildingViewStatusChips(el);
   el.querySelectorAll("[data-bv-open-owner]").forEach((a) => {
     a.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -254,46 +219,24 @@ async function renderBuildingViewTab(el) {
     el.innerHTML = `
       <div class="section-toolbar">
         <h3>樓棟視圖</h3>
-        ${isEditor()
-          ? `<button type="button" class="btn-secondary btn-sm" id="bv-edit-toggle-btn">${buildingViewEditMode ? "✓ 完成編輯" : "✏️ 編輯"}</button>`
-          : ""}
       </div>
       <div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「登記資料 → 建物登記」匯入建物資料</div>
       ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
     `;
     wireLandOnlyOwnerLinks(el);
-    const editToggleBtnEmpty = document.getElementById("bv-edit-toggle-btn");
-    if (editToggleBtnEmpty) {
-      editToggleBtnEmpty.addEventListener("click", () => {
-        buildingViewEditMode = !buildingViewEditMode;
-        renderBuildingViewTab(el);
-      });
-    }
     return;
   }
 
   el.innerHTML = `
     <div class="section-toolbar">
       <h3>樓棟視圖</h3>
-      <span class="helper-text">💡 拖曳區塊可調整順序</span>
-      ${isEditor()
-        ? `<button type="button" class="btn-secondary btn-sm" id="bv-edit-toggle-btn">${buildingViewEditMode ? "✓ 完成編輯" : "✏️ 編輯"}</button>`
-        : ""}
+      <span class="helper-text">💡 拖曳區塊可調整順序;點格子開地主編輯視窗</span>
     </div>
-    ${buildingViewEditMode ? `<div class="helper-text" style="margin-bottom:8px">編輯模式中:點格子上的簽約/拜訪狀態標籤可直接切換</div>` : ""}
     <div class="bv-legend">${buildingViewLegendHtml()}</div>
     <div id="bv-groups" class="bv-groups-grid">${groups.map(buildingViewGroupCardHtml).join("")}</div>
     ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
   `;
   wireLandOnlyOwnerLinks(el);
-
-  const editToggleBtn = document.getElementById("bv-edit-toggle-btn");
-  if (editToggleBtn) {
-    editToggleBtn.addEventListener("click", () => {
-      buildingViewEditMode = !buildingViewEditMode;
-      renderBuildingViewTab(el);
-    });
-  }
 
   const groupsByKey = new Map(groups.map((g) => [g.key, g]));
   const container = document.getElementById("bv-groups");

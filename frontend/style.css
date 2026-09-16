@@ -160,6 +160,7 @@
   .field { margin-bottom: 14px; }
   .field-row { display: flex; gap: 12px; }
   .field-row > .field { flex: 1; }
+  .lo-readonly-value { padding: 8px 0; color: var(--text); min-height: 1.4em; }
 
   /* ---------- Login ---------- */
   #view-login {
@@ -1490,8 +1491,6 @@
 .bv-owner-row:hover .bv-owner-name .bv-owner-go { opacity: 1; }
 .bv-owner-phone { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 .bv-status-chips { display: flex; gap: 6px; flex: none; white-space: nowrap; }
-.bv-status-chip { border: 1px solid var(--border); }
-.bv-status-chip:disabled { opacity: .6; }
 .bv-owner-phone.is-empty { font-style: italic; opacity: .8; }
 
 /* 登入錯誤提示 */
