@@ -279,6 +279,31 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] sop stage key backfill skipped: {exc}", flush=True)
 
+    try:
+        # 開發流程功能上線初期預設是空白(要 L2 以上自己建),後來改成有預設關卡 -
+        # 把還沒被動過(沒有任何關卡、current_stage 還是 0)的舊資料列補上預設關卡,
+        # 新案件則是 get_or_create_dev 建立當下就直接帶預設值,不用等這裡補。
+        from sqlalchemy import select as _select3
+
+        from models.development_stage import DevelopmentStage
+        from routers.development import _default_stage_data
+
+        _dev_db = SessionLocal()
+        try:
+            devs = _dev_db.scalars(_select3(DevelopmentStage)).all()
+            changed = False
+            for dev in devs:
+                stages = (dev.stage_data or {}).get("stages") or {}
+                if not stages and dev.current_stage == 0:
+                    dev.stage_data = _default_stage_data()
+                    changed = True
+            if changed:
+                _dev_db.commit()
+        finally:
+            _dev_db.close()
+    except Exception as exc:
+        print(f"[auto_migrate] development default stages backfill skipped: {exc}", flush=True)
+
 
 async def _daily_news_fetch_loop() -> None:
     """背景常駐迴圈:每天本機時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次

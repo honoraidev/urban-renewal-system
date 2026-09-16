@@ -17,11 +17,29 @@ from schemas.development import (
 
 router = APIRouter(prefix="/projects/{project_id}/development", tags=["development"])
 
+# 都市更新結案後常見的開發流程,給新案件當預設值用 - 跟自訂關卡一樣完全是人工推進,
+# 沒有自動門檻;L2 以上還是可以在案件還沒開始跑這個流程前用「編輯流程」自行增刪/
+# 改名/排序,這份只是省去每個案件都要從零開始手動建立的麻煩。
+DEFAULT_DEVELOPMENT_STAGES: list[str] = [
+    "事業計畫報核",
+    "權利變換計畫報核",
+    "都市更新審議",
+    "建造執照申請",
+    "拆除既有建物",
+    "開工興建",
+    "使用執照核發",
+    "交屋",
+]
+
+
+def _default_stage_data() -> dict:
+    return {"stages": {str(i): {"name": n, "status": "pending"} for i, n in enumerate(DEFAULT_DEVELOPMENT_STAGES)}}
+
 
 def get_or_create_dev(db: Session, project_id: int) -> DevelopmentStage:
     dev = db.scalar(select(DevelopmentStage).where(DevelopmentStage.project_id == project_id))
     if dev is None:
-        dev = DevelopmentStage(project_id=project_id, stage_data={"stages": {}}, current_stage=0)
+        dev = DevelopmentStage(project_id=project_id, stage_data=_default_stage_data(), current_stage=0)
         db.add(dev)
         db.commit()
         db.refresh(dev)
