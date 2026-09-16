@@ -817,7 +817,7 @@ function ownerRowHtml(prefix, o, areaSqm) {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:8px;border-top:1px dashed var(--border-light, #e2e8f0)">
       <button type="button" class="btn-link btn-sm remove-wizard-row-btn" style="color:var(--danger)">刪除此筆</button>
-      <button type="button" class="btn-secondary btn-sm insert-wizard-row-btn">+ 新增共有人</button>
+      <button type="button" class="btn-secondary btn-sm insert-wizard-row-btn">+ 新增所有權人</button>
     </div>`;
 }
 
@@ -841,7 +841,7 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
   }
 
   if (!owners.length) {
-    wrap.innerHTML = `<button type="button" class="btn-secondary btn-sm owner-add-first-btn">+ 新增共有人</button>`;
+    wrap.innerHTML = `<button type="button" class="btn-secondary btn-sm owner-add-first-btn">+ 新增所有權人</button>`;
     wrap.querySelector(".owner-add-first-btn").addEventListener("click", () => {
       owners.push({
         registration_order: "", owner_name: "", id_number: "",
@@ -861,7 +861,7 @@ function renderOwnerRowsContainer(containerId, owners, prefix, areaSqm) {
     ${owners
       .map(
         (o, i) =>
-          `<div class="record-row wizard-row" data-index="${i}"><div class="wizard-row-index" style="display:flex;align-items:center;gap:8px">共有人 #${i + 1}${o._pooled ? ` <span style="font-size:0.75rem;padding:1px 6px;border-radius:8px;background:#faf5ff;color:#6b21a8;border:1px solid #e9d5ff;font-weight:700">公同共有</span>` : ""}<label style="margin-left:auto;font-weight:400;font-size:0.8rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" class="${prefix}-pooled-check" ${o._pooled ? "checked" : ""} style="width:auto">公同</label></div>${ownerRowHtml(prefix, o, areaSqm)}</div>`
+          `<div class="record-row wizard-row" data-index="${i}"><div class="wizard-row-index" style="display:flex;align-items:center;gap:8px">所有權人 #${i + 1}${o._pooled ? ` <span style="font-size:0.75rem;padding:1px 6px;border-radius:8px;background:#faf5ff;color:#6b21a8;border:1px solid #e9d5ff;font-weight:700">公同共有</span>` : ""}<label style="margin-left:auto;font-weight:400;font-size:0.8rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" class="${prefix}-pooled-check" ${o._pooled ? "checked" : ""} style="width:auto">公同</label></div>${ownerRowHtml(prefix, o, areaSqm)}</div>`
       )
       .join("")}`;
   wireYearMonthPickers(wrap);
