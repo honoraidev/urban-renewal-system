@@ -3,13 +3,25 @@
 const PING_PER_SQM = 0.3025;
 let titleDeedWizard = null;
 
+// 上一輪 wizard 開的原始檔案預覽用的 blob URL,開新一輪之前先釋放,不然每次重開
+// 精靈都累積一批物件網址,瀏覽器分頁開久了會慢慢吃記憶體。
+function revokeWizardFileUrls() {
+  if (titleDeedWizard && titleDeedWizard.fileUrls) {
+    titleDeedWizard.fileUrls.forEach((u) => {
+      try { URL.revokeObjectURL(u); } catch (e) { }
+    });
+  }
+}
+
 function openTitleDeedWizard() {
-  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "land", lockRecordType: true };
+  revokeWizardFileUrls();
+  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "land", lockRecordType: true, viewerActiveIndex: 0 };
   renderWizardStep0();
 }
 
 function openBuildingTitleDeedWizard() {
-  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "building", lockRecordType: true };
+  revokeWizardFileUrls();
+  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "building", lockRecordType: true, viewerActiveIndex: 0 };
   renderWizardStep0();
 }
 
@@ -118,6 +130,68 @@ function normalizeTitleDeedData(raw) {
 
   const encumbrances = (raw.encumbrances || []).map(toEncumbranceRow);
   return { deed_category: deedCategory, parcels, buildings, encumbrances };
+}
+
+/* ================= 左側原始謄本預覽(審核步驟用,見 wizardSplitBodyHtml) =================
+   只做「顯示原始檔案 + 手動切換/捲動對照」,不會自動跳到某個欄位對應的頁碼 - 目前
+   OCR 流程沒有記錄「這筆資料是從哪一頁辨識出來」,要做到自動跳頁得後端也跟著改,
+   先用這個版本讓審核時能一邊看原圖一邊核對就好。 */
+function wizardFileUrls() {
+  const files = titleDeedWizard.files || [];
+  if (!titleDeedWizard.fileUrls || titleDeedWizard.fileUrls.length !== files.length) {
+    revokeWizardFileUrls();
+    titleDeedWizard.fileUrls = files.map((f) => URL.createObjectURL(f));
+  }
+  return titleDeedWizard.fileUrls;
+}
+
+function wizardViewerPaneHtml() {
+  const files = titleDeedWizard.files || [];
+  if (!files.length) {
+    return `<div class="wizard-viewer-pane"><div class="wizard-viewer-body"><span class="helper-text">沒有原始檔案可預覽</span></div></div>`;
+  }
+  const urls = wizardFileUrls();
+  const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
+  const activeFile = files[activeIdx];
+  const isPdf = (activeFile.type || "").includes("pdf");
+  const body = isPdf
+    ? `<iframe src="${escapeHtml(urls[activeIdx])}" title="${escapeHtml(activeFile.name)}"></iframe>`
+    : `<img src="${escapeHtml(urls[activeIdx])}" alt="${escapeHtml(activeFile.name)}">`;
+  return `
+    <div class="wizard-viewer-pane">
+      ${files.length > 1
+      ? `<div class="wizard-viewer-tabs">
+          ${files
+        .map(
+          (f, i) =>
+            `<button type="button" class="btn-sm ${i === activeIdx ? "btn-primary" : "btn-secondary"} wizard-viewer-tab-btn" data-viewer-index="${i}" title="${escapeHtml(f.name)}">第 ${i + 1} 張</button>`
+        )
+        .join("")}
+        </div>`
+      : ""
+    }
+      <div class="wizard-viewer-body">${body}</div>
+    </div>`;
+}
+
+function wireWizardViewerPane() {
+  const root = document.getElementById("modal-root");
+  if (!root) return;
+  root.querySelectorAll(".wizard-viewer-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      titleDeedWizard.viewerActiveIndex = Number(btn.dataset.viewerIndex);
+      const pane = root.querySelector(".wizard-viewer-pane");
+      if (pane) pane.outerHTML = wizardViewerPaneHtml();
+      wireWizardViewerPane();
+    });
+  });
+}
+
+// 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖
+// 可以同時進行,不用切來切去。呼叫端要記得在 openModal(...) 之後接著呼叫
+// wireWizardViewerPane(),不然切換原始檔案的按鈕不會有作用。
+function wizardSplitBodyHtml(rightHtml) {
+  return `<div class="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-form-pane">${rightHtml}</div></div>`;
 }
 
 function renderWizardStep() {
@@ -1099,7 +1173,7 @@ function renderParcelDescriptionSubStep(idx) {
   const p = parcels[idx];
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 1/3 土地標示部`)}
     <div style="margin-bottom:10px">
       <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的謄本檔案並辨識</button>
@@ -1120,9 +1194,10 @@ function renderParcelDescriptionSubStep(idx) {
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
 
   document.getElementById("wizard-rescan-btn").addEventListener("click", () => {
     openWizardSingleRecordRescan("parcel", p, () => renderParcelDescriptionSubStep(idx));
@@ -1168,16 +1243,17 @@ function renderParcelOwnersSubStep(idx) {
   const p = parcels[idx];
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 2/3 土地所有權部`)}
     <div class="helper-text" id="wizard-parcel-summary" style="margin-bottom:10px">${parcelSummaryHtml(p)}</div>
     <div id="wizard-land-owners" style="margin:6px 0"></div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地他項權利部</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
 
   const areaSqm = Number(p.area_sqm) || null;
   renderOwnerRowsContainer("wizard-land-owners", p.owners, "lo", areaSqm);
@@ -1200,7 +1276,7 @@ function renderParcelEncumbrancesSubStep(idx) {
   const isLast = idx === parcels.length - 1;
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 3/3 土地他項權利部`)}
     <div class="helper-text" id="wizard-parcel-enc-summary" style="margin-bottom:10px">${parcelSummaryHtml(p, "encumbrances")}</div>
     <div id="wizard-parcel-encumbrances" style="margin:6px 0"></div>
@@ -1208,9 +1284,10 @@ function renderParcelEncumbrancesSubStep(idx) {
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "確認建立" : "下一筆地號"}</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
 
   renderEncumbranceRows("wizard-parcel-encumbrances", p.encumbrances);
 
@@ -1467,7 +1544,7 @@ function renderBuildingDescriptionSubStep(idx) {
   const b = buildings[idx];
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/3 建物標示部`)}
     <div style="margin-bottom:10px">
       <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的建物謄本檔案並辨識</button>
@@ -1502,9 +1579,10 @@ function renderBuildingDescriptionSubStep(idx) {
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
 
   document.getElementById("wizard-rescan-btn").addEventListener("click", () => {
     openWizardSingleRecordRescan("building", b, () => renderBuildingDescriptionSubStep(idx));
@@ -1634,16 +1712,17 @@ function renderBuildingOwnersSubStep(idx) {
   const b = buildings[idx];
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 2/3 建物所有權部`)}
     <div class="helper-text" id="wizard-building-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>
     <div id="wizard-building-owners" style="margin:6px 0"></div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物他項權利部</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
   // 權狀面積 = 建物總面積 + 所有附屬建物面積 (falls back to 層次面積 only when總面積 missing)
   const accArea = (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
   const deedAreaSqm = (Number(b.total_area_sqm) || 0) + accArea;
@@ -1669,7 +1748,7 @@ function renderBuildingEncumbranceSubStep(idx) {
   if (!b.encumbrances) b.encumbrances = [];
   openModal(
     "掃描謄本匯入",
-    `
+    wizardSplitBodyHtml(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 3/3 建物他項權利部`)}
     <div class="helper-text" id="wizard-building-enc-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>
     <div id="wizard-building-encumbrances" style="margin:6px 0"></div>
@@ -1677,9 +1756,10 @@ function renderBuildingEncumbranceSubStep(idx) {
     <div class="modal-footer">
       <button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一步</button>
       <button type="button" class="btn-primary" id="wizard-next-item-btn">${isLast ? "確認建立" : "下一筆建號"}</button>
-    </div>`,
-    { width: "620px" }
+    </div>`),
+    { width: "min(1400px, 96vw)" }
   );
+  wireWizardViewerPane();
 
   renderEncumbranceRows("wizard-building-encumbrances", b.encumbrances);
 
