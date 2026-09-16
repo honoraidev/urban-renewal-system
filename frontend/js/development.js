@@ -2,22 +2,20 @@
 
 // 同意度100%通過、案件結案後的都更後續開發流程(事業計畫核定/權利變換/拆除/開工/
 // 交屋這類)- 跟 SOP 是分開的兩件事,預設帶入固定的 6 關(見後端
-// DEFAULT_DEVELOPMENT_STAGES),不提供關卡結構編輯(名稱/順序跟 SOP 頁的「自訂關卡
-// 流程」是重複功能,拿掉了)。獨立分頁,排在「人員」右邊
-// (見 index.html 的 tab-btn-development)。
+// DEFAULT_DEVELOPMENT_STAGES)。階段名稱/順序可編輯(「⚙ 編輯流程」按鈕,跟 SOP 頁
+// 的「自訂關卡流程」是同一套 UI 模式,只是資料各自獨立),流程一開始跑就鎖住不能再
+// 調整。獨立分頁,排在「人員」右邊(見 index.html 的 tab-btn-development)。
 
 const DEV_STAGE_ICONS = ["📋", "📜", "🏗", "📝", "🏢", "🏠"];
 
 async function renderDevelopmentTab(container) {
   const pid = state.currentProjectId;
-  let dev, project, sop, allDocs, landowners;
+  let dev, sop, allDocs;
   try {
-    [dev, project, sop, allDocs, landowners] = await Promise.all([
+    [dev, sop, allDocs] = await Promise.all([
       api(`/projects/${pid}/development`, { silent: true }),
-      api(`/projects/${pid}`, { silent: true }),
       api(`/projects/${pid}/sop`, { silent: true }),
       api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
-      api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []),
     ]);
   } catch (err) {
     container.innerHTML = `<div class="empty-state">載入失敗</div>`;
@@ -28,40 +26,9 @@ async function renderDevelopmentTab(container) {
   const hasStages = stageKeys.length > 0;
   const canAct = isEditor();
   const sopDone = sop.final && sop.final.status !== "pending";
-
-  // 更新章別:從土地登記的地段/小段推回來,不另外存一份(同一案件通常同一個地段)。
-  const sections = [...new Set(
-    landowners.flatMap((o) => (o.land_records || []).map((lr) => [lr.section, lr.subsection].filter(Boolean).join("")))
-      .filter(Boolean)
-  )];
-  const renewalSection = sections.slice(0, 2).join("、") || "-";
-
-  // ---- 頂部案件資訊卡 ----
-  const headerHtml = `
-    <div class="card dev-header-card">
-      <div class="dev-header-top">
-        <div>
-          <h2 class="dev-header-title">${escapeHtml(project.name)}</h2>
-          ${sopDone ? `<span class="status-badge status-active">✅ 案件同意度100%通過</span>` : `<span class="status-badge status-closed">SOP 進行中</span>`}
-        </div>
-        ${sopDone
-          ? `<div class="dev-achievement">
-              <span class="dev-achievement-icon">🏆</span>
-              <div>
-                <div class="dev-achievement-title">同意度達成 100%</div>
-                <div class="helper-text">已完成住戶同意程序,進入後續開發階段</div>
-              </div>
-            </div>`
-          : ""
-        }
-      </div>
-      <div class="dev-header-info">
-        <div><span class="helper-text">案件編號</span><div>${escapeHtml(project.project_code)}</div></div>
-        <div><span class="helper-text">行政區</span><div>${escapeHtml(project.city) || ""}${escapeHtml(project.district) || "-"}</div></div>
-        <div><span class="helper-text">更新章別</span><div>${escapeHtml(renewalSection)}</div></div>
-        <div><span class="helper-text">案件類型</span><div>${escapeHtml(project.case_type) || "-"}</div></div>
-      </div>
-    </div>`;
+  // 跟 SOP 頁「自訂關卡流程」同一個限制:流程完全還沒開始跑(還在第0階段、每一階段
+  // 都還是待開始)才准調整階段名稱/順序,避免動到已經在推進中的資料。
+  const canEditFlow = isManager() && dev.current_stage === 0 && stageKeys.every((k) => (dev.stages[k].status || "pending") === "pending");
 
   // ---- 橫向關卡步驟條(前面加一顆「案件同意度通過」裝飾節點,來自 SOP 結案狀態) ----
   const stepperNodes = [
@@ -86,7 +53,10 @@ async function renderDevelopmentTab(container) {
   ];
   const stepperHtml = `
     <div class="card sop-subcard">
-      <div class="sop-subcard-header"><h4>都更後續開發流程(SOP)</h4></div>
+      <div class="sop-subcard-header">
+        <h4>都更後續開發流程(SOP)</h4>
+        ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="dev-edit-flow-btn">⚙ 編輯流程</button>` : ""}
+      </div>
       ${hasStages
         ? `<div class="dev-stepper">
             ${stepperNodes
@@ -234,7 +204,6 @@ async function renderDevelopmentTab(container) {
     </div>`;
 
   container.innerHTML = `
-    ${headerHtml}
     ${stepperHtml}
     <div class="dev-two-col">
       <div class="dev-two-col-main">${currentInfoHtml}${docTableHtml}</div>
@@ -248,6 +217,20 @@ async function renderDevelopmentTab(container) {
       renderDevelopmentTab(container);
     });
   });
+
+  const editFlowBtn = document.getElementById("dev-edit-flow-btn");
+  if (editFlowBtn) {
+    editFlowBtn.addEventListener("click", () => {
+      const currentStages = stageKeys.map((k) => dev.stages[k].name);
+      openDevFlowEditor(currentStages, async (stages) => {
+        await api(`/projects/${pid}/development/stages`, { method: "PUT", body: { stages } });
+        toast("流程已更新", "success");
+        closeModal();
+        state.devSelectedStage = null;
+        renderDevelopmentTab(container);
+      });
+    });
+  }
 
   container.querySelectorAll("[data-dev-complete]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -365,4 +348,110 @@ async function renderDevelopmentTab(container) {
       } catch (err) { }
     });
   });
+}
+
+// ========== 編輯流程(階段名稱/順序)==========
+// 跟 SOP 頁「自訂關卡流程」是同一套視覺/操作模式(.sop-flow-* 共用同一份 CSS),但
+// 開發流程沒有自動門檻/進階需求這些東西,單純就是名稱 + 順序,所以是簡化過的獨立版本。
+let devFlowEditorState = null; // { stages: [{name}] }
+
+function devFlowEditorRowsHtml() {
+  const stages = devFlowEditorState.stages;
+  return stages
+    .map(
+      (row, i) => `
+      <div class="sop-flow-row">
+        <span class="sop-flow-row-num">${i + 1}</span>
+        <input type="text" class="sop-flow-row-name" data-dflow-name="${i}" value="${escapeHtml(row.name || "")}" placeholder="階段名稱" style="flex:1">
+        <div class="sop-flow-row-actions">
+          <button type="button" class="btn-secondary btn-sm" data-dflow-up="${i}" ${i === 0 ? "disabled" : ""} title="上移">↑</button>
+          <button type="button" class="btn-secondary btn-sm" data-dflow-down="${i}" ${i === stages.length - 1 ? "disabled" : ""} title="下移">↓</button>
+          <button type="button" class="btn-danger btn-sm" data-dflow-remove="${i}" ${stages.length <= 1 ? "disabled" : ""} title="刪除">✕</button>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function renderDevFlowEditorBody() {
+  return `
+    <div class="sop-flow-editor">
+      <p class="helper-text">自訂這個案件的後續開發流程階段:可新增、刪除、改名、排序。流程一旦開始推進(有任一階段狀態變動)就無法再調整。</p>
+      <div class="sop-flow-rows" id="dev-flow-rows">${devFlowEditorRowsHtml()}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" class="btn-secondary btn-sm" id="dev-flow-add-btn">+ 新增階段</button>
+      </div>
+      <div class="modal-footer" style="margin-top:20px">
+        <button type="button" class="btn-primary" id="dev-flow-save-btn">儲存</button>
+      </div>
+    </div>`;
+}
+
+function rerenderDevFlowEditor() {
+  const rowsEl = document.getElementById("dev-flow-rows");
+  if (rowsEl) rowsEl.innerHTML = devFlowEditorRowsHtml();
+  wireDevFlowEditorRows();
+}
+
+function wireDevFlowEditorRows() {
+  const root = document.getElementById("modal-root");
+  root.querySelectorAll("[data-dflow-name]").forEach((input) => {
+    input.oninput = () => {
+      devFlowEditorState.stages[Number(input.dataset.dflowName)].name = input.value;
+    };
+  });
+  root.querySelectorAll("[data-dflow-up]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.dflowUp);
+      const arr = devFlowEditorState.stages;
+      if (i > 0) {
+        [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+        rerenderDevFlowEditor();
+      }
+    };
+  });
+  root.querySelectorAll("[data-dflow-down]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.dflowDown);
+      const arr = devFlowEditorState.stages;
+      if (i < arr.length - 1) {
+        [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+        rerenderDevFlowEditor();
+      }
+    };
+  });
+  root.querySelectorAll("[data-dflow-remove]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.dflowRemove);
+      if (devFlowEditorState.stages.length > 1) {
+        devFlowEditorState.stages.splice(i, 1);
+        rerenderDevFlowEditor();
+      }
+    };
+  });
+}
+
+function openDevFlowEditor(initialStageNames, onSave) {
+  devFlowEditorState = { stages: (initialStageNames && initialStageNames.length ? initialStageNames : [""]).map((n) => ({ name: n })) };
+  openModal("編輯流程", renderDevFlowEditorBody(), { width: "560px" });
+  wireDevFlowEditorRows();
+
+  document.getElementById("dev-flow-add-btn").onclick = () => {
+    devFlowEditorState.stages.push({ name: "" });
+    rerenderDevFlowEditor();
+  };
+  document.getElementById("dev-flow-save-btn").onclick = async () => {
+    const stages = devFlowEditorState.stages.map((s) => ({ name: (s.name || "").trim() }));
+    if (stages.some((s) => !s.name)) {
+      toast("每個階段都要有名稱", "error");
+      return;
+    }
+    const saveBtn = document.getElementById("dev-flow-save-btn");
+    saveBtn.disabled = true;
+    try {
+      await onSave(stages);
+    } catch (err) {
+      saveBtn.disabled = false;
+    }
+  };
 }
