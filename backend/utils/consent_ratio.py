@@ -15,8 +15,9 @@ _OWNED_BUILDING_AREA = BuildingRecord.total_area_sqm * BuildingRecord.ownership_
 
 def _agreed_landowner_ids(db: Session, project_id: int) -> set[int]:
     """A landowner counts as "agreed" for the consent ratio (dashboard rings + the
-    dual-gate check at SOP stages 4/8/9 - see DUAL_GATE_STAGES in routers/sop.py) only
-    when BOTH are true - changed 2026-09 per request:
+    dual-gate check at the project's consent_dual_1/consent_dual_2/consent_final stages
+    - see DUAL_GATE_KEYS in routers/sop.py) only when BOTH are true - changed 2026-09 per
+    request:
       - their MOST RECENT contact_logs entry has contact_result == "agreed" (電話同意), AND
       - Landowner.agreement_status == "signed" (已簽約 - 編輯地主視窗的「拜訪/簽約
         狀態」勾選,上傳意願書時一起 PATCH 成 signed,見 landowners.js) - a phone "同意"

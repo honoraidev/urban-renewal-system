@@ -11,7 +11,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, contacts, dashboard, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
+from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -29,6 +29,7 @@ def _auto_migrate() -> None:
         models.ProjectNote.__table__.create(bind=engine, checkfirst=True)
         models.DocumentFolder.__table__.create(bind=engine, checkfirst=True)
         models.NewsItem.__table__.create(bind=engine, checkfirst=True)
+        models.DevelopmentStage.__table__.create(bind=engine, checkfirst=True)
     except Exception as exc:
         print(f"[auto_migrate] table create skipped: {exc}", flush=True)
 
@@ -76,6 +77,8 @@ def _auto_migrate() -> None:
         ("documents", "folder_id", "INT NULL"),
         ("projects", "expected_completion_date", "DATE NULL"),
         ("encumbrances", "secured_amount", "BIGINT NULL"),
+        ("encumbrances", "property_address", "VARCHAR(255) NULL"),
+        ("encumbrances", "obligors", "JSON NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
         ("land_records", "ltt_original_value_history", "JSON NULL"),
         ("news_items", "published_at", "DATETIME NULL"),
@@ -236,6 +239,43 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] document folder seed/backfill skipped: {exc}", flush=True)
 
+    try:
+        # 舊的 sop_stages 資料列(客製化關卡流程功能上線前建的案件)每一關沒有存
+        # "key" 欄位 - 補上去,並把舊的技術性關卡名稱("第0關:初始核定立案")換成
+        # 現在前端統一顯示用的短標籤,讓所有案件(不管新舊)顯示邏輯一致。
+        from sqlalchemy import select as _select
+
+        from models.sop import SopStage
+        from routers.sop import DEFAULT_KEY_BY_INDEX, STAGE_DEF_BY_KEY
+
+        rows = db_session_for_migrate = SessionLocal()
+        try:
+            sops = rows.scalars(_select(SopStage)).all()
+            changed = False
+            for sop in sops:
+                stages = (sop.stage_data or {}).get("stages") or {}
+                if not stages or all("key" in (entry or {}) for entry in stages.values()):
+                    continue
+                stage_data = dict(sop.stage_data)
+                new_stages = {}
+                for idx_str, entry in stages.items():
+                    e = dict(entry)
+                    if "key" not in e:
+                        key = DEFAULT_KEY_BY_INDEX.get(int(idx_str))
+                        e["key"] = key
+                        if key:
+                            e["name"] = STAGE_DEF_BY_KEY[key]["name"]
+                    new_stages[idx_str] = e
+                stage_data["stages"] = new_stages
+                sop.stage_data = stage_data
+                changed = True
+            if changed:
+                rows.commit()
+        finally:
+            db_session_for_migrate.close()
+    except Exception as exc:
+        print(f"[auto_migrate] sop stage key backfill skipped: {exc}", flush=True)
+
 
 async def _daily_news_fetch_loop() -> None:
     """背景常駐迴圈:每天本機時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
@@ -290,7 +330,30 @@ app.add_middleware(
 )
 
 
-def _write_activity(user_id, project_id, landowner_id, method, path, label, status_code):
+# 依標籤裡的關鍵字挑一個代表圖示，讓 LINE 通知卡片一眼就能分辨動作種類，
+# 不用每個 endpoint 自己指定 —— 跟 utils/activity.py 一樣走「規則表」路線。
+_ICON_RULES: list[tuple[str, str]] = [
+    ("刪除", "🗑️"), ("移除", "🗑️"),
+    ("上傳", "📄"),
+    ("OCR", "🔍"),
+    ("費用", "💰"),
+    ("同意書", "📝"),
+    ("SOP", "✅"), ("過關", "✅"), ("結案", "✅"),
+    ("地主", "👤"),
+    ("成員", "👥"),
+    ("新增", "➕"), ("建立", "➕"),
+    ("修改", "✏️"), ("編輯", "✏️"),
+]
+
+
+def _icon_for_label(label: str) -> str:
+    for kw, icon in _ICON_RULES:
+        if kw in label:
+            return icon
+    return "🔔"
+
+
+def _write_activity(user_id, project_id, landowner_id, method, path, label, status_code, detail=None):
     db = SessionLocal()
     try:
         # 有 landowner_id 的話,把地主姓名併進標籤(在寫入當下,不是讀取當下 - 保留
@@ -303,6 +366,10 @@ def _write_activity(user_id, project_id, landowner_id, method, path, label, stat
                     label = f"{label} — {owner.name}"
             except Exception:
                 pass
+        # detail 是端點自己塞進 request.state 的補充資訊(目前只有上傳文件的檔名),
+        # 跟 landowner 姓名一樣,併進同一個 label 字串,活動紀錄跟 LINE 通知都吃得到。
+        if detail:
+            label = f"{label}：{detail}"
         db.add(
             ActivityLog(
                 user_id=user_id,
@@ -339,18 +406,26 @@ def _maybe_notify(db, user_id, project_id, label):
         ]
         pcode = proj.project_code if proj else project_id
         pname = proj.name if proj else ""
+        case_value = f"{pname}（{pcode}）" if pname else str(pcode)
         text = f"【都更】{pname}({pcode})\n{label}"
         if actor:
             text += f"\n經手:{actor.display_name}"
         link = None
         if settings.NOTIFY_LINK_BASE:
             link = f"{settings.NOTIFY_LINK_BASE.rstrip('/')}/projects/{project_id}"
+        meta = [{"label": "案件", "value": case_value}]
+        if proj and proj.district:
+            meta.append({"label": "行政區", "value": proj.district})
+        meta.append({"label": "動作", "value": label})
+        if actor:
+            meta.append({"label": "經手", "value": actor.display_name})
         _send({
             "employee_nos": emps,
             "roles": ["manager"],
-            "exclude_employee_nos": [actor.username] if actor else [],
             "text": text,
             "link": link,
+            "action_icon": _icon_for_label(label),
+            "meta": meta,
         })
     except Exception:  # noqa: BLE001
         pass
@@ -396,8 +471,18 @@ class ActivityLogMiddleware:
             label, project_id, landowner_id = describe_request(scope["method"], scope["path"])
             if label is None:
                 return
+            # request.state 底層就是 scope["state"](Starlette Request 只是包了一層讀寫介面),
+            # 跟這個中介層共用同一份 scope dict,所以端點在 sync def 裡設的值,就算是在
+            # threadpool 執行、離開後 contextvar 不會回傳,這條路徑還是讀得到。
+            state = scope.get("state") or {}
+            detail = state.get("activity_detail")
+            # 「建立案件」是 POST /projects,路徑本身不帶 id,上面的路徑正則抓不到
+            # project_id —— 用端點自己塞回來的剛建好的 id 補上,新案件才能觸發通知。
+            if project_id is None:
+                project_id = state.get("activity_project_id")
             await anyio.to_thread.run_sync(
-                _write_activity, user_id, project_id, landowner_id, scope["method"], scope["path"], label, status_code
+                _write_activity, user_id, project_id, landowner_id, scope["method"], scope["path"], label,
+                status_code, detail,
             )
         except Exception:
             pass
@@ -407,11 +492,13 @@ app.add_middleware(ActivityLogMiddleware)
 
 app.include_router(auth.router)
 app.include_router(sso.router)
+app.include_router(case_lookup.router)
 app.include_router(projects.router)
 app.include_router(dashboard.router)
 app.include_router(landowners.router)
 app.include_router(contacts.router)
 app.include_router(sop.router)
+app.include_router(development.router)
 app.include_router(documents.router)
 app.include_router(expenses.router)
 app.include_router(expenses.category_router)

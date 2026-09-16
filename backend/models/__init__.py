@@ -1,6 +1,7 @@
 from models.user import User
 from models.project import Project, ProjectMember
 from models.sop import SopStage
+from models.development_stage import DevelopmentStage
 from models.landowner import Landowner
 from models.land_record import LandRecord
 from models.building_record import BuildingRecord
@@ -29,6 +30,7 @@ __all__ = [
     "Project",
     "ProjectMember",
     "SopStage",
+    "DevelopmentStage",
     "Landowner",
     "LandRecord",
     "BuildingRecord",

@@ -772,7 +772,38 @@
 
   /* ---------- SOP tab: left timeline stage list + right detail card ---------- */
   .sop-panel-layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
-  .sop-nav-list { width: 272px; flex-shrink: 0; display: flex; flex-direction: column; gap: 26px; }
+  .sop-nav-list-wrap { width: 272px; flex-shrink: 0; }
+  .sop-nav-list { display: flex; flex-direction: column; gap: 26px; }
+
+  /* ---------- 案件人員頁:左人員表格 + 右側開發流程面板 ---------- */
+  .members-panel-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .members-main { flex: 1 1 480px; min-width: 0; }
+  .members-side { flex: 0 0 300px; min-width: 260px; }
+  .dev-flow-panel { padding: 16px; }
+  .dev-flow-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .dev-flow-header h3 { margin: 0; }
+  .dev-flow-rows { display: flex; flex-direction: column; gap: 8px; }
+  .dev-flow-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--surface-2);
+  }
+  .dev-flow-row.current { border-color: var(--brand); background: var(--brand-bg, var(--surface-2)); }
+  .dev-flow-row.done { opacity: 0.75; }
+  .dev-flow-icon { flex-shrink: 0; font-weight: 700; width: 18px; text-align: center; }
+  .dev-flow-row.done .dev-flow-icon { color: var(--success); }
+  .dev-flow-row.current .dev-flow-icon { color: var(--brand-dark, var(--brand)); }
+  .dev-flow-name { flex: 1 1 auto; min-width: 0; }
+
+  /* ---------- SOP 自訂關卡流程編輯器 ---------- */
+  .sop-flow-rows { display: flex; flex-direction: column; gap: 8px; }
+  .sop-flow-row { display: flex; align-items: center; gap: 8px; }
+  .sop-flow-row-num {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-muted);
+  }
+  .sop-flow-row-type { flex: 0 0 190px; }
+  .sop-flow-row-name { flex: 1 1 auto; min-width: 0; }
+  .sop-flow-row-actions { flex-shrink: 0; display: flex; gap: 4px; }
   .sop-nav-item {
     position: relative; display: flex; gap: 14px; cursor: pointer; padding: 12px 14px 12px 12px;
     border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
@@ -1175,16 +1206,6 @@
 .bv-cell-opposed .bv-cell-badge { background: var(--danger); }
 .bv-cell-agreed .bv-cell-badge { background: var(--success); }
 .bv-flip-btn { white-space: nowrap; }
-
-/* ============ 土地/地主對照關係表 (Relations tab) ============ */
-.relations-table { table-layout: fixed; }
-.relations-table td { vertical-align: top; padding-top: 14px; padding-bottom: 14px; }
-.relations-table td:nth-child(1), .relations-table td:nth-child(2), .relations-table td:nth-child(3) { white-space: nowrap; }
-.relations-table td:nth-child(4) { text-align: center; white-space: nowrap; }
-.relations-table td:nth-child(4) .mini-badge { white-space: nowrap; }
-.relations-parcel-cell { font-weight: 700; white-space: nowrap; }
-.relations-chip-share { color: var(--text-muted); margin-left: 5px; font-weight: 600; }
-.relations-share-warning { color: var(--danger); font-size: 12.5px; font-weight: 600; margin-top: 8px; }
 
 /* ============ Minguo year+month picker (地價年月) ============ */
 .ymp { display: block; width: 100%; flex: 1 1 auto; min-width: 0; }
