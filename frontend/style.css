@@ -1342,7 +1342,8 @@
 .ltt-table input, .ltt-table .ymp-trigger {
   font-size: 15.5px; padding: 10px 12px; border-radius: 8px; height: 44px; box-sizing: border-box;
 }
-.ltt-table .ltt-input-current { text-align: right; }
+.ltt-table th:nth-child(3), .ltt-table td:nth-child(3),
+.ltt-table th:nth-child(4), .ltt-table td:nth-child(4) { text-align: center; }
 .ltt-result-cell { font-size: 17px; white-space: nowrap; }
 .ltt-result-cell strong { font-size: 18px; font-weight: 800; }
 .ltt-result-cell .helper-text { font-size: 13px; }

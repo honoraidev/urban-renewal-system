@@ -2,6 +2,10 @@
 
 function openModal(title, bodyHtml, { width = "480px" } = {}) {
   const root = document.getElementById("modal-root");
+  // 背景頁面開著捲軸時,固定定位的遮罩仍是以「含捲軸」的整個視窗寬度去置中,左右
+  // 會因為捲軸佔掉的那幾px 而不對稱(視覺上像整組往左偏)。開 modal 時鎖住背景捲動,
+  // 捲軸消失,遮罩才能真正以整個視窗寬度水平置中。
+  document.body.style.overflow = "hidden";
   root.innerHTML = `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal-dialog" style="max-width:${width}">
@@ -36,6 +40,7 @@ function openModal(title, bodyHtml, { width = "480px" } = {}) {
 function closeModal() {
   const root = document.getElementById("modal-root");
   if (root) root.innerHTML = "";
+  document.body.style.overflow = "";
 }
 
 // 掛在既有 modal 旁邊的次要面板(例如「編輯地主」視窗點「+建立一筆拜訪資料」彈出的
