@@ -2,7 +2,7 @@
 
 // 同意度100%通過、案件結案後的都更後續開發流程(事業計畫核定/權利變換/拆除/開工/
 // 交屋這類)- 跟 SOP 是分開的兩件事,完全自訂、沒有預設關卡、沒有自動門檻,純人工
-// 按「完成」推進。顯示在案件人員頁面右側(見 members.js renderMembersTab)。
+// 按「完成」推進。獨立分頁,排在「人員」右邊(見 index.html 的 tab-btn-development)。
 
 let devFlowEditorState = null; // { names: [string], onSave(names) }
 
@@ -104,13 +104,13 @@ function openDevelopmentFlowEditor(initialNames, onSave) {
   };
 }
 
-async function renderDevelopmentFlowPanel(container) {
+async function renderDevelopmentTab(container) {
   const pid = state.currentProjectId;
   let dev;
   try {
     dev = await api(`/projects/${pid}/development`, { silent: true });
   } catch (err) {
-    container.innerHTML = "";
+    container.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
   }
 
@@ -120,6 +120,7 @@ async function renderDevelopmentFlowPanel(container) {
     dev.current_stage !== 0 || stageKeys.some((k) => (dev.stages[k].status || "pending") !== "pending");
   const canEditFlow = isManager() && !flowStarted;
   const canAct = isEditor();
+  const doneCount = stageKeys.filter((k) => dev.stages[k].status === "completed").length;
 
   const rowsHtml = hasStages
     ? stageKeys
@@ -130,23 +131,32 @@ async function renderDevelopmentFlowPanel(container) {
           const icon = isDone ? "✓" : isCurrent ? "▶" : "○";
           const cls = isDone ? "done" : isCurrent ? "current" : "locked";
           const canReopen = isDone && Number(k) === dev.current_stage - 1;
+          const statusText = isDone
+            ? `✓ 已完成${s.completed_at ? "・" + fmtDateTime(s.completed_at) : ""}`
+            : isCurrent
+              ? "▶ 進行中"
+              : "尚未開始";
           return `
           <div class="dev-flow-row ${cls}">
             <span class="dev-flow-icon">${icon}</span>
-            <span class="dev-flow-name">${escapeHtml(s.name)}</span>
-            ${isCurrent && canAct ? `<button type="button" class="btn-secondary btn-sm" data-dev-complete="${k}">完成</button>` : ""}
+            <div class="dev-flow-main">
+              <div class="dev-flow-name">第${Number(k) + 1}關・${escapeHtml(s.name)}</div>
+              <div class="dev-flow-status">${statusText}</div>
+            </div>
+            ${isCurrent && canAct ? `<button type="button" class="btn-primary btn-sm" data-dev-complete="${k}">完成本關卡</button>` : ""}
             ${canReopen && canAct ? `<button type="button" class="btn-secondary btn-sm" data-dev-reopen="${k}">取消完成</button>` : ""}
           </div>`;
         })
         .join("")
-    : `<div class="helper-text">尚未建立流程${canEditFlow ? "" : ",請洽案件負責人建立"}</div>`;
+    : `<div class="empty-state">尚未建立流程${canEditFlow ? ",按右上角「建立流程」開始設定" : ",請洽案件負責人(L2以上)建立"}</div>`;
 
   container.innerHTML = `
+    <div class="section-toolbar">
+      <h3>開發流程${hasStages ? ` (${doneCount}/${stageKeys.length})` : ""}</h3>
+      ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="dev-flow-edit-btn">⚙ ${hasStages ? "編輯" : "建立"}流程</button>` : ""}
+    </div>
+    <p class="helper-text">案件同意度100%通過、SOP 結案之後的都更後續開發關卡(事業計畫核定/權利變換/拆除/開工/交屋這類),跟 SOP 進度是分開追蹤的兩件事。</p>
     <div class="card dev-flow-panel">
-      <div class="dev-flow-header">
-        <h3>開發流程</h3>
-        ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="dev-flow-edit-btn">⚙ ${hasStages ? "編輯" : "建立"}流程</button>` : ""}
-      </div>
       <div class="dev-flow-rows">${rowsHtml}</div>
     </div>`;
 
@@ -161,7 +171,7 @@ async function renderDevelopmentFlowPanel(container) {
         });
         toast("開發流程已更新", "success");
         closeModal();
-        renderDevelopmentFlowPanel(container);
+        renderDevelopmentTab(container);
       });
     });
   }
@@ -171,7 +181,7 @@ async function renderDevelopmentFlowPanel(container) {
       try {
         await api(`/projects/${pid}/development/${btn.dataset.devComplete}/complete`, { method: "POST", body: {} });
         toast("已完成", "success");
-        renderDevelopmentFlowPanel(container);
+        renderDevelopmentTab(container);
       } catch (err) { }
     });
   });
@@ -180,7 +190,7 @@ async function renderDevelopmentFlowPanel(container) {
       try {
         await api(`/projects/${pid}/development/${btn.dataset.devReopen}/reopen`, { method: "POST" });
         toast("已取消完成", "success");
-        renderDevelopmentFlowPanel(container);
+        renderDevelopmentTab(container);
       } catch (err) { }
     });
   });

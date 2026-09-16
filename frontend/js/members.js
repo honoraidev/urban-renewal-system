@@ -9,45 +9,37 @@ async function renderMembersTab(el) {
   const canEdit = isEditor();
 
   el.innerHTML = `
-    <div class="members-panel-layout">
-      <div class="members-main">
-        <div class="section-toolbar">
-          <h3>案件人員 (${members.length})</h3>
-          ${canEdit ? `<button class="btn-primary btn-sm" id="add-member-btn">+ 新增人員</button>` : ""}
-        </div>
-        ${members.length
-          ? `<div class="table-wrap">
-                <table>
-                  <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>加入時間</th>${canEdit ? "<th>操作</th>" : ""}</tr></thead>
-                  <tbody>
-                    ${members
-            .map(
-              (m) => `<tr>
-                          <td>${escapeHtml(m.username)}</td>
-                          <td>${escapeHtml(m.display_name)}</td>
-                          <td><span class="role-badge ${m.role_in_project}">${ROLE_LABEL[m.role_in_project] || m.role_in_project}</span></td>
-                          <td>${fmtDateTime(m.assigned_at)}</td>
-                          ${canEdit
-                ? `<td class="actions-cell">
-                            <button class="btn-danger btn-sm" data-remove-member="${m.user_id}">移除</button>
-                          </td>`
-                : ""
-              }
-                        </tr>`
-            )
-            .join("")}
-                  </tbody>
-                </table>
-              </div>`
-          : `<div class="empty-state">尚未指派任何人員</div>`
-        }
-      </div>
-      <div class="members-side" id="dev-flow-panel-mount"></div>
+    <div class="section-toolbar">
+      <h3>案件人員 (${members.length})</h3>
+      ${canEdit ? `<button class="btn-primary btn-sm" id="add-member-btn">+ 新增人員</button>` : ""}
     </div>
+    ${members.length
+      ? `<div class="table-wrap">
+            <table>
+              <thead><tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>加入時間</th>${canEdit ? "<th>操作</th>" : ""}</tr></thead>
+              <tbody>
+                ${members
+        .map(
+          (m) => `<tr>
+                      <td>${escapeHtml(m.username)}</td>
+                      <td>${escapeHtml(m.display_name)}</td>
+                      <td><span class="role-badge ${m.role_in_project}">${ROLE_LABEL[m.role_in_project] || m.role_in_project}</span></td>
+                      <td>${fmtDateTime(m.assigned_at)}</td>
+                      ${canEdit
+              ? `<td class="actions-cell">
+                        <button class="btn-danger btn-sm" data-remove-member="${m.user_id}">移除</button>
+                      </td>`
+              : ""
+            }
+                    </tr>`
+        )
+        .join("")}
+              </tbody>
+            </table>
+          </div>`
+      : `<div class="empty-state">尚未指派任何人員</div>`
+    }
   `;
-
-  const devFlowMount = document.getElementById("dev-flow-panel-mount");
-  if (devFlowMount) renderDevelopmentFlowPanel(devFlowMount);
 
   if (!canEdit) return;
 
