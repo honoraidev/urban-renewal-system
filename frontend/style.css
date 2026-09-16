@@ -915,6 +915,9 @@
   .lo-edit-section summary::-webkit-details-marker { display: none; }
   .lo-edit-section summary::before { content: "▸"; margin-right: 8px; color: var(--text-muted); transition: transform .15s ease; }
   .lo-edit-section[open] summary::before { transform: rotate(90deg); }
+  /* 「新增一筆聯絡紀錄」不是收合區塊(按標題列的按鈕才會出現),用同樣外觀但沒有
+     ▸ 箭頭跟展開/收合互動的固定標題列。 */
+  .lo-edit-section-title { padding: 11px 14px; font-weight: 700; background: var(--surface-2); }
   .lo-edit-section-body { padding: 14px; }
   .lo-edit-section-body .field:last-child, .lo-edit-section-body .field-row:last-child { margin-bottom: 0; }
 
@@ -949,9 +952,22 @@
     padding: 18px 22px; border-bottom: 1px solid var(--border);
     position: sticky; top: 0; background: var(--surface); z-index: 1; border-radius: 16px 16px 0 0;
   }
-  .modal-header h3 { margin: 0; font-size: 17.5px; font-weight: 800; }
-  /* 編輯地主標題後面的共有人切換(N/M ▲▼)靠右貼齊關閉鈕,不擠在標題文字後面 */
-  .modal-header h3:has(.lo-editor-nav) { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .modal-header h3 { margin: 0; font-size: 17.5px; font-weight: 800; flex: 1; min-width: 0; }
+  /* 編輯地主標題列:標題文字+共有人切換靠左,操作按鈕靠右貼齊關閉鈕 */
+  .lo-modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+  .lo-modal-title-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .lo-modal-title-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .lo-sibling-nav {
+    display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 2px 4px;
+    font-size: 12.5px; font-weight: 700; color: var(--text-muted);
+  }
+  .lo-sibling-count { padding: 0 4px; white-space: nowrap; }
+  .lo-sibling-btn {
+    border: none; background: none; cursor: pointer; color: var(--text-muted); font-size: 16px;
+    line-height: 1; padding: 3px 7px; border-radius: 999px; transition: background .15s ease, color .15s ease;
+  }
+  .lo-sibling-btn:hover { background: var(--surface); color: var(--brand-dark, var(--brand)); }
   .modal-close { background: none; color: var(--text-muted); font-size: 21.5px; padding: 2px 6px; border-radius: var(--radius-sm); line-height: 1; }
   .modal-close:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
   .modal-body { padding: 22px; }

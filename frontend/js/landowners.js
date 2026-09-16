@@ -866,6 +866,8 @@ function switchLandownerSibling(delta) {
 // 編輯模式就失去保護意義了。
 let landownerEditMode = false;
 let _landownerEditModeFor = null;
+// 「新增一筆聯絡紀錄」表單預設收起來,按標題列的「+ 建立一筆拜訪資料」才展開。
+let landownerShowContactForm = false;
 
 function loFieldHtml(label, name, value, extra) {
   if (landownerEditMode) {
@@ -880,6 +882,7 @@ function loFieldHtml(label, name, value, extra) {
 async function openEditLandownerModal(landownerId, siblingIds = null) {
   if (_landownerEditModeFor !== landownerId) {
     landownerEditMode = false;
+    landownerShowContactForm = false;
     _landownerEditModeFor = landownerId;
   }
   // 直接打 API 拿最新資料,不要用 state.projectCache 裡的快取 —— 整合清冊分頁自己
@@ -920,54 +923,27 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   }
   const idx = siblings ? siblings.indexOf(landownerId) : -1;
   const editToggleBtnHtml = landownerEditMode
-    ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn" style="margin-left:10px;vertical-align:middle">👁 檢視模式</button>`
-    : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn" style="margin-left:10px;vertical-align:middle">✏️ 編輯</button>`;
-  const titleHtml = (siblings
-    ? `編輯${currentLandownerLabel}<span class="lo-editor-nav helper-text" style="font-size:12.5px;font-weight:400;display:inline-flex;align-items:center;gap:2px">
-        (${idx + 1}/${siblings.length}
-        <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(-1)" title="上一位">▲</button>
-        <button type="button" class="btn-link btn-sm" style="padding:0 3px;text-decoration:none;font-size:13px" onclick="switchLandownerSibling(1)" title="下一位">▼</button>)
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn">👁 檢視模式</button>`
+    : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn">✏️ 編輯</button>`;
+  const addContactBtnHtml =
+    landownerEditMode && !alreadyAgreed
+      ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 建立一筆拜訪資料</button>`
+      : "";
+  const siblingNavHtml = siblings
+    ? `<span class="lo-sibling-nav">
+        <button type="button" class="lo-sibling-btn" onclick="switchLandownerSibling(-1)" title="上一位">‹</button>
+        <span class="lo-sibling-count">${idx + 1}/${siblings.length}</span>
+        <button type="button" class="lo-sibling-btn" onclick="switchLandownerSibling(1)" title="下一位">›</button>
       </span>`
-    : `編輯${currentLandownerLabel}`) + editToggleBtnHtml;
+    : "";
+  const titleHtml = `<span class="lo-modal-title-row">
+      <span class="lo-modal-title-left">編輯${currentLandownerLabel}${siblingNavHtml}</span>
+      <span class="lo-modal-title-right">${addContactBtnHtml}${editToggleBtnHtml}</span>
+    </span>`;
   openModal(
     titleHtml,
     `
     <form id="landowner-edit-form">
-      <div class="field">
-        <label>拜訪 / 簽約狀態</label>
-        ${landownerEditMode
-        ? `<div class="sop-checklist lo-visit-checklist">
-          <label class="sop-checklist-item lo-check-row">
-            <input type="checkbox" data-lo-visit-toggle ${owner.visit_status === "visited" ? "checked" : ""} class="lo-check-input">
-            <span class="sop-checklist-icon lo-check-icon">✓</span>
-            <div style="flex:1">
-              <div class="sop-checklist-label">已拜訪</div>
-              <div class="sop-checklist-sub">${owner.visit_status === "visited" ? "已完成拜訪" : "勾選即完成拜訪"}</div>
-            </div>
-          </label>
-          ${owner.visit_status === "visited"
-          ? `<div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
-                <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
-                <div style="flex:1">
-                  <div class="sop-checklist-label">已簽約</div>
-                  <div class="sop-checklist-sub">${owner.agreement_status === "signed" ? "已上傳意願書" : "上傳意願書即完成簽約"}</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                  ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
-                  <button type="button" class="btn-${owner.agreement_status === "signed" ? "secondary" : "primary"} btn-sm" data-lo-upload="willingness_form">${owner.agreement_status === "signed" ? "重新上傳" : "上傳意願書"}</button>
-                </div>
-                <input type="file" data-lo-upload-input="willingness_form" style="display:none">
-              </div>`
-          : ""
-        }
-        </div>`
-        : `<div class="badge-row" style="padding:8px 2px">
-          <span class="mini-badge ${owner.visit_status === "visited" ? "gate-ok" : ""}">${owner.visit_status === "visited" ? "✓ 已拜訪" : "未拜訪"}</span>
-          <span class="mini-badge ${owner.agreement_status === "signed" ? "gate-ok" : ""}">${owner.agreement_status === "signed" ? "✓ 已簽約" : "未簽約"}</span>
-        </div>`
-      }
-      </div>
-
       <details class="lo-edit-section" open>
         <summary>地主基本資料</summary>
         <div class="lo-edit-section-body">
@@ -993,10 +969,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </details>
 
-      ${!landownerEditMode || alreadyAgreed
+      ${!landownerEditMode || alreadyAgreed || !landownerShowContactForm
       ? ""
-      : `<details class="lo-edit-section" open>
-        <summary>新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></summary>
+      : `<div class="lo-edit-section">
+        <div class="lo-edit-section-title">新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></div>
         <div class="lo-edit-section-body">
           <div id="lo-contact-fields">
             <div class="field-row">
@@ -1018,7 +994,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
             <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
           </div>
         </div>
-      </details>`
+      </div>`
     }
 
       <details class="lo-edit-section">
@@ -1046,6 +1022,41 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </details>
 
+      <div class="field">
+        <label>拜訪 / 簽約狀態</label>
+        ${landownerEditMode
+      ? `<div class="sop-checklist lo-visit-checklist">
+          <label class="sop-checklist-item lo-check-row">
+            <input type="checkbox" data-lo-visit-toggle ${owner.visit_status === "visited" ? "checked" : ""} class="lo-check-input">
+            <span class="sop-checklist-icon lo-check-icon">✓</span>
+            <div style="flex:1">
+              <div class="sop-checklist-label">已拜訪</div>
+              <div class="sop-checklist-sub">${owner.visit_status === "visited" ? "已完成拜訪" : "勾選即完成拜訪"}</div>
+            </div>
+          </label>
+          ${owner.visit_status === "visited"
+        ? `<div class="sop-checklist-item ${owner.agreement_status === "signed" ? "done" : ""}">
+                <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
+                <div style="flex:1">
+                  <div class="sop-checklist-label">已簽約</div>
+                  <div class="sop-checklist-sub">${owner.agreement_status === "signed" ? "已上傳意願書" : "上傳意願書即完成簽約"}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                  ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
+                  <button type="button" class="btn-${owner.agreement_status === "signed" ? "secondary" : "primary"} btn-sm" data-lo-upload="willingness_form">${owner.agreement_status === "signed" ? "重新上傳" : "上傳意願書"}</button>
+                </div>
+                <input type="file" data-lo-upload-input="willingness_form" style="display:none">
+              </div>`
+        : ""
+      }
+        </div>`
+      : `<div class="badge-row" style="padding:8px 2px">
+          <span class="mini-badge ${owner.visit_status === "visited" ? "gate-ok" : ""}">${owner.visit_status === "visited" ? "✓ 已拜訪" : "未拜訪"}</span>
+          <span class="mini-badge ${owner.agreement_status === "signed" ? "gate-ok" : ""}">${owner.agreement_status === "signed" ? "✓ 已簽約" : "未簽約"}</span>
+        </div>`
+    }
+      </div>
+
       <div class="modal-footer">
         ${landownerEditMode
       ? `<button type="button" class="btn-secondary" id="lo-cancel-btn">取消</button>
@@ -1058,11 +1069,18 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
 
   document.getElementById("lo-cancel-btn").addEventListener("click", () => {
     landownerEditMode = false;
+    landownerShowContactForm = false;
     closeModal();
   });
 
   document.getElementById("lo-edit-toggle-btn").addEventListener("click", () => {
     landownerEditMode = !landownerEditMode;
+    if (!landownerEditMode) landownerShowContactForm = false;
+    openEditLandownerModal(landownerId, siblingIds);
+  });
+
+  document.getElementById("lo-add-contact-btn")?.addEventListener("click", () => {
+    landownerShowContactForm = true;
     openEditLandownerModal(landownerId, siblingIds);
   });
 
@@ -1201,6 +1219,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         });
       }
       landownerEditMode = false;
+      landownerShowContactForm = false;
       closeModal();
       toast("已更新", "success");
       renderTab(state.activeTab);

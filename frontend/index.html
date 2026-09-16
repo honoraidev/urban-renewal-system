@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260916_4">
+  <link rel="stylesheet" href="style.css?v=20260916_5">
 </head>
 
 <body>
@@ -643,7 +643,7 @@
                         <tr><td>文件</td><td>案件文件庫,含同意書狀態(影響同意度)</td></tr>
                         <tr><td>他項權利部</td><td>抵押權、地上權等他項權利登記</td></tr>
                         <tr><td>費用</td><td>案件支出登錄;可用「發票掃描」拍照／上傳自動回填金額</td></tr>
-                        <tr><td>土增稅</td><td>一般稅率試算。「原規定地價／前次移轉現值」在土地登記頁改、此頁唯讀;此頁只填「本次申報移轉現值」</td></tr>
+                        <tr><td>土增稅</td><td>自用／一般稅率同時試算。「原規定地價／前次移轉現值」在土地登記頁改、此頁唯讀;此頁只填「本月申報移轉現值」</td></tr>
                         <tr><td>人員</td><td>案件成員名單,地主以外所有角色都看得到;新增／移除限 L0~L3(系統管理員／管理層／都更主管／案件負責人),L4 案件工作人員與 L5 檢視者唯讀</td></tr>
                       </tbody>
                     </table>
@@ -674,7 +674,7 @@
                   <ol>
                     <li>案件 → <span class="manual-path">土增稅</span> 頁,系統自動帶入該案地主與地號。</li>
                     <li>「原規定地價／前次移轉現值」到 <span class="manual-path">登記資料 › 土地登記</span> 編輯(土增稅頁唯讀)。</li>
-                    <li>在土增稅頁填「本次申報移轉現值」→ 儲存,即時試算應納稅額。</li>
+                    <li>在土增稅頁填「本月申報移轉現值」→ 儲存,自動同時試算自用／一般稅率的應納稅額。</li>
                   </ol>
                   <p class="manual-warn">土增稅為概算,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額以地方稅捐稽徵機關核算為準。</p>
 
@@ -777,7 +777,7 @@
   <script src="js/development.js?v=20260916_2"></script>
   <script src="js/board.js?v=20260909_9"></script>
   <script src="js/ocr_wizard.js?v=20260916_2"></script>
-  <script src="js/landowners.js?v=20260916_4"></script>
+  <script src="js/landowners.js?v=20260916_5"></script>
   <script src="js/documents.js?v=20260911_2"></script>
   <script src="js/contacts.js?v=20260916_1"></script>
   <script src="js/encumbrances.js?v=20260916_2"></script>
@@ -786,7 +786,7 @@
   <script src="js/resources.js?v=20260914_1"></script>
   <script src="js/inventory.js?v=20260909_1"></script>
   <script src="js/buildingview.js?v=20260916_2"></script>
-  <script src="js/land_value_tax.js?v=20260909_1"></script>
+  <script src="js/land_value_tax.js?v=20260916_1"></script>
   <script src="js/main.js?v=20260914_1"></script>
 </body>
 
