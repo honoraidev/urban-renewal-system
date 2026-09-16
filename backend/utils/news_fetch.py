@@ -1,8 +1,9 @@
 """每天自動從 Google 新聞 RSS 搜尋都更/危老相關新聞,寫進「工具與資源 → 新聞」(news_items)。
 
 用 Google 新聞的公開 RSS 搜尋端點(不需要 API key),對幾組都更相關關鍵字各查一次,只留
-最近 _MAX_AGE_DAYS 天內、網址還沒存在 news_items 的項目,最多寫入 _MAX_PER_RUN 筆,分類
-用標題關鍵字粗略比對 news_items.category 既有的幾個分類。
+最近 _MAX_AGE_DAYS 天內、網址還沒存在 news_items 的項目;每組關鍵字各自最多選
+_MAX_PER_QUERY 筆(不是全部混在一起比日期取全域前幾筆,不然新聞量大的關鍵字會把量少
+的擠光),分類用標題關鍵字粗略比對 news_items.category 既有的幾個分類。
 
 排程觸發見 main.py 的 lifespan(常駐背景 asyncio task,每天本機時間 9:00 執行一次)。也可以
 透過 POST /news/fetch-now(manager 權限)手動立即觸發一次,方便部署後測試不用等到隔天。
@@ -25,7 +26,7 @@ from models.news_sync_state import NewsSyncState
 
 _RSS_URL = "https://news.google.com/rss/search"
 _QUERIES = ["都更 OR 都市更新", "危老重建", "老宅延壽", "都更 地主 財務 OR 稅務"]
-_MAX_PER_RUN = 5
+_MAX_PER_QUERY = 2  # 每組關鍵字各自最多選這麼多筆,保證每個主題都有機會露出
 _MAX_AGE_DAYS = 2
 _URL_MAX_LEN = 1000  # 跟 NewsItem.url 的欄位長度一致(見 models/news_item.py)
 
@@ -114,27 +115,31 @@ def fetch_and_store_news(db: Session) -> list[NewsItem]:
     existing_names = {n for (n,) in db.query(NewsItem.name).all()}
     cutoff = datetime.now(timezone.utc) - timedelta(days=_MAX_AGE_DAYS)
 
-    candidates: dict[str, dict] = {}
+    # 每組關鍵字各自選出最新的 _MAX_PER_QUERY 筆,不是把全部關鍵字的候選混在一起、只取
+    # 全域最新的 _MAX_PER_RUN 筆 - 選舉季這種時候,「都更 OR 都市更新」這組會被大量政治
+    # 造勢新聞灌爆,單純比日期排序,其他關鍵字(如地主財稅)幾乎永遠選不進來,新加的
+    # 關鍵字等於形同虛設。分開選才能保證每個主題都有機會露出。
+    seen_links: set[str] = set()
     seen_titles: set[str] = set()
+    ordered: list[dict] = []
     for q in _QUERIES:
         try:
+            per_query = []
             for it in _fetch_query(q):
-                if it["link"] in existing_urls or it["link"] in candidates:
+                if it["link"] in existing_urls or it["link"] in seen_links:
                     continue
                 if it["title"] in existing_names or it["title"] in seen_titles:
                     continue
                 if it["pub_date"] and it["pub_date"] < cutoff:
                     continue
-                candidates[it["link"]] = it
+                per_query.append(it)
+            per_query.sort(key=lambda x: x["pub_date"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+            for it in per_query[:_MAX_PER_QUERY]:
+                seen_links.add(it["link"])
                 seen_titles.add(it["title"])
+                ordered.append(it)
         except Exception as exc:  # noqa: BLE001
             print(f"[news_fetch] query {q!r} failed (ignored): {exc}", flush=True)
-
-    ordered = sorted(
-        candidates.values(),
-        key=lambda x: x["pub_date"] or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )[:_MAX_PER_RUN]
 
     created: list[NewsItem] = []
     for it in ordered:
