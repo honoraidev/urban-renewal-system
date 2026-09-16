@@ -25,9 +25,23 @@ def _active_sys_admin_count(db: Session, exclude_user_id: int | None = None) -> 
     return db.scalar(stmt) or 0
 
 
+def _scope_users_by_department(users: list[User], current_user: User) -> list[User]:
+    """使用者管理頁的部門可見範圍:L0/L1 看全部;L2(ocr_staff)只看跟自己有
+    共同部門的人(含自己),沒設部門的話就只看得到自己。不套用在 /directory、
+    /assignable 這類給其他功能挑人用的端點(挑案件人員/物品保管人本來就該
+    跨部門)。"""
+    if current_user.role != "ocr_staff":
+        return users
+    my_depts = set(current_user.departments or [])
+    if not my_depts:
+        return [u for u in users if u.id == current_user.id]
+    return [u for u in users if u.id == current_user.id or my_depts & set(u.departments or [])]
+
+
 @router.get("", response_model=list[UserRead])
 def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
-    return db.scalars(select(User).order_by(User.created_at)).all()
+    users = db.scalars(select(User).order_by(User.created_at)).all()
+    return _scope_users_by_department(users, current_user)
 
 
 @router.get("/directory")
@@ -77,7 +91,10 @@ def create_user(
 
 @router.get("/{user_id}", response_model=UserRead)
 def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_manager)):
-    return get_user_or_404(db, user_id)
+    user = get_user_or_404(db, user_id)
+    if not _scope_users_by_department([user], current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view users outside your department")
+    return user
 
 
 @router.patch("/{user_id}", response_model=UserRead)
