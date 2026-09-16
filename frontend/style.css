@@ -151,6 +151,9 @@
     color: var(--text);
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
+  /* checkbox/radio 不該吃到上面 width:100% - 不然在 flex 排版裡會把自己撐成整排寬,
+     把旁邊的文字/其他欄位擠到只剩一絲寬度,中文字被迫一字一行往下排。 */
+  input[type="checkbox"], input[type="radio"] { width: auto; padding: 0; flex-shrink: 0; }
   input:hover, select:hover, textarea:hover { border-color: var(--text-muted); }
   input:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--brand); background: var(--surface);
@@ -806,10 +809,9 @@
     margin: -4px 0 8px 30px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px;
     background: var(--surface-2); display: flex; flex-direction: column; gap: 8px;
   }
-  .sop-flow-req-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-  .sop-flow-req-check input[type="checkbox"] { flex-shrink: 0; }
+  .sop-flow-req-check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 0; font-weight: 400; }
   .sop-flow-req-check select, .sop-flow-req-check input[type="text"], .sop-flow-req-check input[type="number"] {
-    padding: 4px 8px; font-size: 12.5px;
+    width: auto; padding: 4px 8px; font-size: 12.5px;
   }
   .sop-nav-item {
     position: relative; display: flex; gap: 14px; cursor: pointer; padding: 12px 14px 12px 12px;
@@ -921,6 +923,7 @@
   }
   .sop-file-dropzone:hover, .sop-file-dropzone.dragover { border-color: var(--brand); background: var(--brand-light); }
   .sop-file-list { display: flex; flex-direction: column; gap: 8px; }
+  .sop-file-list .empty-state, .sop-subcard .empty-state { padding: 16px 20px; font-size: 13.5px; }
   .sop-file-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
   .sop-file-icon { font-size: 18px; flex-shrink: 0; }
   .sop-file-main { flex: 1; min-width: 0; }
@@ -928,11 +931,6 @@
 
   #sop-meta-notes { width: 100%; resize: vertical; }
   .sop-notes-count { text-align: right; margin-top: 4px; }
-
-  .sop-meta-row { display: flex; gap: 20px; flex-wrap: wrap; }
-  .sop-meta-item { flex: 1; min-width: 160px; }
-  .sop-meta-item > label { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
-  .sop-meta-value { padding: 6px 0; font-size: 13.5px; }
 
   .sop-action-bar { display: flex; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
   .sop-last-updated { margin-left: auto; white-space: nowrap; }

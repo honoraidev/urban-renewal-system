@@ -736,29 +736,10 @@ async function renderSopTab(el) {
       : 0;
 
   const canEditMeta = isEditor() && !isLandowner();
-  const assigneeUser = stageMeta.assignee_id ? userById[stageMeta.assignee_id] : null;
   const updatedByUser = stageMeta.updated_by ? userById[stageMeta.updated_by] : null;
   const lastUpdatedHtml = stageMeta.updated_at
     ? `最後更新:${fmtDateTime(stageMeta.updated_at)}${updatedByUser ? `・${escapeHtml(updatedByUser.display_name)}` : ""}`
     : "";
-
-  const assigneeControlHtml = canEditMeta
-    ? `<select id="sop-meta-assignee">
-        <option value="">未指定</option>
-        ${assignableUsers.map((u) => `<option value="${u.id}" ${stageMeta.assignee_id === u.id ? "selected" : ""}>${escapeHtml(u.display_name)}</option>`).join("")}
-      </select>`
-    : `<div class="sop-meta-value">${assigneeUser ? escapeHtml(assigneeUser.display_name) : "未指定"}</div>`;
-
-  const dueDateControlHtml = canEditMeta
-    ? `<input type="date" id="sop-meta-due-date" value="${escapeHtml(stageMeta.due_date) || ""}">`
-    : `<div class="sop-meta-value">${stageMeta.due_date ? fmtDate(stageMeta.due_date) : "未設定"}</div>`;
-
-  const departmentsControlHtml = canEditMeta
-    ? chipFieldHtml("sop_departments", "", stageMeta.departments, DEPARTMENT_OPTIONS)
-    : `<div class="badge-row">${(stageMeta.departments || []).length
-        ? stageMeta.departments.map((d) => `<span class="mini-badge">${escapeHtml(d)}</span>`).join("")
-        : `<div class="sop-meta-value">未設定</div>`
-      }</div>`;
 
   const fileSizeText = (bytes) => {
     if (!bytes) return "";
@@ -796,7 +777,6 @@ async function renderSopTab(el) {
           <div class="sop-detail-header-right">
             <div class="sop-stage-progress-mini"><span>本階段進度</span><strong>${stagePct}%</strong></div>
             <div class="progress-bar-track sop-stage-progress-bar"><div class="progress-bar-fill" style="width:${stagePct}%"></div></div>
-            ${stageMeta.due_date ? `<div class="helper-text">📅 預計完成日 ${fmtDate(stageMeta.due_date)}</div>` : ""}
           </div>
         </div>
 
@@ -830,14 +810,8 @@ async function renderSopTab(el) {
           <h4>📝 階段備註</h4>
           <textarea id="sop-meta-notes" maxlength="500" rows="3" ${!canEditMeta ? "readonly" : ""} placeholder="${canEditMeta ? "輸入備註內容..." : ""}">${escapeHtml(stageMeta.notes) || ""}</textarea>
           <div class="helper-text sop-notes-count"><span id="sop-notes-count">${(stageMeta.notes || "").length}</span>/500</div>
+          ${canEditMeta ? `<div style="text-align:right"><button type="button" class="btn-secondary btn-sm" id="sop-save-meta-btn">儲存備註</button></div>` : ""}
         </div>
-
-        <div class="card sop-subcard sop-meta-row">
-          <div class="sop-meta-item"><label>👤 負責人</label>${assigneeControlHtml}</div>
-          <div class="sop-meta-item"><label>🏢 相關單位</label>${departmentsControlHtml}</div>
-          <div class="sop-meta-item"><label>📅 重要日期</label>${dueDateControlHtml}</div>
-        </div>
-        ${canEditMeta ? `<div style="text-align:right;margin-top:-6px"><button type="button" class="btn-secondary btn-sm" id="sop-save-meta-btn">儲存階段資訊</button></div>` : ""}
 
         ${selectedIsCurrent && isEditor()
           ? `<div class="sop-action-bar">
@@ -1035,22 +1009,13 @@ async function renderSopTab(el) {
     });
   }
 
-  // ---- 負責人/相關單位/重要日期/備註 一起存,PATCH .../sop/{stage}/meta ----
+  // ---- 階段備註存檔,PATCH .../sop/{stage}/meta ----
   if (canEditMeta) {
-    wireChipFields(el);
     const saveMetaBtn = document.getElementById("sop-save-meta-btn");
     if (saveMetaBtn) {
       saveMetaBtn.addEventListener("click", async () => {
-        const assigneeSelect = document.getElementById("sop-meta-assignee");
-        const dueDateInput = document.getElementById("sop-meta-due-date");
-        const payload = {
-          due_date: dueDateInput.value || null,
-          notes: notesInput.value || null,
-          assignee_id: assigneeSelect.value ? Number(assigneeSelect.value) : null,
-          departments: readChips(el, "sop_departments"),
-        };
         try {
-          await api(`/projects/${pid}/sop/${selected}/meta`, { method: "PATCH", body: payload });
+          await api(`/projects/${pid}/sop/${selected}/meta`, { method: "PATCH", body: { notes: notesInput.value || null } });
           toast("已儲存", "success");
           renderSopTab(el);
         } catch (err) { }
