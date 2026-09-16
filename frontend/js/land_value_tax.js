@@ -4,12 +4,18 @@
 // 都是「總額」(不是每平方公尺單價)- 地政士/地價稅通知書上列的通常就是總額,這樣使用者不用自己拿去乘面積。
 // 這是概算工具,不是正式稅額 - 實際申報應以地方稅捐稽徵機關核算為準,已在頁面上標註(未套用持有年限
 // 減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等)。
-function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex }) {
+function _lttGain({ originalValue, currentValue, cpiIndex }) {
   // 依土地稅法:漲價總數額 = 申報現值 − 原規定地價(或前次移轉現值) × 台灣地區消費者物價總指數 ÷ 100。
   // 分級級距也以「按物價指數調整後的原地價」為基準。未填指數時視為 100(不調整)。
   const idx = cpiIndex && cpiIndex > 0 ? cpiIndex : 100;
   const adjustedOriginal = originalValue * (idx / 100);
   const gain = Math.max(0, currentValue - adjustedOriginal);
+  return { idx, adjustedOriginal, gain };
+}
+
+// 一般稅率(土地稅法第 33 條):按漲價總數額分三級累進 20% / 30% / 40%。
+function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex }) {
+  const { idx, adjustedOriginal, gain } = _lttGain({ originalValue, currentValue, cpiIndex });
   if (originalValue <= 0 || gain <= 0) {
     return { gain: 0, brackets: [], totalTax: 0, adjustedOriginal, cpiIndex: idx };
   }
@@ -35,12 +41,25 @@ function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex 
   };
 }
 
+// 自用住宅用地優惠稅率(土地稅法第 34 條):不分級距,漲價總數額統一按 10% 課徵。
+function calculateLandValueIncrementTaxSelfUse({ originalValue, currentValue, cpiIndex }) {
+  const { idx, adjustedOriginal, gain } = _lttGain({ originalValue, currentValue, cpiIndex });
+  if (originalValue <= 0 || gain <= 0) {
+    return { gain: 0, adjustedOriginal, cpiIndex: idx, rate: 0.1, totalTax: 0 };
+  }
+  return { gain, adjustedOriginal, cpiIndex: idx, rate: 0.1, totalTax: gain * 0.1 };
+}
+
 function landValueTaxRowResult(lr) {
   if (!lr.ltt_original_value) return null;
-  return calculateLandValueIncrementTax({
+  const params = {
     originalValue: Number(lr.ltt_original_value) || 0,
     currentValue: Number(lr.ltt_current_value) || 0,
-  });
+  };
+  return {
+    general: calculateLandValueIncrementTax(params),
+    selfUse: calculateLandValueIncrementTaxSelfUse(params),
+  };
 }
 
 async function renderLandValueTaxTab(el) {
@@ -84,15 +103,15 @@ async function renderLandValueTaxTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3>土地增值稅試算(一般稅率,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
+      <h3>土地增值稅試算(自用／一般稅率同時試算,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
     </div>
-    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
+    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
-          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本次申報移轉現值(元)</th>
+          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本月申報移轉現值(元)</th>
           ${canEditLtt ? "<th></th>" : ""}
-          <th>應納稅額試算</th>
+          <th>應納稅額試算(自用／一般)</th>
         </tr></thead>
         <tbody id="ltt-tbody">${bodyHtml}</tbody>
       </table>
@@ -104,16 +123,23 @@ async function renderLandValueTaxTab(el) {
 }
 
 function lttOwnerTotal(owner) {
-  return (owner.land_records || []).reduce((s, lr) => {
-    const r = landValueTaxRowResult(lr);
-    return s + (r ? r.totalTax : 0);
-  }, 0);
+  return (owner.land_records || []).reduce(
+    (s, lr) => {
+      const r = landValueTaxRowResult(lr);
+      return {
+        general: s.general + (r ? r.general.totalTax : 0),
+        selfUse: s.selfUse + (r ? r.selfUse.totalTax : 0),
+      };
+    },
+    { general: 0, selfUse: 0 }
+  );
 }
 
 function lttOwnerTotalHtml(owner) {
   const anyFilled = (owner.land_records || []).some((lr) => lr.ltt_original_value);
   if (!anyFilled) return `<span class="helper-text">尚未輸入</span>`;
-  return `<strong>約 ${Math.round(lttOwnerTotal(owner)).toLocaleString()} 元</strong>`;
+  const t = lttOwnerTotal(owner);
+  return `<div>自用 <strong>約 ${Math.round(t.selfUse).toLocaleString()} 元</strong></div><div>一般 <strong>約 ${Math.round(t.general).toLocaleString()} 元</strong></div>`;
 }
 
 function wireLandValueTaxToggles(el) {
@@ -147,8 +173,12 @@ function lttResultCellHtml(result) {
   if (!result) return `<span class="helper-text">尚未輸入</span>`;
   const fmt = (n) => Math.round(n).toLocaleString();
   const notes = [];
-  if (result.cpiIndex && result.cpiIndex !== 100) notes.push(`物價指數 ${result.cpiIndex}`);
-  return `<strong>約 ${fmt(result.totalTax)} 元</strong>` + (notes.length ? ` <span class="helper-text">(已套用 ${notes.join("、")})</span>` : "");
+  if (result.general.cpiIndex && result.general.cpiIndex !== 100) notes.push(`物價指數 ${result.general.cpiIndex}`);
+  return (
+    `<div>自用 <strong>約 ${fmt(result.selfUse.totalTax)} 元</strong></div>` +
+    `<div>一般 <strong>約 ${fmt(result.general.totalTax)} 元</strong></div>` +
+    (notes.length ? `<span class="helper-text">(已套用 ${notes.join("、")})</span>` : "")
+  );
 }
 
 function wireLandValueTaxRows(el, rows) {
