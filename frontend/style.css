@@ -267,6 +267,9 @@
     .sb.collapsed { width: 56px; overflow-x: hidden; }
     .sb.collapsed .navbar { padding: 20px 8px 16px; justify-content: center; }
     .sb.collapsed .brand-text,
+    /* logo 圖檔本身是「圖示+文字」畫在一起的一張圖,56px 寬的收合列裝不下,文字會被
+       硬生生截斷、飄出去(看起來像是壞掉);收合時乾脆不顯示整張圖,只留下面的收合鈕。 */
+    .sb.collapsed .navbar .brand-dot,
     .sb.collapsed .sb-sec,
     .sb.collapsed #sb-cases,
     .sb.collapsed .nav-link-label,
