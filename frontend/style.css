@@ -253,13 +253,13 @@
 
   /* ---------- 側邊欄收合成圖示小標(見 main.js applySidebarCollapsed) ---------- */
   .sb-collapse-btn {
-    margin-left: auto; flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
-    display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1;
+    margin-left: auto; flex-shrink: 0; width: 30px; height: 30px; border-radius: 6px;
+    border: none; background: none; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; line-height: 1;
     cursor: pointer; transition: all .15s ease;
   }
-  .sb-collapse-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--surface-2); }
-  .sb-collapse-btn svg { flex-shrink: 0; }
+  .sb-collapse-btn:hover { color: var(--brand); }
+  .sb-collapse-btn svg { flex-shrink: 0; width: 20px; height: 20px; }
   /* .collapsed 的效果只在桌機寬度生效 - collapsed 狀態是存在 localStorage 的,手機版
      用的是完全不同的抽屜模式(.sb-open,見下面 640px 那個 media query),寬度、隱藏
      文字這些規則要是漏到手機版,上次在桌機收合過一次,手機版的抽屜就會被壓成 56px
