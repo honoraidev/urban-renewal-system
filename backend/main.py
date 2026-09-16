@@ -83,6 +83,8 @@ def _auto_migrate() -> None:
         ("landowners", "line_id", "VARCHAR(100) NULL"),
         ("landowners", "email", "VARCHAR(255) NULL"),
         ("documents", "sop_stage", "INT NULL"),
+        ("documents", "dev_stage", "INT NULL"),
+        ("projects", "case_type", "VARCHAR(100) NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
         ("land_records", "ltt_original_value_history", "JSON NULL"),
         ("news_items", "published_at", "DATETIME NULL"),
@@ -281,13 +283,21 @@ def _auto_migrate() -> None:
         print(f"[auto_migrate] sop stage key backfill skipped: {exc}", flush=True)
 
     try:
-        # 開發流程功能上線初期預設是空白(要 L2 以上自己建),後來改成有預設關卡 -
-        # 把還沒被動過(沒有任何關卡、current_stage 還是 0)的舊資料列補上預設關卡,
+        # 開發流程功能上線初期預設是空白(要 L2 以上自己建),後來改成有預設關卡,
+        # 預設關卡名單後來又從 8 關舊版換成對照新版設計稿的 6 關 - 把還沒被動過
+        # (沒有任何關卡完成、current_stage 還是 0)的舊資料列補/換成最新預設關卡,
         # 新案件則是 get_or_create_dev 建立當下就直接帶預設值,不用等這裡補。
         from sqlalchemy import select as _select3
 
         from models.development_stage import DevelopmentStage
         from routers.development import _default_stage_data
+
+        # 只認舊版那份 8 關預設清單(名稱完全一致才換)- 不能只看「跟新預設不一樣」,
+        # 不然使用者自己改過名稱但還沒開始跑的自訂流程,每次重啟都會被默默蓋回預設值。
+        _OLD_DEFAULT_STAGE_NAMES = [
+            "事業計畫報核", "權利變換計畫報核", "都市更新審議", "建造執照申請",
+            "拆除既有建物", "開工興建", "使用執照核發", "交屋",
+        ]
 
         _dev_db = SessionLocal()
         try:
@@ -295,7 +305,13 @@ def _auto_migrate() -> None:
             changed = False
             for dev in devs:
                 stages = (dev.stage_data or {}).get("stages") or {}
-                if not stages and dev.current_stage == 0:
+                untouched = dev.current_stage == 0 and all(
+                    (entry.get("status") or "pending") == "pending" for entry in stages.values()
+                )
+                if not untouched:
+                    continue
+                current_names = [stages[str(i)]["name"] for i in range(len(stages)) if str(i) in stages]
+                if not stages or current_names == _OLD_DEFAULT_STAGE_NAMES:
                     dev.stage_data = _default_stage_data()
                     changed = True
             if changed:

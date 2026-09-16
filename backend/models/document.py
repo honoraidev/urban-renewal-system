@@ -18,6 +18,9 @@ class Document(Base):
     # SOP 關卡的「相關檔案」一般附件區用(跟靠 doc_type 比對的關卡自動門檻文件是
     # 兩回事,見 routers/sop.py)- 存關卡在 stage_data.stages 裡的陣列位置(int)。
     sop_stage: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 開發流程(結案後的後續開發關卡,見 routers/development.py)的「相關文件」一般
+    # 附件區用,跟 sop_stage 是兩個獨立的標記,分別對應 SOP 跟開發流程各自的關卡。
+    dev_stage: Mapped[int | None] = mapped_column(Integer, nullable=True)
     doc_type: Mapped[str] = mapped_column(String(30), nullable=False, default="other")
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

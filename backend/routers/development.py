@@ -11,7 +11,9 @@ from models.project import Project
 from models.user import User
 from schemas.development import (
     DevelopmentCompleteRequest,
+    DevelopmentHistoryEntryCreate,
     DevelopmentStageFlowRequest,
+    DevelopmentStageMetaUpdate,
     DevelopmentStatusResponse,
 )
 
@@ -21,14 +23,12 @@ router = APIRouter(prefix="/projects/{project_id}/development", tags=["developme
 # 沒有自動門檻;L2 以上還是可以在案件還沒開始跑這個流程前用「編輯流程」自行增刪/
 # 改名/排序,這份只是省去每個案件都要從零開始手動建立的麻煩。
 DEFAULT_DEVELOPMENT_STAGES: list[str] = [
-    "事業計畫報核",
-    "權利變換計畫報核",
-    "都市更新審議",
-    "建造執照申請",
-    "拆除既有建物",
-    "開工興建",
-    "使用執照核發",
-    "交屋",
+    "事業計畫核定",
+    "權利變換計畫",
+    "拆除作業",
+    "開工申報",
+    "興建施工",
+    "交屋與成果",
 ]
 
 
@@ -55,6 +55,7 @@ def _status_response(project_id: int, dev: DevelopmentStage) -> DevelopmentStatu
         project_id=project_id,
         current_stage=dev.current_stage,
         stages=dev.stage_data.get("stages") or {},
+        history=dev.stage_data.get("history") or [],
         updated_at=dev.updated_at,
     )
 
@@ -157,6 +158,93 @@ def reopen_development_stage(
     stage_data["stages"] = all_stages
     dev.stage_data = stage_data
     dev.current_stage = stage
+
+    db.commit()
+    db.refresh(dev)
+    return _status_response(project.id, dev)
+
+
+@router.patch("/{stage}/meta", response_model=DevelopmentStatusResponse)
+def update_development_stage_meta(
+    stage: int,
+    payload: DevelopmentStageMetaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    """關卡的負責單位/辦理內容/所需文件/預計完成日/本階段進度% - 跟關卡流程結構
+    (名稱/順序)是分開的,案件開始跑之後也能隨時改。"""
+    dev = get_or_create_dev(db, project.id)
+    if not (0 <= stage <= _final_stage_index(dev)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(dev.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    entry = dict(stages[stage_key])
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "progress_pct" in updates and updates["progress_pct"] is not None:
+        updates["progress_pct"] = max(0, min(100, updates["progress_pct"]))
+    entry.update(updates)
+    entry["meta_updated_at"] = datetime.now(timezone.utc).isoformat()
+    entry["meta_updated_by"] = current_user.id
+    stages[stage_key] = entry
+    stage_data["stages"] = stages
+    dev.stage_data = stage_data
+
+    db.commit()
+    db.refresh(dev)
+    return _status_response(project.id, dev)
+
+
+@router.post("/history", response_model=DevelopmentStatusResponse, status_code=status.HTTP_201_CREATED)
+def add_development_history_entry(
+    payload: DevelopmentHistoryEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    """階段歷程時間軸 - 案件層級的里程碑紀錄,不綁定單一關卡(一筆事件常常橫跨/
+    對應到某個關卡的某個動作,例如「第1次審查會議」),純人工新增,不是自動產生。"""
+    title = (payload.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="標題不可空白")
+
+    dev = get_or_create_dev(db, project.id)
+    stage_data = dict(dev.stage_data)
+    history = list(stage_data.get("history") or [])
+    next_id = (stage_data.get("history_seq") or 0) + 1
+    history.append({
+        "id": next_id,
+        "event_date": payload.event_date,
+        "title": title,
+        "note": payload.note or None,
+        "created_by": current_user.id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    # 依日期新到舊排序,新增的事件不一定是最新日期(可能補記較早的里程碑)。
+    history.sort(key=lambda h: h.get("event_date") or "", reverse=True)
+    stage_data["history"] = history
+    stage_data["history_seq"] = next_id
+    dev.stage_data = stage_data
+
+    db.commit()
+    db.refresh(dev)
+    return _status_response(project.id, dev)
+
+
+@router.delete("/history/{entry_id}", response_model=DevelopmentStatusResponse)
+def delete_development_history_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_editor),
+):
+    dev = get_or_create_dev(db, project.id)
+    stage_data = dict(dev.stage_data)
+    history = [h for h in (stage_data.get("history") or []) if h.get("id") != entry_id]
+    stage_data["history"] = history
+    dev.stage_data = stage_data
 
     db.commit()
     db.refresh(dev)

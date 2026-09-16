@@ -15,6 +15,9 @@ class Project(Base):
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     city: Mapped[str | None] = mapped_column(String(50), nullable=True)
     district: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # 案件類型(如「都市更新(權利變換)」「都市更新(協議合建)」「危老重建」) - 純標記
+    # 顯示用,不影響任何流程邏輯。給「開發流程」頁頂部的案件資訊列用。
+    case_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="active")
     current_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_force_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -718,6 +718,7 @@ async function openProjectEditModal(projectId) {
         <div class="field"><label>案件名稱</label><input name="name" value="${escapeHtml(p.name || "")}" required></div>
       </div>
       <div class="field"><label>案件地址</label><input name="address" value="${escapeHtml(p.address || "")}"></div>
+      <div class="field"><label>案件類型</label><input name="case_type" value="${escapeHtml(p.case_type || "")}" placeholder="例:都市更新(權利變換)"></div>
       <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date" value="${p.expected_completion_date || ""}"></div>
       <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
       <div class="modal-footer">

@@ -780,20 +780,55 @@
   .sop-nav-list { display: flex; flex-direction: column; gap: 26px; }
 
   /* ---------- 開發流程分頁 ---------- */
-  .dev-flow-panel { padding: 16px; max-width: 640px; }
-  .dev-flow-rows { display: flex; flex-direction: column; gap: 8px; }
-  .dev-flow-row {
-    display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-sm);
-    border: 1px solid var(--border); background: var(--surface-2);
+  .dev-header-card { padding: 20px; }
+  .dev-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .dev-header-title { margin: 0 0 8px; font-size: 19px; }
+  .dev-achievement { display: flex; align-items: center; gap: 12px; }
+  .dev-achievement-icon { font-size: 28px; flex-shrink: 0; }
+  .dev-achievement-title { font-weight: 800; font-size: 17px; color: var(--success); }
+  .dev-header-info {
+    display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
   }
-  .dev-flow-row.current { border-color: var(--brand); background: var(--brand-bg, var(--surface-2)); }
-  .dev-flow-row.done { opacity: 0.75; }
-  .dev-flow-icon { flex-shrink: 0; font-weight: 700; width: 20px; text-align: center; }
-  .dev-flow-row.done .dev-flow-icon { color: var(--success); }
-  .dev-flow-row.current .dev-flow-icon { color: var(--brand-dark, var(--brand)); }
-  .dev-flow-main { flex: 1 1 auto; min-width: 0; }
-  .dev-flow-name { font-weight: 600; }
-  .dev-flow-status { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+  .dev-header-info > div { flex: 1; min-width: 120px; }
+  .dev-header-info .helper-text { display: block; margin-bottom: 3px; }
+
+  .dev-stepper { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .dev-stepper-node {
+    flex: 1 1 0; min-width: 110px; text-align: center; padding: 14px 10px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; transition: border-color .15s ease, background .15s ease;
+  }
+  .dev-stepper-node:hover { border-color: var(--brand); }
+  .dev-stepper-node.selected { border-color: var(--brand); background: var(--brand-light); }
+  .dev-stepper-node.done { background: color-mix(in srgb, var(--success) 8%, var(--surface-2)); }
+  .dev-stepper-circle {
+    width: 34px; height: 34px; margin: 0 auto 6px; border-radius: 50%; background: var(--surface);
+    border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .dev-stepper-node.done .dev-stepper-circle { background: var(--success); border-color: var(--success); color: #fff; }
+  .dev-stepper-node.current .dev-stepper-circle { border-color: var(--brand); background: var(--brand-light); }
+  .dev-stepper-num { font-size: 11px; color: var(--text-muted); font-weight: 700; }
+  .dev-stepper-title { font-size: 12.5px; font-weight: 700; margin: 4px 0 2px; }
+  .dev-stepper-status-badge { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .dev-stepper-node.done .dev-stepper-status-badge { color: var(--success); }
+  .dev-stepper-node.current .dev-stepper-status-badge { color: var(--brand-dark, var(--brand)); }
+
+  .dev-info-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+  .dev-info-grid .field { flex: 1; min-width: 160px; }
+
+  .dev-two-col { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-top: 16px; }
+  .dev-two-col-main { flex: 2 1 380px; min-width: 0; }
+  .dev-two-col-side { flex: 1 1 280px; min-width: 0; }
+  .dev-two-col-main .sop-subcard:first-child, .dev-two-col-side .sop-subcard:first-child { margin-top: 0; }
+
+  .dev-history-add { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .dev-history-add input[type="date"] { flex: 0 0 150px; }
+  .dev-history-add input[type="text"] { flex: 1 1 160px; }
+  .dev-history-list { display: flex; flex-direction: column; gap: 12px; }
+  .dev-history-item { display: flex; gap: 10px; align-items: flex-start; }
+  .dev-history-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); margin-top: 5px; flex-shrink: 0; }
+  .dev-history-body { flex: 1; min-width: 0; }
+  .dev-history-date { font-size: 11.5px; color: var(--text-muted); }
+  .dev-history-title { font-size: 13.5px; font-weight: 600; }
 
   /* ---------- SOP 自訂關卡流程編輯器 ---------- */
   .sop-flow-rows { display: flex; flex-direction: column; gap: 8px; }

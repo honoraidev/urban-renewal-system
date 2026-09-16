@@ -9,6 +9,7 @@ class DocumentRead(BaseModel):
     landowner_id: int | None = None
     folder_id: int | None = None
     sop_stage: int | None = None
+    dev_stage: int | None = None
     doc_type: str
     file_name: str
     file_size_bytes: int
