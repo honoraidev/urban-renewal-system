@@ -24,14 +24,16 @@ from models.news_item import NewsItem
 from models.news_sync_state import NewsSyncState
 
 _RSS_URL = "https://news.google.com/rss/search"
-_QUERIES = ["都更 OR 都市更新", "危老重建", "老宅延壽"]
+_QUERIES = ["都更 OR 都市更新", "危老重建", "老宅延壽", "都更 地主 財務 OR 稅務"]
 _MAX_PER_RUN = 5
 _MAX_AGE_DAYS = 2
 _URL_MAX_LEN = 1000  # 跟 NewsItem.url 的欄位長度一致(見 models/news_item.py)
 
 # 標題關鍵字 -> news_items 既有分類(NEWS_DEFAULT_CATS,見 frontend/js/resources.js),
-# 由上到下比對,第一個命中的就用;都沒命中歸「其他」。
+# 由上到下比對,第一個命中的就用;都沒命中歸「其他」。地主財稅放最前面,不然「都更
+# 政策」規則裡的「稅」關鍵字會把地主財務/稅務新聞也吃掉,分類就不夠精確。
 _CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
+    ("地主財稅", ("財務", "分回", "貸款", "資產", "財稅", "找補")),
     ("法規異動", ("修法", "條例", "法案", "立法院", "草案", "子法")),
     ("都更政策", ("補助", "政策", "內政部", "獎勵", "容積", "減稅", "稅")),
     ("市場動態", ("博覽會", "投資", "產業", "市場", "報告", "展", "房價", "行情")),

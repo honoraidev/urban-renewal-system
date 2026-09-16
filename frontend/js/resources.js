@@ -760,6 +760,7 @@ const WEBSITE_DEFAULT_CATS = [
 ];
 
 const NEWS_DEFAULT_CATS = [
+  "地主財稅",
   "都更政策",
   "法規異動",
   "市場動態",
