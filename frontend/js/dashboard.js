@@ -777,7 +777,7 @@ async function openProject(id) {
   }
 
   // 地主帳號:只保留 SOP 進度 / 土地登記 / 建物登記 / 聯絡紀錄 / 土增稅,其餘分頁隱藏
-  const landownerHiddenTabs = ["buildingview", "documents", "encumbrances", "expenses", "members"];
+  const landownerHiddenTabs = ["buildingview", "documents", "encumbrances", "expenses", "members", "development"];
   document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
     const hideForLandowner = isLandowner() && landownerHiddenTabs.includes(btn.dataset.tab);
     btn.classList.toggle("hidden", hideForLandowner);
@@ -834,7 +834,7 @@ async function renderTab(tab) {
     setIntegratedTabLabel("building");
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
-  if (isLandowner() && ["buildingview", "documents", "encumbrances", "expenses", "members"].includes(tab)) {
+  if (isLandowner() && ["buildingview", "documents", "encumbrances", "expenses", "members", "development"].includes(tab)) {
     tab = "sop";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "sop"));
   }
@@ -853,6 +853,7 @@ async function renderTab(tab) {
     expenses: renderExpensesTab,
     landvaluetax: renderLandValueTaxTab,
     members: renderMembersTab,
+    development: renderDevelopmentTab,
   };
   try {
     if (renderers[tab]) {

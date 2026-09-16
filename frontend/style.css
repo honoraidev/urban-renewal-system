@@ -775,24 +775,21 @@
   .sop-nav-list-wrap { width: 272px; flex-shrink: 0; }
   .sop-nav-list { display: flex; flex-direction: column; gap: 26px; }
 
-  /* ---------- 案件人員頁:左人員表格 + 右側開發流程面板 ---------- */
-  .members-panel-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
-  .members-main { flex: 1 1 480px; min-width: 0; }
-  .members-side { flex: 0 0 300px; min-width: 260px; }
-  .dev-flow-panel { padding: 16px; }
-  .dev-flow-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-  .dev-flow-header h3 { margin: 0; }
+  /* ---------- 開發流程分頁 ---------- */
+  .dev-flow-panel { padding: 16px; max-width: 640px; }
   .dev-flow-rows { display: flex; flex-direction: column; gap: 8px; }
   .dev-flow-row {
-    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-sm);
     border: 1px solid var(--border); background: var(--surface-2);
   }
   .dev-flow-row.current { border-color: var(--brand); background: var(--brand-bg, var(--surface-2)); }
   .dev-flow-row.done { opacity: 0.75; }
-  .dev-flow-icon { flex-shrink: 0; font-weight: 700; width: 18px; text-align: center; }
+  .dev-flow-icon { flex-shrink: 0; font-weight: 700; width: 20px; text-align: center; }
   .dev-flow-row.done .dev-flow-icon { color: var(--success); }
   .dev-flow-row.current .dev-flow-icon { color: var(--brand-dark, var(--brand)); }
-  .dev-flow-name { flex: 1 1 auto; min-width: 0; }
+  .dev-flow-main { flex: 1 1 auto; min-width: 0; }
+  .dev-flow-name { font-weight: 600; }
+  .dev-flow-status { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 
   /* ---------- SOP 自訂關卡流程編輯器 ---------- */
   .sop-flow-rows { display: flex; flex-direction: column; gap: 8px; }
@@ -907,6 +904,18 @@
   .lo-check-icon { transition: background .15s ease, border-color .15s ease; }
   .lo-check-input:checked + .lo-check-icon { background: var(--success); border-color: var(--success); color: #fff; }
   .lo-check-input:focus-visible + .lo-check-icon { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  /* 編輯地主視窗:基本資料/新增聯絡紀錄/拜訪紀錄 分成可收合的區塊 */
+  .lo-edit-section { border: 1px solid var(--border); border-radius: 10px; margin: 14px 0; overflow: hidden; }
+  .lo-edit-section summary {
+    padding: 11px 14px; cursor: pointer; font-weight: 700; background: var(--surface-2);
+    list-style: none; display: flex; align-items: center;
+  }
+  .lo-edit-section summary::-webkit-details-marker { display: none; }
+  .lo-edit-section summary::before { content: "▸"; margin-right: 8px; color: var(--text-muted); transition: transform .15s ease; }
+  .lo-edit-section[open] summary::before { transform: rotate(90deg); }
+  .lo-edit-section-body { padding: 14px; }
+  .lo-edit-section-body .field:last-child, .lo-edit-section-body .field-row:last-child { margin-bottom: 0; }
 
   .gate-bars { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
   .gate-bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
