@@ -48,6 +48,10 @@ class LandRecord(Base):
     # 給編輯畫面顯示參考、供人工核對系統挑的是不是真的最新一筆,不參與稅額計算。
     ltt_original_value_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
     ltt_current_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # 當期公告土地現值的年期標籤(如「115年」),純顯示用,跟 ltt_original_value_period
+    # 是同樣的自由文字慣例 - 填了 ltt_current_value 之後,「土增稅」頁的「本月申報移轉
+    # 現值」就直接讀這裡,不用在稅額試算頁另外手打一次。
+    ltt_current_value_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ltt_holding_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 台灣地區消費者物價總指數(以前次移轉/原規定地價那期為基期 100)。漲價總數額 =
     # 申報現值 − 原地價 × 指數/100。未填時視為 100(不調整)。

@@ -13,32 +13,13 @@ function _lttGain({ originalValue, currentValue, cpiIndex }) {
   return { idx, adjustedOriginal, gain };
 }
 
-// 一般稅率(土地稅法第 33 條):按漲價總數額分三級累進 20% / 30% / 40%。
+// 一般稅率:統一按漲價總數額 40% 計算(不分級距)。
 function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex }) {
   const { idx, adjustedOriginal, gain } = _lttGain({ originalValue, currentValue, cpiIndex });
   if (originalValue <= 0 || gain <= 0) {
-    return { gain: 0, brackets: [], totalTax: 0, adjustedOriginal, cpiIndex: idx };
+    return { gain: 0, adjustedOriginal, cpiIndex: idx, rate: 0.4, totalTax: 0 };
   }
-
-  const tier1Base = Math.min(gain, adjustedOriginal * 1);
-  const tier2Base = Math.max(0, Math.min(gain, adjustedOriginal * 2) - adjustedOriginal * 1);
-  const tier3Base = Math.max(0, gain - adjustedOriginal * 2);
-
-  const tier1Tax = tier1Base * 0.2;
-  const tier2Tax = tier2Base * 0.3;
-  const tier3Tax = tier3Base * 0.4;
-
-  return {
-    gain,
-    adjustedOriginal,
-    cpiIndex: idx,
-    brackets: [
-      { label: "第一級(未達原地價 1 倍)", base: tier1Base, rate: 0.2, tax: tier1Tax },
-      { label: "第二級(原地價 1~2 倍部分)", base: tier2Base, rate: 0.3, tax: tier2Tax },
-      { label: "第三級(超過原地價 2 倍部分)", base: tier3Base, rate: 0.4, tax: tier3Tax },
-    ],
-    totalTax: tier1Tax + tier2Tax + tier3Tax,
-  };
+  return { gain, adjustedOriginal, cpiIndex: idx, rate: 0.4, totalTax: gain * 0.4 };
 }
 
 // 自用住宅用地優惠稅率(土地稅法第 34 條):不分級距,漲價總數額統一按 10% 課徵。
@@ -82,8 +63,6 @@ async function renderLandValueTaxTab(el) {
     return;
   }
 
-  const canEditLtt = isEditor() || isLandowner();
-  const editorCols = canEditLtt ? 3 : 2; // 原規定地價 + 本次申報 (+ 儲存)
   const bodyHtml = landOwners
     .map((o) => {
       const seq = String(seqByOwnerId.get(o.id)).padStart(3, "0");
@@ -93,7 +72,7 @@ async function renderLandValueTaxTab(el) {
         <tr class="ltt-parent" data-owner-parent="${o.id}">
           <td style="white-space:nowrap"><button type="button" class="ltt-toggle" data-owner-toggle="${o.id}" style="border:none;background:none;cursor:pointer;font-size:13px;margin-right:4px;color:var(--text-muted)">▸</button>${seq}</td>
           <td>${escapeHtml(o.name)}</td>
-          <td colspan="${editorCols}" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
+          <td colspan="2" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
           <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o)}</td>
         </tr>`;
       const children = recs.map((lr) => lttChildRowHtml(o, lr)).join("");
@@ -105,20 +84,17 @@ async function renderLandValueTaxTab(el) {
     <div class="section-toolbar">
       <h3>土地增值稅試算(自用／一般稅率同時試算,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
     </div>
-    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。</div>
+    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。本月申報移轉現值請至「土地登記」頁的「當期公告土地現值」填寫。</div>
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
           <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本月申報移轉現值(元)</th>
-          ${canEditLtt ? "<th></th>" : ""}
           <th>應納稅額試算(自用／一般)</th>
         </tr></thead>
         <tbody id="ltt-tbody">${bodyHtml}</tbody>
       </table>
     </div>`;
 
-  wireYearMonthPickers(el);
-  wireLandValueTaxRows(el, rows);
   wireLandValueTaxToggles(el);
 }
 
@@ -155,16 +131,11 @@ function wireLandValueTaxToggles(el) {
 
 function lttChildRowHtml(owner, record) {
   const result = landValueTaxRowResult(record);
-  const editable = isEditor() || isLandowner();
   return `
     <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
       <td colspan="2" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
       <td>${record.ltt_original_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_original_value_period)}</div>` : ""}${record.ltt_original_value ? Number(record.ltt_original_value).toLocaleString() : "-"}</td>
-      <td>${editable
-      ? `<input type="number" min="0" step="1" class="ltt-input-current" value="${record.ltt_current_value ?? ""}" style="width:150px">`
-      : (record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-")
-    }</td>
-      ${editable ? `<td><button type="button" class="btn-secondary btn-sm" data-ltt-save="${record.id}" data-owner="${owner.id}">儲存</button></td>` : ""}
+      <td>${record.ltt_current_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}${record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-"}</td>
       <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>
     </tr>`;
 }
@@ -181,31 +152,3 @@ function lttResultCellHtml(result) {
   );
 }
 
-function wireLandValueTaxRows(el, rows) {
-  el.querySelectorAll("[data-ltt-save]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const recordId = Number(btn.dataset.lttSave);
-      const ownerId = Number(btn.dataset.owner);
-      const row = el.querySelector(`[data-ltt-row="${recordId}"]`);
-      // 「原規定地價/前次移轉現值」只在「土地登記」頁改,這頁唯讀,不送這兩個欄位。
-      const currentValue = row.querySelector(".ltt-input-current").value;
-
-      try {
-        const updated = await api(`/projects/${state.currentProjectId}/landowners/${ownerId}/land-records/${recordId}`, {
-          method: "PATCH",
-          body: {
-            ltt_current_value: currentValue === "" ? null : Number(currentValue),
-          },
-        });
-        toast("已儲存", "success");
-        row.querySelector(".ltt-result-cell").innerHTML = lttResultCellHtml(landValueTaxRowResult(updated));
-        const found = rows.find((r) => r.record.id === recordId);
-        if (found) {
-          Object.assign(found.record, updated);
-          const totalCell = el.querySelector(`[data-owner-total="${found.owner.id}"]`);
-          if (totalCell) totalCell.innerHTML = lttOwnerTotalHtml(found.owner);
-        }
-      } catch (err) { }
-    });
-  });
-}

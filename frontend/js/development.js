@@ -1,108 +1,10 @@
 "use strict";
 
 // 同意度100%通過、案件結案後的都更後續開發流程(事業計畫核定/權利變換/拆除/開工/
-// 交屋這類)- 跟 SOP 是分開的兩件事,完全自訂、沒有預設關卡、沒有自動門檻,純人工
-// 按「完成」推進。獨立分頁,排在「人員」右邊(見 index.html 的 tab-btn-development)。
-
-let devFlowEditorState = null; // { names: [string], onSave(names) }
-
-function devFlowEditorRowsHtml() {
-  const names = devFlowEditorState.names;
-  return names
-    .map(
-      (name, i) => `
-      <div class="sop-flow-row">
-        <span class="sop-flow-row-num">${i + 1}</span>
-        <input type="text" class="sop-flow-row-name" data-dev-flow-name="${i}" value="${escapeHtml(name || "")}" placeholder="關卡名稱" style="flex:1 1 auto">
-        <div class="sop-flow-row-actions">
-          <button type="button" class="btn-secondary btn-sm" data-dev-flow-up="${i}" ${i === 0 ? "disabled" : ""} title="上移">↑</button>
-          <button type="button" class="btn-secondary btn-sm" data-dev-flow-down="${i}" ${i === names.length - 1 ? "disabled" : ""} title="下移">↓</button>
-          <button type="button" class="btn-danger btn-sm" data-dev-flow-remove="${i}" title="刪除">✕</button>
-        </div>
-      </div>`
-    )
-    .join("");
-}
-
-function rerenderDevFlowEditor() {
-  const rowsEl = document.getElementById("dev-flow-rows");
-  if (rowsEl) rowsEl.innerHTML = devFlowEditorRowsHtml();
-  wireDevFlowEditorRows();
-}
-
-function wireDevFlowEditorRows() {
-  const root = document.getElementById("modal-root");
-  root.querySelectorAll("[data-dev-flow-name]").forEach((input) => {
-    input.oninput = () => {
-      devFlowEditorState.names[Number(input.dataset.devFlowName)] = input.value;
-    };
-  });
-  root.querySelectorAll("[data-dev-flow-up]").forEach((btn) => {
-    btn.onclick = () => {
-      const i = Number(btn.dataset.devFlowUp);
-      const arr = devFlowEditorState.names;
-      if (i > 0) {
-        [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
-        rerenderDevFlowEditor();
-      }
-    };
-  });
-  root.querySelectorAll("[data-dev-flow-down]").forEach((btn) => {
-    btn.onclick = () => {
-      const i = Number(btn.dataset.devFlowDown);
-      const arr = devFlowEditorState.names;
-      if (i < arr.length - 1) {
-        [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
-        rerenderDevFlowEditor();
-      }
-    };
-  });
-  root.querySelectorAll("[data-dev-flow-remove]").forEach((btn) => {
-    btn.onclick = () => {
-      devFlowEditorState.names.splice(Number(btn.dataset.devFlowRemove), 1);
-      rerenderDevFlowEditor();
-    };
-  });
-}
-
-function openDevelopmentFlowEditor(initialNames, onSave) {
-  devFlowEditorState = { names: initialNames && initialNames.length ? [...initialNames] : [""], onSave };
-  openModal(
-    "自訂開發流程",
-    `
-    <div class="sop-flow-editor">
-      <p class="helper-text">案件結案後的後續開發關卡,完全自訂、沒有預設值,純人工按「完成」推進。</p>
-      <div class="sop-flow-rows" id="dev-flow-rows">${devFlowEditorRowsHtml()}</div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button type="button" class="btn-secondary btn-sm" id="dev-flow-add-btn">+ 新增關卡</button>
-      </div>
-      <div class="modal-footer" style="margin-top:20px">
-        <button type="button" class="btn-primary" id="dev-flow-save-btn">儲存</button>
-      </div>
-    </div>`,
-    { width: "560px" }
-  );
-  wireDevFlowEditorRows();
-
-  document.getElementById("dev-flow-add-btn").onclick = () => {
-    devFlowEditorState.names.push("");
-    rerenderDevFlowEditor();
-  };
-  document.getElementById("dev-flow-save-btn").onclick = async () => {
-    const names = devFlowEditorState.names.map((n) => (n || "").trim()).filter(Boolean);
-    if (!names.length) {
-      toast("至少要有一關", "error");
-      return;
-    }
-    const saveBtn = document.getElementById("dev-flow-save-btn");
-    saveBtn.disabled = true;
-    try {
-      await devFlowEditorState.onSave(names);
-    } catch (err) {
-      saveBtn.disabled = false;
-    }
-  };
-}
+// 交屋這類)- 跟 SOP 是分開的兩件事,預設帶入固定的 6 關(見後端
+// DEFAULT_DEVELOPMENT_STAGES),不提供關卡結構編輯(名稱/順序跟 SOP 頁的「自訂關卡
+// 流程」是重複功能,拿掉了)。獨立分頁,排在「人員」右邊
+// (見 index.html 的 tab-btn-development)。
 
 const DEV_STAGE_ICONS = ["📋", "📜", "🏗", "📝", "🏢", "🏠"];
 
@@ -124,11 +26,7 @@ async function renderDevelopmentTab(container) {
 
   const stageKeys = Object.keys(dev.stages).sort((a, b) => Number(a) - Number(b));
   const hasStages = stageKeys.length > 0;
-  const flowStarted =
-    dev.current_stage !== 0 || stageKeys.some((k) => (dev.stages[k].status || "pending") !== "pending");
-  const canEditFlow = isManager() && !flowStarted;
   const canAct = isEditor();
-  const doneCount = stageKeys.filter((k) => dev.stages[k].status === "completed").length;
   const sopDone = sop.final && sop.final.status !== "pending";
 
   // 更新章別:從土地登記的地段/小段推回來,不另外存一份(同一案件通常同一個地段)。
@@ -188,9 +86,7 @@ async function renderDevelopmentTab(container) {
   ];
   const stepperHtml = `
     <div class="card sop-subcard">
-      <div class="sop-subcard-header"><h4>都更後續開發流程(SOP)</h4>
-        ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="dev-flow-edit-btn">⚙ ${hasStages ? "編輯" : "建立"}流程</button>` : ""}
-      </div>
+      <div class="sop-subcard-header"><h4>都更後續開發流程(SOP)</h4></div>
       ${hasStages
         ? `<div class="dev-stepper">
             ${stepperNodes
@@ -206,7 +102,7 @@ async function renderDevelopmentTab(container) {
               )
               .join("")}
           </div>`
-        : `<div class="empty-state">尚未建立流程${canEditFlow ? ",按上面「建立流程」開始設定" : ",請洽案件負責人(L2以上)建立"}</div>`
+        : `<div class="empty-state">尚未建立流程,請洽案件負責人(L2以上)</div>`
       }
     </div>`;
 
@@ -346,22 +242,6 @@ async function renderDevelopmentTab(container) {
     </div>`;
 
   // ---- 事件綁定 ----
-  const editBtn = document.getElementById("dev-flow-edit-btn");
-  if (editBtn) {
-    editBtn.addEventListener("click", () => {
-      const names = stageKeys.map((k) => dev.stages[k].name);
-      openDevelopmentFlowEditor(names, async (newNames) => {
-        await api(`/projects/${pid}/development/stages`, {
-          method: "PUT",
-          body: { stages: newNames.map((n) => ({ name: n })) },
-        });
-        toast("開發流程已更新", "success");
-        closeModal();
-        renderDevelopmentTab(container);
-      });
-    });
-  }
-
   container.querySelectorAll("[data-dev-stepper-select]").forEach((node) => {
     node.addEventListener("click", () => {
       state.devSelectedStage = Number(node.dataset.devStepperSelect);

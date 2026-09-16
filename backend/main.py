@@ -87,6 +87,7 @@ def _auto_migrate() -> None:
         ("projects", "case_type", "VARCHAR(100) NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
         ("land_records", "ltt_original_value_history", "JSON NULL"),
+        ("land_records", "ltt_current_value_period", "VARCHAR(50) NULL"),
         ("news_items", "published_at", "DATETIME NULL"),
     ):
         try:

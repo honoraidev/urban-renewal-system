@@ -553,6 +553,14 @@ async function renderSopTab(el) {
   }
   const selected = state.sopSelectedStage;
 
+  // 相關檔案卡、負責人下拉、關卡列表的「已上傳文件」小標記都要用到,不管這關有沒有
+  // checklist 都先抓,避免各自重複打 API。
+  const [allDocs, assignableUsers] = await Promise.all([
+    api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
+    api(`/users/assignable`, { silent: true }).catch(() => []),
+  ]);
+  const stagesWithFiles = new Set(allDocs.filter((d) => d.sop_stage != null).map((d) => d.sop_stage));
+
   const navItemsHtml = stageKeys
     .map((key, i) => {
       const stage = sop.stages[key];
@@ -572,7 +580,7 @@ async function renderSopTab(el) {
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
         </div>
         <div class="sop-nav-text">
-          <div class="sop-nav-label">第${key}階段 ${escapeHtml(label)}</div>
+          <div class="sop-nav-label">第${key}階段 ${escapeHtml(label)}${stagesWithFiles.has(num) ? ` <span title="已上傳相關檔案">📎</span>` : ""}</div>
           <div class="sop-nav-status">${statusText}</div>
         </div>
       </div>`;
@@ -594,12 +602,6 @@ async function renderSopTab(el) {
   const stageRequirements = (selectedStage.data && selectedStage.data.requirements) || null;
   const isDualGate = selectedIsCurrent && !stageRequirements && DUAL_GATE_KEYS.includes(selectedStage.key);
   const stageMeta = (selectedStage.data && selectedStage.data.meta) || {};
-
-  // 相關檔案卡、負責人下拉都要用到,不管這關有沒有 checklist 都先抓,避免各自重複打 API。
-  const [allDocs, assignableUsers] = await Promise.all([
-    api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
-    api(`/users/assignable`, { silent: true }).catch(() => []),
-  ]);
   const userById = Object.fromEntries(assignableUsers.map((u) => [u.id, u]));
   const stageDocs = allDocs
     .filter((d) => d.sop_stage === Number(selected))
@@ -798,7 +800,7 @@ async function renderSopTab(el) {
           ${canEditMeta
             ? `<label class="sop-file-dropzone" id="sop-file-dropzone">
                 <input type="file" id="sop-file-input" style="display:none">
-                <div>⬆ 點擊上傳檔案或拖曳檔案到此處</div>
+                <div>⬆ 點擊上傳檔案</div>
                 <div class="helper-text">支援 PDF・JPG・PNG・Excel(單檔上限 20MB)</div>
               </label>`
             : ""
@@ -958,32 +960,21 @@ async function renderSopTab(el) {
   const backBtn = document.getElementById("sop-back-btn");
   if (backBtn) backBtn.addEventListener("click", () => goToDashboard());
 
-  // ---- 相關檔案:上傳(點擊或拖曳)/下載/刪除 ----
-  const uploadStageFile = async (file) => {
-    if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("doc_type", "other");
-    fd.append("sop_stage", String(selected));
-    try {
-      await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
-      toast("已上傳", "success");
-      renderSopTab(el);
-    } catch (err) { }
-  };
-  const dropzone = document.getElementById("sop-file-dropzone");
+  // ---- 相關檔案:點擊上傳/下載/刪除 ----
   const fileInput = document.getElementById("sop-file-input");
-  if (dropzone && fileInput) {
-    fileInput.addEventListener("change", () => uploadStageFile(fileInput.files[0]));
-    dropzone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropzone.classList.add("dragover");
-    });
-    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-    dropzone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropzone.classList.remove("dragover");
-      uploadStageFile(e.dataTransfer.files[0]);
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("doc_type", "other");
+      fd.append("sop_stage", String(selected));
+      try {
+        await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
+        toast("已上傳", "success");
+        renderSopTab(el);
+      } catch (err) { }
     });
   }
   el.querySelectorAll("[data-sop-file-download]").forEach((btn) => {

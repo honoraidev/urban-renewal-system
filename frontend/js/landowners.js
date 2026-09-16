@@ -1267,12 +1267,20 @@ function landRecordFormFields(record) {
       <div class="field"><label>持分面積(坪)</label><input class="lr-owned-ping" type="number" readonly style="background:var(--bg-subtle)" tabindex="-1"></div>
     </div>
     <div class="field">
-      <label>前次移轉現值或原規定地價(元/m²)</label>
+      <label>前次移轉現值或原規定地價</label>
       <div style="display:flex;gap:8px">
         <input name="ltt_original_value_period" value="${escapeHtml(r.ltt_original_value_period) || ""}" placeholder="年月 (例: 95年12月)" style="flex:1" autocomplete="off">
         <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="金額 (例: 123000)" style="flex:1" autocomplete="off">
       </div>
       ${landRecordLttHistoryHtml(r)}
+    </div>
+    <div class="field">
+      <label>當期公告土地現值</label>
+      <div style="display:flex;gap:8px">
+        <input name="ltt_current_value_period" value="${escapeHtml(r.ltt_current_value_period) || ""}" placeholder="年期 (例: 115年)" style="flex:1" autocomplete="off">
+        <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="金額 (例: 456000)" style="flex:1" autocomplete="off">
+      </div>
+      <div class="helper-text" style="margin-top:4px">供「土增稅」頁自動計算「本月申報移轉現值」用,填了才算得出稅額。</div>
     </div>`;
 }
 
@@ -1327,6 +1335,8 @@ function readLandRecordForm(fd) {
     ownership_denominator: Number(data.ownership_denominator) || 1,
     ltt_original_value_period: data.ltt_original_value_period || null,
     ltt_original_value: Number(data.ltt_original_value) || null,
+    ltt_current_value_period: data.ltt_current_value_period || null,
+    ltt_current_value: Number(data.ltt_current_value) || null,
   };
 }
 
