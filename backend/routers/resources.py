@@ -11,6 +11,7 @@ from models.company_document import CompanyDocument
 from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
 from models.news_item import NewsItem
+from models.news_sync_state import NewsSyncState
 from models.regulation import Regulation
 from models.user import User
 from models.website import Website
@@ -25,6 +26,7 @@ from schemas.resource import (
     NewsItemCreate,
     NewsItemRead,
     NewsItemUpdate,
+    NewsSyncStatusRead,
     RegulationCreate,
     RegulationRead,
     RegulationUpdate,
@@ -205,6 +207,14 @@ def fetch_news_now(db: Session = Depends(get_db), current_user: User = Depends(r
     from utils.news_fetch import fetch_and_store_news
 
     return fetch_and_store_news(db)
+
+
+@router.get("/news/sync-status", response_model=NewsSyncStatusRead)
+def get_news_sync_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """新聞頁面右上角顯示「上次同步時間」用 - 每天排程或手動按「立即抓新聞」都會更新
+    這個時間,不管當次有沒有抓到新資料(代表「最後一次嘗試同步」)。"""
+    state = db.get(NewsSyncState, 1)
+    return NewsSyncStatusRead(last_synced_at=state.last_synced_at if state else None)
 
 
 @router.patch("/news/{news_id}", response_model=NewsItemRead)

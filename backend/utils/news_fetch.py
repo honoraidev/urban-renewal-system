@@ -21,6 +21,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from models.news_item import NewsItem
+from models.news_sync_state import NewsSyncState
 
 _RSS_URL = "https://news.google.com/rss/search"
 _QUERIES = ["都更 OR 都市更新", "危老重建", "老宅延壽"]
@@ -135,16 +136,27 @@ def fetch_and_store_news(db: Session) -> list[NewsItem]:
 
     created: list[NewsItem] = []
     for it in ordered:
+        pub_date = it["pub_date"]
         item = NewsItem(
             category=_guess_category(it["title"]),
             name=it["title"][:255],
             url=it["link"],
             description=(it["description"][:1000] if it["description"] else None),
+            published_at=(pub_date.astimezone(timezone.utc).replace(tzinfo=None) if pub_date else None),
         )
         db.add(item)
         created.append(item)
-    if created:
-        db.commit()
-        for item in created:
-            db.refresh(item)
+
+    # 不管這次有沒有抓到新資料都要更新「上次同步時間」- 這代表「最後一次嘗試同步」,
+    # 新聞頁面右上角靠這個時間告訴使用者資料多新鮮,不是只有抓到東西才算數。
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    sync_state = db.get(NewsSyncState, 1)
+    if sync_state:
+        sync_state.last_synced_at = now
+    else:
+        db.add(NewsSyncState(id=1, last_synced_at=now))
+
+    db.commit()
+    for item in created:
+        db.refresh(item)
     return created

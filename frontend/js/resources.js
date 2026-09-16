@@ -191,6 +191,10 @@ function renderLinkListPage(items, listElId, isManagerView) {
             (r) => `
           <div class="card news-card" data-id="${r.id}">
             <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="icon-btn news-card-open" title="開啟原文">↗</a>
+            ${Object.prototype.hasOwnProperty.call(r, "published_at")
+                ? `<span class="news-card-date">🕐 ${fmtDateTW(r.published_at || r.created_at)}</span>`
+                : ""
+              }
             <a class="news-card-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
             ${r.description
                 ? r.description.startsWith("來源:")
@@ -319,10 +323,24 @@ async function goToNews() {
   await loadNews();
 }
 
+async function loadNewsSyncTime() {
+  const el = document.getElementById("news-sync-time");
+  if (!el) return;
+  try {
+    const status = await api("/news/sync-status", { silent: true });
+    el.textContent = status && status.last_synced_at
+      ? `同步於台灣時間 ${fmtDateTimeTW(status.last_synced_at)}`
+      : "";
+  } catch (err) {
+    el.textContent = "";
+  }
+}
+
 async function loadNews() {
   const el = document.getElementById("news-list");
   if (!el) return;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
+  loadNewsSyncTime();
   const items = await api("/news");
   currentLoadedNews = items || [];
   renderLinkListPage(items, "news-list", isManager() && newsEditMode);

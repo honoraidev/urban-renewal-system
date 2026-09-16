@@ -376,7 +376,14 @@ CREATE TABLE news_items (
     name VARCHAR(255) NOT NULL,
     url VARCHAR(1000) NOT NULL,
     description TEXT,
+    published_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17c. news_sync_state (單列表,記錄每日新聞抓取上次執行時間,見 utils/news_fetch.py)
+CREATE TABLE news_sync_state (
+    id INT PRIMARY KEY,
+    last_synced_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 18. faq_items (知識庫 - manageable Q&A list, starts empty)

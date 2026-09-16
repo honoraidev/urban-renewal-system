@@ -1,3 +1,4 @@
+
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -77,6 +78,7 @@ def _auto_migrate() -> None:
         ("encumbrances", "secured_amount", "BIGINT NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
         ("land_records", "ltt_original_value_history", "JSON NULL"),
+        ("news_items", "published_at", "DATETIME NULL"),
     ):
         try:
             with engine.connect() as _conn:
@@ -100,6 +102,22 @@ def _auto_migrate() -> None:
             _conn.commit()
     except Exception as exc:
         print(f"[auto_migrate] news_items.url widen skipped: {exc}", flush=True)
+
+    # news_sync_state:記錄「每日新聞抓取」上次執行時間的單列表(給新聞頁面右上角
+    # 顯示同步時間用),舊資料庫沒有這張表,補建起來。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(
+                _sql_text(
+                    "CREATE TABLE IF NOT EXISTS news_sync_state ("
+                    "id INT PRIMARY KEY, last_synced_at DATETIME NOT NULL"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] news_sync_state create skipped: {exc}", flush=True)
 
     # documents.doc_type ENUM: 拿掉已停用的 dev_letter_template / willingness_form_template,
     # 加入 roi_report(投報表)、willingness_form(地主編輯視窗「已拜訪」上傳的意願書,跟

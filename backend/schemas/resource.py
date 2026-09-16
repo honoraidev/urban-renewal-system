@@ -67,9 +67,14 @@ class NewsItemRead(BaseModel):
     name: str
     url: str
     description: str | None = None
+    published_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class NewsSyncStatusRead(BaseModel):
+    last_synced_at: datetime | None = None
 
 
 class WebsiteCreate(BaseModel):

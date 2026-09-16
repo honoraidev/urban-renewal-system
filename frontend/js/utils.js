@@ -22,6 +22,27 @@ function fmtDate(iso) {
   return String(iso).slice(0, 10);
 }
 
+// 明確指定 Asia/Taipei,不依賴瀏覽器/裝置本身的時區設定 —— fmtDate/fmtDateTime 用的是
+// 當下裝置時區,同一個時間點在不同地方打開可能會顯示成不同日期(尤其後端存的是 UTC
+// 午夜前後的時間點)。新聞卡片日期、「同步於台灣時間」這類明確要求台灣時間的地方用這組。
+function fmtDateTW(iso) {
+  if (!iso) return "-";
+  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(isoWithZone);
+  if (isNaN(d)) return String(iso).slice(0, 10);
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
+}
+
+function fmtDateTimeTW(iso) {
+  if (!iso) return "-";
+  const isoWithZone = /[Zz]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(isoWithZone);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString("zh-TW", {
+    timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+}
+
 function fmtPct(ratio) {
   return (ratio * 100).toFixed(1) + "%";
 }

@@ -966,6 +966,7 @@
   }
   .news-card:has(.news-card-title:hover) { border-color: var(--brand); box-shadow: var(--shadow-hover); }
   .news-card-open { position: absolute; top: 10px; right: 10px; }
+  .news-card-date { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
   .news-card-title {
     display: block; font-size: 17.5px; font-weight: 700; color: var(--text); text-decoration: none;
     line-height: 1.45;
@@ -1038,7 +1039,7 @@
        squeezing them onto one row (which forced button text to wrap mid-word). */
     .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
     .page-header > div { flex-wrap: wrap; }
-    .page-header > div > button { flex: 1 1 auto; white-space: nowrap; }
+    .page-header button { flex: 1 1 auto; white-space: nowrap; }
     /* The login footer is absolutely pinned to the bottom of a 100vh container on
        desktop, which looks fine there - but on mobile, when the on-screen keyboard
        opens and shrinks the visible viewport, the vertically-centered login card ends
