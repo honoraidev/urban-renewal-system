@@ -131,6 +131,8 @@ class LandownerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     id_number: str | None = None
     phone: str | None = None
+    line_id: str | None = None
+    email: str | None = None
     address: str | None = None
     is_representative: bool = False
     notes: str | None = None
@@ -142,6 +144,8 @@ class LandownerUpdate(BaseModel):
     name: str | None = None
     id_number: str | None = None
     phone: str | None = None
+    line_id: str | None = None
+    email: str | None = None
     address: str | None = None
     contact_status: str | None = Field(default=None, pattern="^(not_contacted|contacted|declined|agreed)$")
     agreement_status: str | None = Field(default=None, pattern="^(not_signed|signed)$")
@@ -162,6 +166,8 @@ class LandownerRead(BaseModel):
     name: str
     id_number: str | None = None
     phone: str | None = None
+    line_id: str | None = None
+    email: str | None = None
     address: str | None = None
     contact_status: str
     agreement_status: str

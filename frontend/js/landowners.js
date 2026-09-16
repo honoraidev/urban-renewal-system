@@ -910,11 +910,6 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     titleHtml,
     `
     <form id="landowner-edit-form">
-      <div class="field-row">
-        <div class="field"><label>姓名</label><input name="name" value="${escapeHtml(owner.name)}" required></div>
-        <div class="field"><label>統一編號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}" placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"></div>
-        <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
-      </div>
       <div class="field">
         <label>拜訪 / 簽約狀態</label>
         <div class="sop-checklist lo-visit-checklist">
@@ -943,54 +938,84 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     }
         </div>
       </div>
-      <div class="field">
-        <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
-        <div class="badge-row" style="padding:8px 2px" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
-          ${doorAddresses.length
+
+      <details class="lo-edit-section" open>
+        <summary>地主基本資料</summary>
+        <div class="lo-edit-section-body">
+          <div class="field-row">
+            <div class="field"><label>姓名</label><input name="name" value="${escapeHtml(owner.name)}" required></div>
+            <div class="field"><label>統一編號</label><input name="id_number" value="${escapeHtml(owner.id_number) || ""}" placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"></div>
+            <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(owner.phone) || ""}"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>LINE ID</label><input name="line_id" value="${escapeHtml(owner.line_id) || ""}" autocomplete="off"></div>
+            <div class="field"><label>電子郵箱</label><input type="email" name="email" value="${escapeHtml(owner.email) || ""}" autocomplete="off"></div>
+          </div>
+          <div class="field">
+            <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
+            <div class="badge-row" style="padding:8px 2px" title="來自登記資料的建物地址,這裡唯讀,要改請到「登記資料 → 建物登記」">
+              ${doorAddresses.length
       ? doorAddresses.map((a) => `<span class="mini-badge" title="${escapeHtml(a)}">${escapeHtml(stripRoadPrefix(a))}</span>`).join("")
       : `<span class="mini-badge">—</span>`
     }
+            </div>
+          </div>
+          <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
         </div>
-      </div>
-      <div class="field"><label>地址</label><input name="address" value="${escapeHtml(owner.address) || ""}"></div>
-
-      <div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
-        <label style="font-weight:700;margin:0">最近一次聯絡紀錄</label>
-        ${latestContact
-      ? `<div class="helper-text" style="margin-top:4px;line-height:1.6">
-              ${fmtDateTime(latestContact.contact_date)} · ${escapeHtml(CONTACT_METHOD_LABEL[latestContact.contact_method] || latestContact.contact_method)} ·
-              <span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[latestContact.contact_result] || ""}">${escapeHtml(CONTACT_RESULT_LABEL[latestContact.contact_result] || latestContact.contact_result)}</span>
-              ${latestContact.notes ? `<br>${escapeHtml(latestContact.notes)}` : ""}
-            </div>`
-      : `<div class="helper-text" style="margin-top:4px">尚無聯絡紀錄</div>`
-    }
-      </div>
+      </details>
 
       ${alreadyAgreed
       ? ""
-      : `<div style="border-top:1px solid var(--border);margin:16px 0 6px;padding-top:14px">
-        <label style="font-weight:700;margin:0">同時新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></label>
-        <div id="lo-contact-fields" style="margin-top:10px">
-          <div class="field-row">
-            <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date"></div>
-            <div class="field"><label>聯絡方式</label>
-              <select name="c_contact_method">
-                ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
-              </select>
+      : `<details class="lo-edit-section" open>
+        <summary>新增一筆聯絡紀錄<span class="helper-text" style="font-weight:400;margin-left:6px">(選填,留空聯絡時間就不會建立)</span></summary>
+        <div class="lo-edit-section-body">
+          <div id="lo-contact-fields">
+            <div class="field-row">
+              <div class="field"><label>聯絡時間</label><input type="datetime-local" name="c_contact_date"></div>
+              <div class="field"><label>聯絡方式</label>
+                <select name="c_contact_method">
+                  ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+                </select>
+              </div>
             </div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>聯絡結果</label>
-              <select name="c_contact_result" id="lo-c-result">
-                ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
-              </select>
+            <div class="field-row">
+              <div class="field"><label>聯絡結果</label>
+                <select name="c_contact_result" id="lo-c-result">
+                  ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
+                </select>
+              </div>
+              <div class="field" id="lo-c-followup"><label>下次跟進日期(選填)</label><input type="date" name="c_next_follow_up_date"></div>
             </div>
-            <div class="field" id="lo-c-followup"><label>下次跟進日期(選填)</label><input type="date" name="c_next_follow_up_date"></div>
+            <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
           </div>
-          <div class="field"><label>聯絡紀錄</label><textarea name="c_notes" rows="2"></textarea></div>
         </div>
-      </div>`
+      </details>`
     }
+
+      <details class="lo-edit-section">
+        <summary>拜訪紀錄${contacts.length ? ` (${contacts.length})` : ""}</summary>
+        <div class="lo-edit-section-body">
+          ${contacts.length
+      ? `<div class="clm-list">
+                ${contacts
+        .map((c) => {
+          const rk = c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending";
+          return `<div class="clm-item">
+                    <div class="clm-item-head">
+                      <span class="clm-date">${fmtDateTime(c.contact_date)}</span>
+                      <span class="clm-method">${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span>
+                      <span class="consent-status-badge cs-${rk}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span>
+                    </div>
+                    ${c.notes ? `<div class="clm-row"><span class="clm-label">備註</span><span>${escapeHtml(c.notes)}</span></div>` : ""}
+                    ${c.next_follow_up_date ? `<div class="clm-row"><span class="clm-label">下次跟進</span><span>${fmtDate(c.next_follow_up_date)}</span></div>` : ""}
+                  </div>`;
+        })
+        .join("")}
+              </div>`
+      : `<div class="helper-text">尚無聯絡紀錄</div>`
+    }
+        </div>
+      </details>
 
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
@@ -1114,6 +1139,8 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       name: data.name,
       id_number: data.id_number || null,
       phone: data.phone || null,
+      line_id: data.line_id || null,
+      email: data.email || null,
       address: data.address || null,
     };
     try {
