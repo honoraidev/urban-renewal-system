@@ -26,10 +26,18 @@ function encumbranceObligorsSummary(enc) {
   return enc.debtor_info || "";
 }
 
+const PARCEL_KIND_LABEL = { land: "地號", building: "建號" };
+
+function encumbranceParcelsCellHtml(enc) {
+  const value = escapeHtml(enc.applies_to_parcels) || "-";
+  const kindLabel = PARCEL_KIND_LABEL[enc.parcel_kind];
+  return kindLabel ? `<span class="mini-badge">${kindLabel}</span> ${value}` : value;
+}
+
 function encumbranceRowHtml(enc) {
   return `<tr>
     <td>${escapeHtml(enc.registration_order) || "-"}</td>
-    <td>${escapeHtml(enc.applies_to_parcels) || "-"}</td>
+    <td>${encumbranceParcelsCellHtml(enc)}</td>
     <td>${escapeHtml(enc.property_address) || "-"}</td>
     <td>${escapeHtml(enc.right_type) || "-"}</td>
     <td>${escapeHtml(enc.right_holder) || "-"}</td>
@@ -50,6 +58,7 @@ function encumbranceMatchesQuery(enc, q) {
   const haystack = [
     enc.registration_order,
     enc.applies_to_parcels,
+    PARCEL_KIND_LABEL[enc.parcel_kind],
     enc.property_address,
     enc.right_type,
     enc.right_holder,
@@ -69,7 +78,7 @@ async function renderEncumbrancesTab(el) {
   el.innerHTML = `
     <div class="section-toolbar">
       <h3>他項權利部 (${encumbrances.length})</h3>
-      <input type="search" id="encumbrance-search" style="width:240px" placeholder="搜尋地號/門牌/權利種類/權利人...">
+      <input type="search" id="encumbrance-search" class="search-input-pill" style="max-width:260px" placeholder="搜尋地號/門牌/權利種類/權利人...">
       ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
     </div>
     ${encumbrances.length
@@ -157,6 +166,7 @@ function openEncumbranceFormModal(encumbrance) {
   const e = encumbrance || {
     registration_order: "",
     applies_to_parcels: "",
+    parcel_kind: "",
     property_address: "",
     right_type: "",
     right_holder: "",
@@ -170,6 +180,14 @@ function openEncumbranceFormModal(encumbrance) {
     <form id="encumbrance-form">
       <div class="field-row">
         <div class="field"><label>登記次序</label><input name="registration_order" value="${escapeHtml(e.registration_order)}" autocomplete="off"></div>
+        <div class="field" style="flex:0 0 120px">
+          <label>類型</label>
+          <select name="parcel_kind">
+            <option value="" ${!e.parcel_kind ? "selected" : ""}>不分類</option>
+            <option value="land" ${e.parcel_kind === "land" ? "selected" : ""}>地號</option>
+            <option value="building" ${e.parcel_kind === "building" ? "selected" : ""}>建號</option>
+          </select>
+        </div>
         <div class="field"><label>對應地號/建號</label><input name="applies_to_parcels" value="${escapeHtml(e.applies_to_parcels)}" autocomplete="off"></div>
       </div>
       <div class="field"><label>門牌地址</label><input name="property_address" value="${escapeHtml(e.property_address)}" autocomplete="off"></div>
@@ -216,6 +234,7 @@ function openEncumbranceFormModal(encumbrance) {
     const payload = {
       registration_order: (fd.get("registration_order") || "").trim() || null,
       applies_to_parcels: (fd.get("applies_to_parcels") || "").trim() || null,
+      parcel_kind: (fd.get("parcel_kind") || "").trim() || null,
       property_address: (fd.get("property_address") || "").trim() || null,
       right_type: (fd.get("right_type") || "").trim() || null,
       right_holder: (fd.get("right_holder") || "").trim() || null,

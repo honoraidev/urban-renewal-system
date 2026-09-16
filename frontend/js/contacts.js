@@ -35,14 +35,13 @@ async function renderContactsTab(el) {
       <h3 style="margin-top:0">地主聯繫狀態 (${contactableLandowners.length}) · 需跟進 ${overdueCount}</h3>
       <div class="table-wrap" style="box-shadow:none;border:none">
         <table>
-          <thead><tr><th>編號</th><th>姓名</th><th>最後聯絡</th><th>未聯絡天數</th><th>聯絡紀錄</th></tr></thead>
+          <thead><tr><th>姓名</th><th>最後聯絡</th><th>未聯絡天數</th><th>聯絡紀錄</th></tr></thead>
           <tbody>
             ${contactableLandowners
-        .map((o, i) => {
+        .map((o) => {
           const s = summaryByOwner.get(o.id);
           const d = daysSince(s && s.last_contact_date);
           return `<tr${s && s.is_overdue ? ' style="background:var(--danger-light)"' : ""}>
-                        <td>${String(i + 1).padStart(3, "0")}</td>
                         <td>${escapeHtml(o.name)}</td>
                         <td>${s && s.last_contact_date ? fmtDateTime(s.last_contact_date) : "尚無紀錄"}</td>
                         <td>${d ?? "-"}</td>

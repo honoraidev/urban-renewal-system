@@ -12,6 +12,9 @@ class Encumbrance(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     applies_to_parcels: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # "land"(地號)或 "building"(建號) - 分辨 applies_to_parcels 存的是哪一種;
+    # 舊資料沒有這欄,顯示時不分類。
+    parcel_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
     property_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     registration_order: Mapped[str | None] = mapped_column(String(50), nullable=True)
     right_type: Mapped[str | None] = mapped_column(String(100), nullable=True)

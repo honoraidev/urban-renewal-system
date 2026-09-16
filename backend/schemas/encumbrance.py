@@ -11,6 +11,7 @@ class ObligorEntry(BaseModel):
 
 class EncumbranceCreate(BaseModel):
     applies_to_parcels: str | None = None
+    parcel_kind: str | None = None  # "land" | "building" | None
     property_address: str | None = None
     registration_order: str | None = None
     right_type: str | None = None
@@ -25,6 +26,7 @@ class EncumbranceCreate(BaseModel):
 
 class EncumbranceUpdate(BaseModel):
     applies_to_parcels: str | None = None
+    parcel_kind: str | None = None
     property_address: str | None = None
     registration_order: str | None = None
     right_type: str | None = None
@@ -38,6 +40,7 @@ class EncumbranceRead(BaseModel):
     id: int
     project_id: int
     applies_to_parcels: str | None = None
+    parcel_kind: str | None = None
     property_address: str | None = None
     registration_order: str | None = None
     right_type: str | None = None
