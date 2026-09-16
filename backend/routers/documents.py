@@ -3,7 +3,7 @@ import os
 import re
 
 import pymupdf as fitz
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -444,6 +444,7 @@ def _resolve_upload_folder_id(
 
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     doc_type: str = Form("other"),
     landowner_id: int | None = Form(None),
@@ -462,6 +463,9 @@ def upload_document(
 
     upload_filename = file.filename or "upload"
     content = file.file.read()
+    # 讓 ActivityLogMiddleware（讀 scope["state"]，跟這個 Request 共用同一份 scope）
+    # 能把實際檔名帶進案件公告 / LINE 通知，而不是只有「上傳文件」這種通用標籤。
+    request.state.activity_detail = upload_filename
 
     # 同名檔案不再覆蓋原檔 — 每次上傳都存成新的一筆，保留舊版做版本紀錄
     # (前端文件清單會以檔名分組、把舊版收在 ▶ 展開列，且舊版不可下載)。

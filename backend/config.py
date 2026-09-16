@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     SSO_INTERNAL_API_KEY: str = ""      # = company-sso 的 INTERNAL_API_KEY
     NOTIFY_LINK_BASE: str = ""          # 設了才在通知訊息附「查看」按鈕,例:http://127.0.0.1:8100
 
+    # line-gateway 的 LIFF「系統快速查看」用這把打 /internal/case-lookup/*，
+    # 跟 SSO_INTERNAL_API_KEY 是不同用途（那把是本系統 -> company-sso 的通知），
+    # 分開一把才不會混淆誰能打哪個方向。CASE_LOOKUP_ENABLED=false 時整組端點回 404。
+    CASE_LOOKUP_ENABLED: bool = False
+    CASE_LOOKUP_API_KEY: str = ""       # = line-gateway 的同一把 key
+
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 

@@ -2,7 +2,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -238,6 +238,7 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project(
+    request: Request,
     payload: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -268,6 +269,10 @@ def create_project(
 
     db.commit()
     db.refresh(project)
+    # 建立案件的路徑就是 POST /projects,不帶 id,ActivityLogMiddleware 的路徑正則
+    # 抓不到 project_id -> 通知會被 _maybe_notify 的 project_id 檢查擋掉。跟上傳文件
+    # 的檔名一樣,透過 request.state 補進剛建立好的 id,讓案件公告 / LINE 通知吃得到。
+    request.state.activity_project_id = project.id
     return project
 
 

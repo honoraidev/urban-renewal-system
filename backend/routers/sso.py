@@ -35,6 +35,19 @@ router = APIRouter(prefix="/auth/sso", tags=["sso"])
 _TX_COOKIE = "sso_tx"
 # 由高權限到低權限;roles claim 可能有多個,取最高的那個對到本系統的單一 role
 _ROLE_PRIORITY = ["sys_admin", "manager", "ocr_staff", "case_owner", "case_staff", "viewer", "landowner"]
+# code -> (顯示名, 排序)。company-sso 的「系統與角色」按同步會打 GET /auth/sso/roles
+# 拉這份表，取代它原本手動維護的 seed.py ROLES["urban_renewal"]。改角色要同時改
+# _ROLE_PRIORITY（本系統怎麼判優先權）跟這裡（顯示名）。
+_ROLE_LABELS: dict[str, str] = {
+    "sys_admin": "L0 系統管理員",
+    "manager": "L1 董事長／特助／秘書",
+    "ocr_staff": "L2 都更主管",
+    "case_owner": "L3 案件負責人",
+    "case_staff": "L4 案件工作人員",
+    "viewer": "L5 查詢／檢視人員",
+    "landowner": "L6 地主",
+}
+_DEFAULT_ROLE = "case_staff"
 _jwks_client: jwt.PyJWKClient | None = None
 
 
@@ -60,6 +73,25 @@ def _bounce(fragment: str):
 @router.get("/enabled")
 def sso_enabled():
     return {"enabled": _enabled()}
+
+
+@router.get("/roles")
+def sso_roles(request: Request):
+    """company-sso 拉角色目錄用（後台「系統與角色」同步 / manage.py sync-roles）。
+
+    跟 SSO_ENABLED 無關 —— 純目錄查詢,不牽涉登入。用 SSO_INTERNAL_API_KEY 當
+    X-Api-Key(跟本系統呼叫 company-sso /api/notify 用的是同一把,見 utils/sso_notify.py)。
+    """
+    key = settings.SSO_INTERNAL_API_KEY
+    if not key or not hmac.compare_digest(request.headers.get("X-Api-Key", ""), key):
+        return JSONResponse({"detail": "unauthorized"}, status_code=403)
+    return {
+        "roles": [
+            {"code": code, "name": name, "is_default": code == _DEFAULT_ROLE, "sort_order": i * 10}
+            for i, code in enumerate(_ROLE_PRIORITY)
+            if (name := _ROLE_LABELS.get(code)) is not None
+        ]
+    }
 
 
 @router.get("/login")
