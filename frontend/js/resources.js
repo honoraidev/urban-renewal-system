@@ -316,9 +316,9 @@ async function goToNews() {
   setActiveNav("news");
   showView("view-news");
   newsEditMode = false;
-  newsDateFilter = "";
+  newsDateFilter = fmtDateTW(new Date().toISOString()); // 預設只看今天,清空篩選才是看全部
   const dateFilterEl = document.getElementById("news-date-filter");
-  if (dateFilterEl) dateFilterEl.value = "";
+  if (dateFilterEl) dateFilterEl.value = newsDateFilter;
   document.getElementById("new-news-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-news-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
