@@ -802,6 +802,15 @@
   .sop-flow-row-type { flex: 0 0 190px; }
   .sop-flow-row-name { flex: 1 1 auto; min-width: 0; }
   .sop-flow-row-actions { flex-shrink: 0; display: flex; gap: 4px; }
+  .sop-flow-advanced {
+    margin: -4px 0 8px 30px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px;
+    background: var(--surface-2); display: flex; flex-direction: column; gap: 8px;
+  }
+  .sop-flow-req-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .sop-flow-req-check input[type="checkbox"] { flex-shrink: 0; }
+  .sop-flow-req-check select, .sop-flow-req-check input[type="text"], .sop-flow-req-check input[type="number"] {
+    padding: 4px 8px; font-size: 12.5px;
+  }
   .sop-nav-item {
     position: relative; display: flex; gap: 14px; cursor: pointer; padding: 12px 14px 12px 12px;
     border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
@@ -887,6 +896,46 @@
   .sop-checklist-item.done .sop-checklist-icon { background: var(--success); border-color: var(--success); color: #fff; }
   .sop-checklist-label { font-weight: 700; font-size: 13.5px; color: var(--text); }
   .sop-checklist-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ---------- SOP 整體進度(左側欄上方) ---------- */
+  .sop-overall-progress { margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .sop-overall-progress-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .sop-overall-progress .progress-bar-track { margin-bottom: 6px; }
+
+  /* ---------- SOP 詳情卡頭部:標題 + 本階段進度% + 預計完成日 ---------- */
+  .sop-detail-header-right { flex-shrink: 0; text-align: right; min-width: 150px; }
+  .sop-stage-progress-mini { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-muted); margin-bottom: 4px; }
+  .sop-stage-progress-bar { width: 150px; margin-left: auto; }
+
+  /* ---------- SOP 詳情卡裡的子卡片(任務清單/相關檔案/備註/負責人等) ---------- */
+  .sop-subcard { margin-top: 16px; padding: 16px; }
+  .sop-subcard-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .sop-subcard-header h4 { margin: 0; font-size: 14.5px; }
+  .sop-subcard-progress { margin-bottom: 10px; }
+  .sop-subcard .sop-checklist { margin-top: 0; }
+  .sop-subcard h4 { margin: 0 0 10px; font-size: 14.5px; }
+
+  .sop-file-dropzone {
+    display: block; text-align: center; padding: 20px 14px; border: 2px dashed var(--border);
+    border-radius: 10px; cursor: pointer; margin-bottom: 12px; transition: border-color .15s ease, background .15s ease;
+  }
+  .sop-file-dropzone:hover, .sop-file-dropzone.dragover { border-color: var(--brand); background: var(--brand-light); }
+  .sop-file-list { display: flex; flex-direction: column; gap: 8px; }
+  .sop-file-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+  .sop-file-icon { font-size: 18px; flex-shrink: 0; }
+  .sop-file-main { flex: 1; min-width: 0; }
+  .sop-file-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #sop-meta-notes { width: 100%; resize: vertical; }
+  .sop-notes-count { text-align: right; margin-top: 4px; }
+
+  .sop-meta-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .sop-meta-item { flex: 1; min-width: 160px; }
+  .sop-meta-item > label { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+  .sop-meta-value { padding: 6px 0; font-size: 13.5px; }
+
+  .sop-action-bar { display: flex; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .sop-last-updated { margin-left: auto; white-space: nowrap; }
 
   /* 編輯地主視窗的「拜訪/簽約狀態」- 沿用 .sop-checklist 版面,額外加卡片感、置中
      對齊、完成時淡色底,「已拜訪」整行都能點(不用只瞄準那顆小勾選框)。 */

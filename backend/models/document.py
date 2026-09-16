@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -15,6 +15,9 @@ class Document(Base):
     folder_id: Mapped[int | None] = mapped_column(
         ForeignKey("document_folders.id", ondelete="SET NULL"), nullable=True
     )
+    # SOP 關卡的「相關檔案」一般附件區用(跟靠 doc_type 比對的關卡自動門檻文件是
+    # 兩回事,見 routers/sop.py)- 存關卡在 stage_data.stages 裡的陣列位置(int)。
+    sop_stage: Mapped[int | None] = mapped_column(Integer, nullable=True)
     doc_type: Mapped[str] = mapped_column(String(30), nullable=False, default="other")
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

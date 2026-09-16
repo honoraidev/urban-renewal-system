@@ -233,7 +233,7 @@ function renderSidebarProjects(projects) {
                 (p) => `
                 <div class="sb-case-item" data-project-id="${p.id}">
                   <span class="sb-case-name"><span style="margin-right:6px">📋</span>${escapeHtml(p.name)}</span>
-                  <span class="sb-case-stage">第${p.current_stage}關</span>
+                  <span class="sb-case-stage">第${p.current_stage}階段</span>
                 </div>`
               )
               .join("")}
@@ -346,7 +346,7 @@ async function loadDashboard() {
               <div class="project-stage-bar">
                 ${Array.from({ length: 10 }, (_, i) => `<span class="${i <= p.current_stage ? "filled" : ""}"></span>`).join("")}
               </div>
-              <div class="helper-text">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
+              <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             <div class="project-card-rings">
               ${projectRingHtml(p.headcount_ratio, "人數同意", p.agreed_landowner_names)}

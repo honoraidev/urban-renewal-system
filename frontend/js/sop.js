@@ -25,7 +25,7 @@ function sopStageLabel(key, stageObj) {
   // 化過的案件(絕大多數)結果會是對的,客製化過的頂多顯示成預設名稱。
   const def = SOP_DEFAULT_STAGE_DEFS[Number(key)];
   if (def) return def.name;
-  return `第${key}關`;
+  return `第${key}階段`;
 }
 
 // 客製化關卡流程後,內建關卡不一定還在原本的位置(甚至可能被刪掉了/改名了) - 這裡
@@ -67,7 +67,48 @@ const SOP_STAGE_CHECKLISTS = {
 // ========== 自訂關卡流程編輯器 ==========
 // 兩個地方共用:1) 案件內 SOP 頁「自訂關卡流程」按鈕(直接呼叫 API 儲存)
 // 2) 建立案件精靈(onSave 先只存進精靈的本地狀態,案件建立成功後才真正呼叫 API)。
-let sopFlowEditorState = null; // { stages: [{key,name}], onSave(stages) }
+let sopFlowEditorState = null; // { stages: [{key,name,requirements}], onSave(stages) }
+let sopFlowAdvancedOpen = new Set(); // 展開了「進階需求設定」的 row index
+
+const SOP_REQUIREMENT_DOC_TYPES = ["roi_report", "cadastral_map", "briefing_material", "consultant_document", "consent_form_template", "contract_template", "property_register", "building_register", "consent_form", "contract", "willingness_form", "other"];
+
+function emptyStageRequirements() {
+  return {
+    document_required: false, document_type: null,
+    contact_rate_required: false, contact_rate_threshold: 0.95,
+    ratio_required: false, ratio_threshold: 0.8,
+    manual_required: false, manual_label: "",
+  };
+}
+
+function sopFlowRowAdvancedHtml(row, i) {
+  const req = row.requirements || emptyStageRequirements();
+  return `
+    <div class="sop-flow-advanced">
+      <label class="sop-flow-req-check">
+        <input type="checkbox" data-req-doc="${i}" ${req.document_required ? "checked" : ""}>
+        需上傳文件
+        <select data-req-doc-type="${i}" ${req.document_required ? "" : "disabled"}>
+          ${SOP_REQUIREMENT_DOC_TYPES.map((t) => `<option value="${t}" ${req.document_type === t ? "selected" : ""}>${DOC_TYPE_LABEL[t] || t}</option>`).join("")}
+        </select>
+      </label>
+      <label class="sop-flow-req-check">
+        <input type="checkbox" data-req-contact="${i}" ${req.contact_rate_required ? "checked" : ""}>
+        需達到聯絡率門檻
+        <input type="number" min="1" max="100" data-req-contact-threshold="${i}" value="${Math.round((req.contact_rate_threshold ?? 0.95) * 100)}" ${req.contact_rate_required ? "" : "disabled"} style="width:60px">%
+      </label>
+      <label class="sop-flow-req-check">
+        <input type="checkbox" data-req-ratio="${i}" ${req.ratio_required ? "checked" : ""}>
+        需達到同意度雙門檻(人數+面積)
+        <input type="number" min="1" max="100" data-req-ratio-threshold="${i}" value="${Math.round((req.ratio_threshold ?? 0.8) * 100)}" ${req.ratio_required ? "" : "disabled"} style="width:60px">%
+      </label>
+      <label class="sop-flow-req-check">
+        <input type="checkbox" data-req-manual="${i}" ${req.manual_required ? "checked" : ""}>
+        需人工確認
+        <input type="text" data-req-manual-label="${i}" value="${escapeHtml(req.manual_label || "")}" placeholder="確認項目文字(如:主管審核通過)" ${req.manual_required ? "" : "disabled"} style="flex:1;min-width:140px">
+      </label>
+    </div>`;
+}
 
 function sopFlowEditorRowsHtml() {
   const stages = sopFlowEditorState.stages;
@@ -77,6 +118,8 @@ function sopFlowEditorRowsHtml() {
       const keyOptions = SOP_DEFAULT_STAGE_DEFS.filter((d) => row.key === d.key || !usedKeys.has(d.key))
         .map((d) => `<option value="${d.key}" ${row.key === d.key ? "selected" : ""}>${escapeHtml(d.name)}(內建自動門檻)</option>`)
         .join("");
+      const advancedOpen = sopFlowAdvancedOpen.has(i);
+      const hasCustomReq = !!row.requirements;
       return `
       <div class="sop-flow-row">
         <span class="sop-flow-row-num">${i + 1}</span>
@@ -86,11 +129,13 @@ function sopFlowEditorRowsHtml() {
         </select>
         <input type="text" class="sop-flow-row-name" data-flow-name="${i}" value="${escapeHtml(row.name || "")}" placeholder="關卡名稱">
         <div class="sop-flow-row-actions">
+          <button type="button" class="btn-secondary btn-sm" data-flow-advanced-toggle="${i}" title="進階需求設定">⚙${hasCustomReq ? " •" : ""}</button>
           <button type="button" class="btn-secondary btn-sm" data-flow-up="${i}" ${i === 0 ? "disabled" : ""} title="上移">↑</button>
           <button type="button" class="btn-secondary btn-sm" data-flow-down="${i}" ${i === stages.length - 1 ? "disabled" : ""} title="下移">↓</button>
           <button type="button" class="btn-danger btn-sm" data-flow-remove="${i}" ${stages.length <= 1 ? "disabled" : ""} title="刪除">✕</button>
         </div>
-      </div>`;
+      </div>
+      ${advancedOpen ? sopFlowRowAdvancedHtml(row, i) : ""}`;
     })
     .join("");
 }
@@ -98,7 +143,7 @@ function sopFlowEditorRowsHtml() {
 function renderSopFlowEditorBody() {
   return `
     <div class="sop-flow-editor">
-      <p class="helper-text">自訂這個案件要跑的關卡流程:可新增、刪除、改名、排序。選「內建關卡」會沿用該關卡原本的自動門檻(同意度/聯絡率/應上傳文件);「自訂關卡」沒有自動門檻,只能用「完成本關卡」人工過關。</p>
+      <p class="helper-text">自訂這個案件要跑的關卡流程:可新增、刪除、改名、排序。選「內建關卡」會沿用該關卡原本的自動門檻;點每一列的「⚙」可以自己勾選這一關要的需求(上傳文件/聯絡率/同意度雙門檻/人工確認,可複選),設定過的話一律以這裡為準,不再看內建門檻。</p>
       <div class="sop-flow-rows" id="sop-flow-rows">${sopFlowEditorRowsHtml()}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button type="button" class="btn-secondary btn-sm" id="sop-flow-add-btn">+ 新增關卡</button>
@@ -141,6 +186,7 @@ function wireSopFlowEditorRows() {
       const arr = sopFlowEditorState.stages;
       if (i > 0) {
         [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+        sopFlowAdvancedOpen = new Set();
         rerenderSopFlowEditor();
       }
     };
@@ -151,6 +197,7 @@ function wireSopFlowEditorRows() {
       const arr = sopFlowEditorState.stages;
       if (i < arr.length - 1) {
         [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+        sopFlowAdvancedOpen = new Set();
         rerenderSopFlowEditor();
       }
     };
@@ -160,25 +207,100 @@ function wireSopFlowEditorRows() {
       const i = Number(btn.dataset.flowRemove);
       if (sopFlowEditorState.stages.length > 1) {
         sopFlowEditorState.stages.splice(i, 1);
+        sopFlowAdvancedOpen = new Set();
         rerenderSopFlowEditor();
       }
+    };
+  });
+  root.querySelectorAll("[data-flow-advanced-toggle]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.flowAdvancedToggle);
+      if (sopFlowAdvancedOpen.has(i)) sopFlowAdvancedOpen.delete(i);
+      else sopFlowAdvancedOpen.add(i);
+      rerenderSopFlowEditor();
+    };
+  });
+
+  const ensureReq = (i) => {
+    if (!sopFlowEditorState.stages[i].requirements) {
+      sopFlowEditorState.stages[i].requirements = emptyStageRequirements();
+    }
+    return sopFlowEditorState.stages[i].requirements;
+  };
+  root.querySelectorAll("[data-req-doc]").forEach((cb) => {
+    cb.onchange = () => {
+      const i = Number(cb.dataset.reqDoc);
+      ensureReq(i).document_required = cb.checked;
+      if (cb.checked && !sopFlowEditorState.stages[i].requirements.document_type) {
+        sopFlowEditorState.stages[i].requirements.document_type = SOP_REQUIREMENT_DOC_TYPES[0];
+      }
+      rerenderSopFlowEditor();
+      sopFlowAdvancedOpen.add(i);
+    };
+  });
+  root.querySelectorAll("[data-req-doc-type]").forEach((sel) => {
+    sel.onchange = () => {
+      ensureReq(Number(sel.dataset.reqDocType)).document_type = sel.value;
+    };
+  });
+  root.querySelectorAll("[data-req-contact]").forEach((cb) => {
+    cb.onchange = () => {
+      const i = Number(cb.dataset.reqContact);
+      ensureReq(i).contact_rate_required = cb.checked;
+      rerenderSopFlowEditor();
+      sopFlowAdvancedOpen.add(i);
+    };
+  });
+  root.querySelectorAll("[data-req-contact-threshold]").forEach((input) => {
+    input.oninput = () => {
+      const v = Math.min(100, Math.max(1, Number(input.value) || 95));
+      ensureReq(Number(input.dataset.reqContactThreshold)).contact_rate_threshold = v / 100;
+    };
+  });
+  root.querySelectorAll("[data-req-ratio]").forEach((cb) => {
+    cb.onchange = () => {
+      const i = Number(cb.dataset.reqRatio);
+      ensureReq(i).ratio_required = cb.checked;
+      rerenderSopFlowEditor();
+      sopFlowAdvancedOpen.add(i);
+    };
+  });
+  root.querySelectorAll("[data-req-ratio-threshold]").forEach((input) => {
+    input.oninput = () => {
+      const v = Math.min(100, Math.max(1, Number(input.value) || 80));
+      ensureReq(Number(input.dataset.reqRatioThreshold)).ratio_threshold = v / 100;
+    };
+  });
+  root.querySelectorAll("[data-req-manual]").forEach((cb) => {
+    cb.onchange = () => {
+      const i = Number(cb.dataset.reqManual);
+      ensureReq(i).manual_required = cb.checked;
+      rerenderSopFlowEditor();
+      sopFlowAdvancedOpen.add(i);
+    };
+  });
+  root.querySelectorAll("[data-req-manual-label]").forEach((input) => {
+    input.oninput = () => {
+      ensureReq(Number(input.dataset.reqManualLabel)).manual_label = input.value;
     };
   });
 }
 
 function openSopStageFlowEditor(initialStages, onSave) {
+  sopFlowAdvancedOpen = new Set();
   sopFlowEditorState = {
     stages: (initialStages && initialStages.length ? initialStages : SOP_DEFAULT_STAGE_DEFS).map((s) => ({
       key: s.key || null,
       name: s.name,
+      requirements: s.requirements || null,
     })),
     onSave,
   };
-  openModal("自訂關卡流程", renderSopFlowEditorBody(), { width: "640px" });
+  openModal("自訂關卡流程", renderSopFlowEditorBody(), { width: "680px" });
   wireSopFlowEditorRows();
 
   document.getElementById("sop-flow-add-btn").onclick = () => {
-    sopFlowEditorState.stages.push({ key: null, name: "" });
+    sopFlowEditorState.stages.push({ key: null, name: "", requirements: null });
     rerenderSopFlowEditor();
   };
   document.getElementById("sop-flow-reset-btn").onclick = async () => {
@@ -186,11 +308,16 @@ function openSopStageFlowEditor(initialStages, onSave) {
       title: "還原預設流程?",
     });
     if (!ok) return;
-    sopFlowEditorState.stages = SOP_DEFAULT_STAGE_DEFS.map((d) => ({ key: d.key, name: d.name }));
+    sopFlowAdvancedOpen = new Set();
+    sopFlowEditorState.stages = SOP_DEFAULT_STAGE_DEFS.map((d) => ({ key: d.key, name: d.name, requirements: null }));
     rerenderSopFlowEditor();
   };
   document.getElementById("sop-flow-save-btn").onclick = async () => {
-    const stages = sopFlowEditorState.stages.map((s) => ({ key: s.key || null, name: (s.name || "").trim() }));
+    const stages = sopFlowEditorState.stages.map((s) => ({
+      key: s.key || null,
+      name: (s.name || "").trim(),
+      requirements: s.requirements || null,
+    }));
     if (stages.some((s) => !s.name)) {
       toast("每一關都要有名稱", "error");
       return;
@@ -203,6 +330,29 @@ function openSopStageFlowEditor(initialStages, onSave) {
       saveBtn.disabled = false;
     }
   };
+}
+
+// 任何一關只要自訂了 requirements(見自訂關卡流程編輯器的「進階需求設定」),就用
+// 這裡動態組出跟 SOP_STAGE_CHECKLISTS 內建關卡同樣形狀的 checklist 項目清單,共用
+// 同一套渲染/判斷邏輯(見 renderSopTab 的 itemsHtml),不用另外寫一份 UI。
+function buildGenericChecklistConfig(requirements) {
+  const items = [];
+  if (requirements.document_required) {
+    const label = DOC_TYPE_LABEL[requirements.document_type] || requirements.document_type || "文件";
+    items.push({ key: "generic_document", label: `上傳${label}`, docType: requirements.document_type });
+  }
+  if (requirements.contact_rate_required) {
+    const threshold = requirements.contact_rate_threshold || 0.95;
+    items.push({ key: "generic_contact_rate", label: `達到聯絡率門檻(${Math.round(threshold * 100)}%)`, contactRate: true, threshold });
+  }
+  if (requirements.ratio_required) {
+    const threshold = requirements.ratio_threshold || 0.8;
+    items.push({ key: "generic_ratio", label: `達到同意度雙門檻(人數與面積皆需 ≥ ${Math.round(threshold * 100)}%)`, ratioGate: true, threshold });
+  }
+  if (requirements.manual_required) {
+    items.push({ key: "manual_confirmed", label: requirements.manual_label || "人工確認", manual: true });
+  }
+  return items;
 }
 
 function verifyDocumentFileType(file, docType) {
@@ -356,7 +506,7 @@ async function renderSopSummary() {
   const currentLabel = isFinished
     ? "已結案"
     : currentStageObj
-      ? `第${sop.current_stage}關・${sopStageLabel(sop.current_stage, currentStageObj)}`
+      ? `第${sop.current_stage}階段・${sopStageLabel(sop.current_stage, currentStageObj)}`
       : "";
 
   const headerActions = document.getElementById("pd-header-actions");
@@ -422,7 +572,7 @@ async function renderSopTab(el) {
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
         </div>
         <div class="sop-nav-text">
-          <div class="sop-nav-label">第${key}關 ${escapeHtml(label)}</div>
+          <div class="sop-nav-label">第${key}階段 ${escapeHtml(label)}</div>
           <div class="sop-nav-status">${statusText}</div>
         </div>
       </div>`;
@@ -441,20 +591,36 @@ async function renderSopTab(el) {
       ? "進行中"
       : "未解鎖";
   const statusBadgeCls = selectedIsDone || selectedIsCurrent ? "status-active" : "status-closed";
-  const isDualGate = selectedIsCurrent && DUAL_GATE_KEYS.includes(selectedStage.key);
+  const stageRequirements = (selectedStage.data && selectedStage.data.requirements) || null;
+  const isDualGate = selectedIsCurrent && !stageRequirements && DUAL_GATE_KEYS.includes(selectedStage.key);
+  const stageMeta = (selectedStage.data && selectedStage.data.meta) || {};
+
+  // 相關檔案卡、負責人下拉都要用到,不管這關有沒有 checklist 都先抓,避免各自重複打 API。
+  const [allDocs, assignableUsers] = await Promise.all([
+    api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
+    api(`/users/assignable`, { silent: true }).catch(() => []),
+  ]);
+  const userById = Object.fromEntries(assignableUsers.map((u) => [u.id, u]));
+  const stageDocs = allDocs
+    .filter((d) => d.sop_stage === Number(selected))
+    .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
 
   let checklistHtml = "";
   let checklistAllDone = true;
-  const checklistConfig = (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
-  if (checklistConfig) {
-    const needsDocs = checklistConfig.some((item) => item.docType);
+  let checklistDoneCount = 0;
+  let checklistTotalCount = 0;
+  const checklistConfig = stageRequirements
+    ? buildGenericChecklistConfig(stageRequirements)
+    : (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
+  if (checklistConfig && checklistConfig.length) {
     const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate);
-    const [docs, landowners] = await Promise.all([
-      needsDocs ? api(`/projects/${pid}/documents`, { silent: true }).catch(() => []) : Promise.resolve([]),
-      needsLandowners ? api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []) : Promise.resolve([]),
-    ]);
+    const needsRatio = checklistConfig.some((item) => item.ratioGate);
+    const ratioData = needsRatio
+      ? await api(`/projects/${pid}/consent-ratio`, { params: { stage: selected }, silent: true }).catch(() => null)
+      : null;
+    const landowners = needsLandowners ? await api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []) : [];
     const latestByType = {};
-    docs.forEach((d) => {
+    allDocs.forEach((d) => {
       if (!latestByType[d.doc_type] || new Date(d.uploaded_at) > new Date(latestByType[d.doc_type].uploaded_at)) {
         latestByType[d.doc_type] = d;
       }
@@ -496,14 +662,23 @@ async function renderSopTab(el) {
               ? "請先完成「上傳土地謄本PDF」,才能匯入建物登記"
               : "尚未匯入";
         } else if (item.contactRate) {
-          done = contactRate >= CONTACT_RATE_THRESHOLD;
+          const threshold = item.threshold ?? CONTACT_RATE_THRESHOLD;
+          done = contactRate >= threshold;
           sub = `已聯絡 ${contactedCount}/${landowners.length}(${Math.round(contactRate * 100)}%)`;
+        } else if (item.ratioGate) {
+          const threshold = item.threshold ?? 0.8;
+          done = !!ratioData && ratioData.headcount_ratio >= threshold && ratioData.land_share_ratio >= threshold;
+          sub = ratioData
+            ? `人數 ${Math.round(ratioData.headcount_ratio * 100)}%・面積 ${Math.round(ratioData.land_share_ratio * 100)}%`
+            : "載入中";
         } else if (item.manual) {
           const confirmed = confirmedChecklist[item.key];
           done = !!confirmed;
           sub = done ? `已確認・${fmtDate(confirmed.confirmed_at)}` : "尚未確認";
         }
-        if (!done) checklistAllDone = false;
+        checklistTotalCount++;
+        if (done) checklistDoneCount++;
+        else checklistAllDone = false;
         const confirmBtn =
           item.manual && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
@@ -549,27 +724,131 @@ async function renderSopTab(el) {
     sop.current_stage === 0 &&
     stageKeys.every((k) => (sop.stages[k].status || "pending") === "pending");
 
+  const doneStageCount = stageKeys.filter((k) => {
+    const st = sop.stages[k].status;
+    return st === "completed" || st === "force_closed";
+  }).length;
+  const overallPct = stageKeys.length ? Math.round((doneStageCount / stageKeys.length) * 100) : 0;
+  const stagePct = checklistTotalCount
+    ? Math.round((checklistDoneCount / checklistTotalCount) * 100)
+    : selectedIsDone
+      ? 100
+      : 0;
+
+  const canEditMeta = isEditor() && !isLandowner();
+  const assigneeUser = stageMeta.assignee_id ? userById[stageMeta.assignee_id] : null;
+  const updatedByUser = stageMeta.updated_by ? userById[stageMeta.updated_by] : null;
+  const lastUpdatedHtml = stageMeta.updated_at
+    ? `最後更新:${fmtDateTime(stageMeta.updated_at)}${updatedByUser ? `・${escapeHtml(updatedByUser.display_name)}` : ""}`
+    : "";
+
+  const assigneeControlHtml = canEditMeta
+    ? `<select id="sop-meta-assignee">
+        <option value="">未指定</option>
+        ${assignableUsers.map((u) => `<option value="${u.id}" ${stageMeta.assignee_id === u.id ? "selected" : ""}>${escapeHtml(u.display_name)}</option>`).join("")}
+      </select>`
+    : `<div class="sop-meta-value">${assigneeUser ? escapeHtml(assigneeUser.display_name) : "未指定"}</div>`;
+
+  const dueDateControlHtml = canEditMeta
+    ? `<input type="date" id="sop-meta-due-date" value="${escapeHtml(stageMeta.due_date) || ""}">`
+    : `<div class="sop-meta-value">${stageMeta.due_date ? fmtDate(stageMeta.due_date) : "未設定"}</div>`;
+
+  const departmentsControlHtml = canEditMeta
+    ? chipFieldHtml("sop_departments", "", stageMeta.departments, DEPARTMENT_OPTIONS)
+    : `<div class="badge-row">${(stageMeta.departments || []).length
+        ? stageMeta.departments.map((d) => `<span class="mini-badge">${escapeHtml(d)}</span>`).join("")
+        : `<div class="sop-meta-value">未設定</div>`
+      }</div>`;
+
+  const fileSizeText = (bytes) => {
+    if (!bytes) return "";
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+  const fileRowHtml = (d) => `
+    <div class="sop-file-row" data-doc-id="${d.id}">
+      <span class="sop-file-icon">📄</span>
+      <div class="sop-file-main">
+        <div class="sop-file-name">${escapeHtml(d.file_name)}</div>
+        <div class="helper-text">${fmtDateTime(d.uploaded_at)}${fileSizeText(d.file_size_bytes) ? `・${fileSizeText(d.file_size_bytes)}` : ""}${d.uploaded_by && userById[d.uploaded_by] ? `・上傳:${escapeHtml(userById[d.uploaded_by].display_name)}` : ""}</div>
+      </div>
+      <button type="button" class="btn-secondary btn-sm" data-sop-file-download="${d.id}" data-sop-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
+      ${canEditMeta ? `<button type="button" class="btn-danger btn-sm" data-sop-file-delete="${d.id}" title="刪除">✕</button>` : ""}
+    </div>`;
+
   el.innerHTML = `
     <div class="sop-panel-layout">
       <div class="sop-nav-list-wrap">
+        <div class="sop-overall-progress">
+          <div class="sop-overall-progress-label"><span>都更專案流程</span><strong>${overallPct}%</strong></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${overallPct}%"></div></div>
+          <div class="helper-text">第${sop.current_stage}階段 / 共${stageKeys.length}階段</div>
+        </div>
         ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="sop-edit-flow-btn" style="margin-bottom:10px;width:100%">⚙ 自訂關卡流程</button>` : ""}
         <div class="sop-nav-list">${navItemsHtml}</div>
       </div>
       <div class="sop-detail-card">
         <div class="sop-detail-header">
-          <h3>第${selected}關・${escapeHtml(selectedLabel)}</h3>
-          <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
+          <div>
+            <h3>第${selected}階段・${escapeHtml(selectedLabel)}</h3>
+            <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
+          </div>
+          <div class="sop-detail-header-right">
+            <div class="sop-stage-progress-mini"><span>本階段進度</span><strong>${stagePct}%</strong></div>
+            <div class="progress-bar-track sop-stage-progress-bar"><div class="progress-bar-fill" style="width:${stagePct}%"></div></div>
+            ${stageMeta.due_date ? `<div class="helper-text">📅 預計完成日 ${fmtDate(stageMeta.due_date)}</div>` : ""}
+          </div>
         </div>
-        ${checklistHtml}
+
+        <div class="card sop-subcard">
+          <div class="sop-subcard-header">
+            <h4>📋 階段任務清單</h4>
+            ${checklistTotalCount ? `<span class="helper-text">${checklistDoneCount}/${checklistTotalCount} 已完成</span>` : ""}
+          </div>
+          ${checklistTotalCount ? `<div class="progress-bar-track sop-subcard-progress"><div class="progress-bar-fill" style="width:${stagePct}%"></div></div>` : ""}
+          ${checklistHtml || `<div class="empty-state">這一關沒有設定需求,可直接人工完成</div>`}
+        </div>
+
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
+
+        <div class="card sop-subcard">
+          <div class="sop-subcard-header">
+            <h4>📎 相關檔案</h4>
+          </div>
+          ${canEditMeta
+            ? `<label class="sop-file-dropzone" id="sop-file-dropzone">
+                <input type="file" id="sop-file-input" style="display:none">
+                <div>⬆ 點擊上傳檔案或拖曳檔案到此處</div>
+                <div class="helper-text">支援 PDF・JPG・PNG・Excel(單檔上限 20MB)</div>
+              </label>`
+            : ""
+          }
+          <div class="sop-file-list">${stageDocs.length ? stageDocs.map(fileRowHtml).join("") : `<div class="empty-state">尚無相關檔案</div>`}</div>
+        </div>
+
+        <div class="card sop-subcard">
+          <h4>📝 階段備註</h4>
+          <textarea id="sop-meta-notes" maxlength="500" rows="3" ${!canEditMeta ? "readonly" : ""} placeholder="${canEditMeta ? "輸入備註內容..." : ""}">${escapeHtml(stageMeta.notes) || ""}</textarea>
+          <div class="helper-text sop-notes-count"><span id="sop-notes-count">${(stageMeta.notes || "").length}</span>/500</div>
+        </div>
+
+        <div class="card sop-subcard sop-meta-row">
+          <div class="sop-meta-item"><label>👤 負責人</label>${assigneeControlHtml}</div>
+          <div class="sop-meta-item"><label>🏢 相關單位</label>${departmentsControlHtml}</div>
+          <div class="sop-meta-item"><label>📅 重要日期</label>${dueDateControlHtml}</div>
+        </div>
+        ${canEditMeta ? `<div style="text-align:right;margin-top:-6px"><button type="button" class="btn-secondary btn-sm" id="sop-save-meta-btn">儲存階段資訊</button></div>` : ""}
+
         ${selectedIsCurrent && isEditor()
-          ? `<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
-                <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本關卡</button>
+          ? `<div class="sop-action-bar">
+                <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本階段</button>
                 ${!checklistAllDone ? `<span class="helper-text">還有項目未完成,無法進入下一關</span>` : ""}
                 ${isManager() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
+                <button type="button" class="btn-secondary btn-sm" id="sop-back-btn">返回</button>
+                <span class="helper-text sop-last-updated">${lastUpdatedHtml}</span>
               </div>`
           : !selectedIsCurrent
-            ? `<div class="helper-text" style="margin-top:16px">${selectedIsDone ? "這一關已經完成。" : "這一關還沒開始,要先完成前面的關卡才會解鎖。"}</div>`
+            ? `<div class="helper-text" style="margin-top:16px">${selectedIsDone ? "這一關已經完成。" : "這一關還沒開始,要先完成前面的關卡才會解鎖。"}${lastUpdatedHtml ? `<br>${lastUpdatedHtml}` : ""}</div>`
             : ""
         }
       </div>
@@ -664,6 +943,7 @@ async function renderSopTab(el) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("doc_type", docType);
+      fd.append("sop_stage", String(selected));
       try {
         await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
         const label = DOC_TYPE_LABEL[docType] || docType;
@@ -699,6 +979,83 @@ async function renderSopTab(el) {
         renderSopTab(el);
       } catch (err) { }
     });
+  }
+
+  const backBtn = document.getElementById("sop-back-btn");
+  if (backBtn) backBtn.addEventListener("click", () => goToDashboard());
+
+  // ---- 相關檔案:上傳(點擊或拖曳)/下載/刪除 ----
+  const uploadStageFile = async (file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("doc_type", "other");
+    fd.append("sop_stage", String(selected));
+    try {
+      await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
+      toast("已上傳", "success");
+      renderSopTab(el);
+    } catch (err) { }
+  };
+  const dropzone = document.getElementById("sop-file-dropzone");
+  const fileInput = document.getElementById("sop-file-input");
+  if (dropzone && fileInput) {
+    fileInput.addEventListener("change", () => uploadStageFile(fileInput.files[0]));
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      uploadStageFile(e.dataTransfer.files[0]);
+    });
+  }
+  el.querySelectorAll("[data-sop-file-download]").forEach((btn) => {
+    btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.sopFileDownload), btn.dataset.sopFileName));
+  });
+  el.querySelectorAll("[data-sop-file-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要刪除這個檔案嗎?")) return;
+      try {
+        await api(`/projects/${pid}/documents/${btn.dataset.sopFileDelete}`, { method: "DELETE" });
+        toast("已刪除", "success");
+        renderSopTab(el);
+      } catch (err) { }
+    });
+  });
+
+  // ---- 階段備註字數計數 ----
+  const notesInput = document.getElementById("sop-meta-notes");
+  const notesCount = document.getElementById("sop-notes-count");
+  if (notesInput && notesCount) {
+    notesInput.addEventListener("input", () => {
+      notesCount.textContent = notesInput.value.length;
+    });
+  }
+
+  // ---- 負責人/相關單位/重要日期/備註 一起存,PATCH .../sop/{stage}/meta ----
+  if (canEditMeta) {
+    wireChipFields(el);
+    const saveMetaBtn = document.getElementById("sop-save-meta-btn");
+    if (saveMetaBtn) {
+      saveMetaBtn.addEventListener("click", async () => {
+        const assigneeSelect = document.getElementById("sop-meta-assignee");
+        const dueDateInput = document.getElementById("sop-meta-due-date");
+        const payload = {
+          due_date: dueDateInput.value || null,
+          notes: notesInput.value || null,
+          assignee_id: assigneeSelect.value ? Number(assigneeSelect.value) : null,
+          departments: readChips(el, "sop_departments"),
+        };
+        try {
+          await api(`/projects/${pid}/sop/${selected}/meta`, { method: "PATCH", body: payload });
+          toast("已儲存", "success");
+          renderSopTab(el);
+        } catch (err) { }
+      });
+    }
   }
 }
 

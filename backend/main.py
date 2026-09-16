@@ -82,6 +82,7 @@ def _auto_migrate() -> None:
         ("encumbrances", "parcel_kind", "VARCHAR(20) NULL"),
         ("landowners", "line_id", "VARCHAR(100) NULL"),
         ("landowners", "email", "VARCHAR(255) NULL"),
+        ("documents", "sop_stage", "INT NULL"),
         ("building_records", "related_encumbrance_orders", "VARCHAR(255) NULL"),
         ("land_records", "ltt_original_value_history", "JSON NULL"),
         ("news_items", "published_at", "DATETIME NULL"),

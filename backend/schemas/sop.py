@@ -12,15 +12,39 @@ class SopStatusResponse(BaseModel):
     updated_at: datetime
 
 
+class StageRequirements(BaseModel):
+    """任何一關(不管是內建關卡還是自訂關卡)都能自己勾選/設定要求,取代原本綁死在
+    key 上的固定邏輯 - 有給這個欄位,gate 檢查就完全以這裡為準,不再看 key。"""
+    document_required: bool = False
+    document_type: str | None = None  # models.document.Document.doc_type 的既有分類值
+    ratio_required: bool = False  # 同意度雙門檻(人數 + 面積同時達標)
+    ratio_threshold: float = 0.8
+    contact_rate_required: bool = False
+    contact_rate_threshold: float = 0.95
+    manual_required: bool = False
+    manual_label: str | None = None
+
+
 class SopStageDef(BaseModel):
-    # key=None 代表使用者自訂的關卡(沒有自動門檻,人工完成);key 給內建代碼(如
-    # "consent_dual_1")的話會沿用該內建關卡原本的自動門檻邏輯與門檻參數。
+    # key=None 代表使用者自訂的關卡;key 給內建代碼(如 "consent_dual_1")的話,沒有
+    # 額外指定 requirements 時會沿用該內建關卡原本的自動門檻邏輯與門檻參數。
+    # requirements 有指定的話(不管 key 是不是內建),一律以 requirements 為準。
     key: str | None = None
     name: str
+    requirements: StageRequirements | None = None
 
 
 class SopStageFlowRequest(BaseModel):
     stages: list[SopStageDef]
+
+
+class SopStageMetaUpdate(BaseModel):
+    # 都留 None = 不更新那個欄位(PATCH 語意,只更新有帶的)。due_date 是 ISO 日期字串
+    # (YYYY-MM-DD);要清空某欄位傳空字串/空陣列,不要整個不帶。
+    due_date: str | None = None
+    notes: str | None = None
+    assignee_id: int | None = None
+    departments: list[str] | None = None
 
 
 class SopCompleteRequest(BaseModel):

@@ -82,7 +82,7 @@ function populateProgressReportFilterOptions() {
     if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
   };
 
-  keepValue(stageSel, () => stages.map((s) => `<option value="${s}">第${s}關 · ${escapeHtml(sopStageLabel(s))}</option>`).join(""));
+  keepValue(stageSel, () => stages.map((s) => `<option value="${s}">第${s}階段 · ${escapeHtml(sopStageLabel(s))}</option>`).join(""));
 
   const handlers = [...new Set(progressReportState.projects.flatMap((p) => [p.case_handler_name, p.case_manager_name]).filter(Boolean))].sort();
   keepValue(handlerSel, () => handlers.map((h) => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join(""));
@@ -234,7 +234,7 @@ function renderProgressReportCharts(filtered) {
   filtered.forEach((p) => { stageCounts[p.current_stage] = (stageCounts[p.current_stage] || 0) + 1; });
   const stageSegments = Object.keys(stageCounts)
     .sort((a, b) => Number(a) - Number(b))
-    .map((stage, i) => ({ label: `第${stage}關 · ${sopStageLabel(stage)}`, value: stageCounts[stage], color: PR_CHART_COLORS[i % PR_CHART_COLORS.length] }));
+    .map((stage, i) => ({ label: `第${stage}階段 · ${sopStageLabel(stage)}`, value: stageCounts[stage], color: PR_CHART_COLORS[i % PR_CHART_COLORS.length] }));
 
   // 行政區分布
   const districtCounts = {};
@@ -314,7 +314,7 @@ function renderProgressReportTable(filtered) {
                 <div class="project-stage-bar" style="margin-bottom:2px">
                   ${Array.from({ length: 10 }, (_, i) => `<span class="${i <= p.current_stage ? "filled" : ""}"></span>`).join("")}
                 </div>
-                <div class="helper-text" style="margin-top:0">第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
+                <div class="helper-text" style="margin-top:0">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
               </td>
               <td>${fmtPct(p.headcount_ratio)} / ${fmtPct(p.land_share_ratio)}</td>
               <td>${p.expected_completion_date ? fmtDate(p.expected_completion_date) : "—"}</td>
@@ -415,7 +415,7 @@ function renderProgressReportDetailTab(tab, p, full) {
           return `
             <div class="pr-stage-item pr-stage-${stageState}">
               <span class="pr-stage-icon">${icon}</span>
-              <span class="pr-stage-name">第${stage}關 · ${escapeHtml(sopStageLabel(stage))}</span>
+              <span class="pr-stage-name">第${stage}階段 · ${escapeHtml(sopStageLabel(stage))}</span>
               <span class="pr-stage-state">${stageState === "done" ? "已完成" : stageState === "current" ? `進行中` : "尚未開始"}</span>
             </div>`;
         }).join("")}
@@ -443,7 +443,7 @@ function renderProgressReportDetailTab(tab, p, full) {
     <div class="pr-detail-grid">
       <div><div class="helper-text">案件編號</div><div>${escapeHtml(p.project_code)}</div></div>
       <div><div class="helper-text">行政區</div><div>${escapeHtml([p.city, p.district].filter(Boolean).join(" ") || "—")}</div></div>
-      <div><div class="helper-text">目前關卡</div><div>第${p.current_stage}關 · ${escapeHtml(sopStageLabel(p.current_stage))}</div></div>
+      <div><div class="helper-text">目前階段</div><div>第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div></div>
       <div><div class="helper-text">負責人</div><div>${escapeHtml(p.case_handler_name || "—")}</div></div>
       <div><div class="helper-text">主管</div><div>${escapeHtml(p.case_manager_name || "—")}</div></div>
       <div><div class="helper-text">地號 / 建號數</div><div>${p.land_record_count} / ${p.building_record_count}</div></div>

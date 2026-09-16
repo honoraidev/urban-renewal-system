@@ -28,6 +28,7 @@ from schemas.sop import (
     ConsentUpsertRequest,
     SopCompleteRequest,
     SopStageFlowRequest,
+    SopStageMetaUpdate,
     SopStatusResponse,
     StageFormRequest,
 )
@@ -74,19 +75,24 @@ STAGE_CHECKLIST_REQUIREMENTS: dict[str, dict] = {
 
 
 def build_initial_stage_data(custom_flow: list[dict] | None = None) -> dict:
-    """custom_flow(若有給)是 [{key, name, extra}, ...] 的有序清單,來自 PUT .../sop/stages
-    自訂關卡流程;不給的話用系統預設的 10 關(STAGE_DEFINITIONS)。"""
+    """custom_flow(若有給)是 [{key, name, extra, requirements}, ...] 的有序清單,來自
+    PUT .../sop/stages 自訂關卡流程;不給的話用系統預設的 10 關(STAGE_DEFINITIONS)。
+    requirements 有給(dict)的話會存進 data.requirements,蓋過 key 原本的固定門檻
+    邏輯,改用 _assert_generic_requirements 那一套。"""
     defs = custom_flow if custom_flow is not None else STAGE_DEFINITIONS
+    stages = {}
+    for i, d in enumerate(defs):
+        data = dict(d.get("extra") or {})
+        if d.get("requirements") is not None:
+            data["requirements"] = d["requirements"]
+        stages[str(i)] = {
+            "key": d["key"],
+            "name": d["name"],
+            "status": "pending",
+            "data": data,
+        }
     return {
-        "stages": {
-            str(i): {
-                "key": d["key"],
-                "name": d["name"],
-                "status": "pending",
-                "data": dict(d.get("extra") or {}),
-            }
-            for i, d in enumerate(defs)
-        },
+        "stages": stages,
         "final": {"status": "pending", "force_closed": False, "closed_at": None, "closed_by": None},
     }
 
@@ -233,7 +239,65 @@ def _assert_checklist_passed(db: Session, project_id: int, stage: int, sop: SopS
             )
 
 
+def _assert_generic_requirements(db: Session, project_id: int, stage: int, sop: SopStage, requirements: dict) -> None:
+    """任何一關只要在客製化流程編輯器裡設定了 requirements,就完全以這裡為準,不再
+    看 key 的固定邏輯 - 見 schemas/sop.py 的 StageRequirements。"""
+    entry = sop.stage_data["stages"].get(str(stage)) or {}
+    checklist = (entry.get("data") or {}).get("checklist") or {}
+
+    if requirements.get("document_required"):
+        doc_type = requirements.get("document_type")
+        exists = doc_type and db.scalar(
+            select(Document.id).where(Document.project_id == project_id, Document.doc_type == doc_type)
+        )
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stage {stage} requires a '{doc_type}' document to be uploaded first",
+            )
+
+    if requirements.get("manual_required"):
+        if "manual_confirmed" not in checklist:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stage {stage} requires manual confirmation first",
+            )
+
+    if requirements.get("contact_rate_required"):
+        threshold = requirements.get("contact_rate_threshold") or 0.95
+        total = db.scalar(select(func.count(Landowner.id)).where(Landowner.project_id == project_id)) or 0
+        reached = db.scalar(
+            select(func.count(Landowner.id)).where(
+                Landowner.project_id == project_id, Landowner.contact_status != "not_contacted"
+            )
+        ) or 0
+        ratio = reached / total if total > 0 else 0.0
+        if ratio < threshold:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Contact rate {ratio:.1%} is below the {threshold:.0%} threshold",
+            )
+
+    if requirements.get("ratio_required"):
+        threshold = requirements.get("ratio_threshold") or 0.8
+        ratio = calculate_consent_ratio(db, project_id, stage, threshold=threshold)
+        if not ratio["dual_gate_passed"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Dual-gate not met: headcount {ratio['headcount_ratio']:.1%}, "
+                    f"land share {ratio['land_share_ratio']:.1%} (need >= {threshold:.0%} both)"
+                ),
+            )
+
+
 def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage) -> None:
+    entry = sop.stage_data["stages"].get(str(stage)) or {}
+    requirements = (entry.get("data") or {}).get("requirements")
+    if requirements is not None:
+        _assert_generic_requirements(db, project_id, stage, sop, requirements)
+        return
+
     _assert_checklist_passed(db, project_id, stage, sop)
     key = _stage_key(sop, stage)
     if key == "ocr_roster":
@@ -357,11 +421,60 @@ def set_stage_flow(
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"關卡代碼 '{s.key}' 不能重複使用")
             seen_keys.add(s.key)
             extra = dict(STAGE_DEF_BY_KEY[s.key].get("extra") or {})
-        defs.append({"key": s.key, "name": name, "extra": extra})
+        requirements = s.requirements.model_dump() if s.requirements is not None else None
+        defs.append({"key": s.key, "name": name, "extra": extra, "requirements": requirements})
 
     sop.stage_data = build_initial_stage_data(defs)
     sop.current_stage = 0
     project.current_stage = 0
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project.id, sop)
+
+
+def _touch_stage_meta(stage_entry: dict, current_user: User) -> dict:
+    """回傳更新過 data.meta.updated_at/updated_by 的新 stage_entry(不動其他欄位)-
+    complete/checklist/meta 端點共用,讓「最後更新」隨便一個關卡上的動作都會更新。"""
+    entry = dict(stage_entry)
+    entry_data = dict(entry.get("data") or {})
+    meta = dict(entry_data.get("meta") or {})
+    meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+    meta["updated_by"] = current_user.id
+    entry_data["meta"] = meta
+    entry["data"] = entry_data
+    return entry
+
+
+@router.patch("/{stage}/meta", response_model=SopStatusResponse)
+def update_stage_meta(
+    stage: int,
+    payload: SopStageMetaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    """關卡的預計完成日/備註/負責人/相關單位標籤 - 跟關卡流程結構(名稱/門檻)是
+    分開的,案件開始跑之後也能隨時改,不受 set_stage_flow 的「還沒開始跑」限制。"""
+    sop = get_or_create_sop(db, project.id)
+    if not (0 <= stage <= _final_stage_index(sop)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    meta = dict(entry_data.get("meta") or {})
+
+    updates = payload.model_dump(exclude_unset=True)
+    meta.update(updates)
+    entry_data["meta"] = meta
+    stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
 
     db.commit()
     db.refresh(sop)
@@ -410,6 +523,7 @@ def complete_stage(
 
     stage_entry["completed_at"] = datetime.now(timezone.utc).isoformat()
     stage_entry["completed_by"] = current_user.id
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
     stages[stage_key] = stage_entry
     stage_data["stages"] = stages
 
@@ -506,6 +620,7 @@ def confirm_checklist_item(
 
     entry_data["checklist"] = checklist
     stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
     stages[stage_key] = stage_entry
     stage_data["stages"] = stages
     sop.stage_data = stage_data
