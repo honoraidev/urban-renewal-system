@@ -869,13 +869,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 之後,快取還是舊的,再點編輯會看到儲存前的舊狀態(例如拜訪/簽約狀態一直顯示
   // 未拜訪/未簽約)。
   let owner;
+  let contacts = [];
   let latestContact = null;
   try {
-    const [ownerResult, contacts] = await Promise.all([
+    const [ownerResult, contactsResult] = await Promise.all([
       api(`/projects/${state.currentProjectId}/landowners/${landownerId}`),
       api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, { silent: true }).catch(() => []),
     ]);
     owner = ownerResult;
+    contacts = contactsResult;
     // 後端已依 contact_date 新到舊排序(見 routers/contacts.py list_contacts),第一筆就是最近一次。
     latestContact = contacts[0] || null;
   } catch (e) {
