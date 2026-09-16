@@ -59,6 +59,7 @@ _RAW_RULES: list[tuple[str, str, str]] = [
     ("*", r"/company-documents", "公版文件維護"),
     ("*", r"/regulations", "法規維護"),
     ("*", r"/websites", "網站維護"),
+    ("*", r"/news", "新聞維護"),
     ("*", r"/faq", "知識庫維護"),
 ]
 
@@ -76,6 +77,9 @@ _IGNORE = re.compile(
     # 還沒進到任何案件,不算「案件動態」——都不值得留紀錄,以免洗版。
     r"|^/projects/\d+/documents/inspect$"
     r"|^/ocr/detect-(building-)?cases$"
+    # 每天排程或按「立即抓新聞」都會打這個,是自動化流程不是人工維護新聞連結,
+    # 混進「新聞維護」的紀錄裡只會洗版(一天可能出現好幾次一模一樣的紀錄)。
+    r"|^/news/fetch-now$"
 )
 
 
