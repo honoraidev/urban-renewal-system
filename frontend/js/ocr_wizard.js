@@ -205,18 +205,21 @@ async function wizardGetPdfDoc(fileIndex) {
 
 function wizardViewerToolbarHtml() {
   const zoomPct = Math.round((titleDeedWizard.viewerZoom || 1) * 100);
+  const totalPages = wizardTotalPages();
+  const page = titleDeedWizard.viewerGlobalPage || 1;
   return `
     <div class="wizard-viewer-toolbar">
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-btn" title="在這份檔案內搜尋文字">🔍</button>
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-prev-page" title="上一頁" ${page <= 1 ? "disabled" : ""}>‹</button>
       <span class="wizard-viewer-page-input-wrap">
-        <input type="number" id="wizard-viewer-page-input" value="${titleDeedWizard.viewerGlobalPage || 1}" min="1" max="${wizardTotalPages()}">
-        / ${wizardTotalPages()}
+        <input type="number" id="wizard-viewer-page-input" value="${page}" min="1" max="${totalPages}">
+        / ${totalPages}
       </span>
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-next-page" title="下一頁" ${page >= totalPages ? "disabled" : ""}>›</button>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-out" title="縮小">－</button>
       <span class="helper-text" style="min-width:38px;text-align:center">${zoomPct}%</span>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-in" title="放大">＋</button>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-rotate" title="旋轉">⟳</button>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-download" title="下載目前這份檔案">⬇</button>
     </div>`;
 }
 
@@ -230,6 +233,7 @@ function wizardViewerPaneHtml() {
   const widthPct = titleDeedWizard.viewerPaneWidthPct || 44;
   return `
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
+      <div class="wizard-window-titlebar">📄 謄本預覽</div>
       ${wizardViewerToolbarHtml()}
       <div class="wizard-viewer-canvas-wrap"><canvas id="wizard-viewer-canvas"></canvas></div>
     </div>`;
@@ -266,7 +270,7 @@ async function wizardRenderCurrentPage() {
       ctx.restore();
     }
   } catch (err) {
-    // 畫原圖失敗就靜默放棄,不要擋住審核流程 - 使用者還是可以用「下載」按鈕看原始檔案。
+    // 畫原圖失敗就靜默放棄,不要擋住審核流程。
   }
 }
 
@@ -290,10 +294,7 @@ async function wizardSearchInViewer() {
       if (text.includes(term)) {
         const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
         const before = counts.slice(0, resolved.fileIndex).reduce((s, c) => s + c, 0);
-        titleDeedWizard.viewerGlobalPage = before + n;
-        const pageInput = document.getElementById("wizard-viewer-page-input");
-        if (pageInput) pageInput.value = titleDeedWizard.viewerGlobalPage;
-        wizardRenderCurrentPage();
+        wizardGoToPage(before + n);
         toast(`找到「${term}」,已跳到第 ${n} 頁`, "success");
         return;
       }
@@ -304,48 +305,52 @@ async function wizardSearchInViewer() {
   }
 }
 
-function wireWizardViewerPane() {
-  const root = document.getElementById("modal-root");
-  if (!root) return;
+// 換頁後頁碼輸入框、上一頁/下一頁按鈕的 disabled 狀態都要跟著更新,乾脆整個工具列
+// 重繪比較不容易漏掉哪個地方沒同步。
+function wizardGoToPage(n) {
+  titleDeedWizard.viewerGlobalPage = Math.min(Math.max(1, n), wizardTotalPages());
+  const toolbar = document.querySelector(".wizard-viewer-toolbar");
+  if (toolbar) {
+    toolbar.outerHTML = wizardViewerToolbarHtml();
+    wireWizardViewerToolbar();
+  }
+  wizardRenderCurrentPage();
+}
 
+function wireWizardViewerToolbar() {
   document.getElementById("wizard-viewer-zoom-in")?.addEventListener("click", () => {
     titleDeedWizard.viewerZoom = Math.min(3, (titleDeedWizard.viewerZoom || 1) + 0.2);
     wizardRenderCurrentPage();
-    const label = root.querySelector(".wizard-viewer-toolbar .helper-text");
+    const label = document.querySelector(".wizard-viewer-toolbar .helper-text");
     if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
   });
   document.getElementById("wizard-viewer-zoom-out")?.addEventListener("click", () => {
     titleDeedWizard.viewerZoom = Math.max(0.4, (titleDeedWizard.viewerZoom || 1) - 0.2);
     wizardRenderCurrentPage();
-    const label = root.querySelector(".wizard-viewer-toolbar .helper-text");
+    const label = document.querySelector(".wizard-viewer-toolbar .helper-text");
     if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
   });
   document.getElementById("wizard-viewer-rotate")?.addEventListener("click", () => {
     titleDeedWizard.viewerRotation = ((titleDeedWizard.viewerRotation || 0) + 90) % 360;
     wizardRenderCurrentPage();
   });
-  document.getElementById("wizard-viewer-download")?.addEventListener("click", () => {
-    const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage);
-    const file = (titleDeedWizard.files || [])[resolved.fileIndex];
-    if (!file) return;
-    const a = document.createElement("a");
-    a.href = wizardFileUrls()[resolved.fileIndex];
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  document.getElementById("wizard-viewer-prev-page")?.addEventListener("click", () => {
+    wizardGoToPage((titleDeedWizard.viewerGlobalPage || 1) - 1);
+  });
+  document.getElementById("wizard-viewer-next-page")?.addEventListener("click", () => {
+    wizardGoToPage((titleDeedWizard.viewerGlobalPage || 1) + 1);
   });
   document.getElementById("wizard-viewer-search-btn")?.addEventListener("click", wizardSearchInViewer);
   const pageInput = document.getElementById("wizard-viewer-page-input");
   if (pageInput) {
-    pageInput.addEventListener("change", () => {
-      let v = Math.round(Number(pageInput.value)) || 1;
-      v = Math.min(Math.max(1, v), wizardTotalPages());
-      pageInput.value = v;
-      titleDeedWizard.viewerGlobalPage = v;
-      wizardRenderCurrentPage();
-    });
+    pageInput.addEventListener("change", () => wizardGoToPage(Math.round(Number(pageInput.value)) || 1));
   }
+}
+
+function wireWizardViewerPane() {
+  const root = document.getElementById("modal-root");
+  if (!root) return;
+  wireWizardViewerToolbar();
   wireWizardSplitResize();
   wizardRenderCurrentPage();
 }
@@ -354,7 +359,7 @@ function wireWizardViewerPane() {
 // 可以同時進行,不用切來切去。呼叫端要記得在 openModal(...) 之後接著呼叫
 // wireWizardViewerPane(),不然切換原始檔案的按鈕不會有作用。
 function wizardSplitBodyHtml(rightHtml) {
-  return `<div class="wizard-split" id="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-split-handle" id="wizard-split-handle" title="拖曳調整左右寬度"></div><div class="wizard-form-pane">${rightHtml}</div></div>`;
+  return `<div class="wizard-split" id="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-split-handle" id="wizard-split-handle" title="拖曳調整左右寬度"></div><div class="wizard-form-pane-card"><div class="wizard-window-titlebar">📝 資料編輯</div><div class="wizard-form-pane">${rightHtml}</div></div></div>`;
 }
 
 // 審核精靈每一步(6個 render*SubStep)都呼叫這支取代直接呼叫 openModal - 同一筆地號/
