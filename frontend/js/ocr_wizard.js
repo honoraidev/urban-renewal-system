@@ -1445,7 +1445,13 @@ function encParcelsChipsInnerHtml(value, labels) {
   );
 }
 
-function encumbranceRowHtml(e, labels) {
+// 命名為 wizard 開頭:encumbrances.js 也有一個同名的 encumbranceRowHtml(enc)(1個參數,
+// 渲染「已存檔他項權利部」的唯讀列+編輯/刪除按鈕),兩個檔案都是純 <script> 全域載入、
+// 沒有模組隔離,同名 function 後載入的會直接蓋掉先載入的。index.html 裡 encumbrances.js
+// 排在 ocr_wizard.js 後面,蓋掉這支的結果就是:精靈審核時他項權利列被換成唯讀樣式,
+// 「編輯/刪除」按鈕看起來有,點了卻完全沒反應(那兩個按鈕的事件是綁在 encumbrances.js
+// 自己的分頁邏輯上,精靈這裡從來沒呼叫過)。改名徹底避開這個全域命名碰撞。
+function wizardEncumbranceRowHtml(e, labels) {
   const L = labels || encLabels();
   const ratio = parseDebtorRatio(e.debtor_info);
   return `
@@ -1518,7 +1524,7 @@ function renderEncumbranceRows(containerId, list) {
 
   const L = encLabels(containerId);
   wrap.innerHTML = list
-    .map((e, i) => `<div class="record-row wizard-row" data-index="${i}">${encumbranceRowHtml(e, L)}</div>`)
+    .map((e, i) => `<div class="record-row wizard-row" data-index="${i}">${wizardEncumbranceRowHtml(e, L)}</div>`)
     .join("");
 
   const rowIndex = (target) => {
