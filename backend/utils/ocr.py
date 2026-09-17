@@ -544,6 +544,37 @@ def _backfill_encumbrance_amounts_from_raw(data: dict, page_texts: list[str] | N
     return data
 
 
+def _backfill_source_pages(data: dict, page_texts: list[str] | None) -> dict:
+    """記錄每筆地號/建號是在原始檔案的第幾頁第一次出現(1-indexed),供審核精靈的原圖
+    預覽自動跳頁用(見 frontend/js/ocr_wizard.js)。做法很單純:拿地號/建號本身的數字
+    去逐頁比對第一次出現在哪頁 - 不管資料是電子謄本規則解析出來的還是AI辨識出來的都
+    適用,不用特別記錄解析當下的位置。跨頁重印的地號常見,只取第一次出現的頁面。"""
+    if not page_texts:
+        return data
+    compact_pages = [re.sub(r"\s+", "", (t or "").translate(_FULLWIDTH_DIGIT_MAP)) for t in page_texts]
+
+    def _find_page(identifier: str | None) -> int | None:
+        needle = re.sub(r"\s+", "", str(identifier or "")).translate(_FULLWIDTH_DIGIT_MAP)
+        if not needle:
+            return None
+        for i, compact in enumerate(compact_pages):
+            if needle in compact:
+                return i + 1
+        return None
+
+    for parcel in data.get("land_parcels") or []:
+        if parcel.get("parcel_number") and not parcel.get("source_page"):
+            page = _find_page(parcel["parcel_number"])
+            if page:
+                parcel["source_page"] = page
+    for building in data.get("buildings") or []:
+        if building.get("building_number") and not building.get("source_page"):
+            page = _find_page(building["building_number"])
+            if page:
+                building["source_page"] = page
+    return data
+
+
 def _fix_ownership_fractions(result: dict) -> dict:
     """A single owner's 權利範圍 (ownership share) can never exceed the whole - numerator
     must be <= denominator. The prompt below already asks the model to self-correct a
@@ -2315,6 +2346,7 @@ def extract_title_deed(
             data = _apply_recovered_addresses(data, recovered_addresses)
             data = _apply_recovered_names(data, recovered_names)
             data = _ai_correct_recovered_addresses(data, recovered_addresses)
+            data = _backfill_source_pages(data, [o for o in text_overrides if o])
             probs = _validation_problems(data, [o for o in text_overrides if o])
             n_parcels = len(data.get("land_parcels") or [])
             n_bldgs = len(data.get("buildings") or [])
@@ -2580,6 +2612,7 @@ def extract_title_deed(
     data = _apply_recovered_addresses(data, recovered_addresses)
     data = _apply_recovered_names(data, recovered_names)
     data = _ai_correct_recovered_addresses(data, recovered_addresses)
+    data = _backfill_source_pages(data, all_page_texts)
 
     final_problems = _validation_problems(data, all_page_texts)
     if final_problems:

@@ -96,6 +96,7 @@ function normalizeTitleDeedData(raw) {
     area_sqm: p.area_sqm ?? "",
     owners: (p.owners || []).map(toLandOwnerRow),
     encumbrances: (p.encumbrances || []).map(toEncumbranceRow),
+    source_page: p.source_page || null,
   }));
 
   const buildings = (raw.buildings || []).map((b) => ({
@@ -126,6 +127,7 @@ function normalizeTitleDeedData(raw) {
         numerator: Number(c.numerator) || 0,
         denominator: Number(c.denominator) || 0,
       })),
+    source_page: b.source_page || null,
   }));
 
   const encumbrances = (raw.encumbrances || []).map(toEncumbranceRow);
@@ -154,11 +156,16 @@ function wizardViewerPaneHtml() {
   const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
   const activeFile = files[activeIdx];
   const isPdf = (activeFile.type || "").includes("pdf");
+  // 只有單一檔案時,「這筆是原謄本第幾頁」才能直接對應到這份 PDF 的頁碼 - 上傳多份
+  // 檔案時無法知道各檔案各佔幾頁(沒有解析每份檔案的頁數),先不跳頁,不亂猜。
+  const targetPage = files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
+  const srcWithPage = targetPage ? `${urls[activeIdx]}#page=${targetPage}` : urls[activeIdx];
   const body = isPdf
-    ? `<iframe src="${escapeHtml(urls[activeIdx])}" title="${escapeHtml(activeFile.name)}"></iframe>`
+    ? `<iframe src="${escapeHtml(srcWithPage)}" title="${escapeHtml(activeFile.name)}"></iframe>`
     : `<img src="${escapeHtml(urls[activeIdx])}" alt="${escapeHtml(activeFile.name)}">`;
+  const widthPct = titleDeedWizard.viewerPaneWidthPct || 44;
   return `
-    <div class="wizard-viewer-pane">
+    <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
       ${files.length > 1
       ? `<div class="wizard-viewer-tabs">
           ${files
@@ -170,6 +177,7 @@ function wizardViewerPaneHtml() {
         </div>`
       : ""
     }
+      ${isPdf && targetPage ? `<div class="helper-text wizard-viewer-jump-note">→ 已跳至原謄本第 ${targetPage} 頁</div>` : ""}
       <div class="wizard-viewer-body">${body}</div>
     </div>`;
 }
@@ -185,13 +193,40 @@ function wireWizardViewerPane() {
       wireWizardViewerPane();
     });
   });
+  wireWizardSplitResize();
 }
 
 // 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖
 // 可以同時進行,不用切來切去。呼叫端要記得在 openModal(...) 之後接著呼叫
 // wireWizardViewerPane(),不然切換原始檔案的按鈕不會有作用。
 function wizardSplitBodyHtml(rightHtml) {
-  return `<div class="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-form-pane">${rightHtml}</div></div>`;
+  return `<div class="wizard-split" id="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-split-handle" id="wizard-split-handle" title="拖曳調整左右寬度"></div><div class="wizard-form-pane">${rightHtml}</div></div>`;
+}
+
+// 左右兩欄的寬度比例可以拖曳調整(原本固定44/56,原圖那欄常常太窄看不清楚)。比例存在
+// titleDeedWizard 上,同一次匯入流程切換步驟/re-render 都會記住使用者調過的寬度。
+function wireWizardSplitResize() {
+  const root = document.getElementById("modal-root");
+  const handle = root && root.querySelector("#wizard-split-handle");
+  const splitEl = root && root.querySelector("#wizard-split");
+  if (!handle || !splitEl) return;
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const onMove = (ev) => {
+      const rect = splitEl.getBoundingClientRect();
+      let pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      pct = Math.min(70, Math.max(28, pct));
+      titleDeedWizard.viewerPaneWidthPct = pct;
+      const pane = splitEl.querySelector(".wizard-viewer-pane");
+      if (pane) pane.style.flex = `0 0 ${pct}%`;
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 }
 
 function renderWizardStep() {
@@ -1171,6 +1206,7 @@ function renderWizardStepParcelEditor() {
 function renderParcelDescriptionSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
+  titleDeedWizard.viewerTargetPage = p.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
@@ -1241,6 +1277,7 @@ function renderParcelDescriptionSubStep(idx) {
 function renderParcelOwnersSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
+  titleDeedWizard.viewerTargetPage = p.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
@@ -1274,6 +1311,7 @@ function renderParcelEncumbrancesSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
   const isLast = idx === parcels.length - 1;
+  titleDeedWizard.viewerTargetPage = p.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
@@ -1542,6 +1580,7 @@ function renderWizardStepBuildingEditor() {
 function renderBuildingDescriptionSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
+  titleDeedWizard.viewerTargetPage = b.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
@@ -1710,6 +1749,7 @@ function renderBuildingDescriptionSubStep(idx) {
 function renderBuildingOwnersSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
+  titleDeedWizard.viewerTargetPage = b.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
@@ -1746,6 +1786,7 @@ function renderBuildingEncumbranceSubStep(idx) {
   const b = buildings[idx];
   const isLast = idx === buildings.length - 1;
   if (!b.encumbrances) b.encumbrances = [];
+  titleDeedWizard.viewerTargetPage = b.source_page || null;
   openModal(
     "掃描謄本匯入",
     wizardSplitBodyHtml(`
