@@ -232,7 +232,6 @@ function wizardViewerPaneHtml() {
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
       ${wizardViewerToolbarHtml()}
       <div class="wizard-viewer-canvas-wrap"><canvas id="wizard-viewer-canvas"></canvas></div>
-      <div class="wizard-viewer-thumbs" id="wizard-viewer-thumbs"></div>
     </div>`;
 }
 
@@ -271,59 +270,6 @@ async function wizardRenderCurrentPage() {
   }
 }
 
-async function wizardRenderThumbnails() {
-  const wrap = document.getElementById("wizard-viewer-thumbs");
-  if (!wrap) return;
-  const total = wizardTotalPages();
-  wrap.innerHTML = Array.from({ length: total }, (_, i) => i + 1)
-    .map(
-      (n) =>
-        `<button type="button" class="wizard-ov-thumb ${n === titleDeedWizard.viewerGlobalPage ? "active" : ""}" data-thumb-page="${n}"><canvas></canvas><span>${n}</span></button>`
-    )
-    .join("");
-  wrap.querySelectorAll(".wizard-ov-thumb").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      titleDeedWizard.viewerGlobalPage = Number(btn.dataset.thumbPage);
-      const pageInput = document.getElementById("wizard-viewer-page-input");
-      if (pageInput) pageInput.value = titleDeedWizard.viewerGlobalPage;
-      wizardRenderCurrentPage();
-      wizardHighlightActiveThumb();
-    });
-  });
-  for (let n = 1; n <= total; n++) {
-    const resolved = wizardGlobalToFileLocalSafe(n);
-    const file = (titleDeedWizard.files || [])[resolved.fileIndex];
-    const btn = wrap.querySelector(`.wizard-ov-thumb[data-thumb-page="${n}"]`);
-    const canvas = btn && btn.querySelector("canvas");
-    if (!canvas || !file) continue;
-    try {
-      const ctx = canvas.getContext("2d");
-      if ((file.type || "").includes("pdf") && window.pdfjsLib) {
-        const doc = await wizardGetPdfDoc(resolved.fileIndex);
-        const page = await doc.getPage(resolved.localPage);
-        const viewport = page.getViewport({ scale: 0.18 });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-      } else {
-        const img = await wizardLoadImage(wizardFileUrls()[resolved.fileIndex]);
-        const scale = 90 / img.width;
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      }
-    } catch (err) {
-      // 單張縮圖畫失敗就跳過,不影響其他頁的縮圖
-    }
-  }
-}
-
-function wizardHighlightActiveThumb() {
-  document.querySelectorAll(".wizard-ov-thumb").forEach((btn) => {
-    btn.classList.toggle("active", Number(btn.dataset.thumbPage) === titleDeedWizard.viewerGlobalPage);
-  });
-}
-
 // 🔍 只在「目前這份檔案」內找,逐頁用 pdf.js 抓文字內容比對,找到第一個命中的頁就跳過去。
 // 不是完整的高亮/找下一個 UI,先求「輸入關鍵字快速跳到那一頁」堪用。
 async function wizardSearchInViewer() {
@@ -348,7 +294,6 @@ async function wizardSearchInViewer() {
         const pageInput = document.getElementById("wizard-viewer-page-input");
         if (pageInput) pageInput.value = titleDeedWizard.viewerGlobalPage;
         wizardRenderCurrentPage();
-        wizardHighlightActiveThumb();
         toast(`找到「${term}」,已跳到第 ${n} 頁`, "success");
         return;
       }
@@ -399,12 +344,10 @@ function wireWizardViewerPane() {
       pageInput.value = v;
       titleDeedWizard.viewerGlobalPage = v;
       wizardRenderCurrentPage();
-      wizardHighlightActiveThumb();
     });
   }
   wireWizardSplitResize();
   wizardRenderCurrentPage();
-  wizardRenderThumbnails();
 }
 
 // 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖

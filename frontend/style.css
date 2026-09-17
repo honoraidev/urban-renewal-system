@@ -1082,24 +1082,18 @@
     justify-content: center; padding: 10px; background: var(--surface-2);
   }
   .wizard-viewer-canvas-wrap canvas { max-width: 100%; box-shadow: var(--shadow); background: #fff; }
-  .wizard-viewer-thumbs {
-    flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; padding: 8px; border-top: 1px solid var(--border);
-    background: var(--surface);
-  }
-  .wizard-ov-thumb {
-    flex-shrink: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    border: 2px solid transparent; border-radius: 6px; padding: 2px; background: none; cursor: pointer;
-  }
-  .wizard-ov-thumb canvas { width: 100%; height: 68px; object-fit: contain; background: #fff; box-shadow: var(--shadow); }
-  .wizard-ov-thumb span { font-size: 10.5px; color: var(--text-muted); font-weight: 600; }
-  .wizard-ov-thumb.active { border-color: var(--brand); }
-  .wizard-ov-thumb.active span { color: var(--brand-dark, var(--brand)); }
   .wizard-split-handle {
     flex: 0 0 6px; align-self: stretch; cursor: col-resize; background: var(--border);
     border-radius: 3px; transition: background .15s ease;
   }
   .wizard-split-handle:hover { background: var(--brand); }
   .wizard-form-pane { flex: 1 1 56%; min-width: 0; overflow-y: auto; max-height: 72vh; padding-right: 4px; }
+  /* 一鍵建立/刪除此筆/上一筆/下一步 這排按鈕固定貼在右欄底部,不用捲到最下面才找得到
+     (所有權人一多,表單拉很長,底下按鈕本來會被捲出畫面外)。 */
+  .wizard-form-pane .modal-footer {
+    position: sticky; bottom: -1px; background: var(--surface); padding: 12px 0 2px;
+    margin-top: 16px; border-top: 1px solid var(--border); z-index: 2;
+  }
 
   /* 審核步驟頂部的「辨識結果/未辨識項目/匯入設定」分頁(仍然一次只審一筆,分頁只是
      切換右欄顯示內容,見 ocr_wizard.js 的 wizardStepTabWrapperHtml) */
