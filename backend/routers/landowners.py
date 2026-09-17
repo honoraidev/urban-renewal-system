@@ -315,56 +315,6 @@ def update_land_record(
     return record
 
 
-@router.get("/{landowner_id}/land-records/{record_id}/ltt-current-value-lookup")
-def lookup_land_record_current_value(
-    landowner_id: int,
-    record_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    project: Project = Depends(require_project_viewer),
-):
-    """根據這筆土地登記的行政區/段小段/地號,查臺北市政府資料開放平臺的公告土地現值
-    年度資料集,算出「本月申報移轉現值」= 公告土地現值(元/m²) × 持分面積。純查詢,不
-    寫入資料庫 - 前端拿到結果後填進表單,使用者確認沒問題再按「儲存」才真的存檔。"""
-    record = get_land_record_or_404(db, project.id, landowner_id, record_id)
-
-    if current_user.role in EDIT_ROLES:
-        pass
-    elif current_user.role == LANDOWNER_ROLE:
-        owner = db.get(Landowner, landowner_id)
-        if owner is None or owner.user_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your own record")
-    else:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Editor role required")
-
-    city = project.city or ""
-    if "臺北市" not in city and "台北市" not in city:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="目前只支援臺北市案件的自動查詢,其他縣市請至地政局網站查詢後手動輸入",
-        )
-
-    try:
-        result = lookup_current_value_per_sqm(project.district, record.section, record.subsection, record.parcel_number)
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"查詢政府開放資料失敗:{exc}")
-
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="查無這筆地號的公告土地現值,請確認行政區/段小段/地號是否正確,或手動輸入",
-        )
-
-    unit_price, period_label = result
-    owned_area = float(record.owned_area_sqm or 0)
-    return {
-        "unit_price_per_sqm": unit_price,
-        "period_label": period_label,
-        "owned_area_sqm": owned_area,
-        "current_value": round(unit_price * owned_area),
-    }
-
-
 @router.delete("/{landowner_id}/land-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_land_record(
     landowner_id: int,
