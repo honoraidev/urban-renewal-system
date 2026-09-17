@@ -13,22 +13,25 @@ from schemas.encumbrance import EncumbranceCreate, EncumbranceRead, EncumbranceU
 router = APIRouter(prefix="/projects/{project_id}/encumbrances", tags=["encumbrances"])
 
 
-def _infer_parcel_kind(db: Session, project_id: int, applies_to_parcels: str | None) -> str | None:
-    """他項權利部分「地號/建號」兩個分頁本來要人工選,OCR匯入/手動新增常常沒填 -
-    用「對應地號/建號」去比對這個案件既有的土地/建物登記,能對上哪邊就自動歸類到
-    哪邊,對不上就維持 None(前端照舊 fallback 顯示在地號分頁)。"""
+def _match_building_or_land(db: Session, project_id: int, applies_to_parcels: str | None) -> tuple[str | None, BuildingRecord | None]:
+    """他項權利部「地號/建號」分類本來要人工選,OCR匯入/手動新增常常沒填 - 用「對應
+    地號/建號」去比對這個案件既有的土地/建物登記,能對上哪邊就自動歸類到哪邊,對不上
+    就維持 None(前端照舊 fallback 顯示在地號分頁)。比對到建號的話一併把該筆建物登記
+    傳回去,拿它的門牌地址補到 property_address(謄本上他項權利本來就不會印門牌,只印
+    建號,不補的話這欄永遠是空的)。"""
     value = (applies_to_parcels or "").strip()
     if not value:
-        return None
-    if db.scalar(
-        select(BuildingRecord.id).where(BuildingRecord.project_id == project_id, BuildingRecord.building_number == value)
-    ):
-        return "building"
+        return None, None
+    building = db.scalar(
+        select(BuildingRecord).where(BuildingRecord.project_id == project_id, BuildingRecord.building_number == value)
+    )
+    if building:
+        return "building", building
     if db.scalar(
         select(LandRecord.id).where(LandRecord.project_id == project_id, LandRecord.parcel_number == value)
     ):
-        return "land"
-    return None
+        return "land", None
+    return None, None
 
 
 def get_encumbrance_or_404(db: Session, project_id: int, encumbrance_id: int) -> Encumbrance:
@@ -57,8 +60,12 @@ def create_encumbrance(
     project: Project = Depends(require_project_editor),
 ):
     data = payload.model_dump()
-    if not data.get("parcel_kind"):
-        data["parcel_kind"] = _infer_parcel_kind(db, project.id, data.get("applies_to_parcels"))
+    if not data.get("parcel_kind") or not data.get("property_address"):
+        kind, building = _match_building_or_land(db, project.id, data.get("applies_to_parcels"))
+        if not data.get("parcel_kind"):
+            data["parcel_kind"] = kind
+        if not data.get("property_address") and building and building.address:
+            data["property_address"] = building.address
     encumbrance = Encumbrance(project_id=project.id, **data)
     db.add(encumbrance)
     db.commit()

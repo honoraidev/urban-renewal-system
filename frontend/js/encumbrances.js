@@ -96,13 +96,13 @@ async function renderEncumbrancesTab(el) {
       ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
     </div>
     <div class="tab-bar" id="enc-kind-tabs" style="margin-bottom:14px">
-      <button type="button" class="tab-btn ${encActiveKind === "land" ? "active" : ""}" data-enc-kind="land">地號 (${landCount})</button>
-      <button type="button" class="tab-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建號 (${buildingCount})</button>
+      <button type="button" class="tab-btn ${encActiveKind === "land" ? "active" : ""}" data-enc-kind="land">土地 (${landCount})</button>
+      <button type="button" class="tab-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建物 (${buildingCount})</button>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>登記次序</th><th>對應地號/建號</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>義務人(債務額比例)</th><th style="text-align:right">擔保債權總金額</th>
+          <th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>義務人(債務額比例)</th><th style="text-align:right">擔保債權總金額</th>
           ${isEditor() ? "<th>操作</th>" : ""}
         </tr></thead>
         <tbody id="encumbrance-tbody">${renderEncumbranceTbody(currentList())}</tbody>
@@ -113,7 +113,7 @@ async function renderEncumbrancesTab(el) {
   function renderEncumbranceTbody(list) {
     return list.length
       ? list.map(encumbranceRowHtml).join("")
-      : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無地號他項權利資料" : "尚無建號他項權利資料"}</td></tr>`;
+      : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無土地他項權利資料" : "尚無建物他項權利資料"}</td></tr>`;
   }
 
   function wireRowButtons() {
@@ -208,8 +208,8 @@ function openEncumbranceFormModal(encumbrance, defaultKind) {
           <label>類型</label>
           <select name="parcel_kind">
             <option value="" ${!e.parcel_kind ? "selected" : ""}>不分類</option>
-            <option value="land" ${e.parcel_kind === "land" ? "selected" : ""}>地號</option>
-            <option value="building" ${e.parcel_kind === "building" ? "selected" : ""}>建號</option>
+            <option value="land" ${e.parcel_kind === "land" ? "selected" : ""}>土地</option>
+            <option value="building" ${e.parcel_kind === "building" ? "selected" : ""}>建物</option>
           </select>
         </div>
         <div class="field"><label>對應地號/建號</label><input name="applies_to_parcels" value="${escapeHtml(e.applies_to_parcels)}" autocomplete="off"></div>
