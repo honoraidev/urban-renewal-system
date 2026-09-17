@@ -1081,6 +1081,11 @@
     width: 46px; text-align: center; padding: 5px 4px; border: 1px solid var(--border);
     border-radius: 6px; background: var(--surface); color: var(--text);
   }
+  .wizard-viewer-zoom-input-wrap { display: flex; align-items: center; gap: 3px; font-size: 13px; color: var(--text-muted); }
+  .wizard-viewer-zoom-input-wrap input {
+    width: 48px; text-align: center; padding: 5px 4px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface); color: var(--text);
+  }
   .wizard-viewer-search-bar {
     display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex-wrap: wrap;
     border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;

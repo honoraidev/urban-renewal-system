@@ -221,7 +221,9 @@ function wizardViewerToolbarHtml() {
       </span>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-next-page" title="下一頁" ${page >= totalPages ? "disabled" : ""}>›</button>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-out" title="縮小">－</button>
-      <span class="helper-text" style="min-width:38px;text-align:center">${zoomPct}%</span>
+      <span class="wizard-viewer-zoom-input-wrap">
+        <input type="number" id="wizard-viewer-zoom-input" value="${zoomPct}" min="20" max="400" step="10" title="輸入自訂縮放比例">%
+      </span>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-in" title="放大">＋</button>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-rotate" title="旋轉">⟳</button>
     </div>`;
@@ -462,19 +464,28 @@ function wizardGoToPage(n) {
   }
 }
 
+function wizardSetZoom(pctRaw) {
+  const pct = Math.min(400, Math.max(20, Math.round(pctRaw) || 100));
+  titleDeedWizard.viewerZoom = pct / 100;
+  wizardRenderCurrentPage();
+  const input = document.getElementById("wizard-viewer-zoom-input");
+  if (input) input.value = pct;
+}
+
 function wireWizardViewerToolbar() {
   document.getElementById("wizard-viewer-zoom-in")?.addEventListener("click", () => {
-    titleDeedWizard.viewerZoom = Math.min(3, (titleDeedWizard.viewerZoom || 1) + 0.2);
-    wizardRenderCurrentPage();
-    const label = document.querySelector(".wizard-viewer-toolbar .helper-text");
-    if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
+    wizardSetZoom(Math.round((titleDeedWizard.viewerZoom || 1) * 100) + 20);
   });
   document.getElementById("wizard-viewer-zoom-out")?.addEventListener("click", () => {
-    titleDeedWizard.viewerZoom = Math.max(0.4, (titleDeedWizard.viewerZoom || 1) - 0.2);
-    wizardRenderCurrentPage();
-    const label = document.querySelector(".wizard-viewer-toolbar .helper-text");
-    if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
+    wizardSetZoom(Math.round((titleDeedWizard.viewerZoom || 1) * 100) - 20);
   });
+  const zoomInput = document.getElementById("wizard-viewer-zoom-input");
+  if (zoomInput) {
+    zoomInput.addEventListener("change", () => wizardSetZoom(Number(zoomInput.value)));
+    zoomInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); wizardSetZoom(Number(zoomInput.value)); }
+    });
+  }
   document.getElementById("wizard-viewer-rotate")?.addEventListener("click", () => {
     titleDeedWizard.viewerRotation = ((titleDeedWizard.viewerRotation || 0) + 90) % 360;
     wizardRenderCurrentPage();
