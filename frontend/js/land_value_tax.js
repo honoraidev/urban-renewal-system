@@ -13,6 +13,10 @@ function _lttGain({ originalValue, currentValue, cpiIndex }) {
   return { idx, adjustedOriginal, gain };
 }
 
+// 協議合建分屋比例:地主4、建商6 - 一般稅率試算出的稅額暫時先按這個比例分攤
+// 顯示地主/建商各自負擔金額(先寫死,之後如果各案比例不同再改成案件設定)。
+const LTT_GENERAL_SPLIT = { owner: 0.4, developer: 0.6 };
+
 // 一般稅率:統一按漲價總數額 40% 計算(不分級距)。
 function calculateLandValueIncrementTax({ originalValue, currentValue, cpiIndex }) {
   const { idx, adjustedOriginal, gain } = _lttGain({ originalValue, currentValue, cpiIndex });
@@ -140,11 +144,22 @@ function lttOwnerTotal(owner, liveValues) {
   );
 }
 
+function lttGeneralSplitHtml(generalTax) {
+  if (!generalTax) return "";
+  const ownerShare = generalTax * LTT_GENERAL_SPLIT.owner;
+  const developerShare = generalTax * LTT_GENERAL_SPLIT.developer;
+  return `<span class="helper-text">(協議合建4/6分攤:地主 ${Math.round(ownerShare).toLocaleString()} 元、建商 ${Math.round(developerShare).toLocaleString()} 元)</span>`;
+}
+
 function lttOwnerTotalHtml(owner, liveValues) {
   const anyFilled = (owner.land_records || []).some((lr) => lr.ltt_original_value);
   if (!anyFilled) return `<span class="helper-text">尚未輸入</span>`;
   const t = lttOwnerTotal(owner, liveValues);
-  return `<div>自用 <strong>約 ${Math.round(t.selfUse).toLocaleString()} 元</strong></div><div>一般 <strong>約 ${Math.round(t.general).toLocaleString()} 元</strong></div>`;
+  return (
+    `<div>自用 <strong>約 ${Math.round(t.selfUse).toLocaleString()} 元</strong></div>` +
+    `<div>一般 <strong>約 ${Math.round(t.general).toLocaleString()} 元</strong></div>` +
+    lttGeneralSplitHtml(t.general)
+  );
 }
 
 function wireLandValueTaxToggles(el) {
@@ -181,7 +196,8 @@ function lttResultCellHtml(result) {
   return (
     `<div>自用 <strong>約 ${fmt(result.selfUse.totalTax)} 元</strong></div>` +
     `<div>一般 <strong>約 ${fmt(result.general.totalTax)} 元</strong></div>` +
-    (notes.length ? `<span class="helper-text">(已套用 ${notes.join("、")})</span>` : "")
+    (notes.length ? `<span class="helper-text">(已套用 ${notes.join("、")})</span>` : "") +
+    lttGeneralSplitHtml(result.general.totalTax)
   );
 }
 
