@@ -56,6 +56,9 @@ class LandRecord(Base):
     # 台灣地區消費者物價總指數(以前次移轉/原規定地價那期為基期 100)。漲價總數額 =
     # 申報現值 − 原地價 × 指數/100。未填時視為 100(不調整)。
     ltt_cpi_index: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    # 改良土地費用、工程受益費等土地稅法第31條規定可從漲價總數額扣除的項目,總金額 -
+    # 沒有自動來源,要由承辦人依實際單據手動輸入,沒有單據就留空(視為0)。
+    ltt_deductible_cost: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

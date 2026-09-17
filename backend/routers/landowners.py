@@ -280,6 +280,7 @@ _LTT_FIELDS = {
     "ltt_current_value_period",
     "ltt_holding_years",
     "ltt_cpi_index",
+    "ltt_deductible_cost",
 }
 
 

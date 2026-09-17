@@ -19,7 +19,9 @@ class LandRecordCreate(BaseModel):
     ltt_original_value_history: list[dict] | None = None
     ltt_current_value: float | None = None
     ltt_current_value_period: str | None = None
+    ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
+    ltt_deductible_cost: float | None = None
 
 
 class LandRecordUpdate(BaseModel):
@@ -39,6 +41,7 @@ class LandRecordUpdate(BaseModel):
     ltt_current_value_period: str | None = None
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
+    ltt_deductible_cost: float | None = None
 
 
 class LandRecordRead(BaseModel):
@@ -63,6 +66,7 @@ class LandRecordRead(BaseModel):
     ltt_current_value_period: str | None = None
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
+    ltt_deductible_cost: float | None = None
 
     model_config = {"from_attributes": True}
 
