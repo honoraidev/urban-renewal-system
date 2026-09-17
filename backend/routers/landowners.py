@@ -13,6 +13,7 @@ from models.landowner import Landowner
 from models.project import Project
 from models.user import User
 from routers.sop import try_auto_complete_stage
+from utils.cpi_index import lookup_cpi_ratio
 from utils.taipei_land_value import lookup_current_value_per_sqm
 from schemas.landowner import (
     BuildingRecordCreate,
@@ -160,6 +161,39 @@ def lookup_all_current_values(
         }
 
     return {"supported": True, "period_label": period_label, "records": results}
+
+
+@router.get("/ltt-cpi-index-lookup-all")
+def lookup_all_cpi_index(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
+    """土增稅試算頁一開就自動呼叫:依每筆土地登記的「前次移轉現值」年月,查主計總處
+    「消費者物價總指數－稅務專用」官方換算表,算出物價指數調整比例。全國適用、不分縣市
+    (物價指數本來就是全國統一公告,不像公告土地現值各縣市各自一套)。純查詢、不寫入
+    資料庫;已經手動填過 ltt_cpi_index 的紀錄,前端會優先用手動值,這裡的結果只補沒填的。"""
+    records = db.scalars(
+        select(LandRecord)
+        .join(Landowner, LandRecord.landowner_id == Landowner.id)
+        .where(Landowner.project_id == project.id)
+    ).all()
+
+    results: dict[int, dict] = {}
+    asof_label = None
+    for record in records:
+        if not record.ltt_original_value_period:
+            continue
+        try:
+            result = lookup_cpi_ratio(record.ltt_original_value_period)
+        except Exception as exc:
+            # 跟公告現值那支一樣的道理:第一筆下載失敗就整批放棄,不要對主計總處重試一輪。
+            return {"asof_label": None, "records": {}, "error": str(exc)}
+        if result is None:
+            continue
+        ratio, asof_label = result
+        results[record.id] = {"cpi_index": ratio}
+
+    return {"asof_label": asof_label, "records": results}
 
 
 @router.get("/{landowner_id}", response_model=LandownerRead)

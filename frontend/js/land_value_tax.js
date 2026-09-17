@@ -85,13 +85,15 @@ const LTT_GENERAL_SPLIT = { owner: 0.4, developer: 0.6 };
 function landValueTaxRowResult(lr, liveValues) {
   if (!lr.ltt_original_value) return null;
   const live = liveValues && liveValues[lr.id];
-  const currentValue = live ? live.current_value : Number(lr.ltt_current_value) || 0;
-  const currentPeriod = live ? live.period_label : lr.ltt_current_value_period;
+  const hasLiveCurrentValue = live && live.current_value != null;
+  const currentValue = hasLiveCurrentValue ? live.current_value : Number(lr.ltt_current_value) || 0;
+  const currentPeriod = hasLiveCurrentValue ? live.period_label : lr.ltt_current_value_period;
   const holdingYears = lr.ltt_holding_years ?? calcHoldingYears(lr.ltt_original_value_period, currentPeriod);
+  const cpiAuto = !lr.ltt_cpi_index && !!(live && live.cpi_index);
   const params = {
     originalValue: Number(lr.ltt_original_value) || 0,
     currentValue,
-    cpiIndex: Number(lr.ltt_cpi_index) || null,
+    cpiIndex: Number(lr.ltt_cpi_index) || (live && live.cpi_index) || null,
     deductibleCost: Number(lr.ltt_deductible_cost) || 0,
   };
   return {
@@ -100,6 +102,7 @@ function landValueTaxRowResult(lr, liveValues) {
     currentValue,
     currentPeriod,
     holdingYears,
+    cpiAuto,
   };
 }
 
@@ -158,8 +161,23 @@ async function renderLandValueTaxTab(el) {
     note = "自動查詢公告土地現值失敗,暫時沿用「土地登記」頁已存的本月申報移轉現值。";
   }
 
+  let cpiNote = "";
+  try {
+    const cpiLookup = await api(`/projects/${pid}/landowners/ltt-cpi-index-lookup-all`, { silent: true });
+    if (!cpiLookup.error) {
+      Object.entries(cpiLookup.records || {}).forEach(([id, v]) => {
+        liveValues[id] = { ...(liveValues[id] || {}), cpi_index: v.cpi_index };
+      });
+      if (cpiLookup.asof_label) {
+        cpiNote = `物價指數調整比例已自動依主計總處${escapeHtml(cpiLookup.asof_label)}公告換算表帶入,已手動填過的維持手動值。`;
+      }
+    }
+  } catch (err) {
+    // 查不到就維持原本手動輸入的物價指數(或不調整),不影響其他試算結果。
+  }
+
   const noteEl = document.getElementById("ltt-tab-note");
-  if (noteEl) noteEl.textContent = `⚠ 僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。${note}`;
+  if (noteEl) noteEl.textContent = `⚠ 僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。${note}${cpiNote}`;
   renderLttTbody(el, landOwners, liveValues);
   wireLandValueTaxToggles(el);
 }
@@ -238,7 +256,7 @@ function lttDetailRow(label, value, opts = {}) {
 function lttChildRowHtml(owner, record, liveValues) {
   const result = landValueTaxRowResult(record, liveValues);
   const live = liveValues && liveValues[record.id];
-  const currentValueCell = live
+  const currentValueCell = live && live.current_value != null
     ? `<div class="ltt-current-period">${escapeHtml(live.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(live.current_value).toLocaleString()} 元</div>`
     : `${record.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${record.ltt_current_value ? `${Number(record.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
   return `
@@ -261,7 +279,7 @@ function lttDetailCellHtml(record, result) {
     lttDetailRow(record.ltt_original_value_period ? escapeHtml(record.ltt_original_value_period) : "前次移轉現值", `${fmt(record.ltt_original_value)} 元`)
   );
   if (g.cpiIndex !== 100) {
-    rows.push(lttDetailRow("物價指數調整", `${g.cpiIndex}%`, { muted: true }));
+    rows.push(lttDetailRow(`物價指數調整${result.cpiAuto ? "(自動查詢)" : ""}`, `${g.cpiIndex}%`, { muted: true }));
     rows.push(lttDetailRow("調整後前次移轉現值", `${fmt(g.adjustedOriginal)} 元`));
   }
   if (record.ltt_deductible_cost) {

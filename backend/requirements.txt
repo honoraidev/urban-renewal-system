@@ -26,3 +26,6 @@ opencc-python-reimplemented==0.1.7
 rapidocr-onnxruntime==1.3.24
 onnxruntime==1.19.2
 openpyxl==3.1.5
+# 主計總處「消費者物價總指數-稅務專用」換算表(cpispleym.xls)是舊版 BIFF .xls 格式,
+# openpyxl 只讀 .xlsx,要靠 xlrd 讀 - 見 utils/cpi_index.py。
+xlrd==2.0.2

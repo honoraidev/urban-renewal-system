@@ -1287,8 +1287,8 @@ function landRecordFormFields(record) {
     <div class="field-row">
       <div class="field">
         <label>物價指數調整比例(%)</label>
-        <input name="ltt_cpi_index" type="number" step="0.01" value="${r.ltt_cpi_index ?? ""}" placeholder="留空=100(不調整)" autocomplete="off">
-        <div class="helper-text" style="margin-top:4px">前次移轉當時消費者物價總指數換算成以前次現值為基期100的比值,依國稅局/地方稅務局提供的分算表填寫;沒有時留空,系統視為100(不調整)。</div>
+        <input name="ltt_cpi_index" type="number" step="0.01" value="${r.ltt_cpi_index ?? ""}" placeholder="留空=土增稅頁自動查詢" autocomplete="off">
+        <div class="helper-text" style="margin-top:4px">前次移轉當時消費者物價總指數換算成以前次現值為基期100的比值。留空的話「土增稅」頁會依前次移轉年月自動查主計總處官方換算表帶入;這裡填了值就以這裡為準。</div>
       </div>
       <div class="field">
         <label>持有年限(年)</label>
