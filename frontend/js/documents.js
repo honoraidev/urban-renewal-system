@@ -137,11 +137,12 @@ async function openOcrBatchListModal() {
     });
 }
 
-// 舊版本只給「檢視」不給「下載/刪除」- 開新分頁讓瀏覽器用內建檢視器(PDF/圖片)
-// 直接顯示,不像 downloadDocument 那樣強制存檔。
+// 開新分頁讓瀏覽器用內建檢視器(PDF/圖片)直接顯示,不像 downloadDocument 那樣強制存檔。
+// Word/Excel/PowerPoint 瀏覽器原生看不懂,後端 /preview 會先轉成 PDF 再回傳;下載
+// (downloadDocument)拿到的仍然是原始檔案,不受影響。
 async function viewDocument(docId) {
   try {
-    const res = await api(`/projects/${state.currentProjectId}/documents/${docId}/download`);
+    const res = await api(`/projects/${state.currentProjectId}/documents/${docId}/preview`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");

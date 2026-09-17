@@ -28,6 +28,7 @@ from schemas.document import (
 from utils.document_folders import folder_id_for_doc_type, seed_project_folders
 from utils.file_storage import build_upload_path
 from utils.ocr import merge_pages_to_pdf
+from utils.office_preview import CONVERTIBLE_EXTS, convert_to_pdf
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
@@ -567,6 +568,32 @@ def download_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
 
     return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
+
+
+@router.get("/{doc_id}/preview")
+def preview_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    """檢視用 - PDF/圖片瀏覽器本來就看得懂,直接回原檔;Word/Excel/PowerPoint 瀏覽器
+    原生看不懂,先用 LibreOffice 轉成 PDF 再回傳,原始檔案不受影響(下載仍是原檔)。"""
+    document = get_document_or_404(db, project.id, doc_id)
+
+    if not os.path.exists(document.file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
+
+    ext = os.path.splitext(document.file_name)[1].lower()
+    if ext not in CONVERTIBLE_EXTS:
+        return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
+
+    try:
+        pdf_path = convert_to_pdf(document.file_path)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"文件轉PDF預覽失敗:{exc}")
+
+    pdf_name = os.path.splitext(document.file_name)[0] + ".pdf"
+    return FileResponse(pdf_path, filename=pdf_name, media_type="application/pdf")
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
