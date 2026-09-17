@@ -21,6 +21,8 @@
     --info-light: #eef1fb;
     --brown: #9a6a34;
     --brown-light: #f3e7d8;
+    --purple: #8b5cf6;
+    --purple-light: #f1ebfe;
     --nav-bg: rgba(255, 255, 255, .85);
     --card-rim: rgba(255, 255, 255, .6);
     --login-glow: #eafcfc;
@@ -56,6 +58,8 @@
       --info-light: rgba(152, 165, 230, .16);
       --brown: #c99b63;
       --brown-light: rgba(201, 155, 99, .16);
+      --purple: #a78bfa;
+      --purple-light: rgba(167, 139, 250, .16);
       --nav-bg: rgba(15, 23, 42, .88);
       --card-rim: rgba(255, 255, 255, .06);
       --login-glow: #16213b;
@@ -88,6 +92,8 @@
     --info-light: rgba(152, 165, 230, .16);
     --brown: #c99b63;
     --brown-light: rgba(201, 155, 99, .16);
+    --purple: #a78bfa;
+    --purple-light: rgba(167, 139, 250, .16);
     --nav-bg: rgba(15, 23, 42, .88);
     --card-rim: rgba(255, 255, 255, .06);
     --login-glow: #16213b;
@@ -578,6 +584,7 @@
   .card-meta-row { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--text-muted); }
   .badge-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .mini-badge { font-size: 12.5px; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
+  .mini-badge-shared-door { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); font-weight: 500; }
   .mini-badge.alert { background: var(--danger-light); color: var(--danger); font-weight: 700; }
   .mini-badge.gate-ok { background: var(--success-light); color: var(--success); font-weight: 700; }
   .mini-badge.warn { background: var(--warning-light); color: var(--warning); font-weight: 700; }
@@ -1386,6 +1393,12 @@
 }
 .bv-cell-empty:hover { transform: none; }
 .bv-cell-agreed { background: var(--success-light); border-color: var(--success); color: var(--success); }
+/* 多位共有人只有部分人同意 - 依 --bv-fill(inline style 算好的百分比)畫左綠右藍
+   的漸層,不要整格蓋成純綠(那樣看起來像全部人都同意了)。 */
+.bv-cell-partial {
+  background: linear-gradient(to right, var(--success-light) var(--bv-fill, 0%), var(--info-light) var(--bv-fill, 0%));
+  border-color: var(--success); color: var(--success);
+}
 .bv-cell-opposed { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
 .bv-cell-pending { background: var(--info-light); border-color: var(--info); color: var(--info); }
 .bv-cell-callback { background: var(--warning-light); border-color: var(--warning); color: var(--warning); }
@@ -1400,6 +1413,11 @@
 }
 .bv-cell-opposed .bv-cell-badge { background: var(--danger); }
 .bv-cell-agreed .bv-cell-badge { background: var(--success); }
+/* 共有(多位共同持分,如依持分比例登記的地下室/車位建號)—— 邊框改用紫色跟一般
+   聯絡狀態的底色區分開,不論該格目前是什麼聯絡狀態色都看得出來是共有格。 */
+.bv-cell-shared { box-shadow: 0 0 0 2px var(--purple) inset; }
+.bv-cell-badge-shared { background: var(--purple) !important; }
+.bv-legend-swatch.bv-cell-shared-swatch { background: var(--purple-light); border-color: var(--purple); }
 .bv-flip-btn { white-space: nowrap; }
 
 /* ============ Minguo year+month picker (地價年月) ============ */

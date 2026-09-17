@@ -629,7 +629,7 @@ async function renderSopTab(el) {
     });
     const landCount = landowners.reduce((sum, o) => sum + (o.land_records || []).length, 0);
     const buildingCount = landowners.reduce((sum, o) => sum + (o.building_records || []).length, 0);
-    const phoneCount = landowners.filter((o) => (o.phone || "").trim()).length;
+    const phoneCount = landowners.filter((o) => (o.phone_landline || "").trim() || (o.phone_mobile || "").trim()).length;
     const contactedCount = landowners.filter((o) => o.contact_status && o.contact_status !== "not_contacted").length;
     const contactRate = landowners.length > 0 ? contactedCount / landowners.length : 0;
     const confirmedChecklist = (selectedStage.data && selectedStage.data.checklist) || {};
