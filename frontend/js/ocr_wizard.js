@@ -242,11 +242,30 @@ function wizardViewerPaneHtml() {
     </div>`;
 }
 
+// 使用者用滑鼠捲軸自己捲到哪一頁,titleDeedWizard.viewerGlobalPage 不會跟著更新(那個
+// 欄位只有靠頁碼輸入框/上一頁/下一頁/搜尋等「主動跳頁」動作才會變)。縮放/旋轉只是要
+// 重畫,不是要跳頁,所以要先問「使用者現在实际看著第幾頁」,重畫完再捲回同一頁,
+// 不然點縮放畫面會跳回上次「主動跳頁」跳到的那一頁,而不是目前正在看的頁。
+function wizardCurrentVisiblePage() {
+  const wrap = document.getElementById("wizard-viewer-canvas-wrap");
+  if (!wrap) return titleDeedWizard.viewerGlobalPage || 1;
+  const canvases = [...wrap.querySelectorAll(".wizard-viewer-page-canvas")];
+  if (!canvases.length) return titleDeedWizard.viewerGlobalPage || 1;
+  const wrapTop = wrap.getBoundingClientRect().top;
+  for (const c of canvases) {
+    if (c.getBoundingClientRect().bottom > wrapTop + 4) return Number(c.dataset.globalPage);
+  }
+  return Number(canvases[canvases.length - 1].dataset.globalPage);
+}
+
 // 目前這份檔案(依全域頁碼換算出來的 fileIndex)所有頁面都畫出來、直向堆疊,不是只
-// 畫使用者目前那一頁 - 這樣捲軸才捲得到完整內容,不用靠翻頁按鈕一頁一頁點。
-async function wizardRenderCurrentPage() {
+// 畫使用者目前那一頁 - 這樣捲軸才捲得到完整內容,不用靠翻頁按鈕一頁一頁點。scrollTo
+// 沒給的話,重畫完會捲回原本正在看的那一頁(縮放/旋轉這種「重畫但不是要跳頁」的情境);
+// 有給的話才是真的要跳到指定頁(頁碼輸入框/上一頁/下一頁/搜尋)。
+async function wizardRenderCurrentPage(scrollTo) {
   const container = document.getElementById("wizard-viewer-pages");
   if (!container) return;
+  const targetPage = scrollTo || wizardCurrentVisiblePage();
   const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage || 1);
   const fileIndex = resolved.fileIndex;
   const file = (titleDeedWizard.files || [])[fileIndex];
@@ -269,7 +288,9 @@ async function wizardRenderCurrentPage() {
         canvas.className = "wizard-viewer-page-canvas";
         canvas.dataset.globalPage = before + n;
         container.appendChild(canvas);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const pageCtx = canvas.getContext("2d");
+        await page.render({ canvasContext: pageCtx, viewport }).promise;
+        wizardDrawSearchHighlights(pageCtx, viewport, before + n);
       }
     } else {
       const img = await wizardLoadImage(wizardFileUrls()[fileIndex]);
@@ -289,17 +310,80 @@ async function wizardRenderCurrentPage() {
       ctx.restore();
       container.appendChild(canvas);
     }
-    const target = container.querySelector(`canvas[data-global-page="${titleDeedWizard.viewerGlobalPage}"]`);
+    const target = container.querySelector(`canvas[data-global-page="${targetPage}"]`);
     if (target) target.scrollIntoView({ block: "start" });
   } catch (err) {
     container.innerHTML = `<span class="helper-text">PDF 預覽載入失敗</span>`;
   }
 }
 
-// 🔍 只在「目前這份檔案」內找,逐頁用 pdf.js 抓文字內容比對,找到第一個命中的頁就跳過去。
-// 不是完整的高亮/找下一個 UI,先求「輸入關鍵字快速跳到那一頁」堪用。
-async function wizardSearchInViewer() {
-  const term = (prompt("輸入要搜尋的文字(在目前這份檔案內搜尋):") || "").trim();
+// 🔍 只在「目前這份檔案」內找,行為比照瀏覽器/PDF閱讀器內建的 Ctrl+F:輸入文字後每一
+// 頁符合的文字都直接畫黃色網底標出來(不是只跳到第一個命中頁),上一個/下一個在命中的
+// 頁面之間切換,Enter 找下一個、Shift+Enter 找上一個。
+function wizardDrawSearchHighlights(ctx, viewport, globalPageNum) {
+  const rects = (titleDeedWizard._searchMatchesByPage || {})[globalPageNum];
+  if (!rects || !rects.length) return;
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 213, 0, 0.5)";
+  for (const rect of rects) {
+    const vp = viewport.convertToViewportRectangle(rect);
+    const x = Math.min(vp[0], vp[2]);
+    const y = Math.min(vp[1], vp[3]);
+    const w = Math.abs(vp[2] - vp[0]);
+    const h = Math.abs(vp[3] - vp[1]);
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+function wizardToggleSearchBar() {
+  if (document.getElementById("wizard-viewer-search-bar")) {
+    wizardCloseSearchBar();
+    return;
+  }
+  const toolbar = document.querySelector(".wizard-viewer-toolbar");
+  if (!toolbar) return;
+  const bar = document.createElement("div");
+  bar.className = "wizard-viewer-search-bar";
+  bar.id = "wizard-viewer-search-bar";
+  bar.innerHTML = `
+    <input type="text" id="wizard-viewer-search-input" placeholder="搜尋這份檔案的文字…" autocomplete="off">
+    <span class="helper-text" id="wizard-viewer-search-count"></span>
+    <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-prev" title="上一個(Shift+Enter)">‹</button>
+    <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-next" title="下一個(Enter)">›</button>
+    <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-close" title="關閉">✕</button>`;
+  toolbar.insertAdjacentElement("afterend", bar);
+
+  const input = bar.querySelector("#wizard-viewer-search-input");
+  input.focus();
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const term = input.value.trim();
+      if (term && term === titleDeedWizard._searchTerm) wizardSearchStep(e.shiftKey ? -1 : 1);
+      else wizardRunSearch(term);
+    } else if (e.key === "Escape") {
+      wizardCloseSearchBar();
+    }
+  });
+  document.getElementById("wizard-viewer-search-prev").addEventListener("click", () => wizardSearchStep(-1));
+  document.getElementById("wizard-viewer-search-next").addEventListener("click", () => wizardSearchStep(1));
+  document.getElementById("wizard-viewer-search-close").addEventListener("click", wizardCloseSearchBar);
+}
+
+function wizardCloseSearchBar() {
+  document.getElementById("wizard-viewer-search-bar")?.remove();
+  const hadHighlights = !!titleDeedWizard._searchTerm;
+  titleDeedWizard._searchTerm = "";
+  titleDeedWizard._searchMatchesByPage = {};
+  titleDeedWizard._searchMatchPages = [];
+  titleDeedWizard._searchIndex = -1;
+  if (hadHighlights) wizardRenderCurrentPage();
+}
+
+async function wizardRunSearch(term) {
+  term = (term || "").trim();
+  const countEl = document.getElementById("wizard-viewer-search-count");
   if (!term) return;
   const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage);
   const file = (titleDeedWizard.files || [])[resolved.fileIndex];
@@ -307,24 +391,48 @@ async function wizardSearchInViewer() {
     toast("目前這份檔案不支援文字搜尋", "error");
     return;
   }
+  if (countEl) countEl.textContent = "搜尋中…";
   try {
     const doc = await wizardGetPdfDoc(resolved.fileIndex);
+    const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
+    const before = counts.slice(0, resolved.fileIndex).reduce((s, c) => s + c, 0);
+    const byPage = {};
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const textContent = await page.getTextContent();
-      const text = textContent.items.map((it) => it.str).join("");
-      if (text.includes(term)) {
-        const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
-        const before = counts.slice(0, resolved.fileIndex).reduce((s, c) => s + c, 0);
-        wizardGoToPage(before + n);
-        toast(`找到「${term}」,已跳到第 ${n} 頁`, "success");
-        return;
+      const rects = [];
+      for (const item of textContent.items) {
+        if (item.str && item.str.includes(term)) {
+          const [, , , d, e, f] = item.transform;
+          rects.push([e, f, e + item.width, f + (item.height || Math.abs(d) || 10)]);
+        }
       }
+      if (rects.length) byPage[before + n] = rects;
     }
-    toast(`這份檔案裡找不到「${term}」`, "error");
+    titleDeedWizard._searchTerm = term;
+    titleDeedWizard._searchMatchesByPage = byPage;
+    titleDeedWizard._searchMatchPages = Object.keys(byPage).map(Number).sort((a, b) => a - b);
+    titleDeedWizard._searchIndex = 0;
+    if (!titleDeedWizard._searchMatchPages.length) {
+      if (countEl) countEl.textContent = "0 頁";
+      toast(`這份檔案裡找不到「${term}」`, "error");
+      wizardRenderCurrentPage();
+      return;
+    }
+    if (countEl) countEl.textContent = `第 1 / ${titleDeedWizard._searchMatchPages.length} 頁`;
+    wizardGoToPage(titleDeedWizard._searchMatchPages[0]);
   } catch (err) {
     toast("搜尋失敗", "error");
   }
+}
+
+function wizardSearchStep(delta) {
+  const pages = titleDeedWizard._searchMatchPages || [];
+  if (!pages.length) return;
+  titleDeedWizard._searchIndex = (titleDeedWizard._searchIndex + delta + pages.length) % pages.length;
+  const countEl = document.getElementById("wizard-viewer-search-count");
+  if (countEl) countEl.textContent = `第 ${titleDeedWizard._searchIndex + 1} / ${pages.length} 頁`;
+  wizardGoToPage(pages[titleDeedWizard._searchIndex]);
 }
 
 // 換頁後頁碼輸入框、上一頁/下一頁按鈕的 disabled 狀態都要跟著更新,乾脆整個工具列
@@ -341,7 +449,7 @@ function wizardGoToPage(n) {
     wireWizardViewerToolbar();
   }
   if (newResolved.fileIndex !== prevResolved.fileIndex) {
-    wizardRenderCurrentPage();
+    wizardRenderCurrentPage(newPage);
   } else {
     const target = document.querySelector(`.wizard-viewer-page-canvas[data-global-page="${newPage}"]`);
     if (target) target.scrollIntoView({ block: "start" });
@@ -371,7 +479,7 @@ function wireWizardViewerToolbar() {
   document.getElementById("wizard-viewer-next-page")?.addEventListener("click", () => {
     wizardGoToPage((titleDeedWizard.viewerGlobalPage || 1) + 1);
   });
-  document.getElementById("wizard-viewer-search-btn")?.addEventListener("click", wizardSearchInViewer);
+  document.getElementById("wizard-viewer-search-btn")?.addEventListener("click", wizardToggleSearchBar);
   const pageInput = document.getElementById("wizard-viewer-page-input");
   if (pageInput) {
     pageInput.addEventListener("change", () => wizardGoToPage(Math.round(Number(pageInput.value)) || 1));
@@ -529,19 +637,23 @@ function renderWizardSplitStep(rightHtml, sourcePage) {
   const fileCount = (titleDeedWizard.files || []).length;
   const root = document.getElementById("modal-root");
   const existingSplit = root && root.querySelector("#wizard-split");
-  const viewerUnchanged =
-    existingSplit &&
-    titleDeedWizard._lastViewerTargetPage === targetPage &&
-    titleDeedWizard._lastViewerFileCount === fileCount;
   const wrappedHtml = wizardStepTabWrapperHtml(rightHtml);
 
-  if (viewerUnchanged) {
+  if (existingSplit) {
+    // 精靈的 modal 已經開著了 - 只換右邊表單內容,不要重叫 openModal 整個重建
+    // .modal-dialog(那樣會重跑一次淡入動畫,換一筆地號/建號就變成像整頁跳轉一樣)。
     const formPane = existingSplit.querySelector(".wizard-form-pane");
-    if (formPane) {
-      formPane.innerHTML = wrappedHtml;
-      wireWizardStepTabs();
-      return;
+    if (formPane) formPane.innerHTML = wrappedHtml;
+    wireWizardStepTabs();
+    const pageChanged =
+      titleDeedWizard._lastViewerTargetPage !== targetPage || titleDeedWizard._lastViewerFileCount !== fileCount;
+    if (pageChanged && targetPage) {
+      wizardGoToPage(targetPage);
     }
+    titleDeedWizard.viewerTargetPage = targetPage;
+    titleDeedWizard._lastViewerTargetPage = targetPage;
+    titleDeedWizard._lastViewerFileCount = fileCount;
+    return;
   }
 
   titleDeedWizard.viewerTargetPage = targetPage;
