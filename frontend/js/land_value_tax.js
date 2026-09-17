@@ -31,11 +31,12 @@ function calculateLandValueIncrementTaxSelfUse({ originalValue, currentValue, cp
   return { gain, adjustedOriginal, cpiIndex: idx, rate: 0.1, totalTax: gain * 0.1 };
 }
 
-function landValueTaxRowResult(lr) {
+function landValueTaxRowResult(lr, liveValues) {
   if (!lr.ltt_original_value) return null;
+  const live = liveValues && liveValues[lr.id];
   const params = {
     originalValue: Number(lr.ltt_original_value) || 0,
-    currentValue: Number(lr.ltt_current_value) || 0,
+    currentValue: live ? live.current_value : Number(lr.ltt_current_value) || 0,
   };
   return {
     general: calculateLandValueIncrementTax(params),
@@ -63,9 +64,54 @@ async function renderLandValueTaxTab(el) {
     return;
   }
 
-  const bodyHtml = landOwners
-    .map((o) => {
-      const seq = String(seqByOwnerId.get(o.id)).padStart(3, "0");
+  el.innerHTML = `
+    <div class="section-toolbar">
+      <h3>土地增值稅試算(自用／一般稅率同時試算,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
+    </div>
+    <div class="helper-text" style="margin-bottom:12px" id="ltt-tab-note">⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。本月申報移轉現值查詢中…</div>
+    <div class="table-wrap">
+      <table class="ltt-table">
+        <thead><tr>
+          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本月申報移轉現值(元)</th>
+          <th>應納稅額試算(自用／一般)</th>
+        </tr></thead>
+        <tbody id="ltt-tbody"></tbody>
+      </table>
+    </div>`;
+
+  renderLttTbody(el, landOwners, {});
+  wireLandValueTaxToggles(el);
+
+  let liveValues = {};
+  let note = "本月申報移轉現值請至「土地登記」頁的「當期公告土地現值」填寫。";
+  try {
+    const lookup = await api(`/projects/${pid}/landowners/ltt-current-value-lookup-all`, { silent: true });
+    if (lookup.supported && !lookup.error) {
+      liveValues = lookup.records || {};
+      note = lookup.period_label
+        ? `本月申報移轉現值已自動帶入臺北市政府開放資料 ${escapeHtml(lookup.period_label)} 公告土地現值(即時查詢,僅供試算參考);查無資料的地號請至「土地登記」頁手動輸入。`
+        : "查無符合的公告土地現值資料,請至「土地登記」頁手動輸入本月申報移轉現值。";
+    } else if (lookup.supported && lookup.error) {
+      note = "自動查詢公告土地現值失敗,暫時沿用「土地登記」頁已存的本月申報移轉現值。";
+    } else {
+      note = "目前僅臺北市案件支援自動查詢公告土地現值,其他縣市請至「土地登記」頁手動輸入本月申報移轉現值。";
+    }
+  } catch (err) {
+    note = "自動查詢公告土地現值失敗,暫時沿用「土地登記」頁已存的本月申報移轉現值。";
+  }
+
+  const noteEl = document.getElementById("ltt-tab-note");
+  if (noteEl) noteEl.textContent = `⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。${note}`;
+  renderLttTbody(el, landOwners, liveValues);
+  wireLandValueTaxToggles(el);
+}
+
+function renderLttTbody(el, landOwners, liveValues) {
+  const tbody = el.querySelector("#ltt-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = landOwners
+    .map((o, i) => {
+      const seq = String(i + 1).padStart(3, "0");
       const recs = o.land_records || [];
       const parcels = [...new Set(recs.map((lr) => lr.parcel_number).filter(Boolean))].join("、");
       const parent = `
@@ -73,35 +119,18 @@ async function renderLandValueTaxTab(el) {
           <td style="white-space:nowrap"><button type="button" class="ltt-toggle" data-owner-toggle="${o.id}" style="border:none;background:none;cursor:pointer;font-size:13px;margin-right:4px;color:var(--text-muted)">▸</button>${seq}</td>
           <td>${escapeHtml(o.name)}</td>
           <td colspan="2" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
-          <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o)}</td>
+          <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o, liveValues)}</td>
         </tr>`;
-      const children = recs.map((lr) => lttChildRowHtml(o, lr)).join("");
+      const children = recs.map((lr) => lttChildRowHtml(o, lr, liveValues)).join("");
       return parent + children;
     })
     .join("");
-
-  el.innerHTML = `
-    <div class="section-toolbar">
-      <h3>土地增值稅試算(自用／一般稅率同時試算,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
-    </div>
-    <div class="helper-text" style="margin-bottom:12px">⚠ 僅供參考,自用稅率未套用持有年限/面積等實際適用條件,一般稅率未套用持有年限減徵、物價指數調整、土地改良費用等,正式稅額請以地方稅捐稽徵機關核算為準。本月申報移轉現值請至「土地登記」頁的「當期公告土地現值」填寫。</div>
-    <div class="table-wrap">
-      <table class="ltt-table">
-        <thead><tr>
-          <th>編號</th><th>地主</th><th>原規定地價/前次移轉現值(元)</th><th>本月申報移轉現值(元)</th>
-          <th>應納稅額試算(自用／一般)</th>
-        </tr></thead>
-        <tbody id="ltt-tbody">${bodyHtml}</tbody>
-      </table>
-    </div>`;
-
-  wireLandValueTaxToggles(el);
 }
 
-function lttOwnerTotal(owner) {
+function lttOwnerTotal(owner, liveValues) {
   return (owner.land_records || []).reduce(
     (s, lr) => {
-      const r = landValueTaxRowResult(lr);
+      const r = landValueTaxRowResult(lr, liveValues);
       return {
         general: s.general + (r ? r.general.totalTax : 0),
         selfUse: s.selfUse + (r ? r.selfUse.totalTax : 0),
@@ -111,10 +140,10 @@ function lttOwnerTotal(owner) {
   );
 }
 
-function lttOwnerTotalHtml(owner) {
+function lttOwnerTotalHtml(owner, liveValues) {
   const anyFilled = (owner.land_records || []).some((lr) => lr.ltt_original_value);
   if (!anyFilled) return `<span class="helper-text">尚未輸入</span>`;
-  const t = lttOwnerTotal(owner);
+  const t = lttOwnerTotal(owner, liveValues);
   return `<div>自用 <strong>約 ${Math.round(t.selfUse).toLocaleString()} 元</strong></div><div>一般 <strong>約 ${Math.round(t.general).toLocaleString()} 元</strong></div>`;
 }
 
@@ -129,13 +158,17 @@ function wireLandValueTaxToggles(el) {
   });
 }
 
-function lttChildRowHtml(owner, record) {
-  const result = landValueTaxRowResult(record);
+function lttChildRowHtml(owner, record, liveValues) {
+  const result = landValueTaxRowResult(record, liveValues);
+  const live = liveValues && liveValues[record.id];
+  const currentValueCell = live
+    ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(live.period_label)}(即時查詢)</div>${Number(live.current_value).toLocaleString()}`
+    : `${record.ltt_current_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}${record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-"}`;
   return `
     <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
       <td colspan="2" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
       <td>${record.ltt_original_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_original_value_period)}</div>` : ""}${record.ltt_original_value ? Number(record.ltt_original_value).toLocaleString() : "-"}</td>
-      <td>${record.ltt_current_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}${record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-"}</td>
+      <td>${currentValueCell}</td>
       <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>
     </tr>`;
 }

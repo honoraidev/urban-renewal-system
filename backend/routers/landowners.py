@@ -122,6 +122,46 @@ def create_landowner(
     return get_landowner_or_404(db, project_id, landowner.id)
 
 
+@router.get("/ltt-current-value-lookup-all")
+def lookup_all_current_values(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
+    """土增稅試算頁一開就自動呼叫:一次查出整個案件所有土地登記的當期公告土地現值,
+    不用一筆一筆點「自動查詢」。純查詢、不寫入資料庫,結果只用來即時試算 - 存檔
+    仍要去「土地登記」頁的欄位另外存(那裡也有單筆的自動查詢按鈕可以用)。"""
+    city = project.city or ""
+    if "臺北市" not in city and "台北市" not in city:
+        return {"supported": False, "records": {}}
+
+    records = db.scalars(
+        select(LandRecord)
+        .join(Landowner, LandRecord.landowner_id == Landowner.id)
+        .where(Landowner.project_id == project.id)
+    ).all()
+
+    results: dict[int, dict] = {}
+    period_label = None
+    for record in records:
+        try:
+            result = lookup_current_value_per_sqm(project.district, record.section, record.subsection, record.parcel_number)
+        except Exception as exc:
+            # 開放資料下載失敗(第一筆就會踩到,因為快取還沒建立)- 整批放棄,不要對
+            # 政府 API 重試 62 次,直接讓前端顯示查詢失敗、退回手動輸入的存值。
+            return {"supported": True, "period_label": None, "records": {}, "error": str(exc)}
+        if result is None:
+            continue
+        unit_price, period_label = result
+        owned_area = float(record.owned_area_sqm or 0)
+        results[record.id] = {
+            "unit_price_per_sqm": unit_price,
+            "period_label": period_label,
+            "current_value": round(unit_price * owned_area),
+        }
+
+    return {"supported": True, "period_label": period_label, "records": results}
+
+
 @router.get("/{landowner_id}", response_model=LandownerRead)
 def get_landowner(
     landowner_id: int,
