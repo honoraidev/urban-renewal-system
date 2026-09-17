@@ -2291,6 +2291,20 @@ def extract_title_deed(
     pages = _flatten_to_pages(files, dpi=HIGH_ACCURACY_PDF_RENDER_DPI if high_accuracy else PDF_RENDER_DPI)
     flatten_seconds = time.time() - document_started_at
 
+    # 每份上傳檔案各展開成幾頁(單張圖片固定算1頁)- 前端要靠這個把 source_page(整批
+    # 攤平後的全域頁碼)換算回「第幾份檔案的第幾頁」,才能在使用者一次上傳好幾份檔案
+    # 時也能自動跳頁,不是只有單一PDF檔案才行。只是查頁數,不重新渲染,很便宜。
+    def _pdf_page_count(content: bytes) -> int:
+        try:
+            return fitz.open(stream=content, filetype="pdf").page_count or 1
+        except Exception:
+            return 1
+
+    file_page_counts = [
+        _pdf_page_count(content) if ((mime_type or "").lower() == "application/pdf" or content[:5] == b"%PDF-") else 1
+        for content, mime_type in files
+    ]
+
     # Electronic 謄本 PDFs carry a perfect text layer - use it verbatim and skip both
     # OCR and the vision call for those pages (free + exact). Aligned 1:1 with `pages`;
     # a length mismatch (unexpected) just disables the optimisation for safety.
@@ -2363,6 +2377,7 @@ def extract_title_deed(
                 f"validation issues={len(probs)}",
                 flush=True,
             )
+            data["file_page_counts"] = file_page_counts
             # 規則直讀的軟性驗證提示不回傳給前端(使用者反映是雜訊);
             # 真正的失敗只會發生在下面的 AI 路徑。
             return data, None
@@ -2636,6 +2651,7 @@ def extract_title_deed(
         if isinstance(_enc.get("right_holder"), str) and _FILE_NUMBER_RE.match(_enc["right_holder"].strip()):
             _enc["right_holder"] = ""
 
+    data["file_page_counts"] = file_page_counts
     return data, warning
 
 

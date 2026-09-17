@@ -131,13 +131,21 @@ function normalizeTitleDeedData(raw) {
   }));
 
   const encumbrances = (raw.encumbrances || []).map(toEncumbranceRow);
-  return { deed_category: deedCategory, parcels, buildings, encumbrances };
+  return {
+    deed_category: deedCategory,
+    parcels,
+    buildings,
+    encumbrances,
+    // 每份上傳檔案展開後各佔幾頁,跟 titleDeedWizard.files 同順序 - 換算 source_page
+    // (整批攤平後的全域頁碼)回「第幾份檔案第幾頁」用,見 wizardResolveSourcePage。
+    file_page_counts: Array.isArray(raw.file_page_counts) ? raw.file_page_counts : null,
+  };
 }
 
 /* ================= 左側原始謄本預覽(審核步驟用,見 wizardSplitBodyHtml) =================
-   只做「顯示原始檔案 + 手動切換/捲動對照」,不會自動跳到某個欄位對應的頁碼 - 目前
-   OCR 流程沒有記錄「這筆資料是從哪一頁辨識出來」,要做到自動跳頁得後端也跟著改,
-   先用這個版本讓審核時能一邊看原圖一邊核對就好。 */
+   顯示原始檔案供手動切換/捲動對照,審核每一筆地號/建號時還會依後端記錄的 source_page
+   自動跳到/切到該筆對應的檔案與頁碼(wizardResolveSourcePage) - 純電子謄本規則解析、
+   AI辨識兩條後端路徑都會回傳 source_page,對每份上傳檔案都適用。 */
 function wizardFileUrls() {
   const files = titleDeedWizard.files || [];
   if (!titleDeedWizard.fileUrls || titleDeedWizard.fileUrls.length !== files.length) {
@@ -147,18 +155,34 @@ function wizardFileUrls() {
   return titleDeedWizard.fileUrls;
 }
 
+// 把「整批攤平後的全域頁碼」(後端 source_page,見 utils/ocr.py 的 _backfill_source_pages)
+// 換算成「第幾份上傳檔案的第幾頁」- 靠 file_page_counts(每份檔案展開後佔幾頁,跟
+// titleDeedWizard.files 同一個順序)逐份累加找出落在哪一份檔案裡。
+function wizardResolveSourcePage(globalPage) {
+  const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || null;
+  if (!globalPage || !counts || !counts.length) return null;
+  let remaining = globalPage;
+  for (let i = 0; i < counts.length; i++) {
+    if (remaining <= counts[i]) return { fileIndex: i, localPage: remaining };
+    remaining -= counts[i];
+  }
+  return null; // 頁碼超出檔案總頁數範圍,理論上不會發生,防呆用
+}
+
 function wizardViewerPaneHtml() {
   const files = titleDeedWizard.files || [];
   if (!files.length) {
     return `<div class="wizard-viewer-pane"><div class="wizard-viewer-body"><span class="helper-text">沒有原始檔案可預覽</span></div></div>`;
   }
   const urls = wizardFileUrls();
+  const resolved = wizardResolveSourcePage(titleDeedWizard.viewerTargetPage);
+  if (resolved) titleDeedWizard.viewerActiveIndex = resolved.fileIndex;
   const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
   const activeFile = files[activeIdx];
   const isPdf = (activeFile.type || "").includes("pdf");
-  // 只有單一檔案時,「這筆是原謄本第幾頁」才能直接對應到這份 PDF 的頁碼 - 上傳多份
-  // 檔案時無法知道各檔案各佔幾頁(沒有解析每份檔案的頁數),先不跳頁,不亂猜。
-  const targetPage = files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
+  // file_page_counts 沒有時(理論上只有電子謄本規則路徑以外的意外狀況)退回舊邏輯:
+  // 只有單一檔案才能直接把全域頁碼當成該檔案的頁碼,不亂猜多檔案的對應關係。
+  const targetPage = resolved ? resolved.localPage : files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
   const srcWithPage = targetPage ? `${urls[activeIdx]}#page=${targetPage}` : urls[activeIdx];
   const body = isPdf
     ? `<iframe src="${escapeHtml(srcWithPage)}" title="${escapeHtml(activeFile.name)}"></iframe>`
@@ -177,7 +201,10 @@ function wizardViewerPaneHtml() {
         </div>`
       : ""
     }
-      ${isPdf && targetPage ? `<div class="helper-text wizard-viewer-jump-note">→ 已跳至原謄本第 ${targetPage} 頁</div>` : ""}
+      ${isPdf && targetPage
+      ? `<div class="helper-text wizard-viewer-jump-note">→ 已跳至${files.length > 1 ? `第 ${activeIdx + 1} 份檔案` : "原謄本"}第 ${targetPage} 頁</div>`
+      : ""
+    }
       <div class="wizard-viewer-body">${body}</div>
     </div>`;
 }
