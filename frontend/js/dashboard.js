@@ -890,6 +890,19 @@ function setIntegratedTabLabel(mode) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
+  // 「案件總覽」是進案件的落地頁,只給看總覽卡片,不跟 SOP 進度/整合清冊等其他分頁
+  // 並排出現在同一個分頁列 - 要看其他分頁,照設計只能從側欄「案件管理」清單重新
+  // 點進來(見 openProject 的 defaultTab)。這裡把分頁列跟 SOP 進度條藏起來,
+  // 離開總覽時(tab !== "overview")再讓它們正常出現。
+  const tabBar = document.querySelector(".tab-bar");
+  const sopSummary = document.getElementById("pd-sop-summary");
+  if (tab === "overview") {
+    tabBar?.classList.add("hidden");
+    sopSummary?.classList.add("hidden");
+  } else {
+    tabBar?.classList.remove("hidden");
+    sopSummary?.classList.remove("hidden");
+  }
   // 土地登記 / 建物登記已併入「整合清冊」分頁的檢視切換下拉。舊的 "buildings" 進入點
   // (例如建物謄本匯入後)導到整合清冊並預設顯示建物登記檢視。
   if (tab === "buildings") {
