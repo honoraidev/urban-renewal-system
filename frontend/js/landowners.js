@@ -925,7 +925,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn">👁 檢視模式</button>`
     : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn">✏️ 編輯</button>`;
   const addContactBtnHtml = canAddContact
-    ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 建立一筆拜訪資料</button>`
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 拜訪資料</button>`
     : "";
   const siblingNavHtml = siblings
     ? `<span class="lo-sibling-nav">
@@ -1278,11 +1278,12 @@ function landRecordFormFields(record) {
     </div>
     <div class="field">
       <label>當期公告土地現值</label>
-      <div style="display:flex;gap:8px">
-        <input name="ltt_current_value_period" value="${escapeHtml(r.ltt_current_value_period) || ""}" placeholder="年期 (例: 115年)" style="flex:1" autocomplete="off">
-        <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="金額 (例: 456000)" style="flex:1" autocomplete="off">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input name="ltt_current_value_period" value="${escapeHtml(r.ltt_current_value_period) || ""}" placeholder="年期 (例: 115年)" style="flex:1;min-width:100px" autocomplete="off">
+        <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="金額 (例: 456000)" style="flex:1;min-width:100px" autocomplete="off">
+        ${r.id ? `<button type="button" class="btn-secondary btn-sm" id="lr-ltt-lookup-btn" style="flex-shrink:0" title="從臺北市政府資料開放平臺自動查詢公告土地現值(僅支援臺北市案件)">🔍 自動查詢</button>` : ""}
       </div>
-      <div class="helper-text" style="margin-top:4px">供「土增稅」頁自動計算「本月申報移轉現值」用,填了才算得出稅額。</div>
+      <div class="helper-text" style="margin-top:4px">供「土增稅」頁自動計算「本月申報移轉現值」用,填了才算得出稅額。${r.id ? "點「自動查詢」可從臺北市政府資料開放平臺帶入(目前僅支援臺北市案件,查到後請再核對一次)。" : ""}</div>
     </div>`;
 }
 
@@ -1383,6 +1384,24 @@ function openEditLandRecordModal(landownerId, record) {
   );
   const _f=document.getElementById("land-record-edit-form");
   wireLandRecordAreaPreview(_f);
+  const lookupBtn = document.getElementById("lr-ltt-lookup-btn");
+  if (lookupBtn) {
+    lookupBtn.addEventListener("click", async () => {
+      lookupBtn.disabled = true;
+      const originalText = lookupBtn.textContent;
+      lookupBtn.textContent = "查詢中...";
+      try {
+        const result = await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/land-records/${record.id}/ltt-current-value-lookup`);
+        _f.querySelector('[name="ltt_current_value_period"]').value = result.period_label;
+        _f.querySelector('[name="ltt_current_value"]').value = result.current_value;
+        toast(`已帶入 ${result.period_label} 公告現值 ${result.unit_price_per_sqm.toLocaleString()} 元/m² × 持分 ${result.owned_area_sqm}m²,記得核對後再儲存`, "success");
+      } catch (err) {
+      } finally {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = originalText;
+      }
+    });
+  }
   _f.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
