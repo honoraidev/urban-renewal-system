@@ -213,8 +213,8 @@ async function renderProjectOverviewTab(el) {
         <h3>關鍵指標</h3>
         <div class="ov-metrics">
           ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
-          ${_ovMetric("🗺️", "土地同意", overview.key_metrics.land_share_ratio, `${fmt2(overview.key_metrics.land_share_agreed_sqm)} / ${fmt2(overview.key_metrics.land_share_total_sqm)} m²`)}
-          ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${fmt2(overview.key_metrics.building_share_agreed_sqm)} / ${fmt2(overview.key_metrics.building_share_total_sqm)} m²`)}
+          ${_ovMetric("🗺️", "土地同意", overview.key_metrics.land_share_ratio, `${fmtArea(overview.key_metrics.land_share_agreed_sqm)} / ${fmtArea(overview.key_metrics.land_share_total_sqm)} m²`)}
+          ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${fmtArea(overview.key_metrics.building_share_agreed_sqm)} / ${fmtArea(overview.key_metrics.building_share_total_sqm)} m²`)}
         </div>
       </div>
 

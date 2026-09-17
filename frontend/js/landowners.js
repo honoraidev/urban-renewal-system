@@ -1205,9 +1205,20 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   });
 }
 
+// datetime-local 沒給 value 的話,Chrome/Edge 只會顯示一個「現在時刻」的灰色預覽
+// 樣式,看起來像已經填好,但使用者沒真的點進去改過任何一段的話,FormData 讀出來
+// 其實是空字串 —— 送出時 new Date("") 會丟例外,又被下面的 catch(err){} 整個吞掉,
+// 使用者只會看到「點建立沒反應」,連 toast 都不會跳。這裡直接把 value 設成真正的
+// 現在時間,從根本避免這個空值陷阱。
+function _nowForDatetimeLocalInput() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
 function contactSidePanelFieldsHtml() {
   return `
-    <div class="field"><label>拜訪時間</label><input type="datetime-local" name="c_contact_date" required></div>
+    <div class="field"><label>拜訪時間</label><input type="datetime-local" name="c_contact_date" value="${_nowForDatetimeLocalInput()}" required></div>
     <div class="field"><label>拜訪方式</label>
       <select name="c_contact_method">
         ${Object.entries(CONTACT_METHOD_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
@@ -1238,12 +1249,17 @@ function openContactSidePanel(landownerId, siblingIds) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
+    const contactDate = new Date(data.c_contact_date);
+    if (!data.c_contact_date || isNaN(contactDate.getTime())) {
+      toast("請填寫拜訪時間", "error");
+      return;
+    }
     try {
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
         method: "POST",
         body: {
           landowner_id: landownerId,
-          contact_date: new Date(data.c_contact_date).toISOString(),
+          contact_date: contactDate.toISOString(),
           contact_method: data.c_contact_method,
           contact_result: data.c_contact_result,
           notes: data.c_notes || null,

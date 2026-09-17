@@ -34,7 +34,8 @@ function donutSvg3(agreedPct, opposedPct, size = 62) {
 
 // total/agreed/opposed 可以是人數,也可以是面積(m²)- 圓餅只看比例,兩種單位共用
 // 同一份邏輯。names 是目前「拜訪結果=同意」的地主姓名清單,滑鼠停在環上看。
-function projectRingHtml(label, total, agreed, opposed, names) {
+// unit/fmt:環下面除了%,再補一行實際數字(如「3/97人」「12.5/300 m²」),不只給%。
+function projectRingHtml(label, total, agreed, opposed, names, unit = "", fmt = (n) => Math.round(n || 0)) {
   const t = total || 0;
   const agreedPct = t > 0 ? (agreed / t) * 100 : 0;
   const opposedPct = t > 0 ? (opposed / t) * 100 : 0;
@@ -49,6 +50,7 @@ function projectRingHtml(label, total, agreed, opposed, names) {
         <span class="project-ring-pct">${Math.round(agreedPct)}%</span>
       </div>
       <div class="project-ring-label">${escapeHtml(label)}</div>
+      <div class="project-ring-count">${fmt(agreed)}/${fmt(t)}${unit}</div>
     </div>`;
 }
 
@@ -406,9 +408,9 @@ async function loadDashboard() {
               <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             <div class="project-card-rings">
-              ${projectRingHtml("人數同意", p.visit_breakdown?.headcount_total, p.visit_breakdown?.headcount_agreed, p.visit_breakdown?.headcount_opposed, p.agreed_landowner_names)}
-              ${projectRingHtml("土地同意", p.visit_breakdown?.land_total_sqm, p.visit_breakdown?.land_agreed_sqm, p.visit_breakdown?.land_opposed_sqm, p.agreed_landowner_names)}
-              ${projectRingHtml("建物同意", p.visit_breakdown?.building_total_sqm, p.visit_breakdown?.building_agreed_sqm, p.visit_breakdown?.building_opposed_sqm, p.agreed_landowner_names)}
+              ${projectRingHtml("人數同意", p.visit_breakdown?.headcount_total, p.visit_breakdown?.headcount_agreed, p.visit_breakdown?.headcount_opposed, p.agreed_landowner_names, "人")}
+              ${projectRingHtml("土地同意", p.visit_breakdown?.land_total_sqm, p.visit_breakdown?.land_agreed_sqm, p.visit_breakdown?.land_opposed_sqm, p.agreed_landowner_names, " m²", (n) => fmtArea(n))}
+              ${projectRingHtml("建物同意", p.visit_breakdown?.building_total_sqm, p.visit_breakdown?.building_agreed_sqm, p.visit_breakdown?.building_opposed_sqm, p.agreed_landowner_names, " m²", (n) => fmtArea(n))}
             </div>
             ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown)}
             <div class="project-card-tiers">
