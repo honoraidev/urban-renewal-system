@@ -157,9 +157,27 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}">
             <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
             <td>${(() => {
-      const addrs = [...new Set(br.map((r) => _shortDoorAddr(r.address)).filter(Boolean))];
+      // 「房屋地下N層」的地下室/車位建號常是依持分比例登記給幾十位共有人(不是
+      // 這位地主自己專屬的一戶),_shortDoorAddr 會把「22號房屋地下二層」也簡化成
+      // 「22號」,跟他自己真正的住家門牌長得一模一樣、容易誤會成他名下有好幾戶
+      // 房子。這裡標成灰色虛線「(地下持分)」跟真正的住家門牌區分開,不整個藏起來
+      // (藏起來會讓持分筆數對不上)。
+      const addrMap = new Map();
+      br.forEach((r) => {
+        const label = _shortDoorAddr(r.address);
+        if (!label) return;
+        const shared = /房屋地下/.test(r.address || "");
+        if (!addrMap.has(label)) addrMap.set(label, shared);
+      });
+      const addrs = [...addrMap.entries()];
       return addrs.length
-        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${addrs.map((a) => `<span class="mini-badge">${escapeHtml(a)}</span>`).join("")}</div>`
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${addrs
+          .map(([a, shared]) =>
+            shared
+              ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+              : `<span class="mini-badge">${escapeHtml(a)}</span>`
+          )
+          .join("")}</div>`
         : `<span style="color:var(--text-muted)">-</span>`;
     })()}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
@@ -948,7 +966,10 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
           <div class="field-row">
             ${loFieldHtml("姓名", "name", owner.name, "required")}
             ${loFieldHtml("統一編號", "id_number", owner.id_number, 'placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"')}
-            ${loFieldHtml("電話", "phone", owner.phone)}
+          </div>
+          <div class="field-row">
+            ${loFieldHtml("市內電話", "phone_landline", owner.phone_landline, 'placeholder="例如 02-12345678" autocomplete="off"')}
+            ${loFieldHtml("行動電話", "phone_mobile", owner.phone_mobile, 'placeholder="例如 0912345678" autocomplete="off"')}
           </div>
           <div class="field-row">
             ${loFieldHtml("LINE ID", "line_id", owner.line_id, 'autocomplete="off"')}
@@ -1153,7 +1174,8 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       const payload = {
         name: data.name,
         id_number: data.id_number || null,
-        phone: data.phone || null,
+        phone_landline: data.phone_landline || null,
+        phone_mobile: data.phone_mobile || null,
         line_id: data.line_id || null,
         email: data.email || null,
         address: data.address || null,

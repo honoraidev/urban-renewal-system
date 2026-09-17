@@ -26,18 +26,25 @@ router = APIRouter(prefix="/projects/{project_id}/building-view", tags=["buildin
 _CONTACT_RESULT_PRIORITY = ["opposed", "callback_needed", "no_answer", "undecided"]
 
 
-def _cell_status(owners: list[dict]) -> str:
+def _cell_status(owners: list[dict]) -> tuple[str, float]:
+    """Returns (status, agreed_ratio). 共有人只要有人反對/需回電/未接聽/明確標未決定,
+    整格照舊蓋成那個最需要注意的狀態(ratio 用不到)。剩下的情況下才看「同意」——
+    以前只要 results 集合裡出現過的值恰好等於 {"agreed"} 就整格判定為同意,但完全
+    沒被聯絡過的共有人根本不會出現在 results 裡,導致「3 位共有人只有 1 位同意、
+    另外 2 位還沒聯絡過」也被誤判成整格同意(綠色)。改成用「有標記同意的人數 ÷
+    這格總共有人數」算比例,只有全部人都同意才是純綠,否則是比例色階(前端依
+    agreed_ratio 畫漸層)。"""
     if not owners:
-        return "empty"
+        return "empty", 0.0
     results = {o.get("last_contact_result") for o in owners if o.get("last_contact_result")}
-    if not results:
-        return "none"
     for candidate in _CONTACT_RESULT_PRIORITY:
         if candidate in results:
-            return candidate
-    if results == {"agreed"}:
-        return "agreed"
-    return "undecided"
+            return candidate, 0.0
+    agreed_count = sum(1 for o in owners if o.get("last_contact_result") == "agreed")
+    if agreed_count == 0:
+        return "none", 0.0
+    ratio = agreed_count / len(owners)
+    return ("agreed" if ratio >= 1.0 else "partial_agreed"), ratio
 
 
 @router.get("")
@@ -78,7 +85,8 @@ def get_building_view(
         owner = {
             "landowner_id": r.landowner_id,
             "name": r.landowner.name if r.landowner else "",
-            "phone": r.landowner.phone if r.landowner else None,
+            "phone_landline": r.landowner.phone_landline if r.landowner else None,
+            "phone_mobile": r.landowner.phone_mobile if r.landowner else None,
             "address": r.landowner.address if r.landowner else None,
             "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
             "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
@@ -106,7 +114,7 @@ def get_building_view(
             for o in cell["owners"]:
                 by_id[o["landowner_id"]] = o
             cell["owners"] = list(by_id.values())
-            cell["status"] = _cell_status(cell["owners"])
+            cell["status"], cell["agreed_ratio"] = _cell_status(cell["owners"])
 
     # 純土地地主(有土地登記,但沒有任何建物登記)——樓棟視圖整個是用建物門牌分格
     # 的,這種地主原本完全不會出現在畫面上任何地方,容易被忽略掉。額外列一份清單。
@@ -125,7 +133,8 @@ def get_building_view(
             {
                 "landowner_id": r.landowner_id,
                 "name": r.landowner.name if r.landowner else "",
-                "phone": r.landowner.phone if r.landowner else None,
+                "phone_landline": r.landowner.phone_landline if r.landowner else None,
+                "phone_mobile": r.landowner.phone_mobile if r.landowner else None,
                 "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
                 "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",
                 "visit_status": r.landowner.visit_status if r.landowner else "not_visited",

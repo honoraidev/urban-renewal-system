@@ -139,6 +139,8 @@ class LandownerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     id_number: str | None = None
     phone: str | None = None
+    phone_landline: str | None = None
+    phone_mobile: str | None = None
     line_id: str | None = None
     email: str | None = None
     address: str | None = None
@@ -152,6 +154,8 @@ class LandownerUpdate(BaseModel):
     name: str | None = None
     id_number: str | None = None
     phone: str | None = None
+    phone_landline: str | None = None
+    phone_mobile: str | None = None
     line_id: str | None = None
     email: str | None = None
     address: str | None = None
@@ -174,6 +178,8 @@ class LandownerRead(BaseModel):
     name: str
     id_number: str | None = None
     phone: str | None = None
+    phone_landline: str | None = None
+    phone_mobile: str | None = None
     line_id: str | None = None
     email: str | None = None
     address: str | None = None

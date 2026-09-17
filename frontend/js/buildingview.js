@@ -57,15 +57,19 @@ function buildingViewStatusChipsHtml(o) {
 // 色),滑鼠停在格子上用原生 title 屬性補上,不用另外點進編輯視窗才看得到。多位
 // 共有人時逐位換行列出。
 function buildingViewCellTooltip(cell) {
-  return cell.owners
-    .map((o) => {
-      const parts = [o.name || "(未填姓名)"];
-      if (o.phone) parts.push(o.phone);
-      if (o.address) parts.push(o.address);
-      parts.push(o.last_contact_result ? CONTACT_RESULT_LABEL[o.last_contact_result] || o.last_contact_result : "尚無聯絡紀錄");
-      return parts.join(" · ");
-    })
-    .join("\n");
+  const lines = cell.owners.map((o) => {
+    const parts = [o.name || "(未填姓名)"];
+    if (o.phone_mobile) parts.push(`📱${o.phone_mobile}`);
+    if (o.phone_landline) parts.push(`☎${o.phone_landline}`);
+    if (o.address) parts.push(o.address);
+    parts.push(o.last_contact_result ? CONTACT_RESULT_LABEL[o.last_contact_result] || o.last_contact_result : "尚無聯絡紀錄");
+    return parts.join(" · ");
+  });
+  if (cell.status === "partial_agreed") {
+    const agreedCount = Math.round((cell.agreed_ratio || 0) * cell.owners.length);
+    lines.unshift(`已同意 ${agreedCount}/${cell.owners.length} 人`);
+  }
+  return lines.join("\n");
 }
 
 // 格子底色改依「最新一次聯絡結果」上色(見 backend/routers/building_view.py 的
@@ -75,18 +79,25 @@ function buildingViewCellTooltip(cell) {
 function buildingViewLegendHtml() {
   const items = [
     { cls: "bv-cell-agreed", label: "同意" },
+    { cls: "bv-cell-partial", label: "部分共有人同意(比例漸層)" },
     { cls: "bv-cell-noanswer", label: "未接聽" },
     { cls: "bv-cell-callback", label: "需回電" },
     { cls: "bv-cell-opposed", label: "反對" },
     { cls: "bv-cell-pending", label: "未決定" },
   ];
-  return items
+  const legendItems = items
     .map((it) => `<span class="bv-legend-item"><span class="bv-legend-swatch ${it.cls}"></span>${it.label}</span>`)
     .join("");
+  // 「×N」角標 = 這格有多位共同持分人(常見於依持分比例登記的地下室/車位建號),
+  // 邊框改用紫色跟一般聯絡狀態的格子區分開,並在圖例文字說明清楚,避免被誤會成
+  // OCR 又重複匯入。
+  const sharedLegend = `<span class="bv-legend-item"><span class="bv-legend-swatch bv-cell-shared-swatch"></span>共有(多位共同持分,如地下室/車位;角標「×N」= 持分人數)</span>`;
+  return legendItems + sharedLegend;
 }
 
 function buildingViewCellClass(status) {
   if (status === "agreed") return "bv-cell-agreed";
+  if (status === "partial_agreed") return "bv-cell-partial";
   if (status === "opposed") return "bv-cell-opposed";
   if (status === "callback_needed") return "bv-cell-callback";
   if (status === "no_answer") return "bv-cell-noanswer";
@@ -125,8 +136,14 @@ function buildingViewGroupCardHtml(g) {
           const cellLabel = flipped ? g.floors.find((f) => f.sort === c.key)?.label : door;
           const wide = wideCls(cellLabel);
           if (!cell) return `<div class="bv-cell bv-cell-empty${wide}">${escapeHtml(String(cellLabel))}</div>`;
-          const badge = cell.owners.length > 1 ? `<span class="bv-cell-badge">×${cell.owners.length}</span>` : "";
-          return `<div class="bv-cell${wide} ${buildingViewCellClass(cell.status)}" data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}" title="${escapeHtml(buildingViewCellTooltip(cell))}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
+          const shared = cell.owners.length > 1;
+          const badge = shared ? `<span class="bv-cell-badge bv-cell-badge-shared">×${cell.owners.length}</span>` : "";
+          const sharedCls = shared ? " bv-cell-shared" : "";
+          // 多位共有人時,「同意」不再是全有全無 —— 只要不是全部人都同意,就照
+          // 已同意人數 ÷ 共有人數畫比例漸層(左邊綠、右邊還是未決定色),不要因為
+          // 其中 1 個人同意就整格蓋成純綠,誤導成「這戶已經談定了」。
+          const fillStyle = cell.status === "partial_agreed" ? ` style="--bv-fill:${Math.round((cell.agreed_ratio || 0) * 100)}%"` : "";
+          return `<div class="bv-cell${wide}${sharedCls} ${buildingViewCellClass(cell.status)}"${fillStyle} data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}" title="${escapeHtml(buildingViewCellTooltip(cell))}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
         })
         .join("");
       return rowLabelHtml + cellsHtml;
@@ -155,15 +172,17 @@ function buildingViewGroupCardHtml(g) {
 function buildingViewLandOnlyOwnerRowHtml(o) {
   const nm = escapeHtml(o.name) || "-";
   const initial = (o.name || "?").trim().charAt(0) || "?";
-  const phone = (o.phone || "").trim();
+  const mobile = (o.phone_mobile || "").trim();
+  const landline = (o.phone_landline || "").trim();
+  const phoneText = [mobile && `📱${mobile}`, landline && `☎${landline}`].filter(Boolean).join(" · ");
   const parcels = [...new Set(o.parcels || [])].join("、") || "-";
   return `
     <div class="bv-owner-row">
       <span class="bv-owner-avatar">${escapeHtml(initial)}</span>
       <div class="bv-owner-main">
         <a href="#" data-bv-open-owner="${o.landowner_id}" class="bv-owner-name">${nm}<span class="bv-owner-go">查看 ›</span></a>
-        <div class="bv-owner-phone ${phone ? "" : "is-empty"}">🗺️ 地號:${escapeHtml(parcels)}</div>
-        <div class="bv-owner-phone ${phone ? "" : "is-empty"}">${phone ? `📞 ${escapeHtml(phone)}` : "尚未提供電話"}</div>
+        <div class="bv-owner-phone">🗺️ 地號:${escapeHtml(parcels)}</div>
+        <div class="bv-owner-phone ${phoneText ? "" : "is-empty"}">${phoneText ? escapeHtml(phoneText) : "尚未提供電話"}</div>
       </div>
       <span class="bv-status-chips">${buildingViewStatusChipsHtml(o)}</span>
     </div>`;

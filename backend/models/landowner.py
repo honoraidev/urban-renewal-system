@@ -19,6 +19,8 @@ class Landowner(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     id_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    phone_landline: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    phone_mobile: Mapped[str | None] = mapped_column(String(30), nullable=True)
     line_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)

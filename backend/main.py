@@ -82,6 +82,8 @@ def _auto_migrate() -> None:
         ("encumbrances", "parcel_kind", "VARCHAR(20) NULL"),
         ("landowners", "line_id", "VARCHAR(100) NULL"),
         ("landowners", "email", "VARCHAR(255) NULL"),
+        ("landowners", "phone_landline", "VARCHAR(30) NULL"),
+        ("landowners", "phone_mobile", "VARCHAR(30) NULL"),
         ("documents", "sop_stage", "INT NULL"),
         ("documents", "dev_stage", "INT NULL"),
         ("projects", "case_type", "VARCHAR(100) NULL"),
@@ -102,6 +104,22 @@ def _auto_migrate() -> None:
                 _conn.commit()
         except Exception as exc:
             print(f"[auto_migrate] ALTER {_tbl} {_col} skipped: {exc}", flush=True)
+
+    # landowners.phone 拆成市內電話/行動電話兩欄後,舊資料一次性搬進 phone_mobile
+    # (原本這欄大多填手機)- WHERE phone_mobile IS NULL 保證只搬一次,不會覆蓋掉
+    # 使用者之後自己填的市內電話。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(
+                _sql_text(
+                    "UPDATE landowners SET phone_mobile = phone "
+                    "WHERE phone_mobile IS NULL AND phone IS NOT NULL AND phone <> ''"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] landowners.phone_mobile backfill skipped: {exc}", flush=True)
 
     # news_items.url 原本是 VARCHAR(500),但 Google 新聞 RSS 的轉址連結常常超過 500 字
     # (實測看過將近 900 字),存進去會被截斷成打不開的網址,還會讓不同文章的截斷結果

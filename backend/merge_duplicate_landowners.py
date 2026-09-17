@@ -145,6 +145,10 @@ def main() -> None:
 
             if not a.phone and b.phone:
                 a.phone = b.phone
+            if not a.phone_landline and b.phone_landline:
+                a.phone_landline = b.phone_landline
+            if not a.phone_mobile and b.phone_mobile:
+                a.phone_mobile = b.phone_mobile
             if not a.notes and b.notes:
                 a.notes = b.notes
 
