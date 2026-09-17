@@ -191,7 +191,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
               <span class="visit-date">${visit}</span>
             </td>
             <td class="row-actions">
-              <button type="button" class="btn-link btn-sm" data-detail="${o.id}">查看明細</button>
+              <button type="button" class="btn-link btn-sm" data-detail="${o.id}">詳細內容</button>
             </td>
           </tr>
           ${ownerDetailRowHtml(o, 10)}`;
