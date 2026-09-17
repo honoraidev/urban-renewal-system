@@ -5,33 +5,90 @@ let dashboardProjectsById = {};
 const expandedSidebarCities = new Set();
 let sidebarCitiesInitialized = false;
 
-function donutSvg(pct, size = 62) {
+// 三色圓餅(同意/反對/其他)- 依「拜訪結果」算,不是 SOP 關卡用的嚴格雙門檻比例
+// (見 utils/visit_consent.py)。agreedPct/opposedPct 是 0~100,其餘自動算成「其他」
+// (未接聽/需回電/未決定/完全沒拜訪過)。
+function donutSvg3(agreedPct, opposedPct, size = 62) {
   const r = size / 2 - 6;
   const c = size / 2;
   const circumference = 2 * Math.PI * r;
-  const filled = (Math.max(0, Math.min(100, pct)) / 100) * circumference;
+  const agreed = Math.max(0, Math.min(100, agreedPct));
+  const opposed = Math.max(0, Math.min(100 - agreed, opposedPct));
+  const other = Math.max(0, 100 - agreed - opposed);
+  const agreedLen = (agreed / 100) * circumference;
+  const opposedLen = (opposed / 100) * circumference;
+  const otherLen = (other / 100) * circumference;
+  const seg = (color, len, offset) =>
+    len <= 0
+      ? ""
+      : `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="6"
+      stroke-dasharray="${len} ${circumference - len}" stroke-dashoffset="${-offset}"
+      transform="rotate(-90 ${c} ${c})"/>`;
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="6"/>
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--brand)" stroke-width="6"
-      stroke-dasharray="${filled} ${circumference - filled}" stroke-linecap="round"
-      transform="rotate(-90 ${c} ${c})"/>
+    ${seg("var(--success)", agreedLen, 0)}
+    ${seg("var(--danger)", opposedLen, agreedLen)}
+    ${seg("var(--text-muted)", otherLen, agreedLen + opposedLen)}
   </svg>`;
 }
 
-// names:目前算「同意」的地主姓名清單(依最新聯絡結果=同意判定,見
-// utils/consent_ratio.py 的 agreed_landowner_names)- 滑鼠停在環上用原生 title
-// 屬性列出來,不用點進案件才知道是哪幾位在算同意。三個環(人數/土地/建物同意)
-// 是同一批地主換算出來的比例,共用同一份名單。
-function projectRingHtml(ratio, label, names) {
-  const pct = Math.round((ratio || 0) * 100);
-  const tooltip = names && names.length ? `同意名單：${names.join("、")}` : "目前尚無人同意";
+// total/agreed/opposed 可以是人數,也可以是面積(m²)- 圓餅只看比例,兩種單位共用
+// 同一份邏輯。names 是目前「拜訪結果=同意」的地主姓名清單,滑鼠停在環上看。
+function projectRingHtml(label, total, agreed, opposed, names) {
+  const t = total || 0;
+  const agreedPct = t > 0 ? (agreed / t) * 100 : 0;
+  const opposedPct = t > 0 ? (opposed / t) * 100 : 0;
+  const otherPct = Math.max(0, 100 - agreedPct - opposedPct);
+  const tooltip =
+    `同意 ${Math.round(agreedPct)}% · 反對 ${Math.round(opposedPct)}% · 其他 ${Math.round(otherPct)}%` +
+    (names && names.length ? `\n同意名單：${names.join("、")}` : "");
   return `
     <div class="project-ring" title="${escapeHtml(tooltip)}">
       <div class="project-ring-svg-wrap">
-        ${donutSvg(pct, 62)}
-        <span class="project-ring-pct">${pct}%</span>
+        ${donutSvg3(agreedPct, opposedPct, 62)}
+        <span class="project-ring-pct">${Math.round(agreedPct)}%</span>
       </div>
       <div class="project-ring-label">${escapeHtml(label)}</div>
+    </div>`;
+}
+
+// 本週 vs 上週的三個指標(人數/土地/建物同意)比較區塊。
+function projectWeeklyCompareHtml(breakdown, lastWeek) {
+  const pctOf = (b, agreedKey, totalKey) => {
+    const total = b ? b[totalKey] : 0;
+    return total > 0 ? (b[agreedKey] / total) * 100 : 0;
+  };
+  const items = [
+    { label: "人數同意", agreedKey: "headcount_agreed", totalKey: "headcount_total" },
+    { label: "土地同意", agreedKey: "land_agreed_sqm", totalKey: "land_total_sqm" },
+    { label: "建物同意", agreedKey: "building_agreed_sqm", totalKey: "building_total_sqm" },
+  ];
+  if (!lastWeek) {
+    return `
+      <div class="project-card-weekly">
+        <div class="project-card-weekly-head">📅 本週 vs 上週</div>
+        <div class="project-card-weekly-empty">快照累積中,滿一週後才會有比較資料</div>
+      </div>`;
+  }
+  const rowsHtml = items
+    .map((it) => {
+      const cur = pctOf(breakdown, it.agreedKey, it.totalKey);
+      const prev = pctOf(lastWeek, it.agreedKey, it.totalKey);
+      const delta = cur - prev;
+      const dir = delta > 0.5 ? "up" : delta < -0.5 ? "down" : "flat";
+      const arrow = dir === "up" ? "↑" : dir === "down" ? "↓" : "→";
+      return `
+        <div class="project-card-weekly-item">
+          <div class="project-card-weekly-pct">${Math.round(cur)}%</div>
+          <div class="project-card-weekly-delta ${dir}">${arrow} ${delta >= 0 ? "+" : ""}${Math.round(delta)}%</div>
+          <div class="project-card-weekly-prev">上週 ${Math.round(prev)}%</div>
+        </div>`;
+    })
+    .join("");
+  return `
+    <div class="project-card-weekly">
+      <div class="project-card-weekly-head">📅 本週 vs 上週</div>
+      <div class="project-card-weekly-row">${rowsHtml}</div>
     </div>`;
 }
 
@@ -349,10 +406,11 @@ async function loadDashboard() {
               <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             <div class="project-card-rings">
-              ${projectRingHtml(p.headcount_ratio, "人數同意", p.agreed_landowner_names)}
-              ${projectRingHtml(p.land_share_ratio, "土地同意", p.agreed_landowner_names)}
-              ${projectRingHtml(p.building_share_ratio, "建物同意", p.agreed_landowner_names)}
+              ${projectRingHtml("人數同意", p.visit_breakdown?.headcount_total, p.visit_breakdown?.headcount_agreed, p.visit_breakdown?.headcount_opposed, p.agreed_landowner_names)}
+              ${projectRingHtml("土地同意", p.visit_breakdown?.land_total_sqm, p.visit_breakdown?.land_agreed_sqm, p.visit_breakdown?.land_opposed_sqm, p.agreed_landowner_names)}
+              ${projectRingHtml("建物同意", p.visit_breakdown?.building_total_sqm, p.visit_breakdown?.building_agreed_sqm, p.visit_breakdown?.building_opposed_sqm, p.agreed_landowner_names)}
             </div>
+            ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown)}
             <div class="project-card-tiers">
               <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>
               <span class="tier-badge tier-warning">▲ 警示:${p.warning_count}</span>
@@ -370,7 +428,7 @@ async function loadDashboard() {
       .join("");
 
     grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
-      card.addEventListener("click", () => openProject(Number(card.dataset.projectId)));
+      card.addEventListener("click", () => openProject(Number(card.dataset.projectId), "overview"));
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
 
@@ -761,7 +819,10 @@ async function openProjectEditModal(projectId) {
   });
 }
 
-async function openProject(id) {
+// defaultTab:案件卡片(儀表板/側欄「案件管理」清單以外的入口,例如首頁專案卡片)
+// 點進來先看「案件總覽」;側欄「案件管理」清單本身維持點進去直接到 SOP 進度頁 -
+// 是唯一還會直接開 SOP 頁的入口,不用重新學一次「總覽在哪」。
+async function openProject(id, defaultTab = "sop") {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
   state.sopSelectedStage = null;
@@ -779,15 +840,16 @@ async function openProject(id) {
 
   // 地主帳號:只保留 SOP 進度 / 土地登記 / 建物登記 / 聯絡紀錄 / 土增稅,其餘分頁隱藏
   const landownerHiddenTabs = ["buildingview", "documents", "encumbrances", "expenses", "members", "development"];
+  const initialTab = isLandowner() && landownerHiddenTabs.includes(defaultTab) ? "sop" : defaultTab;
   document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
     const hideForLandowner = isLandowner() && landownerHiddenTabs.includes(btn.dataset.tab);
     btn.classList.toggle("hidden", hideForLandowner);
-    btn.classList.toggle("active", btn.dataset.tab === "sop");
+    btn.classList.toggle("active", btn.dataset.tab === initialTab);
   });
   // 「人員」分頁本身已經在上面的 landownerHiddenTabs 迴圈處理過(只有地主看不到,
   // 其餘 L0~L5 都能看)- 頁籤內能不能新增/移除人員,由 renderMembersTab 自己依
   // isEditor()(L0~L3)決定,L4/L5 進來是唯讀。
-  state.activeTab = "sop";
+  state.activeTab = initialTab;
   // renderTab() 本身現在就會刷新公告卡片,這裡不用再額外呼叫一次。
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
@@ -845,6 +907,7 @@ async function renderTab(tab) {
   state.activeTab = tab;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
+    overview: renderProjectOverviewTab,
     sop: renderSopTab,
     integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,

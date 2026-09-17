@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_, select
@@ -21,6 +21,7 @@ from deps import (
 from fastapi import Response
 
 from models.building_record import BuildingRecord
+from models.consent_snapshot import ConsentSnapshot
 from models.land_record import LandRecord
 from schemas.landowner import BuildingRecordCreate
 from models.landowner import Landowner
@@ -44,6 +45,7 @@ from schemas.project import (
 from security import verify_password
 from utils.consent_ratio import agreed_landowner_names, calculate_consent_ratio
 from utils.document_folders import seed_project_folders
+from utils.visit_consent import compute_visit_breakdown
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -165,12 +167,36 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         or 0
     )
 
+    last_week_cutoff = date.today() - timedelta(days=7)
+
     project_items = []
     for p in projects:
         ratio = calculate_consent_ratio(db, p.id, p.current_stage)
         agreed_names = agreed_landowner_names(db, p.id)
         alert_tiers = _alert_tier_counts(db, p.id)
         handler_name, manager_name = _case_handler_names(db, p.id)
+        visit_breakdown = compute_visit_breakdown(db, p.id)
+        last_week_snapshot = db.scalar(
+            select(ConsentSnapshot)
+            .where(ConsentSnapshot.project_id == p.id, ConsentSnapshot.snapshot_date <= last_week_cutoff)
+            .order_by(ConsentSnapshot.snapshot_date.desc())
+        )
+        last_week_breakdown = (
+            {
+                "headcount_total": last_week_snapshot.headcount_total,
+                "headcount_agreed": last_week_snapshot.headcount_agreed,
+                "headcount_opposed": last_week_snapshot.headcount_opposed,
+                "land_total_sqm": last_week_snapshot.land_total_sqm,
+                "land_agreed_sqm": last_week_snapshot.land_agreed_sqm,
+                "land_opposed_sqm": last_week_snapshot.land_opposed_sqm,
+                "building_total_sqm": last_week_snapshot.building_total_sqm,
+                "building_agreed_sqm": last_week_snapshot.building_agreed_sqm,
+                "building_opposed_sqm": last_week_snapshot.building_opposed_sqm,
+                "snapshot_date": last_week_snapshot.snapshot_date.isoformat(),
+            }
+            if last_week_snapshot
+            else None
+        )
         project_items.append(
             DashboardProjectItem(
                 id=p.id,
@@ -197,6 +223,8 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
                 urgent_count=alert_tiers["urgent"],
                 case_handler_name=handler_name,
                 case_manager_name=manager_name,
+                visit_breakdown=visit_breakdown,
+                last_week_breakdown=last_week_breakdown,
             )
         )
 

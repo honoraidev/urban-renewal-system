@@ -91,7 +91,7 @@ function buildingViewLegendHtml() {
   // 「×N」角標 = 這格有多位共同持分人(常見於依持分比例登記的地下室/車位建號),
   // 邊框改用紫色跟一般聯絡狀態的格子區分開,並在圖例文字說明清楚,避免被誤會成
   // OCR 又重複匯入。
-  const sharedLegend = `<span class="bv-legend-item"><span class="bv-legend-swatch bv-cell-shared-swatch"></span>共有(多位共同持分,如地下室/車位;角標「×N」= 持分人數)</span>`;
+  const sharedLegend = `<span class="bv-legend-item"><span class="bv-legend-swatch bv-cell-shared-swatch"></span>多位共有</span>`;
   return legendItems + sharedLegend;
 }
 
@@ -136,8 +136,14 @@ function buildingViewGroupCardHtml(g) {
           const cellLabel = flipped ? g.floors.find((f) => f.sort === c.key)?.label : door;
           const wide = wideCls(cellLabel);
           if (!cell) return `<div class="bv-cell bv-cell-empty${wide}">${escapeHtml(String(cellLabel))}</div>`;
-          const shared = cell.owners.length > 1;
-          const badge = shared ? `<span class="bv-cell-badge bv-cell-badge-shared">×${cell.owners.length}</span>` : "";
+          const multiOwner = cell.owners.length > 1;
+          // 紫色「共有」樣式只給地下層(floorSort < 0,B1/B2...)用 —— 地上樓層本來就
+          // 可能是好幾位家人共同繼承同一戶,不是「依持分比例登記的地下室/車位」那種
+          // 特殊情況,不該也套紫色框,不然會被誤會成同一種東西。地上樓層多共有人還是
+          // 照舊顯示×N角標,只是用預設(非紫)顏色。
+          const basement = floorSort < 0;
+          const shared = multiOwner && basement;
+          const badge = multiOwner ? `<span class="bv-cell-badge${shared ? " bv-cell-badge-shared" : ""}">×${cell.owners.length}</span>` : "";
           const sharedCls = shared ? " bv-cell-shared" : "";
           // 多位共有人時,「同意」不再是全有全無 —— 只要不是全部人都同意,就照
           // 已同意人數 ÷ 共有人數畫比例漸層(左邊綠、右邊還是未決定色),不要因為

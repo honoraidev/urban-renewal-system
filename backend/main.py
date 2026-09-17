@@ -11,7 +11,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, projects, resources, sop, sso, users
+from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, project_overview, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -120,6 +120,36 @@ def _auto_migrate() -> None:
             _conn.commit()
     except Exception as exc:
         print(f"[auto_migrate] landowners.phone_mobile backfill skipped: {exc}", flush=True)
+
+    # consent_snapshots:案件卡片「本週 vs 上週」比較用的每日快照表,舊資料庫沒有這
+    # 張表,補建起來(見 models/consent_snapshot.py、utils/visit_consent.py)。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(
+                _sql_text(
+                    "CREATE TABLE IF NOT EXISTS consent_snapshots ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY,"
+                    "project_id INT NOT NULL,"
+                    "snapshot_date DATE NOT NULL,"
+                    "headcount_total INT NOT NULL DEFAULT 0,"
+                    "headcount_agreed INT NOT NULL DEFAULT 0,"
+                    "headcount_opposed INT NOT NULL DEFAULT 0,"
+                    "land_total_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "land_agreed_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "land_opposed_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "building_total_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "building_agreed_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "building_opposed_sqm DOUBLE NOT NULL DEFAULT 0,"
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                    "UNIQUE KEY uq_consent_snapshot_project_date (project_id, snapshot_date),"
+                    "CONSTRAINT fk_consent_snapshot_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] consent_snapshots create skipped: {exc}", flush=True)
 
     # news_items.url 原本是 VARCHAR(500),但 Google 新聞 RSS 的轉址連結常常超過 500 字
     # (實測看過將近 900 字),存進去會被截斷成打不開的網址,還會讓不同文章的截斷結果
@@ -442,6 +472,29 @@ async def _daily_news_fetch_loop() -> None:
             print(f"[news_fetch] daily run failed (ignored): {exc}", flush=True)
 
 
+async def _daily_consent_snapshot_loop() -> None:
+    """背景常駐迴圈:每天本機時間 9:05 替每個案件存一筆拜訪同意快照(見
+    utils/visit_consent.take_daily_consent_snapshots),給案件卡片「本週 vs 上週」
+    比較用。單次失敗只印警告,不能讓迴圈掛掉。"""
+    from utils.visit_consent import take_daily_consent_snapshots
+
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=9, minute=5, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        await asyncio.sleep((target - now).total_seconds())
+        try:
+            db = SessionLocal()
+            try:
+                created = take_daily_consent_snapshots(db)
+                print(f"[consent_snapshot] daily run added {created} snapshot(s)", flush=True)
+            finally:
+                db.close()
+        except Exception as exc:
+            print(f"[consent_snapshot] daily run failed (ignored): {exc}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     wait_for_db()
@@ -454,12 +507,26 @@ async def lifespan(app: FastAPI):
         ensure_admin_account(db)
     finally:
         db.close()
+    # 立刻補一次「今天」的拜訪同意快照(不用等到明天 9:05 才有第一筆資料;
+    # take_daily_consent_snapshots 本身是 idempotent,同一天重跑不會重複)。
+    try:
+        db = SessionLocal()
+        try:
+            from utils.visit_consent import take_daily_consent_snapshots
+
+            take_daily_consent_snapshots(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        print(f"[lifespan] initial consent snapshot failed (ignored): {exc}", flush=True)
     # Deliberately NOT eagerly loading the PaddleOCR engine here at startup - lazily
     # loading on first OCR call (see _get_paddle_ocr_engine in utils/ocr.py) prevents
     # memory pressure on limited RAM systems while preserving optimal inference speed.
     news_task = asyncio.create_task(_daily_news_fetch_loop())
+    consent_snapshot_task = asyncio.create_task(_daily_consent_snapshot_loop())
     yield
     news_task.cancel()
+    consent_snapshot_task.cancel()
 
 
 app = FastAPI(title="Urban Renewal Management System API", version="0.1.0", lifespan=lifespan)
@@ -653,6 +720,7 @@ app.include_router(resources.router)
 app.include_router(building_view.router)
 app.include_router(project_notes.router)
 app.include_router(project_notes.feed_router)
+app.include_router(project_overview.router)
 
 
 @app.get("/health")

@@ -103,6 +103,12 @@ class DashboardProjectItem(BaseModel):
     # (by assigned_at) - display-only "who's on this case", not an access-control list.
     case_handler_name: str | None = None
     case_manager_name: str | None = None
+    # 依「拜訪結果」算的同意/反對/其他統計(跟上面 headcount_ratio 等嚴格雙門檻定義
+    # 是兩套獨立資料,見 utils/visit_consent.py) - 案件卡片三色圓餅圖用。
+    visit_breakdown: dict | None = None
+    # 7 天前最接近的一筆快照,沒有資料(還沒累積滿一週)就是 None,前端顯示「尚無
+    # 上週資料」,不用假數字湊。
+    last_week_breakdown: dict | None = None
 
 
 class DashboardSummary(BaseModel):
