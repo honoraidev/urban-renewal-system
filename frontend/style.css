@@ -1044,6 +1044,14 @@
   .modal-body { padding: 22px; }
   .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 
+  /* 文件預覽 modal(documents.js viewDocument) */
+  .doc-preview-loading {
+    display: flex; align-items: center; justify-content: center; min-height: 40vh;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .doc-preview-frame { width: 100%; height: 78vh; border: none; display: block; border-radius: 8px; }
+  .doc-preview-image { display: block; max-width: 100%; max-height: 78vh; margin: 0 auto; border-radius: 8px; }
+
   /* ---------- OCR 謄本匯入精靈:審核步驟左右兩欄(左原始檔案、右表單),見
      ocr_wizard.js 的 wizardSplitBodyHtml ---------- */
   .wizard-split { display: flex; gap: 18px; align-items: stretch; }

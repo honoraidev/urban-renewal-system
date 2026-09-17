@@ -750,7 +750,7 @@ async function renderSopTab(el) {
         <div class="sop-file-name">${escapeHtml(d.file_name)}</div>
         <div class="helper-text">${fmtDateTime(d.uploaded_at)}${fileSizeText(d.file_size_bytes) ? `・${fileSizeText(d.file_size_bytes)}` : ""}${d.uploaded_by && userById[d.uploaded_by] ? `・上傳:${escapeHtml(userById[d.uploaded_by].display_name)}` : ""}</div>
       </div>
-      <button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" title="預覽">👁</button>
+      <button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" data-sop-file-view-name="${escapeHtml(d.file_name)}" title="預覽">👁</button>
       <button type="button" class="btn-secondary btn-sm" data-sop-file-download="${d.id}" data-sop-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
       ${canEditMeta ? `<button type="button" class="btn-danger btn-sm" data-sop-file-delete="${d.id}" title="刪除">✕</button>` : ""}
     </div>`;
@@ -945,7 +945,7 @@ async function renderSopTab(el) {
 
   // ---- 相關檔案:預覽/下載/刪除(上傳功能移除,這裡只保留檢視既有檔案) ----
   el.querySelectorAll("[data-sop-file-view]").forEach((btn) => {
-    btn.addEventListener("click", () => viewDocument(Number(btn.dataset.sopFileView)));
+    btn.addEventListener("click", () => viewDocument(Number(btn.dataset.sopFileView), btn.dataset.sopFileViewName));
   });
   el.querySelectorAll("[data-sop-file-download]").forEach((btn) => {
     btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.sopFileDownload), btn.dataset.sopFileName));
