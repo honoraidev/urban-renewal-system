@@ -781,6 +781,15 @@ async function openProjectEditModal(projectId) {
       <div class="field"><label>案件類型</label><input name="case_type" value="${escapeHtml(p.case_type || "")}" placeholder="例:都市更新(權利變換)"></div>
       <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date" value="${p.expected_completion_date || ""}"></div>
       <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
+      <div class="field"><label>案件簡介</label><textarea name="summary" rows="4" placeholder="案件總覽頁顯示的簡介段落,例如基地面積、預計興建規模等">${escapeHtml(p.summary || "")}</textarea></div>
+      <div class="field">
+        <label>封面圖(案件總覽頁用)</label>
+        <div id="pe-cover-preview" style="margin-bottom:8px">
+          ${p.has_cover_image ? `<img id="pe-cover-img" style="max-width:220px;max-height:140px;border-radius:8px;display:block;object-fit:cover">` : `<span class="helper-text">尚未上傳封面圖</span>`}
+        </div>
+        <input type="file" id="pe-cover-file" accept="image/*">
+        ${p.has_cover_image ? `<button type="button" class="btn-link btn-sm" id="pe-cover-remove-btn" style="margin-top:4px">移除封面圖</button>` : ""}
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
@@ -792,6 +801,42 @@ async function openProjectEditModal(projectId) {
   updateDistrictSelectOptions(p.city || "", p.district || "");
   document.getElementById("np-city").addEventListener("change", (e) => {
     updateDistrictSelectOptions(e.target.value);
+  });
+
+  const loadCoverPreview = async () => {
+    const img = document.getElementById("pe-cover-img");
+    if (!img) return;
+    try {
+      const res = await api(`/projects/${projectId}/cover-image`, { silent: true });
+      img.src = URL.createObjectURL(await res.blob());
+    } catch (e) { }
+  };
+  loadCoverPreview();
+
+  document.getElementById("pe-cover-file")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      await api(`/projects/${projectId}/cover-image`, { method: "POST", body: fd, isForm: true });
+      toast("封面圖已更新", "success");
+      await loadDashboard();
+      // 剛上傳完馬上重開一次編輯視窗,順便讓「移除封面圖」按鈕出現(第一次上傳前
+      // has_cover_image 是 false,按鈕不存在)。
+      closeModal();
+      openProjectEditModal(projectId);
+    } catch (err) { }
+  });
+
+  document.getElementById("pe-cover-remove-btn")?.addEventListener("click", async () => {
+    try {
+      await api(`/projects/${projectId}/cover-image`, { method: "DELETE" });
+      toast("封面圖已移除", "success");
+      await loadDashboard();
+      closeModal();
+      openProjectEditModal(projectId);
+    } catch (err) { }
   });
 
   const noteFill = document.getElementById("pe-note-fill");
@@ -821,9 +866,11 @@ async function openProjectEditModal(projectId) {
   });
 }
 
-// defaultTab:案件卡片(儀表板/側欄「案件管理」清單以外的入口,例如首頁專案卡片)
-// 點進來先看「案件總覽」;側欄「案件管理」清單本身維持點進去直接到 SOP 進度頁 -
-// 是唯一還會直接開 SOP 頁的入口,不用重新學一次「總覽在哪」。
+// defaultTab:首頁案件卡片、側欄「案件管理」清單現在都預設先進「案件總覽」
+// (defaultTab="overview");要看 SOP 進度/整合清冊等其他分頁,得從總覽頁面上的
+// 「進入案件管理」按鈕切過去(見 project_overview.js,呼叫 switchProjectTab)。
+// 其餘少數呼叫端(例如新建案件、OCR 匯入完成導回)維持預設值 "sop",做完動作
+// 直接回工作分頁,不用多繞一層總覽。
 async function openProject(id, defaultTab = "sop") {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};

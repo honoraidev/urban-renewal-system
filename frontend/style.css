@@ -297,7 +297,7 @@
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
   .navbar .brand .brand-text {
-    font-size: 16px; font-weight: 900; letter-spacing: .01em; white-space: nowrap;
+    font-size: 20px; font-weight: 900; letter-spacing: .01em; white-space: nowrap;
     background: linear-gradient(135deg, var(--brand), var(--brand-dark));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }

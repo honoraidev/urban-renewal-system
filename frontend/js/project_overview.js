@@ -27,6 +27,11 @@ function overviewEnsureStyle() {
     .ov-card h3 { margin:0 0 12px; font-size:14.5px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .ov-card h3 .helper-text { font-weight:400; }
 
+    .ov-brief-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;
+      display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+    .ov-brief-cover { width:220px; max-width:100%; height:140px; object-fit:cover; border-radius:10px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-brief-text { flex:1 1 260px; font-size:13.5px; line-height:1.7; color:var(--text); white-space:pre-line; }
+
     .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; }
     .ov-donut { width:140px; height:140px; border-radius:50%; position:relative;
       background: conic-gradient(var(--brand) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
@@ -166,6 +171,15 @@ async function renderProjectOverviewTab(el) {
   }
   if (state.currentProjectId !== pid) return;
 
+  const proj = state.currentProject || {};
+  const briefHtml =
+    proj.has_cover_image || proj.summary
+      ? `<div class="ov-brief-card">
+          ${proj.has_cover_image ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">` : ""}
+          ${proj.summary ? `<div class="ov-brief-text">${escapeHtml(proj.summary).replace(/\n/g, "<br>")}</div>` : ""}
+        </div>`
+      : "";
+
   const membersHtml = members.length
     ? members
         .map(
@@ -215,6 +229,7 @@ async function renderProjectOverviewTab(el) {
       <div style="text-align:right">
         <button type="button" class="btn-secondary btn-sm" id="ov-open-management-btn">📂 進入案件管理(SOP進度/整合清冊等)</button>
       </div>
+      ${briefHtml}
       <div class="ov-row ov-row-3col">
         <div class="ov-card">
           <h3>整體進度</h3>
@@ -255,4 +270,14 @@ async function renderProjectOverviewTab(el) {
     </div>`;
 
   document.getElementById("ov-open-management-btn")?.addEventListener("click", () => switchProjectTab("sop"));
+
+  const coverImg = document.getElementById("ov-cover-img");
+  if (coverImg) {
+    // 封面圖跟其他上傳檔案一樣要帶登入 token 才拿得到,不能直接當 <img src> 打,
+    // 走跟文件預覽同一套 api() 抓 blob 再轉 object URL 的方式(見 documents.js)。
+    api(`/projects/${pid}/cover-image`, { silent: true })
+      .then((res) => res.blob())
+      .then((blob) => { coverImg.src = URL.createObjectURL(blob); })
+      .catch(() => {});
+  }
 }

@@ -84,6 +84,8 @@ def _auto_migrate() -> None:
         ("landowners", "email", "VARCHAR(255) NULL"),
         ("landowners", "phone_landline", "VARCHAR(30) NULL"),
         ("landowners", "phone_mobile", "VARCHAR(30) NULL"),
+        ("projects", "summary", "TEXT NULL"),
+        ("projects", "cover_image_path", "VARCHAR(500) NULL"),
         ("documents", "sop_stage", "INT NULL"),
         ("documents", "dev_stage", "INT NULL"),
         ("projects", "case_type", "VARCHAR(100) NULL"),

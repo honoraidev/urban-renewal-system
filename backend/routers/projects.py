@@ -2,7 +2,8 @@ import os
 import shutil
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -45,6 +46,7 @@ from schemas.project import (
 from security import verify_password
 from utils.consent_ratio import agreed_landowner_names, calculate_consent_ratio
 from utils.document_folders import seed_project_folders
+from utils.file_storage import build_upload_path
 from utils.visit_consent import compute_visit_breakdown
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -338,6 +340,60 @@ def update_project(
             except OSError:
                 pass
     return project
+
+
+@router.post("/{project_id}/cover-image", response_model=ProjectRead)
+def upload_project_cover_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_editor),
+):
+    """案件總覽頁封面圖 —— 跟一般文件上傳共用同一套磁碟儲存機制(見
+    utils/file_storage.build_upload_path),舊圖直接覆蓋掉(封面圖只有一張,不像
+    Document 需要保留舊版)。"""
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請上傳圖片檔案")
+
+    old_path = project.cover_image_path
+    disk_path, _stored_name = build_upload_path(project.project_code, file.filename or "cover.png")
+    content = file.file.read()
+    with open(disk_path, "wb") as out:
+        out.write(content)
+
+    project.cover_image_path = disk_path
+    db.commit()
+    db.refresh(project)
+
+    if old_path and old_path != disk_path and os.path.exists(old_path):
+        try:
+            os.remove(old_path)
+        except OSError:
+            pass
+    return project
+
+
+@router.delete("/{project_id}/cover-image", response_model=ProjectRead)
+def delete_project_cover_image(
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_editor),
+):
+    old_path = project.cover_image_path
+    project.cover_image_path = None
+    db.commit()
+    db.refresh(project)
+    if old_path and os.path.exists(old_path):
+        try:
+            os.remove(old_path)
+        except OSError:
+            pass
+    return project
+
+
+@router.get("/{project_id}/cover-image")
+def get_project_cover_image(project: Project = Depends(require_project_viewer)):
+    if not project.cover_image_path or not os.path.exists(project.cover_image_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover image not found")
+    return FileResponse(project.cover_image_path)
 
 
 @router.post("/batch-delete", response_model=BatchDeleteResult)

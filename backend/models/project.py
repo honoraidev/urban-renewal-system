@@ -22,6 +22,12 @@ class Project(Base):
     current_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_force_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 案件總覽頁的簡介段落 - 跟上面 description(標題列後面的短標籤)是不同東西,
+    # 這個是給總覽頁「案件簡介」卡片用的多行文字。
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 案件總覽頁封面圖的磁碟路徑(跟 Document.file_path 同一套存法,見
+    # utils/file_storage.py) - None 代表沒上傳過封面圖。
+    cover_image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # 手動填寫的預計完成日 - 沒有任何自動排程或關卡日期資料可推算,純粹讓承辦人自己
     # 估一個日期,供進度報表的簡化時程進度條跟「預計完成日」欄位使用。
     expected_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -30,6 +36,13 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     members: Mapped[list["ProjectMember"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+    @property
+    def has_cover_image(self) -> bool:
+        """ProjectRead(from_attributes=True) 讀這個 property 算出 has_cover_image,
+        不直接把磁碟路徑(cover_image_path)曝露給前端 - 前端只需要知道「有沒有」,
+        真正的圖用 GET /projects/{id}/cover-image 拿。"""
+        return self.cover_image_path is not None
 
 
 class ProjectMember(Base):

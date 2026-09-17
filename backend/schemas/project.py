@@ -11,6 +11,7 @@ class ProjectCreate(BaseModel):
     district: str | None = None
     case_type: str | None = None
     description: str | None = None
+    summary: str | None = None
     expected_completion_date: date | None = None
 
 
@@ -23,6 +24,7 @@ class ProjectUpdate(BaseModel):
     case_type: str | None = None
     status: str | None = Field(default=None, pattern="^(active|closed|suspended)$")
     description: str | None = None
+    summary: str | None = None
     expected_completion_date: date | None = None
 
 
@@ -38,6 +40,8 @@ class ProjectRead(BaseModel):
     current_stage: int
     is_force_closed: bool
     description: str | None = None
+    summary: str | None = None
+    has_cover_image: bool = False
     expected_completion_date: date | None = None
     created_by: int | None = None
     created_at: datetime
