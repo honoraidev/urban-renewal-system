@@ -140,13 +140,21 @@ async function openOcrBatchListModal() {
 // 開新分頁讓瀏覽器用內建檢視器(PDF/圖片)直接顯示,不像 downloadDocument 那樣強制存檔。
 // Word/Excel/PowerPoint 瀏覽器原生看不懂,後端 /preview 會先轉成 PDF 再回傳;下載
 // (downloadDocument)拿到的仍然是原始檔案,不受影響。
+//
+// 分頁要在點擊當下就同步開好(先開空白頁佔位) - Office 檔案轉PDF要等後端跑
+// LibreOffice,晚個幾秒才 window.open() 會被瀏覽器當成非使用者觸發的彈窗直接擋掉、
+// 且不會有任何提示,所以不能等 fetch 完才開窗。
 async function viewDocument(docId) {
+  const win = window.open("", "_blank");
+  if (win) win.document.write("<p style='font:14px sans-serif;padding:24px'>準備預覽中,請稍候…</p>");
   try {
     const res = await api(`/projects/${state.currentProjectId}/documents/${docId}/preview`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-  } catch (err) { }
+    if (win) win.location.href = url;
+  } catch (err) {
+    if (win) win.close();
+  }
 }
 
 async function downloadDocument(docId, fileName) {
