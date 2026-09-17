@@ -59,6 +59,10 @@ function overviewEnsureStyle() {
     .ov-metric .ov-metric-label { font-size:12.5px; color:var(--text-muted); margin:4px 0; }
     .ov-metric .ov-metric-pct { font-size:22px; font-weight:800; }
     .ov-metric .ov-metric-sub { font-size:11px; color:var(--text-muted); }
+    .ov-detail-agreed .ov-metric-pct { color:var(--success); }
+    .ov-detail-opposed .ov-metric-pct { color:var(--danger); }
+    .ov-detail-undecided .ov-metric-pct { color:var(--warning); }
+    .ov-detail-noresponse .ov-metric-pct { color:var(--text-muted); }
 
     .ov-member-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13.5px; }
     .ov-member-avatar { width:28px; height:28px; border-radius:50%; background:var(--surface-2);
@@ -117,6 +121,25 @@ function _ovMetric(icon, label, ratio, agreedText) {
       <div class="ov-metric-pct">${pct}%</div>
       <div class="ov-metric-sub">${agreedText}</div>
     </div>`;
+}
+
+function _ovHeadcountDetailHtml(detail) {
+  if (!detail) return "";
+  const items = [
+    { label: "同意", count: detail.agreed, cls: "ov-detail-agreed" },
+    { label: "反對", count: detail.opposed, cls: "ov-detail-opposed" },
+    { label: "未決定", count: detail.undecided, cls: "ov-detail-undecided" },
+    { label: "未回覆", count: detail.no_response, cls: "ov-detail-noresponse" },
+  ];
+  return items
+    .map(
+      (it) => `<div class="ov-metric ${it.cls}">
+        <div class="ov-metric-label">${it.label}</div>
+        <div class="ov-metric-pct">${it.count}</div>
+        <div class="ov-metric-sub">/ ${detail.total} 人</div>
+      </div>`
+    )
+    .join("");
 }
 
 function _ovMemberRoleLabel(role) {
@@ -189,6 +212,9 @@ async function renderProjectOverviewTab(el) {
 
   el.innerHTML = `
     <div class="ov-grid">
+      <div style="text-align:right">
+        <button type="button" class="btn-secondary btn-sm" id="ov-open-management-btn">📂 進入案件管理(SOP進度/整合清冊等)</button>
+      </div>
       <div class="ov-row ov-row-3col">
         <div class="ov-card">
           <h3>整體進度</h3>
@@ -213,8 +239,7 @@ async function renderProjectOverviewTab(el) {
         <h3>關鍵指標</h3>
         <div class="ov-metrics">
           ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
-          ${_ovMetric("🗺️", "土地同意", overview.key_metrics.land_share_ratio, `${fmtArea(overview.key_metrics.land_share_agreed_sqm)} / ${fmtArea(overview.key_metrics.land_share_total_sqm)} m²`)}
-          ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${fmtArea(overview.key_metrics.building_share_agreed_sqm)} / ${fmtArea(overview.key_metrics.building_share_total_sqm)} m²`)}
+          ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
         </div>
       </div>
 
@@ -228,4 +253,6 @@ async function renderProjectOverviewTab(el) {
         <div class="ov-card"><h3>重要紀錄</h3>${timelineHtml}</div>
       </div>
     </div>`;
+
+  document.getElementById("ov-open-management-btn")?.addEventListener("click", () => switchProjectTab("sop"));
 }

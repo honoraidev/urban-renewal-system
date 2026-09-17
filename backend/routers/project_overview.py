@@ -9,6 +9,7 @@ from deps import require_project_staff_viewer
 from models.document import Document
 from models.landowner import Landowner
 from models.project import Project
+from routers.contacts import _last_contact_result_by_landowner
 from routers.sop import (
     CONTACT_RATE_KEYS,
     CONTACT_RATE_THRESHOLD,
@@ -20,6 +21,33 @@ from routers.sop import (
 from utils.consent_ratio import calculate_consent_ratio
 
 router = APIRouter(prefix="/projects/{project_id}/overview", tags=["project-overview"])
+
+
+def _headcount_detail(db: Session, project_id: int) -> dict:
+    """依「每位地主最新一次拜訪結果」把人數同意拆成同意/反對/未決定/未回覆四類 —— 跟
+    utils/visit_consent.py 同一份資料源,只是這裡多拆出「未決定」跟「未回覆」兩類
+    (未決定=標記未決定或需回電;未回覆=標記未接聽或完全沒聯絡過)。案件總覽卡片
+    的人數同意細項用,不是 SOP 關卡用的嚴格雙門檻定義。"""
+    results = _last_contact_result_by_landowner(db, project_id)
+    landowner_ids = db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all()
+    agreed = opposed = undecided = no_response = 0
+    for lid in landowner_ids:
+        r = results.get(lid)
+        if r == "agreed":
+            agreed += 1
+        elif r == "opposed":
+            opposed += 1
+        elif r in ("undecided", "callback_needed"):
+            undecided += 1
+        else:
+            no_response += 1
+    return {
+        "total": len(landowner_ids),
+        "agreed": agreed,
+        "opposed": opposed,
+        "undecided": undecided,
+        "no_response": no_response,
+    }
 
 
 def _stage_progress_pct(db: Session, project_id: int, idx_str: str, entry: dict) -> int:
@@ -132,11 +160,6 @@ def get_project_overview(
             "headcount_ratio": consent["headcount_ratio"],
             "headcount_agreed": consent["headcount_agreed"],
             "headcount_total": consent["headcount_total"],
-            "land_share_ratio": consent["land_share_ratio"],
-            "land_share_agreed_sqm": consent["land_share_agreed_sqm"],
-            "land_share_total_sqm": consent["land_share_total_sqm"],
-            "building_share_ratio": consent["building_share_ratio"],
-            "building_share_agreed_sqm": consent["building_share_agreed_sqm"],
-            "building_share_total_sqm": consent["building_share_total_sqm"],
+            "headcount_detail": _headcount_detail(db, project_id),
         },
     }

@@ -310,7 +310,7 @@ function renderSidebarProjects(projects) {
     });
   });
   wrap.querySelectorAll(".sb-case-item").forEach((el) => {
-    el.addEventListener("click", () => openProject(Number(el.dataset.projectId)));
+    el.addEventListener("click", () => openProject(Number(el.dataset.projectId), "overview"));
   });
 }
 
@@ -887,13 +887,21 @@ function setIntegratedTabLabel(mode) {
   details.querySelectorAll(".tab-select-option").forEach((b) => b.classList.toggle("is-selected", b.dataset.value === mode));
 }
 
+// 切換分頁列的哪個按鈕反白 + 渲染對應內容 - 一般點分頁列按鈕走這個,
+// project_overview.js 的「進入案件管理」連結也是呼叫這個切到 SOP 進度分頁。
+async function switchProjectTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  state.activeTab = tab;
+  await renderTab(tab);
+}
+
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
-  // 「案件總覽」是進案件的落地頁,只給看總覽卡片,不跟 SOP 進度/整合清冊等其他分頁
-  // 並排出現在同一個分頁列 - 要看其他分頁,照設計只能從側欄「案件管理」清單重新
-  // 點進來(見 openProject 的 defaultTab)。這裡把分頁列跟 SOP 進度條藏起來,
-  // 離開總覽時(tab !== "overview")再讓它們正常出現。
+  // 「案件總覽」是進案件的落地頁(首頁卡片、側欄「案件管理」清單都先進這裡),不跟
+  // SOP 進度/整合清冊等其他分頁並排出現在同一個分頁列 - 要看其他分頁,總覽頁面上
+  // 有「進入案件管理」連結可以切過去(呼叫 switchProjectTab("sop"))。這裡把分頁列
+  // 跟 SOP 進度條藏起來,離開總覽時(tab !== "overview")再讓它們正常出現。
   const tabBar = document.querySelector(".tab-bar");
   const sopSummary = document.getElementById("pd-sop-summary");
   if (tab === "overview") {
@@ -977,11 +985,7 @@ function initDashboard() {
   // 決定什麼時候才需要真的重新渲染(見下面),不然單純點開/關下拉選單看選項也會
   // 冒泡觸發整頁重整。
   document.querySelectorAll(".tab-btn:not(#tab-integrated-details)").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
-      state.activeTab = btn.dataset.tab;
-      await renderTab(btn.dataset.tab);
-    });
+    btn.addEventListener("click", () => switchProjectTab(btn.dataset.tab));
   });
 
   const tabIntegratedDetails = document.getElementById("tab-integrated-details");
