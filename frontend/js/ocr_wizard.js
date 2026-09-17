@@ -170,8 +170,9 @@ function wizardResolveSourcePage(globalPage) {
 }
 
 // 瀏覽器內建 PDF 外掛(單純 <iframe src="blob:...">)在不同瀏覽器/版本下常常只顯示
-// 第一頁、內建的縮放按鈕也不一定有反應 - 改用 pdf.js 自己畫。單頁顯示+底下縮圖列
-// 點選跳頁,搭配搜尋/頁碼輸入/縮放/旋轉/下載,跟一般 PDF 閱讀器操作習慣一致。
+// 第一頁、內建的縮放按鈕也不一定有反應 - 改用 pdf.js 自己畫。目前這份檔案的所有頁面
+// 直向堆疊畫成一串 canvas,放進可捲動的容器裡,捲軸就能看到完整內容;頁碼輸入框/
+// 上一頁/下一頁/搜尋都是「捲動到那一頁」,縮放則是整批用新的解析度重畫。
 
 function wizardTotalPages() {
   const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || null;
@@ -235,42 +236,63 @@ function wizardViewerPaneHtml() {
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
       <div class="wizard-window-titlebar">📄 謄本預覽</div>
       ${wizardViewerToolbarHtml()}
-      <div class="wizard-viewer-canvas-wrap"><canvas id="wizard-viewer-canvas"></canvas></div>
+      <div class="wizard-viewer-canvas-wrap" id="wizard-viewer-canvas-wrap">
+        <div class="wizard-viewer-pages" id="wizard-viewer-pages"><span class="helper-text">載入中…</span></div>
+      </div>
     </div>`;
 }
 
+// 目前這份檔案(依全域頁碼換算出來的 fileIndex)所有頁面都畫出來、直向堆疊,不是只
+// 畫使用者目前那一頁 - 這樣捲軸才捲得到完整內容,不用靠翻頁按鈕一頁一頁點。
 async function wizardRenderCurrentPage() {
-  const canvas = document.getElementById("wizard-viewer-canvas");
-  if (!canvas) return;
+  const container = document.getElementById("wizard-viewer-pages");
+  if (!container) return;
   const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage || 1);
-  const file = (titleDeedWizard.files || [])[resolved.fileIndex];
+  const fileIndex = resolved.fileIndex;
+  const file = (titleDeedWizard.files || [])[fileIndex];
   if (!file) return;
-  const ctx = canvas.getContext("2d");
   const zoom = titleDeedWizard.viewerZoom || 1;
   const rotation = titleDeedWizard.viewerRotation || 0;
+  const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
+  const before = counts.slice(0, fileIndex).reduce((s, c) => s + c, 0);
+
   try {
+    container.innerHTML = "";
     if ((file.type || "").includes("pdf") && window.pdfjsLib) {
-      const doc = await wizardGetPdfDoc(resolved.fileIndex);
-      const page = await doc.getPage(resolved.localPage);
-      const viewport = page.getViewport({ scale: zoom * 1.4, rotation });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      const doc = await wizardGetPdfDoc(fileIndex);
+      for (let n = 1; n <= doc.numPages; n++) {
+        const page = await doc.getPage(n);
+        const viewport = page.getViewport({ scale: zoom * 1.4, rotation });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.className = "wizard-viewer-page-canvas";
+        canvas.dataset.globalPage = before + n;
+        container.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      }
     } else {
-      const img = await wizardLoadImage(wizardFileUrls()[resolved.fileIndex]);
+      const img = await wizardLoadImage(wizardFileUrls()[fileIndex]);
       const swapped = rotation % 180 !== 0;
       const w = img.width * zoom;
       const h = img.height * zoom;
+      const canvas = document.createElement("canvas");
       canvas.width = swapped ? h : w;
       canvas.height = swapped ? w : h;
+      canvas.className = "wizard-viewer-page-canvas";
+      canvas.dataset.globalPage = before + 1;
+      const ctx = canvas.getContext("2d");
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.drawImage(img, -w / 2, -h / 2, w, h);
       ctx.restore();
+      container.appendChild(canvas);
     }
+    const target = container.querySelector(`canvas[data-global-page="${titleDeedWizard.viewerGlobalPage}"]`);
+    if (target) target.scrollIntoView({ block: "start" });
   } catch (err) {
-    // 畫原圖失敗就靜默放棄,不要擋住審核流程。
+    container.innerHTML = `<span class="helper-text">PDF 預覽載入失敗</span>`;
   }
 }
 
@@ -306,15 +328,24 @@ async function wizardSearchInViewer() {
 }
 
 // 換頁後頁碼輸入框、上一頁/下一頁按鈕的 disabled 狀態都要跟著更新,乾脆整個工具列
-// 重繪比較不容易漏掉哪個地方沒同步。
+// 重繪比較不容易漏掉哪個地方沒同步。目標頁還在同一份檔案裡的話,所有頁面本來就已經
+// 畫在畫面上了,直接捲過去就好,不用整批重畫;換到不同檔案才需要重新渲染。
 function wizardGoToPage(n) {
-  titleDeedWizard.viewerGlobalPage = Math.min(Math.max(1, n), wizardTotalPages());
+  const newPage = Math.min(Math.max(1, n), wizardTotalPages());
+  const prevResolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage || 1);
+  const newResolved = wizardGlobalToFileLocalSafe(newPage);
+  titleDeedWizard.viewerGlobalPage = newPage;
   const toolbar = document.querySelector(".wizard-viewer-toolbar");
   if (toolbar) {
     toolbar.outerHTML = wizardViewerToolbarHtml();
     wireWizardViewerToolbar();
   }
-  wizardRenderCurrentPage();
+  if (newResolved.fileIndex !== prevResolved.fileIndex) {
+    wizardRenderCurrentPage();
+  } else {
+    const target = document.querySelector(`.wizard-viewer-page-canvas[data-global-page="${newPage}"]`);
+    if (target) target.scrollIntoView({ block: "start" });
+  }
 }
 
 function wireWizardViewerToolbar() {
