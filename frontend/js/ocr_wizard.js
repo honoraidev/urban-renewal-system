@@ -170,15 +170,53 @@ function wizardResolveSourcePage(globalPage) {
 }
 
 // 瀏覽器內建 PDF 外掛(單純 <iframe src="blob:...">)在不同瀏覽器/版本下常常只顯示
-// 第一頁、內建的縮放按鈕也不一定有反應 - 改用 pdf.js 自己畫,才能保證多頁都能捲動看到、
-// 縮放鈕也一定有效。圖片檔案(非PDF)維持原本 <img> 顯示。
+// 第一頁、內建的縮放按鈕也不一定有反應 - 改用 pdf.js 自己畫。單頁顯示+底下縮圖列
+// 點選跳頁,搭配搜尋/頁碼輸入/縮放/旋轉/下載,跟一般 PDF 閱讀器操作習慣一致。
+
+function wizardTotalPages() {
+  const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || null;
+  if (counts && counts.length) return counts.reduce((s, n) => s + n, 0) || 1;
+  return (titleDeedWizard.files || []).length || 1;
+}
+
+// file_page_counts 缺失時(理論上不會,防呆)退回「就是第1份檔案第N頁」。
+function wizardGlobalToFileLocalSafe(globalPage) {
+  return wizardResolveSourcePage(globalPage) || { fileIndex: 0, localPage: globalPage || 1 };
+}
+
+function wizardLoadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function wizardGetPdfDoc(fileIndex) {
+  titleDeedWizard._pdfDocCache = titleDeedWizard._pdfDocCache || {};
+  if (titleDeedWizard._pdfDocCache[fileIndex]) return titleDeedWizard._pdfDocCache[fileIndex];
+  const file = titleDeedWizard.files[fileIndex];
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+  titleDeedWizard._pdfDocCache[fileIndex] = doc;
+  return doc;
+}
+
 function wizardViewerToolbarHtml() {
   const zoomPct = Math.round((titleDeedWizard.viewerZoom || 1) * 100);
   return `
     <div class="wizard-viewer-toolbar">
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-btn" title="在這份檔案內搜尋文字">🔍</button>
+      <span class="wizard-viewer-page-input-wrap">
+        <input type="number" id="wizard-viewer-page-input" value="${titleDeedWizard.viewerGlobalPage || 1}" min="1" max="${wizardTotalPages()}">
+        / ${wizardTotalPages()}
+      </span>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-out" title="縮小">－</button>
-      <span class="helper-text" style="min-width:42px;text-align:center">${zoomPct}%</span>
+      <span class="helper-text" style="min-width:38px;text-align:center">${zoomPct}%</span>
       <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-in" title="放大">＋</button>
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-rotate" title="旋轉">⟳</button>
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-download" title="下載目前這份檔案">⬇</button>
     </div>`;
 }
 
@@ -187,113 +225,186 @@ function wizardViewerPaneHtml() {
   if (!files.length) {
     return `<div class="wizard-viewer-pane"><div class="wizard-viewer-body"><span class="helper-text">沒有原始檔案可預覽</span></div></div>`;
   }
-  const urls = wizardFileUrls();
-  const resolved = wizardResolveSourcePage(titleDeedWizard.viewerTargetPage);
-  if (resolved) titleDeedWizard.viewerActiveIndex = resolved.fileIndex;
-  const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
-  const activeFile = files[activeIdx];
-  const isPdf = (activeFile.type || "").includes("pdf");
-  // file_page_counts 沒有時(理論上只有電子謄本規則路徑以外的意外狀況)退回舊邏輯:
-  // 只有單一檔案才能直接把全域頁碼當成該檔案的頁碼,不亂猜多檔案的對應關係。
-  const targetPage = resolved ? resolved.localPage : files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
-  const body = isPdf
-    ? `<div class="wizard-viewer-pdf-pages" id="wizard-viewer-pdf-pages"><span class="helper-text">載入中…</span></div>`
-    : `<img src="${escapeHtml(urls[activeIdx])}" alt="${escapeHtml(activeFile.name)}">`;
+  if (titleDeedWizard.viewerTargetPage) titleDeedWizard.viewerGlobalPage = titleDeedWizard.viewerTargetPage;
+  titleDeedWizard.viewerGlobalPage = Math.min(Math.max(1, titleDeedWizard.viewerGlobalPage || 1), wizardTotalPages());
   const widthPct = titleDeedWizard.viewerPaneWidthPct || 44;
   return `
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
-      ${isPdf ? wizardViewerToolbarHtml() : ""}
-      ${files.length > 1
-      ? `<div class="wizard-viewer-tabs">
-          ${files
-        .map(
-          (f, i) =>
-            `<button type="button" class="btn-sm ${i === activeIdx ? "btn-primary" : "btn-secondary"} wizard-viewer-tab-btn" data-viewer-index="${i}" title="${escapeHtml(f.name)}">第 ${i + 1} 張</button>`
-        )
-        .join("")}
-        </div>`
-      : ""
-    }
-      ${isPdf && targetPage
-      ? `<div class="helper-text wizard-viewer-jump-note">→ 已跳至${files.length > 1 ? `第 ${activeIdx + 1} 份檔案` : "原謄本"}第 ${targetPage} 頁</div>`
-      : ""
-    }
-      <div class="wizard-viewer-body" id="wizard-viewer-body">${body}</div>
+      ${wizardViewerToolbarHtml()}
+      <div class="wizard-viewer-canvas-wrap"><canvas id="wizard-viewer-canvas"></canvas></div>
+      <div class="wizard-viewer-thumbs" id="wizard-viewer-thumbs"></div>
     </div>`;
 }
 
-// 把 PDF 每一頁都畫成一個 canvas、直向堆疊在可捲動的容器裡 - 使用者可以像一般 PDF
-// 閱讀器一樣捲動看完整份檔案,不會只卡在第一頁。畫完後如果有指定目標頁碼(審核到
-// 哪一筆地號/建號自動跳頁用),捲動到那一頁。
-async function wizardRenderPdfPages(fileIndex, targetPage) {
-  const container = document.getElementById("wizard-viewer-pdf-pages");
-  if (!container) return;
-  if (!window.pdfjsLib) {
-    container.innerHTML = `<span class="helper-text">PDF 預覽元件載入失敗(可能是網路擋住外部資源),可用下載查看原始檔案</span>`;
-    return;
-  }
-  const file = (titleDeedWizard.files || [])[fileIndex];
+async function wizardRenderCurrentPage() {
+  const canvas = document.getElementById("wizard-viewer-canvas");
+  if (!canvas) return;
+  const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage || 1);
+  const file = (titleDeedWizard.files || [])[resolved.fileIndex];
   if (!file) return;
+  const ctx = canvas.getContext("2d");
+  const zoom = titleDeedWizard.viewerZoom || 1;
+  const rotation = titleDeedWizard.viewerRotation || 0;
   try {
-    const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
-    const zoom = titleDeedWizard.viewerZoom || 1;
-    container.innerHTML = "";
-    for (let n = 1; n <= doc.numPages; n++) {
-      const page = await doc.getPage(n);
-      const viewport = page.getViewport({ scale: zoom * 1.3 });
-      const canvas = document.createElement("canvas");
+    if ((file.type || "").includes("pdf") && window.pdfjsLib) {
+      const doc = await wizardGetPdfDoc(resolved.fileIndex);
+      const page = await doc.getPage(resolved.localPage);
+      const viewport = page.getViewport({ scale: zoom * 1.4, rotation });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      canvas.className = "wizard-viewer-page-canvas";
-      canvas.dataset.pageNumber = n;
-      container.appendChild(canvas);
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    }
-    if (targetPage) {
-      const target = container.querySelector(`canvas[data-page-number="${targetPage}"]`);
-      if (target) target.scrollIntoView({ block: "start" });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    } else {
+      const img = await wizardLoadImage(wizardFileUrls()[resolved.fileIndex]);
+      const swapped = rotation % 180 !== 0;
+      const w = img.width * zoom;
+      const h = img.height * zoom;
+      canvas.width = swapped ? h : w;
+      canvas.height = swapped ? w : h;
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
     }
   } catch (err) {
-    container.innerHTML = `<span class="helper-text">PDF 預覽載入失敗,可用下載查看原始檔案</span>`;
+    // 畫原圖失敗就靜默放棄,不要擋住審核流程 - 使用者還是可以用「下載」按鈕看原始檔案。
+  }
+}
+
+async function wizardRenderThumbnails() {
+  const wrap = document.getElementById("wizard-viewer-thumbs");
+  if (!wrap) return;
+  const total = wizardTotalPages();
+  wrap.innerHTML = Array.from({ length: total }, (_, i) => i + 1)
+    .map(
+      (n) =>
+        `<button type="button" class="wizard-ov-thumb ${n === titleDeedWizard.viewerGlobalPage ? "active" : ""}" data-thumb-page="${n}"><canvas></canvas><span>${n}</span></button>`
+    )
+    .join("");
+  wrap.querySelectorAll(".wizard-ov-thumb").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      titleDeedWizard.viewerGlobalPage = Number(btn.dataset.thumbPage);
+      const pageInput = document.getElementById("wizard-viewer-page-input");
+      if (pageInput) pageInput.value = titleDeedWizard.viewerGlobalPage;
+      wizardRenderCurrentPage();
+      wizardHighlightActiveThumb();
+    });
+  });
+  for (let n = 1; n <= total; n++) {
+    const resolved = wizardGlobalToFileLocalSafe(n);
+    const file = (titleDeedWizard.files || [])[resolved.fileIndex];
+    const btn = wrap.querySelector(`.wizard-ov-thumb[data-thumb-page="${n}"]`);
+    const canvas = btn && btn.querySelector("canvas");
+    if (!canvas || !file) continue;
+    try {
+      const ctx = canvas.getContext("2d");
+      if ((file.type || "").includes("pdf") && window.pdfjsLib) {
+        const doc = await wizardGetPdfDoc(resolved.fileIndex);
+        const page = await doc.getPage(resolved.localPage);
+        const viewport = page.getViewport({ scale: 0.18 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      } else {
+        const img = await wizardLoadImage(wizardFileUrls()[resolved.fileIndex]);
+        const scale = 90 / img.width;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+    } catch (err) {
+      // 單張縮圖畫失敗就跳過,不影響其他頁的縮圖
+    }
+  }
+}
+
+function wizardHighlightActiveThumb() {
+  document.querySelectorAll(".wizard-ov-thumb").forEach((btn) => {
+    btn.classList.toggle("active", Number(btn.dataset.thumbPage) === titleDeedWizard.viewerGlobalPage);
+  });
+}
+
+// 🔍 只在「目前這份檔案」內找,逐頁用 pdf.js 抓文字內容比對,找到第一個命中的頁就跳過去。
+// 不是完整的高亮/找下一個 UI,先求「輸入關鍵字快速跳到那一頁」堪用。
+async function wizardSearchInViewer() {
+  const term = (prompt("輸入要搜尋的文字(在目前這份檔案內搜尋):") || "").trim();
+  if (!term) return;
+  const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage);
+  const file = (titleDeedWizard.files || [])[resolved.fileIndex];
+  if (!file || !(file.type || "").includes("pdf") || !window.pdfjsLib) {
+    toast("目前這份檔案不支援文字搜尋", "error");
+    return;
+  }
+  try {
+    const doc = await wizardGetPdfDoc(resolved.fileIndex);
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      const textContent = await page.getTextContent();
+      const text = textContent.items.map((it) => it.str).join("");
+      if (text.includes(term)) {
+        const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
+        const before = counts.slice(0, resolved.fileIndex).reduce((s, c) => s + c, 0);
+        titleDeedWizard.viewerGlobalPage = before + n;
+        const pageInput = document.getElementById("wizard-viewer-page-input");
+        if (pageInput) pageInput.value = titleDeedWizard.viewerGlobalPage;
+        wizardRenderCurrentPage();
+        wizardHighlightActiveThumb();
+        toast(`找到「${term}」,已跳到第 ${n} 頁`, "success");
+        return;
+      }
+    }
+    toast(`這份檔案裡找不到「${term}」`, "error");
+  } catch (err) {
+    toast("搜尋失敗", "error");
   }
 }
 
 function wireWizardViewerPane() {
   const root = document.getElementById("modal-root");
   if (!root) return;
-  root.querySelectorAll(".wizard-viewer-tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      titleDeedWizard.viewerActiveIndex = Number(btn.dataset.viewerIndex);
-      const pane = root.querySelector(".wizard-viewer-pane");
-      if (pane) pane.outerHTML = wizardViewerPaneHtml();
-      wireWizardViewerPane();
-    });
-  });
+
   document.getElementById("wizard-viewer-zoom-in")?.addEventListener("click", () => {
     titleDeedWizard.viewerZoom = Math.min(3, (titleDeedWizard.viewerZoom || 1) + 0.2);
-    const pane = root.querySelector(".wizard-viewer-pane");
-    if (pane) pane.outerHTML = wizardViewerPaneHtml();
-    wireWizardViewerPane();
+    wizardRenderCurrentPage();
+    const label = root.querySelector(".wizard-viewer-toolbar .helper-text");
+    if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
   });
   document.getElementById("wizard-viewer-zoom-out")?.addEventListener("click", () => {
     titleDeedWizard.viewerZoom = Math.max(0.4, (titleDeedWizard.viewerZoom || 1) - 0.2);
-    const pane = root.querySelector(".wizard-viewer-pane");
-    if (pane) pane.outerHTML = wizardViewerPaneHtml();
-    wireWizardViewerPane();
+    wizardRenderCurrentPage();
+    const label = root.querySelector(".wizard-viewer-toolbar .helper-text");
+    if (label) label.textContent = `${Math.round(titleDeedWizard.viewerZoom * 100)}%`;
   });
-  wireWizardSplitResize();
-
-  const files = titleDeedWizard.files || [];
-  if (files.length) {
-    const resolved = wizardResolveSourcePage(titleDeedWizard.viewerTargetPage);
-    const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
-    const activeFile = files[activeIdx];
-    if ((activeFile.type || "").includes("pdf")) {
-      const targetPage = resolved ? resolved.localPage : files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
-      wizardRenderPdfPages(activeIdx, targetPage);
-    }
+  document.getElementById("wizard-viewer-rotate")?.addEventListener("click", () => {
+    titleDeedWizard.viewerRotation = ((titleDeedWizard.viewerRotation || 0) + 90) % 360;
+    wizardRenderCurrentPage();
+  });
+  document.getElementById("wizard-viewer-download")?.addEventListener("click", () => {
+    const resolved = wizardGlobalToFileLocalSafe(titleDeedWizard.viewerGlobalPage);
+    const file = (titleDeedWizard.files || [])[resolved.fileIndex];
+    if (!file) return;
+    const a = document.createElement("a");
+    a.href = wizardFileUrls()[resolved.fileIndex];
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+  document.getElementById("wizard-viewer-search-btn")?.addEventListener("click", wizardSearchInViewer);
+  const pageInput = document.getElementById("wizard-viewer-page-input");
+  if (pageInput) {
+    pageInput.addEventListener("change", () => {
+      let v = Math.round(Number(pageInput.value)) || 1;
+      v = Math.min(Math.max(1, v), wizardTotalPages());
+      pageInput.value = v;
+      titleDeedWizard.viewerGlobalPage = v;
+      wizardRenderCurrentPage();
+      wizardHighlightActiveThumb();
+    });
   }
+  wireWizardSplitResize();
+  wizardRenderCurrentPage();
+  wizardRenderThumbnails();
 }
 
 // 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖
@@ -308,7 +419,133 @@ function wizardSplitBodyHtml(rightHtml) {
 // 都整個 modal 重建,連原圖那欄的 iframe 也跟著砍掉重載,畫面上看起來像「每次都重新
 // 跳頁一次」,而且失去使用者原本手動捲動/縮放的位置。現在只有目標頁碼真的變了(換到
 // 下一筆地號/建號)才重建原圖欄,同一筆的子步驟之間只換右邊表單,原圖完全不動。
+// 每筆地號/建號的核心欄位跟每位所有權人姓名/戶籍地址做「有沒有填」檢查,供頂部「辨識
+// 結果/未辨識項目」分頁計數跟未辨識清單用。統一編號故意不檢查 - 二類謄本本來就遮罩成
+// 「A123*****6」,不是缺資料。
+function wizardGroupList() {
+  const d = titleDeedWizard.data || {};
+  const groups = [];
+  (d.parcels || []).forEach((p, i) => groups.push({ type: "parcel", index: i, record: p }));
+  (d.buildings || []).forEach((b, i) => groups.push({ type: "building", index: i, record: b }));
+  return groups;
+}
+
+function wizardComputeFieldChecks() {
+  const items = [];
+  const push = (ok, label, groupType, groupIndex) => items.push({ ok: !!ok, label, groupType, groupIndex });
+  wizardGroupList().forEach((g) => {
+    if (g.type === "parcel") {
+      const p = g.record;
+      const tag = p.parcel_number || `第${g.index + 1}筆`;
+      push(!!p.township, `地號${tag}・鄉鎮市區`, "parcel", g.index);
+      push(!!p.section, `地號${tag}・地段`, "parcel", g.index);
+      push(!!p.parcel_number, `地號${tag}・地號`, "parcel", g.index);
+      push(Number(p.area_sqm) > 0, `地號${tag}・土地面積`, "parcel", g.index);
+      (p.owners || []).forEach((o, oi) => {
+        push(!!o.owner_name, `地號${tag}・所有權人#${oi + 1}姓名`, "parcel", g.index);
+        push(!!o.address, `地號${tag}・所有權人#${oi + 1}戶籍地址`, "parcel", g.index);
+      });
+    } else {
+      const b = g.record;
+      const tag = b.building_number || `第${g.index + 1}筆`;
+      push(!!b.building_number, `建號${tag}・建號`, "building", g.index);
+      push(!!b.building_address, `建號${tag}・建物門牌`, "building", g.index);
+      const totalArea = (Number(b.total_area_sqm) || 0) + (b.accessories || []).reduce((s, a) => s + (Number(a.area_sqm) || 0), 0);
+      push(totalArea > 0 || Number(b.floor_area_sqm) > 0, `建號${tag}・建物總面積`, "building", g.index);
+      (b.owners || []).forEach((o, oi) => {
+        push(!!o.owner_name, `建號${tag}・所有權人#${oi + 1}姓名`, "building", g.index);
+        push(!!o.address, `建號${tag}・所有權人#${oi + 1}戶籍地址`, "building", g.index);
+      });
+    }
+  });
+  return items;
+}
+
+function wizardIssuesTabHtml() {
+  const issues = wizardComputeFieldChecks().filter((x) => !x.ok);
+  if (!issues.length) return `<div class="empty-state">沒有偵測到明顯的空白欄位 🎉</div>`;
+  return `<div class="wizard-ov-issue-list">${issues
+    .map(
+      (it) =>
+        `<button type="button" class="wizard-ov-issue-item" data-jump-group-type="${it.groupType}" data-jump-group-index="${it.groupIndex}">
+          <span class="wizard-ov-issue-icon">⚠</span> ${escapeHtml(it.label)}
+        </button>`
+    )
+    .join("")}</div>`;
+}
+
+function wizardSettingsTabHtml() {
+  const d = titleDeedWizard.data || {};
+  return `
+    <div class="field"><label>謄本類別</label><div class="helper-text">${escapeHtml(d.deed_category) || "未偵測到"}</div></div>
+    <div class="field"><label>本次匯入類型</label><div class="helper-text">${escapeHtml(WIZARD_RECORD_TYPE_LABEL[titleDeedWizard.recordType] || titleDeedWizard.recordType)}</div></div>
+    <div class="field"><label>上傳檔案(共 ${(titleDeedWizard.files || []).length} 份,${wizardTotalPages()} 頁)</label>
+      <div class="helper-text">${(titleDeedWizard.files || []).map((f) => escapeHtml(f.name)).join("、") || "-"}</div>
+    </div>`;
+}
+
+function wizardStepTabWrapperHtml(resultsHtml) {
+  const tab = titleDeedWizard.stepTab || "results";
+  const checks = wizardComputeFieldChecks();
+  const okCount = checks.filter((x) => x.ok).length;
+  const issueCount = checks.length - okCount;
+  const content = tab === "issues" ? wizardIssuesTabHtml() : tab === "settings" ? wizardSettingsTabHtml() : resultsHtml;
+  return `
+    <div class="wizard-step-tabs">
+      <button type="button" class="wizard-step-tab-btn ${tab === "results" ? "active" : ""}" data-step-tab="results">辨識結果 <span class="wizard-ov-tab-count">${okCount}</span></button>
+      <button type="button" class="wizard-step-tab-btn ${tab === "issues" ? "active" : ""}" data-step-tab="issues">未辨識項目 <span class="wizard-ov-tab-count warn">${issueCount}</span></button>
+      <button type="button" class="wizard-step-tab-btn ${tab === "settings" ? "active" : ""}" data-step-tab="settings">匯入設定</button>
+    </div>
+    <div id="wizard-step-tab-content">${content}</div>`;
+}
+
+function wireWizardStepTabs() {
+  document.querySelectorAll(".wizard-step-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.stepTab;
+      if (tab === "results") {
+        // 回到辨識結果=重新呼叫目前這一步的 render 函式,乾淨地重建欄位跟事件綁定
+        // (跟切換上一步/下一步是同一條路徑,目標頁碼沒變不會重載原圖)。
+        titleDeedWizard.stepTab = "results";
+        if (titleDeedWizard._rerenderCurrentSubstep) titleDeedWizard._rerenderCurrentSubstep();
+        return;
+      }
+      titleDeedWizard.stepTab = tab;
+      const content = document.getElementById("wizard-step-tab-content");
+      if (content) content.innerHTML = tab === "issues" ? wizardIssuesTabHtml() : wizardSettingsTabHtml();
+      document.querySelectorAll(".wizard-step-tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.stepTab === tab));
+      if (tab === "issues") wireWizardStepIssueItems();
+    });
+  });
+}
+
+function wireWizardStepIssueItems() {
+  document.querySelectorAll(".wizard-ov-issue-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const type = btn.dataset.jumpGroupType;
+      const index = Number(btn.dataset.jumpGroupIndex);
+      titleDeedWizard.stepTab = "results";
+      if (type === "parcel") {
+        titleDeedWizard.activeType = "parcel";
+        titleDeedWizard.activeIndex = index;
+        titleDeedWizard.parcelSubStep = 0;
+        titleDeedWizard.step = 2;
+      } else {
+        titleDeedWizard.activeType = "building";
+        titleDeedWizard.activeIndex = index;
+        titleDeedWizard.buildingSubStep = 0;
+        titleDeedWizard.step = 3;
+      }
+      renderWizardStep();
+    });
+  });
+}
+
 function renderWizardSplitStep(rightHtml, sourcePage) {
+  // 每次進到一個子步驟(不管是「下一步/上一步」導覽,還是從「未辨識項目」點過來)都
+  // 先重置回辨識結果分頁 - 不然使用者上一步還停在「未辨識項目」,換了地號/建號之後
+  // 畫面卻還顯示舊的分頁內容,對不上目前在編輯哪一筆。
+  titleDeedWizard.stepTab = "results";
   const targetPage = sourcePage || null;
   const fileCount = (titleDeedWizard.files || []).length;
   const root = document.getElementById("modal-root");
@@ -317,18 +554,21 @@ function renderWizardSplitStep(rightHtml, sourcePage) {
     existingSplit &&
     titleDeedWizard._lastViewerTargetPage === targetPage &&
     titleDeedWizard._lastViewerFileCount === fileCount;
+  const wrappedHtml = wizardStepTabWrapperHtml(rightHtml);
 
   if (viewerUnchanged) {
     const formPane = existingSplit.querySelector(".wizard-form-pane");
     if (formPane) {
-      formPane.innerHTML = rightHtml;
+      formPane.innerHTML = wrappedHtml;
+      wireWizardStepTabs();
       return;
     }
   }
 
   titleDeedWizard.viewerTargetPage = targetPage;
-  openModal("掃描謄本匯入", wizardSplitBodyHtml(rightHtml), { width: "min(1400px, 96vw)" });
+  openModal("掃描謄本匯入", wizardSplitBodyHtml(wrappedHtml), { width: "min(1400px, 96vw)" });
   wireWizardViewerPane();
+  wireWizardStepTabs();
   titleDeedWizard._lastViewerTargetPage = targetPage;
   titleDeedWizard._lastViewerFileCount = fileCount;
 }
@@ -1336,6 +1576,7 @@ function renderWizardStepParcelEditor() {
 function renderParcelDescriptionSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
+  titleDeedWizard._rerenderCurrentSubstep = () => renderParcelDescriptionSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 1/3 土地標示部`)}
     <div style="margin-bottom:10px">
@@ -1401,6 +1642,7 @@ function renderParcelDescriptionSubStep(idx) {
 function renderParcelOwnersSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
+  titleDeedWizard._rerenderCurrentSubstep = () => renderParcelOwnersSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 2/3 土地所有權部`)}
     <div class="helper-text" id="wizard-parcel-summary" style="margin-bottom:10px">${parcelSummaryHtml(p)}</div>
@@ -1429,6 +1671,7 @@ function renderParcelEncumbrancesSubStep(idx) {
   const parcels = titleDeedWizard.data.parcels;
   const p = parcels[idx];
   const isLast = idx === parcels.length - 1;
+  titleDeedWizard._rerenderCurrentSubstep = () => renderParcelEncumbrancesSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 3/3 土地他項權利部`)}
     <div class="helper-text" id="wizard-parcel-enc-summary" style="margin-bottom:10px">${parcelSummaryHtml(p, "encumbrances")}</div>
@@ -1698,6 +1941,7 @@ function renderWizardStepBuildingEditor() {
 function renderBuildingDescriptionSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
+  titleDeedWizard._rerenderCurrentSubstep = () => renderBuildingDescriptionSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/3 建物標示部`)}
     <div style="margin-bottom:10px">
@@ -1861,6 +2105,7 @@ function renderBuildingDescriptionSubStep(idx) {
 function renderBuildingOwnersSubStep(idx) {
   const buildings = titleDeedWizard.data.buildings;
   const b = buildings[idx];
+  titleDeedWizard._rerenderCurrentSubstep = () => renderBuildingOwnersSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 2/3 建物所有權部`)}
     <div class="helper-text" id="wizard-building-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>
@@ -1892,6 +2137,7 @@ function renderBuildingEncumbranceSubStep(idx) {
   const b = buildings[idx];
   const isLast = idx === buildings.length - 1;
   if (!b.encumbrances) b.encumbrances = [];
+  titleDeedWizard._rerenderCurrentSubstep = () => renderBuildingEncumbranceSubStep(idx);
   renderWizardSplitStep(`
     ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 3/3 建物他項權利部`)}
     <div class="helper-text" id="wizard-building-enc-summary" style="margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${buildingSummaryHtml(b)}</div>

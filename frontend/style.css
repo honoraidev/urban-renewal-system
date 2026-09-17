@@ -1069,17 +1069,60 @@
   .wizard-viewer-body iframe { width: 100%; height: 100%; border: 0; }
   .wizard-viewer-jump-note { padding: 4px 8px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .wizard-viewer-toolbar {
-    display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 8px;
+    display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; flex-wrap: wrap;
     border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
   }
-  .wizard-viewer-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
-  .wizard-viewer-page-canvas { max-width: 100%; box-shadow: var(--shadow); background: #fff; }
+  .wizard-viewer-page-input-wrap { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-muted); }
+  .wizard-viewer-page-input-wrap input {
+    width: 46px; text-align: center; padding: 5px 4px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface); color: var(--text);
+  }
+  .wizard-viewer-canvas-wrap {
+    flex: 1; min-height: 0; overflow: auto; display: flex; align-items: flex-start;
+    justify-content: center; padding: 10px; background: var(--surface-2);
+  }
+  .wizard-viewer-canvas-wrap canvas { max-width: 100%; box-shadow: var(--shadow); background: #fff; }
+  .wizard-viewer-thumbs {
+    flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto; padding: 8px; border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .wizard-ov-thumb {
+    flex-shrink: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    border: 2px solid transparent; border-radius: 6px; padding: 2px; background: none; cursor: pointer;
+  }
+  .wizard-ov-thumb canvas { width: 100%; height: 68px; object-fit: contain; background: #fff; box-shadow: var(--shadow); }
+  .wizard-ov-thumb span { font-size: 10.5px; color: var(--text-muted); font-weight: 600; }
+  .wizard-ov-thumb.active { border-color: var(--brand); }
+  .wizard-ov-thumb.active span { color: var(--brand-dark, var(--brand)); }
   .wizard-split-handle {
     flex: 0 0 6px; align-self: stretch; cursor: col-resize; background: var(--border);
     border-radius: 3px; transition: background .15s ease;
   }
   .wizard-split-handle:hover { background: var(--brand); }
   .wizard-form-pane { flex: 1 1 56%; min-width: 0; overflow-y: auto; max-height: 72vh; padding-right: 4px; }
+
+  /* 審核步驟頂部的「辨識結果/未辨識項目/匯入設定」分頁(仍然一次只審一筆,分頁只是
+     切換右欄顯示內容,見 ocr_wizard.js 的 wizardStepTabWrapperHtml) */
+  .wizard-step-tabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px; }
+  .wizard-step-tab-btn {
+    display: flex; align-items: center; gap: 6px; padding: 6px 11px; border: none; background: none;
+    border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--text-muted); cursor: pointer;
+  }
+  .wizard-step-tab-btn:hover { background: var(--surface-2); }
+  .wizard-step-tab-btn.active { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand-dark, var(--brand)); }
+  .wizard-ov-tab-count {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+    padding: 0 5px; border-radius: 999px; background: var(--surface-2); font-size: 11px; font-weight: 800;
+  }
+  .wizard-ov-tab-count.warn { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+  .wizard-ov-issue-list { display: flex; flex-direction: column; gap: 6px; }
+  .wizard-ov-issue-item {
+    display: flex; align-items: center; gap: 8px; text-align: left; padding: 10px 12px; width: 100%;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 13.5px;
+  }
+  .wizard-ov-issue-item:hover { border-color: var(--brand); background: var(--surface-2); }
+  .wizard-ov-issue-icon { color: var(--warning, #b45309); }
+
   @media (max-width: 900px) {
     .wizard-split { flex-direction: column; }
     .wizard-viewer-pane { height: 320px; }
