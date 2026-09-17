@@ -169,6 +169,19 @@ function wizardResolveSourcePage(globalPage) {
   return null; // 頁碼超出檔案總頁數範圍,理論上不會發生,防呆用
 }
 
+// 瀏覽器內建 PDF 外掛(單純 <iframe src="blob:...">)在不同瀏覽器/版本下常常只顯示
+// 第一頁、內建的縮放按鈕也不一定有反應 - 改用 pdf.js 自己畫,才能保證多頁都能捲動看到、
+// 縮放鈕也一定有效。圖片檔案(非PDF)維持原本 <img> 顯示。
+function wizardViewerToolbarHtml() {
+  const zoomPct = Math.round((titleDeedWizard.viewerZoom || 1) * 100);
+  return `
+    <div class="wizard-viewer-toolbar">
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-out" title="縮小">－</button>
+      <span class="helper-text" style="min-width:42px;text-align:center">${zoomPct}%</span>
+      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-in" title="放大">＋</button>
+    </div>`;
+}
+
 function wizardViewerPaneHtml() {
   const files = titleDeedWizard.files || [];
   if (!files.length) {
@@ -183,13 +196,13 @@ function wizardViewerPaneHtml() {
   // file_page_counts 沒有時(理論上只有電子謄本規則路徑以外的意外狀況)退回舊邏輯:
   // 只有單一檔案才能直接把全域頁碼當成該檔案的頁碼,不亂猜多檔案的對應關係。
   const targetPage = resolved ? resolved.localPage : files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
-  const srcWithPage = targetPage ? `${urls[activeIdx]}#page=${targetPage}` : urls[activeIdx];
   const body = isPdf
-    ? `<iframe src="${escapeHtml(srcWithPage)}" title="${escapeHtml(activeFile.name)}"></iframe>`
+    ? `<div class="wizard-viewer-pdf-pages" id="wizard-viewer-pdf-pages"><span class="helper-text">載入中…</span></div>`
     : `<img src="${escapeHtml(urls[activeIdx])}" alt="${escapeHtml(activeFile.name)}">`;
   const widthPct = titleDeedWizard.viewerPaneWidthPct || 44;
   return `
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
+      ${isPdf ? wizardViewerToolbarHtml() : ""}
       ${files.length > 1
       ? `<div class="wizard-viewer-tabs">
           ${files
@@ -205,8 +218,45 @@ function wizardViewerPaneHtml() {
       ? `<div class="helper-text wizard-viewer-jump-note">→ 已跳至${files.length > 1 ? `第 ${activeIdx + 1} 份檔案` : "原謄本"}第 ${targetPage} 頁</div>`
       : ""
     }
-      <div class="wizard-viewer-body">${body}</div>
+      <div class="wizard-viewer-body" id="wizard-viewer-body">${body}</div>
     </div>`;
+}
+
+// 把 PDF 每一頁都畫成一個 canvas、直向堆疊在可捲動的容器裡 - 使用者可以像一般 PDF
+// 閱讀器一樣捲動看完整份檔案,不會只卡在第一頁。畫完後如果有指定目標頁碼(審核到
+// 哪一筆地號/建號自動跳頁用),捲動到那一頁。
+async function wizardRenderPdfPages(fileIndex, targetPage) {
+  const container = document.getElementById("wizard-viewer-pdf-pages");
+  if (!container) return;
+  if (!window.pdfjsLib) {
+    container.innerHTML = `<span class="helper-text">PDF 預覽元件載入失敗(可能是網路擋住外部資源),可用下載查看原始檔案</span>`;
+    return;
+  }
+  const file = (titleDeedWizard.files || [])[fileIndex];
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const zoom = titleDeedWizard.viewerZoom || 1;
+    container.innerHTML = "";
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      const viewport = page.getViewport({ scale: zoom * 1.3 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.className = "wizard-viewer-page-canvas";
+      canvas.dataset.pageNumber = n;
+      container.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    }
+    if (targetPage) {
+      const target = container.querySelector(`canvas[data-page-number="${targetPage}"]`);
+      if (target) target.scrollIntoView({ block: "start" });
+    }
+  } catch (err) {
+    container.innerHTML = `<span class="helper-text">PDF 預覽載入失敗,可用下載查看原始檔案</span>`;
+  }
 }
 
 function wireWizardViewerPane() {
@@ -220,7 +270,30 @@ function wireWizardViewerPane() {
       wireWizardViewerPane();
     });
   });
+  document.getElementById("wizard-viewer-zoom-in")?.addEventListener("click", () => {
+    titleDeedWizard.viewerZoom = Math.min(3, (titleDeedWizard.viewerZoom || 1) + 0.2);
+    const pane = root.querySelector(".wizard-viewer-pane");
+    if (pane) pane.outerHTML = wizardViewerPaneHtml();
+    wireWizardViewerPane();
+  });
+  document.getElementById("wizard-viewer-zoom-out")?.addEventListener("click", () => {
+    titleDeedWizard.viewerZoom = Math.max(0.4, (titleDeedWizard.viewerZoom || 1) - 0.2);
+    const pane = root.querySelector(".wizard-viewer-pane");
+    if (pane) pane.outerHTML = wizardViewerPaneHtml();
+    wireWizardViewerPane();
+  });
   wireWizardSplitResize();
+
+  const files = titleDeedWizard.files || [];
+  if (files.length) {
+    const resolved = wizardResolveSourcePage(titleDeedWizard.viewerTargetPage);
+    const activeIdx = Math.min(titleDeedWizard.viewerActiveIndex || 0, files.length - 1);
+    const activeFile = files[activeIdx];
+    if ((activeFile.type || "").includes("pdf")) {
+      const targetPage = resolved ? resolved.localPage : files.length === 1 ? titleDeedWizard.viewerTargetPage : null;
+      wizardRenderPdfPages(activeIdx, targetPage);
+    }
+  }
 }
 
 // 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖

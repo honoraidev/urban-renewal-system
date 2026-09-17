@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260916_12">
+  <link rel="stylesheet" href="style.css?v=20260917_2">
 </head>
 
 <body>
@@ -763,6 +763,14 @@
     }).catch(function () {});
   })();
   </script>
+  <!-- 謄本匯入精靈的原圖預覽(ocr_wizard.js)用 pdf.js 畫多頁 PDF,不依賴瀏覽器內建
+       PDF外掛(常常只顯示第一頁、縮放鈕不一定有反應)。 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
   <script src="js/state.js?v=20260916_1"></script>
   <script src="js/utils.js?v=20260909_2"></script>
   <script src="js/api.js?v=20260914_1"></script>
@@ -774,7 +782,7 @@
   <script src="js/sop.js?v=20260917_4"></script>
   <script src="js/development.js?v=20260917_1"></script>
   <script src="js/board.js?v=20260909_9"></script>
-  <script src="js/ocr_wizard.js?v=20260917_4"></script>
+  <script src="js/ocr_wizard.js?v=20260917_6"></script>
   <script src="js/landowners.js?v=20260917_4"></script>
   <script src="js/documents.js?v=20260917_3"></script>
   <script src="js/encumbrances.js?v=20260917_1"></script>
