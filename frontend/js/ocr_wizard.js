@@ -231,7 +231,7 @@ function wizardViewerPaneHtml() {
   }
   if (titleDeedWizard.viewerTargetPage) titleDeedWizard.viewerGlobalPage = titleDeedWizard.viewerTargetPage;
   titleDeedWizard.viewerGlobalPage = Math.min(Math.max(1, titleDeedWizard.viewerGlobalPage || 1), wizardTotalPages());
-  const widthPct = titleDeedWizard.viewerPaneWidthPct || 44;
+  const widthPct = titleDeedWizard.viewerPaneWidthPct || 52;
   return `
     <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
       <div class="wizard-window-titlebar">📄 謄本預覽</div>
@@ -545,7 +545,7 @@ function renderWizardSplitStep(rightHtml, sourcePage) {
   }
 
   titleDeedWizard.viewerTargetPage = targetPage;
-  openModal("掃描謄本匯入", wizardSplitBodyHtml(wrappedHtml), { width: "min(1400px, 96vw)" });
+  openModal("掃描謄本匯入", wizardSplitBodyHtml(wrappedHtml), { width: "min(1680px, 98vw)" });
   wireWizardViewerPane();
   wireWizardStepTabs();
   titleDeedWizard._lastViewerTargetPage = targetPage;
