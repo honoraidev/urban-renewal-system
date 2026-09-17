@@ -1,4 +1,5 @@
 import base64
+import os
 import threading
 from datetime import datetime, timezone
 
@@ -146,6 +147,9 @@ def extract_title_deed_job(
     # True everywhere given there's no real speed cost to justify keeping the less
     # accurate engine as the default.
     high_accuracy: bool = Form(True),
+    # SOP 階段任務清單的「土地登記匯入/建物登記匯入」按鈕會帶這個,讓這次上傳的檔案
+    # 也能在該階段的「相關檔案」列表看到,不用另外再上傳一次(見 sop.js)。
+    sop_stage: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_ocr_editor),
@@ -183,23 +187,46 @@ def extract_title_deed_job(
                 existing_document = None  # not this project's document - ignore rather than trust a client-supplied id blindly
         if existing_document is not None:
             upload.file.close()
+            # 這份既有文件之前沒被歸到任何 SOP 階段的話,順便補上這次匯入指定的階段,
+            # 這樣它也會出現在該階段的「相關檔案」;已經歸過的維持原樣,不要蓋掉。
+            if sop_stage is not None and existing_document.sop_stage is None:
+                existing_document.sop_stage = sop_stage
             documents.append(existing_document)
             db.add(OcrJobDocument(ocr_job_id=job.id, document_id=existing_document.id, page_order=len(documents) - 1))
             continue
 
+        # 同一個 SOP 階段內,再上傳一次同檔名的檔案視為「覆蓋」:先刪掉舊的那筆
+        # (連同磁碟上的檔案)再存新的,SOP 階段的「相關檔案」列表才不會一直疊出
+        # 同名的重複項目 - 比照 development.js 的「相關文件」同一套覆蓋邏輯。
+        upload_filename = upload.filename or "upload"
+        if sop_stage is not None:
+            dup = db.scalar(
+                select(Document).where(
+                    Document.project_id == project_id,
+                    Document.sop_stage == sop_stage,
+                    Document.file_name == upload_filename,
+                )
+            )
+            if dup is not None:
+                if os.path.exists(dup.file_path):
+                    os.remove(dup.file_path)
+                db.delete(dup)
+                db.flush()
+
         content = upload.file.read()
-        disk_path, stored_name = build_upload_path(project.project_code, upload.filename or "upload")
+        disk_path, stored_name = build_upload_path(project.project_code, upload_filename)
         with open(disk_path, "wb") as out:
             out.write(content)
         document = Document(
             project_id=project_id,
             doc_type="building_register" if record_type == "building" else "property_register",
-            file_name=upload.filename or stored_name,
+            file_name=upload_filename,
             file_path=disk_path,
             file_size_bytes=len(content),
             mime_type=upload.content_type,
             uploaded_by=current_user.id,
             description="謄本掃描匯入",
+            sop_stage=sop_stage,
         )
         db.add(document)
         db.flush()

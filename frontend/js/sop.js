@@ -703,7 +703,7 @@ async function renderSopTab(el) {
               ? `<button type="button" class="btn-secondary btn-sm" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入">${actionLabel}</button>`
               : item.action === "building" && landCount === 0
                 ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記">${actionLabel}</button>`
-                : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}">${actionLabel}</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}" data-checklist-action-stage="${selected}">${actionLabel}</button>`
             : "";
         // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
         const rosterBtn = "";
@@ -867,8 +867,9 @@ async function renderSopTab(el) {
 
   el.querySelectorAll("[data-checklist-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (btn.dataset.checklistAction === "land") openTitleDeedWizard();
-      else openBuildingTitleDeedWizard();
+      const stage = btn.dataset.checklistActionStage != null ? Number(btn.dataset.checklistActionStage) : null;
+      if (btn.dataset.checklistAction === "land") openTitleDeedWizard(stage);
+      else openBuildingTitleDeedWizard(stage);
     });
   });
 

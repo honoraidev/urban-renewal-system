@@ -13,15 +13,18 @@ function revokeWizardFileUrls() {
   }
 }
 
-function openTitleDeedWizard() {
+// sopStage 有帶的話(從 SOP 階段任務清單的「土地登記匯入/建物登記匯入」按鈕開精靈時
+// 會帶),這次上傳的檔案除了照舊存進案件文件,也會被歸到那個階段,才會出現在該階段
+// 的「相關檔案」列表(見 submitWizardOcr 的 fd.append("sop_stage", ...))。
+function openTitleDeedWizard(sopStage) {
   revokeWizardFileUrls();
-  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "land", lockRecordType: true, viewerActiveIndex: 0 };
+  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "land", lockRecordType: true, viewerActiveIndex: 0, sopStage: sopStage ?? null };
   renderWizardStep0();
 }
 
-function openBuildingTitleDeedWizard() {
+function openBuildingTitleDeedWizard(sopStage) {
   revokeWizardFileUrls();
-  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "building", lockRecordType: true, viewerActiveIndex: 0 };
+  titleDeedWizard = { files: [], pages: [], step: 0, data: null, activeType: null, activeIndex: null, recordType: "building", lockRecordType: true, viewerActiveIndex: 0, sopStage: sopStage ?? null };
   renderWizardStep0();
 }
 
@@ -1060,6 +1063,7 @@ async function runTitleDeedOcr() {
       fd.append("source_document_ids", f.sourceDocumentId ? String(f.sourceDocumentId) : "");
     });
     fd.append("record_type", titleDeedWizard.recordType);
+    if (titleDeedWizard.sopStage != null) fd.append("sop_stage", String(titleDeedWizard.sopStage));
     let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
     if (result && result.job && result.job.status === "processing") {
       result = await pollTitleDeedJob(state.currentProjectId, result.job.id, { progress });
@@ -2432,7 +2436,9 @@ async function submitTitleDeedWizardInner() {
       0
     );
 
-  // 送出後精靈先關掉,改用畫面底部的浮動進度條顯示 (n/N),不擋住畫面。
+  // 送出後精靈先關掉,改用畫面底部的浮動進度條顯示 (n/N),不擋住畫面。記住這次是從
+  // 哪個 SOP 階段開的精靈,等一下問「要不要接著匯入建物謄本」時同一個階段接著用。
+  const sopStageForFollowUp = titleDeedWizard.sopStage;
   closeModal();
   titleDeedWizard = null;
   const progress = showImportProgressPanel(totalUnits);
@@ -2598,7 +2604,7 @@ async function submitTitleDeedWizardInner() {
     // 要看批次可從「文件」分頁的謄本匯入批次進入。
     await renderTab(state.activeTab);
     const modalOpen = !!(document.getElementById("modal-root")?.innerHTML || "").trim();
-    if (hadParcels && !modalOpen) offerBuildingImportFollowUp();
+    if (hadParcels && !modalOpen) offerBuildingImportFollowUp(sopStageForFollowUp);
   } catch (err) {
     progress.fail(doneUnits, "已建立的資料會保留,請到清冊確認後再補匯入缺的部分");
   }
@@ -2611,7 +2617,7 @@ function oneClickCreateTitleDeed() {
   confirmAndSubmitTitleDeedWizard();
 }
 
-function offerBuildingImportFollowUp() {
+function offerBuildingImportFollowUp(sopStage) {
   openModal(
     "匯入建物謄本",
     `
@@ -2626,7 +2632,7 @@ function offerBuildingImportFollowUp() {
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === "buildings"));
     state.activeTab = "buildings";
     await renderTab("buildings");
-    openBuildingTitleDeedWizard();
+    openBuildingTitleDeedWizard(sopStage);
   });
 }
 
