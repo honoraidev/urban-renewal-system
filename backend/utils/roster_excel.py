@@ -342,14 +342,17 @@ def build_roster_workbook(
         land_records,
         lambda lr: (_digits(lr.parcel_number), (lr.registration_order or "").strip(), lr.landowner_id),
     )
-    # 共有部分 / 公設 / 純地下室(門牌「…房屋地下N層」「等共同使用」)不是任何人的
-    # 區分所有建物,不能自己成一列 —— OCR 常把每位區分所有權人的「共有部分:XXXX建號」
-    # 誤存成掛在該人底下的一筆建物 record(同一個地下室建號會重複幾十列)。整批剔除。
+    # 共有部分 / 公設(門牌寫「…等共同使用」的無所有權資料建號)不是任何人的區分
+    # 所有建物,不能自己成一列 —— OCR 常把每位區分所有權人的「共有部分:XXXX建號」
+    # 誤存成掛在該人底下的一筆建物 record(同一個共有建號會重複幾十列)。整批剔除。
+    # 地下室/地下二層車位常是按持分比例個別登記的獨立建號(門牌帶「房屋地下N層」
+    # 但有真正的建物所有權部與持分),不能只靠地址文字判斷,否則會誤刪這種有真正
+    # 持分人的建號。
     def _is_shared_space(b) -> bool:
         if (getattr(b, "main_use", None) or "").strip() == "共有部分":
             return True
         addr = (getattr(b, "address", "") or "")
-        return "房屋地下" in addr or "共同使用" in addr
+        return "共同使用" in addr
     building_records = [b for b in building_records if not _is_shared_space(b)]
     building_records = _dedup(
         building_records,
