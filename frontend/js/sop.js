@@ -803,7 +803,6 @@ async function renderSopTab(el) {
                 <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本階段</button>
                 ${!checklistAllDone ? `<span class="helper-text">還有項目未完成,無法進入下一關</span>` : ""}
                 ${isManager() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
-                <button type="button" class="btn-secondary btn-sm" id="sop-back-btn">返回</button>
                 <span class="helper-text sop-last-updated">${lastUpdatedHtml}</span>
               </div>`
           : !selectedIsCurrent
@@ -939,9 +938,6 @@ async function renderSopTab(el) {
       } catch (err) { }
     });
   }
-
-  const backBtn = document.getElementById("sop-back-btn");
-  if (backBtn) backBtn.addEventListener("click", () => goToDashboard());
 
   // ---- 相關檔案:預覽/下載/刪除(上傳功能移除,這裡只保留檢視既有檔案) ----
   el.querySelectorAll("[data-sop-file-view]").forEach((btn) => {
