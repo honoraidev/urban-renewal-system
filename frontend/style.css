@@ -1330,9 +1330,8 @@
 .ltt-table input, .ltt-table .ymp-trigger {
   font-size: 15.5px; padding: 10px 12px; border-radius: 8px; height: 44px; box-sizing: border-box;
 }
-.ltt-table th:nth-child(3), .ltt-table td:nth-child(3),
 .ltt-table th:nth-child(4), .ltt-table td:nth-child(4) { text-align: center; }
-.ltt-result-cell { font-size: 17px; white-space: nowrap; }
+.ltt-result-cell { font-size: 17px; }
 .ltt-result-cell strong { font-size: 18px; font-weight: 800; }
 .ltt-result-cell .helper-text { font-size: 13px; }
 /* 展開的子列(每筆土地登記) */
@@ -1342,7 +1341,7 @@
 .ltt-table .ltt-parent > td:nth-child(2) { font-weight: 700; }
 .ltt-table .ltt-parent .ltt-toggle { font-size: 12px; }
 /* 子列:整組以品牌色左邊條連起來,和父列視覺成一群 */
-.ltt-table tr.ltt-child > td { border-bottom: none; padding-top: 8px; padding-bottom: 8px; }
+.ltt-table tr.ltt-child > td { border-bottom: none; padding-top: 14px; padding-bottom: 14px; vertical-align: top; }
 .ltt-table tr.ltt-child:last-of-type > td { border-bottom: 1px solid var(--border); }
 .ltt-table tr.ltt-child > td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
 .ltt-table .ltt-child-parcel {
@@ -1354,6 +1353,34 @@
 }
 .ltt-table .ltt-input-years { text-align: center; }
 .ltt-table th:empty { padding: 0; }
+
+/* 計算明細:label 靠左、數值靠右的兩欄列表,取代原本擠成一坨的置中文字 */
+.ltt-detail-block { display: flex; flex-direction: column; gap: 3px; min-width: 260px; }
+.ltt-detail-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 13px; color: var(--text-muted); }
+.ltt-detail-label { white-space: nowrap; }
+.ltt-detail-value { font-weight: 600; color: var(--text); white-space: nowrap; }
+.ltt-detail-row.is-muted { font-size: 12.5px; }
+.ltt-detail-row.is-strong { font-size: 14.5px; margin: 2px 0; padding-top: 4px; border-top: 1px dashed var(--border); }
+.ltt-detail-row.is-strong .ltt-detail-label { color: var(--text); font-weight: 700; }
+.ltt-detail-row.is-strong .ltt-detail-value { color: var(--brand-dark, var(--brand)); font-size: 15px; font-weight: 800; }
+
+/* 本次申報移轉現值欄 */
+.ltt-current-cell { text-align: center; }
+.ltt-current-period { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+.ltt-current-period span { margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand-dark, var(--brand)); font-size: 10.5px; font-weight: 700; }
+.ltt-current-amount { font-size: 16px; font-weight: 700; color: var(--text); }
+
+/* 稅額試算欄:自用／一般金額並列,搭配備註與長期持有/分攤說明 */
+.ltt-tax-block { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.ltt-tax-row { display: flex; align-items: baseline; gap: 8px; }
+.ltt-tax-label { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+.ltt-tax-amount { font-size: 18px; font-weight: 800; color: var(--text); }
+.ltt-tax-row:first-child .ltt-tax-amount { color: var(--success, #1a8f4c); }
+.ltt-tax-note { font-size: 12px; color: var(--text-muted); text-align: right; }
+.ltt-split-badge {
+  margin-top: 6px; padding: 5px 10px; border-radius: 8px; background: var(--surface-2, var(--bg-subtle));
+  font-size: 11.5px; color: var(--text-muted); text-align: right; white-space: normal; line-height: 1.5;
+}
 .ymp-panel {
   position: absolute; z-index: 1000; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-hover, var(--shadow)); padding: 12px; width: 220px;

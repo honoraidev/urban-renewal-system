@@ -202,7 +202,7 @@ function lttGeneralSplitHtml(generalTax) {
   if (!generalTax) return "";
   const ownerShare = generalTax * LTT_GENERAL_SPLIT.owner;
   const developerShare = generalTax * LTT_GENERAL_SPLIT.developer;
-  return `<div class="helper-text">(協議合建4/6分攤:地主 ${Math.round(ownerShare).toLocaleString()} 元、建商 ${Math.round(developerShare).toLocaleString()} 元)</div>`;
+  return `<div class="ltt-split-badge">協議合建4/6分攤 · 地主 ${Math.round(ownerShare).toLocaleString()} 元 / 建商 ${Math.round(developerShare).toLocaleString()} 元</div>`;
 }
 
 function lttOwnerTotalHtml(owner, liveValues) {
@@ -211,9 +211,11 @@ function lttOwnerTotalHtml(owner, liveValues) {
   const t = lttOwnerTotal(owner, liveValues);
   const savings = Math.max(0, t.general - t.selfUse);
   return (
-    `<div>自用 <strong>約 ${Math.round(t.selfUse).toLocaleString()} 元</strong></div>` +
-    `<div>一般 <strong>約 ${Math.round(t.general).toLocaleString()} 元</strong></div>` +
-    `<div class="helper-text">自用比一般省 約 ${Math.round(savings).toLocaleString()} 元</div>` +
+    `<div class="ltt-tax-block">` +
+    `<div class="ltt-tax-row"><span class="ltt-tax-label">自用</span><span class="ltt-tax-amount">約 ${Math.round(t.selfUse).toLocaleString()} 元</span></div>` +
+    `<div class="ltt-tax-row"><span class="ltt-tax-label">一般</span><span class="ltt-tax-amount">約 ${Math.round(t.general).toLocaleString()} 元</span></div>` +
+    `<div class="ltt-tax-note">自用比一般省 約 ${Math.round(savings).toLocaleString()} 元</div>` +
+    `</div>` +
     lttGeneralSplitHtml(t.general)
   );
 }
@@ -229,17 +231,21 @@ function wireLandValueTaxToggles(el) {
   });
 }
 
+function lttDetailRow(label, value, opts = {}) {
+  return `<div class="ltt-detail-row${opts.muted ? " is-muted" : ""}${opts.strong ? " is-strong" : ""}"><span class="ltt-detail-label">${label}</span><span class="ltt-detail-value">${value}</span></div>`;
+}
+
 function lttChildRowHtml(owner, record, liveValues) {
   const result = landValueTaxRowResult(record, liveValues);
   const live = liveValues && liveValues[record.id];
   const currentValueCell = live
-    ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(live.period_label)}(即時查詢)</div>${Number(live.current_value).toLocaleString()}`
-    : `${record.ltt_current_value_period ? `<div class="helper-text" style="margin-bottom:2px">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}${record.ltt_current_value ? Number(record.ltt_current_value).toLocaleString() : "-"}`;
+    ? `<div class="ltt-current-period">${escapeHtml(live.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(live.current_value).toLocaleString()} 元</div>`
+    : `${record.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${record.ltt_current_value ? `${Number(record.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
   return `
     <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
       <td colspan="2" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
       <td>${lttDetailCellHtml(record, result)}</td>
-      <td>${currentValueCell}</td>
+      <td class="ltt-current-cell">${currentValueCell}</td>
       <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>
     </tr>`;
 }
@@ -250,23 +256,23 @@ function lttDetailCellHtml(record, result) {
   if (!result) return `<span class="helper-text">尚未輸入前次移轉現值</span>`;
   const fmt = (n) => Math.round(n).toLocaleString();
   const g = result.general;
-  const lines = [];
-  lines.push(
-    `${record.ltt_original_value_period ? `${escapeHtml(record.ltt_original_value_period)}` : "前次移轉現值"} <strong>${fmt(record.ltt_original_value)} 元</strong>`
+  const rows = [];
+  rows.push(
+    lttDetailRow(record.ltt_original_value_period ? escapeHtml(record.ltt_original_value_period) : "前次移轉現值", `${fmt(record.ltt_original_value)} 元`)
   );
   if (g.cpiIndex !== 100) {
-    lines.push(`物價指數調整 ${g.cpiIndex}%`);
-    lines.push(`調整後前次移轉現值 <strong>${fmt(g.adjustedOriginal)} 元</strong>`);
+    rows.push(lttDetailRow("物價指數調整", `${g.cpiIndex}%`, { muted: true }));
+    rows.push(lttDetailRow("調整後前次移轉現值", `${fmt(g.adjustedOriginal)} 元`));
   }
   if (record.ltt_deductible_cost) {
-    lines.push(`可扣除金額(改良費用等) ${fmt(record.ltt_deductible_cost)} 元`);
+    rows.push(lttDetailRow("可扣除金額(改良費用等)", `${fmt(record.ltt_deductible_cost)} 元`, { muted: true }));
   }
-  lines.push(`土地漲價總數額 <strong>${fmt(g.gain)} 元</strong>`);
+  rows.push(lttDetailRow("土地漲價總數額", `${fmt(g.gain)} 元`, { strong: true }));
   if (g.gain > 0) {
-    lines.push(`土地漲價倍數 ${g.ratio.toFixed(2)} 倍(第${g.bracket}級)`);
+    rows.push(lttDetailRow("土地漲價倍數", `${g.ratio.toFixed(2)} 倍(第${g.bracket}級)`, { muted: true }));
   }
-  lines.push(`持有期間 ${result.holdingYears != null ? `${result.holdingYears} 年` : "未知"}`);
-  return lines.map((l) => `<div class="helper-text" style="margin-bottom:2px">${l}</div>`).join("");
+  rows.push(lttDetailRow("持有期間", result.holdingYears != null ? `${result.holdingYears} 年` : "未知", { muted: true }));
+  return `<div class="ltt-detail-block">${rows.join("")}</div>`;
 }
 
 function lttResultCellHtml(result) {
@@ -279,10 +285,12 @@ function lttResultCellHtml(result) {
       ? `稅率 ${(g.rate * 100).toFixed(1)}% − 速算扣除 ${(g.deductionRate * 100).toFixed(1)}%${g.reductionRate ? `(已套用長期持有減徵${(g.reductionRate * 100).toFixed(0)}%)` : ""}`
       : "";
   return (
-    `<div>自用 <strong>約 ${fmt(result.selfUse.totalTax)} 元</strong></div>` +
-    `<div>一般 <strong>約 ${fmt(g.totalTax)} 元</strong></div>` +
-    (rateNote ? `<div class="helper-text">${rateNote}</div>` : "") +
-    `<div class="helper-text">自用比一般省 約 ${fmt(savings)} 元</div>` +
+    `<div class="ltt-tax-block">` +
+    `<div class="ltt-tax-row"><span class="ltt-tax-label">自用</span><span class="ltt-tax-amount">約 ${fmt(result.selfUse.totalTax)} 元</span></div>` +
+    `<div class="ltt-tax-row"><span class="ltt-tax-label">一般</span><span class="ltt-tax-amount">約 ${fmt(g.totalTax)} 元</span></div>` +
+    (rateNote ? `<div class="ltt-tax-note">${rateNote}</div>` : "") +
+    `<div class="ltt-tax-note">自用比一般省 約 ${fmt(savings)} 元</div>` +
+    `</div>` +
     lttGeneralSplitHtml(g.totalTax)
   );
 }
