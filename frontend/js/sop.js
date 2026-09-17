@@ -755,6 +755,7 @@ async function renderSopTab(el) {
         <div class="sop-file-name">${escapeHtml(d.file_name)}</div>
         <div class="helper-text">${fmtDateTime(d.uploaded_at)}${fileSizeText(d.file_size_bytes) ? `・${fileSizeText(d.file_size_bytes)}` : ""}${d.uploaded_by && userById[d.uploaded_by] ? `・上傳:${escapeHtml(userById[d.uploaded_by].display_name)}` : ""}</div>
       </div>
+      <button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" title="預覽">👁</button>
       <button type="button" class="btn-secondary btn-sm" data-sop-file-download="${d.id}" data-sop-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
       ${canEditMeta ? `<button type="button" class="btn-danger btn-sm" data-sop-file-delete="${d.id}" title="刪除">✕</button>` : ""}
     </div>`;
@@ -797,14 +798,6 @@ async function renderSopTab(el) {
           <div class="sop-subcard-header">
             <h4>📎 相關檔案</h4>
           </div>
-          ${canEditMeta
-            ? `<label class="sop-file-dropzone" id="sop-file-dropzone">
-                <input type="file" id="sop-file-input" style="display:none">
-                <div>⬆ 點擊上傳檔案</div>
-                <div class="helper-text">支援 PDF・JPG・PNG・Excel(單檔上限 20MB)</div>
-              </label>`
-            : ""
-          }
           <div class="sop-file-list">${stageDocs.length ? stageDocs.map(fileRowHtml).join("") : `<div class="empty-state">尚無相關檔案</div>`}</div>
         </div>
 
@@ -960,23 +953,10 @@ async function renderSopTab(el) {
   const backBtn = document.getElementById("sop-back-btn");
   if (backBtn) backBtn.addEventListener("click", () => goToDashboard());
 
-  // ---- 相關檔案:點擊上傳/下載/刪除 ----
-  const fileInput = document.getElementById("sop-file-input");
-  if (fileInput) {
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("doc_type", "other");
-      fd.append("sop_stage", String(selected));
-      try {
-        await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
-        toast("已上傳", "success");
-        renderSopTab(el);
-      } catch (err) { }
-    });
-  }
+  // ---- 相關檔案:預覽/下載/刪除(上傳功能移除,這裡只保留檢視既有檔案) ----
+  el.querySelectorAll("[data-sop-file-view]").forEach((btn) => {
+    btn.addEventListener("click", () => viewDocument(Number(btn.dataset.sopFileView)));
+  });
   el.querySelectorAll("[data-sop-file-download]").forEach((btn) => {
     btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.sopFileDownload), btn.dataset.sopFileName));
   });
