@@ -279,15 +279,25 @@ async function renderDevelopmentTab(container) {
   }
 
   // ---- 相關文件上傳/下載/刪除 ----
+  // 同一關卡再上傳一次同檔名的檔案,視為「覆蓋」:先刪掉舊的那筆再上傳新的,
+  // 不會在清單裡疊出兩筆同名檔案。
   const uploadDevFile = async (file) => {
     if (!file) return;
+    const existing = stageDocs.find((d) => d.file_name === file.name);
+    if (existing) {
+      try {
+        await api(`/projects/${pid}/documents/${existing.id}`, { method: "DELETE" });
+      } catch (err) {
+        return;
+      }
+    }
     const fd = new FormData();
     fd.append("file", file);
     fd.append("doc_type", "other");
     fd.append("dev_stage", selectedKey);
     try {
       await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
-      toast("已上傳", "success");
+      toast(existing ? "已覆蓋原檔案" : "已上傳", "success");
       renderDevelopmentTab(container);
     } catch (err) { }
   };

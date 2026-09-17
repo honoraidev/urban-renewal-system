@@ -726,11 +726,6 @@ async function renderSopTab(el) {
     sop.current_stage === 0 &&
     stageKeys.every((k) => (sop.stages[k].status || "pending") === "pending");
 
-  const doneStageCount = stageKeys.filter((k) => {
-    const st = sop.stages[k].status;
-    return st === "completed" || st === "force_closed";
-  }).length;
-  const overallPct = stageKeys.length ? Math.round((doneStageCount / stageKeys.length) * 100) : 0;
   const stagePct = checklistTotalCount
     ? Math.round((checklistDoneCount / checklistTotalCount) * 100)
     : selectedIsDone
@@ -763,11 +758,6 @@ async function renderSopTab(el) {
   el.innerHTML = `
     <div class="sop-panel-layout">
       <div class="sop-nav-list-wrap">
-        <div class="sop-overall-progress">
-          <div class="sop-overall-progress-label"><span>都更專案流程</span><strong>${overallPct}%</strong></div>
-          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${overallPct}%"></div></div>
-          <div class="helper-text">第${sop.current_stage}階段 / 共${stageKeys.length}階段</div>
-        </div>
         ${canEditFlow ? `<button type="button" class="btn-secondary btn-sm" id="sop-edit-flow-btn" style="margin-bottom:10px;width:100%">⚙ 自訂關卡流程</button>` : ""}
         <div class="sop-nav-list">${navItemsHtml}</div>
       </div>
