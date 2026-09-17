@@ -324,7 +324,10 @@ function wizardDrawSearchHighlights(ctx, viewport, globalPageNum) {
   const rects = (titleDeedWizard._searchMatchesByPage || {})[globalPageNum];
   if (!rects || !rects.length) return;
   ctx.save();
-  ctx.fillStyle = "rgba(255, 213, 0, 0.5)";
+  // multiply 混合模式 = 真正的螢光筆效果(疊上去底下文字還看得見、顏色比單純半透明
+  // 疊色更飽和鮮豔),不是灰灰的一層半透明黃。
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = "#ffee00";
   for (const rect of rects) {
     const vp = viewport.convertToViewportRectangle(rect);
     const x = Math.min(vp[0], vp[2]);
