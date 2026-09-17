@@ -349,6 +349,53 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] development default stages backfill skipped: {exc}", flush=True)
 
+    try:
+        # parcel_kind(他項權利部「地號/建號」分頁)過去只能手動選,OCR匯入大多沒填、
+        # 一律落在「地號」分頁,即使那筆其實是建號他項權利。用 applies_to_parcels 去對
+        # 這個案件既有的土地/建物登記,能對上哪邊就補上哪邊的分類;對不上的維持 NULL
+        # (前端照舊 fallback 顯示在地號分頁,不會憑空消失)。
+        from sqlalchemy import select as _select4
+
+        from models.building_record import BuildingRecord as _BuildingRecord
+        from models.encumbrance import Encumbrance as _Encumbrance
+        from models.land_record import LandRecord as _LandRecord
+
+        _enc_db = SessionLocal()
+        try:
+            unclassified = _enc_db.scalars(
+                _select4(_Encumbrance).where(_Encumbrance.parcel_kind.is_(None))
+            ).all()
+            changed = False
+            for enc in unclassified:
+                value = (enc.applies_to_parcels or "").strip()
+                if not value:
+                    continue
+                is_building = _enc_db.scalar(
+                    _select4(_BuildingRecord.id).where(
+                        _BuildingRecord.project_id == enc.project_id,
+                        _BuildingRecord.building_number == value,
+                    )
+                )
+                if is_building:
+                    enc.parcel_kind = "building"
+                    changed = True
+                    continue
+                is_land = _enc_db.scalar(
+                    _select4(_LandRecord.id).where(
+                        _LandRecord.project_id == enc.project_id,
+                        _LandRecord.parcel_number == value,
+                    )
+                )
+                if is_land:
+                    enc.parcel_kind = "land"
+                    changed = True
+            if changed:
+                _enc_db.commit()
+        finally:
+            _enc_db.close()
+    except Exception as exc:
+        print(f"[auto_migrate] encumbrance parcel_kind backfill skipped: {exc}", flush=True)
+
 
 async def _daily_news_fetch_loop() -> None:
     """背景常駐迴圈:每天本機時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
