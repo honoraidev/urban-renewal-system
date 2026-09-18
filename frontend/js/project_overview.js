@@ -21,9 +21,9 @@ function overviewEnsureStyle() {
   s.id = "ov-style";
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
-    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; }
-    .ov-row.ov-row-top { grid-template-columns: 1fr 1.6fr 1fr; align-items:stretch; }
-    @media (max-width:1000px) { .ov-row.ov-row-top { grid-template-columns: 1fr; } }
+    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
+    .ov-row.ov-row-r1, .ov-row.ov-row-r2 { grid-template-columns: 1.6fr 1fr; }
+    @media (max-width:1000px) { .ov-row.ov-row-r1, .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
       box-shadow:var(--shadow); transition:box-shadow .15s; }
     .ov-card:hover { box-shadow:var(--shadow-hover); }
@@ -41,20 +41,20 @@ function overviewEnsureStyle() {
     .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; flex-wrap:wrap; width:100%; }
     .ov-brief-view { align-items:stretch; }
     .ov-brief-edit { align-items:flex-start; }
-    .ov-brief-cover { width:200px; max-width:100%; height:140px; object-fit:cover; border-radius:16px; flex:0 0 auto;
+    .ov-brief-cover { width:230px; max-width:100%; height:160px; object-fit:cover; border-radius:16px; flex:0 0 auto;
       background:var(--surface-2); box-shadow:0 8px 22px -8px rgba(15,35,38,.35); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:200px; max-width:100%; height:140px; border-radius:16px; flex:0 0 auto;
+    .ov-brief-cover-empty { width:230px; max-width:100%; height:160px; border-radius:16px; flex:0 0 auto;
       background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
       border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
-    .ov-brief-cover-empty::before { content:"🖼️"; font-size:26px; opacity:.55; }
-    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:140px; }
-    .ov-brief-label { font-size:12.5px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
+    .ov-brief-cover-empty::before { content:"🖼️"; font-size:28px; opacity:.55; }
+    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:160px; }
+    .ov-brief-label { font-size:13px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
       display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
     .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
-    .ov-brief-text { flex:1 1 200px; font-size:13.5px; line-height:1.75; color:var(--text); white-space:pre-line; }
+    .ov-brief-text { flex:1 1 200px; font-size:14px; line-height:1.8; color:var(--text); white-space:pre-line; }
     .ov-brief-text-card { position:relative; flex:1 1 220px; background:var(--surface); border:1px solid var(--border);
-      border-radius:18px; padding:18px 20px; box-shadow:var(--shadow); display:flex; }
+      border-radius:18px; padding:20px 22px; box-shadow:var(--shadow); display:flex; }
     .ov-brief-edit-btn { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
       border:none; background:var(--warning-light); cursor:pointer; font-size:13px; color:var(--warning);
       box-shadow:0 2px 8px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
@@ -212,6 +212,10 @@ function _ovHeadcountDetailHtml(detail) {
       </div>`
     )
     .join("");
+}
+
+function _ovCardTitle(icon, label) {
+  return `<h3><span><span class="ov-card-icon">${icon}</span>${label}</span></h3>`;
 }
 
 function _ovMemberRoleLabel(role) {
@@ -386,6 +390,20 @@ async function renderProjectOverviewTab(el) {
   const briefCardEl = document.getElementById("ov-brief-card");
   if (briefCardEl) briefCardEl.innerHTML = _ovBriefViewHtml(proj);
 
+  const progressCardEl = document.getElementById("ov-progress-card");
+  if (progressCardEl) {
+    progressCardEl.innerHTML = `
+      <div class="ov-card" style="flex:1">
+        ${_ovCardTitle("📈", "整體進度")}
+        <div class="ov-donut-wrap">
+          <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
+            <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
+          </div>
+          <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
+        </div>
+      </div>`;
+  }
+
   const membersHtml = members.length
     ? members
         .map(
@@ -433,52 +451,40 @@ async function renderProjectOverviewTab(el) {
         .join("")
     : `<div class="helper-text">尚無紀錄</div>`;
 
-  const _t = (icon, label) => `<h3><span><span class="ov-card-icon">${icon}</span>${label}</span></h3>`;
-
   el.innerHTML = `
     <div class="ov-grid">
-      <div class="ov-row ov-row-top">
+      <div class="ov-row ov-row-r1">
         <div class="ov-card">
-          ${_t("📈", "整體進度")}
-          <div class="ov-donut-wrap">
-            <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
-              <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
+          ${_ovCardTitle("🧭", "階段進度")}
+          <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
+        </div>
+        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
+      </div>
+
+      <div class="ov-row ov-row-r2">
+        <div class="ov-card">
+          ${_ovCardTitle("🎯", "關鍵指標")}
+          <div class="ov-metrics-group">
+            <div class="ov-metrics ov-metrics-primary">
+              ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`, "brand")}
+              ${_ovMetric("❌", "反對", _ovDetailRatio(overview.key_metrics.headcount_detail, "opposed"), `${overview.key_metrics.headcount_detail?.opposed || 0} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "danger")}
+              ${_ovMetric("❔", "其他", _ovDetailRatio(overview.key_metrics.headcount_detail, "other"), `${_ovDetailOther(overview.key_metrics.headcount_detail)} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "muted")}
             </div>
-            <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
+            <div class="ov-metrics">
+              ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
+            </div>
           </div>
         </div>
         <div class="ov-card">
-          ${_t("🧭", "階段進度")}
-          <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
-        </div>
-        <div class="ov-card">
-          ${_t("📋", "案件狀態")}
+          ${_ovCardTitle("📋", "案件狀態")}
           ${_ovRiskCard(overview.case_status)}
         </div>
       </div>
 
-      <div class="ov-card">
-        ${_t("🎯", "關鍵指標")}
-        <div class="ov-metrics-group">
-          <div class="ov-metrics ov-metrics-primary">
-            ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`, "brand")}
-            ${_ovMetric("❌", "反對", _ovDetailRatio(overview.key_metrics.headcount_detail, "opposed"), `${overview.key_metrics.headcount_detail?.opposed || 0} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "danger")}
-            ${_ovMetric("❔", "其他", _ovDetailRatio(overview.key_metrics.headcount_detail, "other"), `${_ovDetailOther(overview.key_metrics.headcount_detail)} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "muted")}
-          </div>
-          <div class="ov-metrics">
-            ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
-          </div>
-        </div>
-      </div>
-
-      <div class="ov-row">
-        <div class="ov-card">${_t("👥", "相關人員")}${membersHtml}</div>
-        <div class="ov-card">${_t("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
-      </div>
-
-      <div class="ov-row">
-        <div class="ov-card">${_t("📁", "最近文件")}${docsHtml}</div>
-        <div class="ov-card">${_t("📝", "重要紀錄")}${timelineHtml}</div>
+      <div class="ov-row ov-row-r3">
+        <div class="ov-card">${_ovCardTitle("📝", "重要紀錄")}${timelineHtml}</div>
+        <div class="ov-card">${_ovCardTitle("📁", "最近文件")}${docsHtml}</div>
+        <div class="ov-card">${_ovCardTitle("👥", "相關人員")}${membersHtml}</div>
       </div>
     </div>`;
 

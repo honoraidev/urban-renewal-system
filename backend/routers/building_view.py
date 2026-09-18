@@ -19,32 +19,37 @@ from utils.building_view import (
 
 router = APIRouter(prefix="/projects/{project_id}/building-view", tags=["building-view"])
 
-# 格子底色改依「最新一次聯絡結果」(contact_logs.contact_result)上色,不是正式的
+# 格子底色依「最新一次聯絡結果」(contact_logs.contact_result)上色,不是正式的
 # SOP 關卡同意紀錄(consent_status)——現場人員要的是「這戶最近聯絡起來反應怎樣」
-# 的即時提醒,同一格好幾位共有人時,越需要注意的結果優先蓋過其他人(反對 > 需回電
-# > 未接聽 > 未決定 > 全部同意才算同意 > 完全沒聯絡過)。
-_CONTACT_RESULT_PRIORITY = ["opposed", "callback_needed", "no_answer", "undecided"]
-
-
-def _cell_status(owners: list[dict]) -> tuple[str, float]:
-    """Returns (status, agreed_ratio). 共有人只要有人反對/需回電/未接聽/明確標未決定,
-    整格照舊蓋成那個最需要注意的狀態(ratio 用不到)。剩下的情況下才看「同意」——
-    以前只要 results 集合裡出現過的值恰好等於 {"agreed"} 就整格判定為同意,但完全
-    沒被聯絡過的共有人根本不會出現在 results 裡,導致「3 位共有人只有 1 位同意、
-    另外 2 位還沒聯絡過」也被誤判成整格同意(綠色)。改成用「有標記同意的人數 ÷
-    這格總共有人數」算比例,只有全部人都同意才是純綠,否則是比例色階(前端依
-    agreed_ratio 畫漸層)。"""
-    if not owners:
-        return "empty", 0.0
-    results = {o.get("last_contact_result") for o in owners if o.get("last_contact_result")}
-    for candidate in _CONTACT_RESULT_PRIORITY:
-        if candidate in results:
-            return candidate, 0.0
-    agreed_count = sum(1 for o in owners if o.get("last_contact_result") == "agreed")
-    if agreed_count == 0:
-        return "none", 0.0
-    ratio = agreed_count / len(owners)
-    return ("agreed" if ratio >= 1.0 else "partial_agreed"), ratio
+# 的即時提醒。改成跟首頁案件卡片、案件總覽頁關鍵指標同一套三分類統計(同意/反對/
+# 其他,其他=需回電+未接聽+未決定+完全沒聯絡過),同一格好幾位共有人時,不再是
+# 「誰的狀態最需要注意就整格蓋成那個顏色」(以前反對 1 人就蓋掉另外 4 位已同意的
+# 事實),改成三色比例漸層一次呈現全部人的真實分佈,前端依 agreed_ratio/
+# opposed_ratio/other_ratio 畫漸層背景。
+def _cell_status(owners: list[dict]) -> dict:
+    total = len(owners)
+    if total == 0:
+        return {"status": "empty", "agreed_ratio": 0.0, "opposed_ratio": 0.0, "other_ratio": 0.0}
+    agreed = sum(1 for o in owners if o.get("last_contact_result") == "agreed")
+    opposed = sum(1 for o in owners if o.get("last_contact_result") == "opposed")
+    other = total - agreed - opposed
+    agreed_ratio = agreed / total
+    opposed_ratio = opposed / total
+    other_ratio = other / total
+    if agreed == total:
+        status = "agreed"
+    elif opposed == total:
+        status = "opposed"
+    elif other == total:
+        status = "none"
+    else:
+        status = "mixed"
+    return {
+        "status": status,
+        "agreed_ratio": agreed_ratio,
+        "opposed_ratio": opposed_ratio,
+        "other_ratio": other_ratio,
+    }
 
 
 @router.get("")
@@ -114,7 +119,7 @@ def get_building_view(
             for o in cell["owners"]:
                 by_id[o["landowner_id"]] = o
             cell["owners"] = list(by_id.values())
-            cell["status"], cell["agreed_ratio"] = _cell_status(cell["owners"])
+            cell.update(_cell_status(cell["owners"]))
 
     # 純土地地主(有土地登記,但沒有任何建物登記)——樓棟視圖整個是用建物門牌分格
     # 的,這種地主原本完全不會出現在畫面上任何地方,容易被忽略掉。額外列一份清單。

@@ -65,28 +65,32 @@ function buildingViewCellTooltip(cell) {
     parts.push(o.last_contact_result ? CONTACT_RESULT_LABEL[o.last_contact_result] || o.last_contact_result : "尚無聯絡紀錄");
     return parts.join(" · ");
   });
-  if (cell.status === "partial_agreed") {
-    const agreedCount = Math.round((cell.agreed_ratio || 0) * cell.owners.length);
-    lines.unshift(`已同意 ${agreedCount}/${cell.owners.length} 人`);
+  if (cell.owners.length > 1) {
+    const total = cell.owners.length;
+    const agreedCount = Math.round((cell.agreed_ratio || 0) * total);
+    const opposedCount = Math.round((cell.opposed_ratio || 0) * total);
+    const otherCount = total - agreedCount - opposedCount;
+    lines.unshift(`同意 ${agreedCount} ・ 反對 ${opposedCount} ・ 其他 ${otherCount}(共 ${total} 人)`);
   }
   return lines.join("\n");
 }
 
-// 格子底色改依「最新一次聯絡結果」上色(見 backend/routers/building_view.py 的
-// _cell_status),不是正式的簽約/同意狀態 - 同意(綠)/未接聽(棕)/需回電(黃)/
-// 反對(紅)/未決定(淺藍),跟 CONTACT_RESULT_LABEL 的 5 種值對應。"none" 是這格
-// 有共有人但完全沒打過聯絡紀錄,沿用「未決定」的淺藍當預設色。
+// 格子底色依「最新一次聯絡結果」上色(見 backend/routers/building_view.py 的
+// _cell_status),不是正式的簽約/同意狀態 - 跟首頁案件卡片、案件總覽頁關鍵指標
+// 同一套三分類(同意=綠/反對=紅/其他=白,其他=需回電+未接聽+未決定+完全沒聯絡
+// 過)。共有多人時不是「誰的狀態最搶眼就整格蓋成那色」,而是依三種人數比例畫
+// 漸層,一次呈現真實分佈(見 buildingViewCellFillStyle)。
 function buildingViewLegendHtml() {
   const items = [
     { cls: "bv-cell-agreed", label: "同意" },
-    { cls: "bv-cell-partial", label: "部分共有人同意(比例漸層)" },
-    { cls: "bv-cell-noanswer", label: "未接聽" },
-    { cls: "bv-cell-callback", label: "需回電" },
     { cls: "bv-cell-opposed", label: "反對" },
-    { cls: "bv-cell-pending", label: "未決定" },
+    { cls: "bv-cell-pending", label: "其他(未決定/需回電/未接聽/未聯絡)" },
+    // 圖例的漸層範例格固定給一組示意比例(同意 40% / 反對 30% / 其他 30%),純粹
+    // 展示這是三色漸層,不代表任何一格的真實數字。
+    { cls: "bv-cell-mixed", label: "共有人意見不一(比例漸層)", style: ` style="--bv-agreed-end:40%;--bv-opposed-end:70%"` },
   ];
   const legendItems = items
-    .map((it) => `<span class="bv-legend-item"><span class="bv-legend-swatch ${it.cls}"></span>${it.label}</span>`)
+    .map((it) => `<span class="bv-legend-item"><span class="bv-legend-swatch ${it.cls}"${it.style || ""}></span>${it.label}</span>`)
     .join("");
   // 「×N」角標 = 這格有多位共同持分人(常見於依持分比例登記的地下室/車位建號),
   // 邊框改用紫色跟一般聯絡狀態的格子區分開,並在圖例文字說明清楚,避免被誤會成
@@ -97,12 +101,19 @@ function buildingViewLegendHtml() {
 
 function buildingViewCellClass(status) {
   if (status === "agreed") return "bv-cell-agreed";
-  if (status === "partial_agreed") return "bv-cell-partial";
   if (status === "opposed") return "bv-cell-opposed";
-  if (status === "callback_needed") return "bv-cell-callback";
-  if (status === "no_answer") return "bv-cell-noanswer";
-  if (status === "undecided" || status === "none") return "bv-cell-pending";
-  return "bv-cell-empty";
+  if (status === "none" || status === "undecided") return "bv-cell-pending";
+  if (status === "empty") return "bv-cell-empty";
+  return "bv-cell-mixed";
+}
+
+// 三色(同意/反對/其他)比例漸層的背景 - 只有「不是單一類別 100%」的格子才需要
+// inline gradient(其餘用 CSS class 的純色就好,少一層 inline style 好讀)。
+function buildingViewCellFillStyle(cell) {
+  if (cell.status !== "mixed") return "";
+  const agreedEnd = Math.round((cell.agreed_ratio || 0) * 100);
+  const opposedEnd = agreedEnd + Math.round((cell.opposed_ratio || 0) * 100);
+  return ` style="--bv-agreed-end:${agreedEnd}%;--bv-opposed-end:${opposedEnd}%"`;
 }
 
 function buildingViewGroupCardHtml(g) {
@@ -145,10 +156,7 @@ function buildingViewGroupCardHtml(g) {
           const shared = multiOwner && basement;
           const badge = multiOwner ? `<span class="bv-cell-badge${shared ? " bv-cell-badge-shared" : ""}">×${cell.owners.length}</span>` : "";
           const sharedCls = shared ? " bv-cell-shared" : "";
-          // 多位共有人時,「同意」不再是全有全無 —— 只要不是全部人都同意,就照
-          // 已同意人數 ÷ 共有人數畫比例漸層(左邊綠、右邊還是未決定色),不要因為
-          // 其中 1 個人同意就整格蓋成純綠,誤導成「這戶已經談定了」。
-          const fillStyle = cell.status === "partial_agreed" ? ` style="--bv-fill:${Math.round((cell.agreed_ratio || 0) * 100)}%"` : "";
+          const fillStyle = buildingViewCellFillStyle(cell);
           return `<div class="bv-cell${wide}${sharedCls} ${buildingViewCellClass(cell.status)}"${fillStyle} data-bv-cell="${floorSort}|${door}" data-bv-group="${g.key}" title="${escapeHtml(buildingViewCellTooltip(cell))}"><span class="bv-cell-label">${escapeHtml(String(cellLabel))}</span>${badge}</div>`;
         })
         .join("");

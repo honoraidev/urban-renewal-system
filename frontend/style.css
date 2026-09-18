@@ -552,7 +552,7 @@
   .alert-tier-urgent { background: var(--danger-light); color: var(--danger); }
 
   /* ---------- Project detail ---------- */
-  .back-link { background: none; color: var(--text-muted); font-weight: 600; padding: 4px 0; margin-bottom: 12px; }
+  .back-link { background: none; color: var(--text-muted); font-weight: 600; padding: 4px 0; margin-bottom: 12px; align-self: flex-start; }
   .back-link:hover { color: var(--brand-dark); opacity: 1; }
   /* 案件詳情頁最上面:左邊是返回/狀態/標題,右邊並排放「公告 / 進度通知」卡片 - 窄
      螢幕(平板直式以下)退回上下堆疊,避免把標題區塊擠到換行。 */
@@ -560,7 +560,8 @@
      固定上限 —— 兩邊都設固定上限時,螢幕越寬、justify-content:space-between 中間
      那段空白只會越留越大(寬螢幕上很明顯)。右欄仍然限制最大 460px 不被撐寬。 */
   .pd-top-grid { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(260px, 460px); gap: 20px; align-items: stretch; margin-bottom: 4px; }
-  #view-project-overview .pd-top-grid { grid-template-columns: minmax(380px, 1fr) minmax(340px, 560px); }
+  #view-project-overview .pd-top-grid { grid-template-columns: minmax(300px, 1fr) minmax(320px, 520px) minmax(220px, 300px); }
+  .pd-top-donut { display: flex; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
   .pd-top-right { display: flex; flex-direction: column; gap: 10px; }
@@ -1339,16 +1340,19 @@
 }
 .bv-cell-empty:hover { transform: none; }
 .bv-cell-agreed { background: var(--success-light); border-color: var(--success); color: var(--success); }
-/* 多位共有人只有部分人同意 - 依 --bv-fill(inline style 算好的百分比)畫左綠右藍
-   的漸層,不要整格蓋成純綠(那樣看起來像全部人都同意了)。 */
-.bv-cell-partial {
-  background: linear-gradient(to right, var(--success-light) var(--bv-fill, 0%), var(--info-light) var(--bv-fill, 0%));
-  border-color: var(--success); color: var(--success);
-}
 .bv-cell-opposed { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
-.bv-cell-pending { background: var(--info-light); border-color: var(--info); color: var(--info); }
-.bv-cell-callback { background: var(--warning-light); border-color: var(--warning); color: var(--warning); }
-.bv-cell-noanswer { background: var(--brown-light); border-color: var(--brown); color: var(--brown); }
+.bv-cell-pending { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
+/* 共有人意見不一(同意/反對/其他都有人) - 依 --bv-agreed-end / --bv-opposed-end
+   (inline style 算好的累積百分比,見 buildingViewCellFillStyle)畫三色比例漸層:
+   左邊綠(同意)、中間紅(反對)、右邊白(其他),一次呈現這格全部共有人的真實
+   分佈,不要因為其中 1 人反對就整格蓋成純紅,埋沒其他人已經同意的事實。 */
+.bv-cell-mixed {
+  background: linear-gradient(to right,
+    var(--success-light) 0%, var(--success-light) var(--bv-agreed-end, 0%),
+    var(--danger-light) var(--bv-agreed-end, 0%), var(--danger-light) var(--bv-opposed-end, 0%),
+    var(--surface-2) var(--bv-opposed-end, 0%), var(--surface-2) 100%);
+  border-color: var(--border); color: var(--text);
+}
 .bv-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 14px; }
 .bv-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
 .bv-legend-swatch { width: 12px; height: 12px; border-radius: 4px; border: 1px solid; flex-shrink: 0; }
