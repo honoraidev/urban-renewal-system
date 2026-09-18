@@ -93,17 +93,25 @@ function overviewEnsureStyle() {
     .ov-detail-undecided .ov-metric-pct { color:var(--warning); }
     .ov-detail-noresponse .ov-metric-pct { color:var(--text-muted); }
 
+    .ov-metric-hero { display:flex; align-items:center; gap:14px; padding:14px 18px; border-radius:10px; background:var(--surface-2); }
+    .ov-metric-hero-icon { width:42px; height:42px; border-radius:50%; background:var(--brand-light);
+      display:flex; align-items:center; justify-content:center; font-size:19px; flex:0 0 auto; }
+    .ov-metric-hero-main { flex:1; min-width:0; }
+    .ov-metric-hero-label { font-size:13.5px; font-weight:700; color:var(--text); }
+    .ov-metric-hero-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .ov-metric-hero-pct { font-size:26px; font-weight:800; color:var(--brand-dark, var(--brand)); flex:0 0 auto; }
+
     .ov-member-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13.5px; }
     .ov-member-avatar { width:28px; height:28px; border-radius:50%; background:var(--surface-2);
       display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex:0 0 auto; }
     .ov-member-main { flex:1 1 auto; min-width:0; }
     .ov-member-role { font-size:11.5px; color:var(--text-muted); }
 
-    .ov-list-row { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:13px; }
+    .ov-list-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
     .ov-list-row:last-child { border-bottom:none; }
-    .ov-list-row-main { min-width:0; }
-    .ov-list-row-sub { color:var(--text-muted); font-size:11.5px; }
-    .ov-list-row-meta { flex:0 0 auto; color:var(--text-muted); font-size:12px; text-align:right; white-space:nowrap; }
+    .ov-list-row-main { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ov-list-row-sub { color:var(--text-muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ov-list-row-meta { flex:0 0 auto; color:var(--text-muted); font-size:11.5px; text-align:right; white-space:nowrap; padding-top:1px; }
   `;
   document.head.appendChild(s);
 }
@@ -144,11 +152,13 @@ function _ovStageHtml(s) {
 function _ovMetric(icon, label, ratio, agreedText) {
   const pct = Math.round((ratio || 0) * 100);
   return `
-    <div class="ov-metric">
-      <div class="ov-metric-icon">${icon}</div>
-      <div class="ov-metric-label">${label}</div>
-      <div class="ov-metric-pct">${pct}%</div>
-      <div class="ov-metric-sub">${agreedText}</div>
+    <div class="ov-metric-hero">
+      <div class="ov-metric-hero-icon">${icon}</div>
+      <div class="ov-metric-hero-main">
+        <div class="ov-metric-hero-label">${label}</div>
+        <div class="ov-metric-hero-sub">${agreedText}</div>
+      </div>
+      <div class="ov-metric-hero-pct">${pct}%</div>
     </div>`;
 }
 
@@ -358,7 +368,7 @@ async function renderProjectOverviewTab(el) {
     ? recentDocs
         .map(
           (d) => `<div class="ov-list-row">
-            <div class="ov-list-row-main">📄 ${escapeHtml(d.file_name)}</div>
+            <div class="ov-list-row-main" title="${escapeHtml(d.file_name)}">📄 ${escapeHtml(d.file_name)}</div>
             <div class="ov-list-row-meta">${fmtDate(d.uploaded_at)}</div>
           </div>`
         )
@@ -376,7 +386,10 @@ async function renderProjectOverviewTab(el) {
         .map((t) => {
           const icon = t.isNote ? "📝" : typeof _activityIcon === "function" ? _activityIcon(t.text) : "🔄";
           return `<div class="ov-list-row">
-            <div class="ov-list-row-main">${icon} ${escapeHtml(t.text)}<div class="ov-list-row-sub">${escapeHtml(t.who || "—")}</div></div>
+            <div style="min-width:0">
+              <div class="ov-list-row-main" title="${escapeHtml(t.text)}">${icon} ${escapeHtml(t.text)}</div>
+              <div class="ov-list-row-sub">${escapeHtml(t.who || "—")}</div>
+            </div>
             <div class="ov-list-row-meta">${fmtDateTime(t.time)}</div>
           </div>`;
         })
