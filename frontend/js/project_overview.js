@@ -22,9 +22,9 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
-    .ov-row.ov-row-r1 { grid-template-columns: 2.6fr 1fr; }
-    .ov-row.ov-row-r2 { grid-template-columns: 1.6fr 1fr; }
-    @media (max-width:1000px) { .ov-row.ov-row-r1, .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
+    .ov-row.ov-row-r2 { grid-template-columns: 1.8fr 1.1fr 1fr; }
+    @media (max-width:1100px) { .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
+    .ov-stage-band { margin:22px 0; }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
       box-shadow:var(--shadow); transition:box-shadow .15s; }
     .ov-card:hover { box-shadow:var(--shadow-hover); }
@@ -41,23 +41,27 @@ function overviewEnsureStyle() {
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
     .ov-brief-card { position:relative; flex:1; display:flex; align-items:stretch; background:var(--surface);
-      border:1px solid var(--border); border-radius:18px; padding:20px 22px 112px; box-shadow:var(--shadow); }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; flex-wrap:wrap; width:100%; }
+      border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:0; flex-wrap:wrap; width:100%; }
     .ov-brief-view { align-items:stretch; }
-    .ov-brief-edit { align-items:flex-start; }
-    .ov-brief-cover { width:210px; max-width:100%; height:150px; object-fit:cover; border-radius:14px; flex:0 0 auto;
+    .ov-brief-edit { align-items:flex-start; gap:18px; padding:20px 22px; }
+    /* 檢視模式的封面圖直接貼滿卡片左側(上下左邊都到底,靠 overflow:hidden 裁成
+       卡片圓角),不要四周留一圈白邊看起來像貼小貼紙。編輯模式維持原本有邊距的
+       盒子,底下才放得下「選擇圖片/移除圖片」按鈕。 */
+    .ov-brief-cover { width:230px; max-width:100%; height:150px; object-fit:cover; border-radius:14px; flex:0 0 auto;
       background:var(--surface-2); box-shadow:0 6px 16px -6px rgba(15,35,38,.3); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:210px; max-width:100%; height:150px; border-radius:14px; flex:0 0 auto;
+    .ov-brief-cover-empty { width:230px; max-width:100%; height:150px; border-radius:14px; flex:0 0 auto;
       background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
       border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
     .ov-brief-cover-empty::before { content:"🖼️"; font-size:28px; opacity:.55; }
-    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:150px; }
+    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty {
+      width:240px; height:100%; min-height:220px; border-radius:0; border-width:0 1.5px 0 0; box-shadow:none; }
     .ov-brief-label { font-size:13px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
       display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
     .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
     .ov-brief-text { flex:1 1 200px; font-size:14px; line-height:1.8; color:var(--text); white-space:pre-line; }
-    .ov-brief-text-card { flex:1 1 220px; display:flex; }
+    .ov-brief-text-card { flex:1 1 220px; display:flex; padding:20px 22px 112px; }
     .ov-brief-edit-btn { position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
       border:none; background:var(--warning-light); cursor:pointer; font-size:13px; color:var(--warning);
       box-shadow:0 2px 8px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
@@ -452,16 +456,11 @@ async function renderProjectOverviewTab(el) {
         .join("")
     : `<div class="helper-text">尚無紀錄</div>`;
 
+  const stageBandEl = document.getElementById("ov-stage-band");
+  if (stageBandEl) stageBandEl.innerHTML = `<div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>`;
+
   el.innerHTML = `
     <div class="ov-grid">
-      <div class="ov-row ov-row-r1">
-        <div class="ov-card">
-          ${_ovCardTitle("🧭", "階段進度")}
-          <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
-        </div>
-        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
-      </div>
-
       <div class="ov-row ov-row-r2">
         <div class="ov-card">
           ${_ovCardTitle("🎯", "關鍵指標")}
@@ -480,6 +479,7 @@ async function renderProjectOverviewTab(el) {
           ${_ovCardTitle("📋", "案件狀態")}
           ${_ovRiskCard(overview.case_status)}
         </div>
+        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
       </div>
 
       <div class="ov-row ov-row-r3">
