@@ -18,19 +18,23 @@ def _match_building_or_land(db: Session, project_id: int, applies_to_parcels: st
     地號/建號」去比對這個案件既有的土地/建物登記,能對上哪邊就自動歸類到哪邊,對不上
     就維持 None(前端照舊 fallback 顯示在地號分頁)。比對到建號的話一併把該筆建物登記
     傳回去,拿它的門牌地址補到 property_address(謄本上他項權利本來就不會印門牌,只印
-    建號,不補的話這欄永遠是空的)。"""
+    建號,不補的話這欄永遠是空的)。applies_to_parcels 常常是「主建號/地號 + 共同擔保
+    的其他建號」用空白隔開(見 utils/ocr.py _normalize_applies_to_parcels),逐一比對
+    每個 token,不能整串當一筆比對(空白隔開的多筆一定比對不到)。"""
     value = (applies_to_parcels or "").strip()
     if not value:
         return None, None
-    building = db.scalar(
-        select(BuildingRecord).where(BuildingRecord.project_id == project_id, BuildingRecord.building_number == value)
-    )
-    if building:
-        return "building", building
-    if db.scalar(
-        select(LandRecord.id).where(LandRecord.project_id == project_id, LandRecord.parcel_number == value)
-    ):
-        return "land", None
+    for token in value.split():
+        building = db.scalar(
+            select(BuildingRecord).where(BuildingRecord.project_id == project_id, BuildingRecord.building_number == token)
+        )
+        if building:
+            return "building", building
+    for token in value.split():
+        if db.scalar(
+            select(LandRecord.id).where(LandRecord.project_id == project_id, LandRecord.parcel_number == token)
+        ):
+            return "land", None
     return None, None
 
 
@@ -52,10 +56,13 @@ def _building_addresses_for_parcel(db: Session, project_id: int, parcel_number: 
     value = (parcel_number or "").strip()
     if not value:
         return None
+    # 同一筆他項權利常常「共同擔保」好幾個地號,applies_to_parcels 是空白隔開的多筆
+    # (見 utils/ocr.py _normalize_applies_to_parcels),要逐一比對,不能整串當一筆。
+    tokens = value.split()
     buildings = db.scalars(
         select(BuildingRecord).where(
             BuildingRecord.project_id == project_id,
-            BuildingRecord.parcel_number == value,
+            BuildingRecord.parcel_number.in_(tokens),
             BuildingRecord.address.isnot(None),
         )
     ).all()
@@ -87,14 +94,22 @@ def list_encumbrances(
         if enc.parcel_kind == "building":
             # 建物分頁本身「對應建號」就是這棟建物,直接拿它自己的門牌 - 不用像地號
             # 分頁那樣反查,這欄本來就該只有一筆,不用「地址::建號」編碼(建號已經是
-            # 這一列自己的「建號」欄,不用在門牌地址欄重複標一次)。
-            building = db.scalar(
-                select(BuildingRecord).where(
-                    BuildingRecord.project_id == project.id,
-                    BuildingRecord.building_number == (enc.applies_to_parcels or "").strip(),
+            # 這一列自己的「建號」欄,不用在門牌地址欄重複標一次)。applies_to_parcels
+            # 常常是「主建號 + 共同擔保的公設建號」用空白隔開(見 OCR
+            # _normalize_applies_to_parcels),逐一比對到有門牌的那個為止,不能整串
+            # 當一個建號比對(會永遠比對不到)。
+            building = None
+            for token in (enc.applies_to_parcels or "").split():
+                candidate = db.scalar(
+                    select(BuildingRecord).where(
+                        BuildingRecord.project_id == project.id,
+                        BuildingRecord.building_number == token,
+                    )
                 )
-            )
-            if building and building.address:
+                if candidate and candidate.address:
+                    building = candidate
+                    break
+            if building:
                 enc.property_address = building.address
         else:
             computed = _building_addresses_for_parcel(db, project.id, enc.applies_to_parcels)
