@@ -32,7 +32,6 @@ function overviewEnsureStyle() {
 
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:8px; }
     .ov-meta-item { font-size:13px; color:var(--text); white-space:nowrap; }
-    .ov-hero-actions { display:flex; justify-content:flex-end; gap:8px; }
 
     .ov-brief-card { position:relative; }
     .ov-brief-view, .ov-brief-edit { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }

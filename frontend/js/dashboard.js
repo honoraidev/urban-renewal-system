@@ -20,8 +20,7 @@ function projectConsentBreakdownHtml(breakdown, names) {
   return `
     <div class="project-card-consent">
       <div class="consent-box consent-agreed"${nameTitle}>
-        <div class="consent-ring" style="--pct:${agreedPct}"><div class="consent-ring-hole">${agreedPct}%</div></div>
-        <div class="consent-num-sm">${agreed}<span class="consent-unit">人</span></div>
+        <div class="consent-ring" style="--pct:${agreedPct}"><div class="consent-ring-hole">${agreed}<span class="consent-ring-unit">人</span></div></div>
         <div class="consent-lbl">同意人數</div>
       </div>
       <div class="consent-box consent-opposed">
@@ -1051,13 +1050,6 @@ function initDashboard() {
   if (backToDashboardOverviewBtn) {
     backToDashboardOverviewBtn.addEventListener("click", goToDashboard);
   }
-
-  // 這顆按鈕是頁面固定的標題區裡的靜態元素(不像分頁內容每次都整個重畫),只在
-  // 這裡綁一次;讀 state.currentProjectId 而不是綁死某個 id,才會永遠對到目前在看
-  // 的案件,不會因為換案件、卻沒重新綁定而點到上一個案件。
-  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => {
-    if (state.currentProjectId) openProjectEditModal(state.currentProjectId);
-  });
 
   // 「整合清冊」的 details/summary 下拉不走這個通用 click-即-換頁的邏輯 - 它自己
   // 決定什麼時候才需要真的重新渲染(見下面),不然單純點開/關下拉選單看選項也會

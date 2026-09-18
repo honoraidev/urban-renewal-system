@@ -1487,19 +1487,18 @@
 .consent-box { flex: 1; text-align: center; border-radius: 10px; padding: 10px 6px; background: var(--surface-2); }
 .consent-num { font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .consent-num .consent-unit { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
-.consent-num-sm { font-size: 14px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
-.consent-num-sm .consent-unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
-.consent-lbl { font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+.consent-lbl { font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
 .consent-opposed .consent-num { color: var(--danger); }
 .consent-ring {
-  width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 4px;
+  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto;
   background: conic-gradient(var(--success) calc(var(--pct, 0) * 3.6deg), var(--surface) 0deg);
 }
 .consent-ring-hole {
-  width: 32px; height: 32px; margin: 6px; border-radius: 50%; background: var(--surface-2);
+  width: 44px; height: 44px; margin: 6px; border-radius: 50%; background: var(--surface-2);
   display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 800; color: var(--success);
+  font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;
 }
+.consent-ring-hole .consent-ring-unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
 .project-card-tiers { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .tier-badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 100px; white-space: nowrap; }
 
