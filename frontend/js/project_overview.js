@@ -38,14 +38,17 @@ function overviewEnsureStyle() {
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
     .ov-brief-card { flex:1; display:flex; align-items:stretch; }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; width:100%; }
-    .ov-brief-cover { width:200px; max-width:100%; min-height:140px; height:100%; object-fit:cover; border-radius:16px; flex:0 0 auto;
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; flex-wrap:wrap; width:100%; }
+    .ov-brief-view { align-items:stretch; }
+    .ov-brief-edit { align-items:flex-start; }
+    .ov-brief-cover { width:200px; max-width:100%; height:140px; object-fit:cover; border-radius:16px; flex:0 0 auto;
       background:var(--surface-2); box-shadow:0 8px 22px -8px rgba(15,35,38,.35); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:200px; max-width:100%; min-height:140px; height:100%; border-radius:16px; flex:0 0 auto;
+    .ov-brief-cover-empty { width:200px; max-width:100%; height:140px; border-radius:16px; flex:0 0 auto;
       background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
       border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
     .ov-brief-cover-empty::before { content:"🖼️"; font-size:26px; opacity:.55; }
+    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:140px; }
     .ov-brief-label { font-size:12.5px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
       display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
     .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
@@ -111,11 +114,15 @@ function overviewEnsureStyle() {
     .ov-metric-tone-brand .ov-metric-icon-badge { background:var(--brand-light); }
     .ov-metric-tone-info .ov-metric-icon-badge { background:var(--info-light); }
     .ov-metric-tone-brown .ov-metric-icon-badge { background:var(--brown-light); }
+    .ov-metric-tone-danger .ov-metric-icon-badge { background:var(--danger-light); }
+    .ov-metric-tone-muted .ov-metric-icon-badge { background:var(--surface-2); }
     .ov-metric-primary .ov-metric-label { font-size:13px; font-weight:700; color:var(--text); }
     .ov-metric-primary .ov-metric-pct { font-size:30px; font-weight:800; }
     .ov-metric-tone-brand .ov-metric-pct { color:var(--brand-dark, var(--brand)); }
     .ov-metric-tone-info .ov-metric-pct { color:var(--info); }
     .ov-metric-tone-brown .ov-metric-pct { color:var(--brown); }
+    .ov-metric-tone-danger .ov-metric-pct { color:var(--danger); }
+    .ov-metric-tone-muted .ov-metric-pct { color:var(--text-muted); }
     .ov-metric-primary .ov-metric-sub { font-size:11.5px; margin-top:2px; }
 
     .ov-member-row { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13.5px; }
@@ -175,6 +182,17 @@ function _ovMetric(icon, label, ratio, subText, tone) {
       <div class="ov-metric-pct">${pct}%</div>
       <div class="ov-metric-sub">${subText}</div>
     </div>`;
+}
+
+function _ovDetailOther(detail) {
+  if (!detail) return 0;
+  return (detail.undecided || 0) + (detail.no_response || 0);
+}
+
+function _ovDetailRatio(detail, kind) {
+  if (!detail || !detail.total) return 0;
+  const count = kind === "opposed" ? detail.opposed || 0 : _ovDetailOther(detail);
+  return count / detail.total;
 }
 
 function _ovHeadcountDetailHtml(detail) {
@@ -444,8 +462,8 @@ async function renderProjectOverviewTab(el) {
         <div class="ov-metrics-group">
           <div class="ov-metrics ov-metrics-primary">
             ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`, "brand")}
-            ${_ovMetric("📖", "土地同意", overview.key_metrics.land_share_ratio, `${overview.key_metrics.land_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.land_share_total_sqm.toFixed(2)} m²`, "info")}
-            ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${overview.key_metrics.building_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.building_share_total_sqm.toFixed(2)} m²`, "brown")}
+            ${_ovMetric("❌", "反對", _ovDetailRatio(overview.key_metrics.headcount_detail, "opposed"), `${overview.key_metrics.headcount_detail?.opposed || 0} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "danger")}
+            ${_ovMetric("❔", "其他", _ovDetailRatio(overview.key_metrics.headcount_detail, "other"), `${_ovDetailOther(overview.key_metrics.headcount_detail)} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "muted")}
           </div>
           <div class="ov-metrics">
             ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
