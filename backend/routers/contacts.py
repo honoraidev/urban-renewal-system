@@ -60,10 +60,23 @@ def create_contact(
     )
     db.add(contact)
 
-    if payload.contact_result in ("agreed", "opposed"):
-        landowner.contact_status = payload.contact_result
+    # landowners.contact_status 的 ENUM 值是 not_contacted/contacted/declined/agreed -
+    # 跟 contact_logs.contact_result 的 opposed 對不起來(歷史命名不同),直接把
+    # payload.contact_result 塞進去在 contact_result="opposed" 時會踩到 DB 的 ENUM
+    # 限制丟 1265 Data truncated,整支 API 500(建立拜訪紀錄選「反對」永遠失敗、
+    # 前端看起來像按鈕沒反應)。要對到 "declined" 才存得進去。
+    if payload.contact_result == "agreed":
+        landowner.contact_status = "agreed"
+    elif payload.contact_result == "opposed":
+        landowner.contact_status = "declined"
     elif landowner.contact_status == "not_contacted":
         landowner.contact_status = "contacted"
+
+    # 拜訪結果只要不是「未接聽」(沒真的聯絡到人),就代表這次真的有拜訪到 - 樓棟
+    # 視圖編輯地主視窗的「拜訪/簽約狀態」未拜訪 chip 自動翻成已拜訪,不用使用者
+    # 自己手動再點一次(建立拜訪紀錄跟勾「已拜訪」是兩個分開的手動動作,很容易漏勾)。
+    if payload.contact_result != "no_answer" and landowner.visit_status == "not_visited":
+        landowner.visit_status = "visited"
 
     db.commit()
     db.refresh(contact)

@@ -27,6 +27,8 @@ function overviewEnsureStyle() {
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
       box-shadow:var(--shadow); transition:box-shadow .15s; }
     .ov-card:hover { box-shadow:var(--shadow-hover); }
+    .ov-card-plain { background:transparent; border:none; box-shadow:none; }
+    .ov-card-plain:hover { box-shadow:none; }
     .ov-card h3 { margin:0 0 16px; font-size:15.5px; font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px;
       padding-bottom:13px; border-bottom:1px solid var(--border); letter-spacing:.01em; }
     .ov-card h3 .helper-text { font-weight:400; }
@@ -37,25 +39,25 @@ function overviewEnsureStyle() {
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
-    .ov-brief-card { flex:1; display:flex; align-items:stretch; }
+    .ov-brief-card { position:relative; flex:1; display:flex; align-items:stretch; background:var(--surface);
+      border:1px solid var(--border); border-radius:18px; padding:20px 22px; box-shadow:var(--shadow); }
     .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; flex-wrap:wrap; width:100%; }
     .ov-brief-view { align-items:stretch; }
     .ov-brief-edit { align-items:flex-start; }
-    .ov-brief-cover { width:230px; max-width:100%; height:160px; object-fit:cover; border-radius:16px; flex:0 0 auto;
-      background:var(--surface-2); box-shadow:0 8px 22px -8px rgba(15,35,38,.35); }
+    .ov-brief-cover { width:210px; max-width:100%; height:150px; object-fit:cover; border-radius:14px; flex:0 0 auto;
+      background:var(--surface-2); box-shadow:0 6px 16px -6px rgba(15,35,38,.3); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:230px; max-width:100%; height:160px; border-radius:16px; flex:0 0 auto;
+    .ov-brief-cover-empty { width:210px; max-width:100%; height:150px; border-radius:14px; flex:0 0 auto;
       background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
       border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
     .ov-brief-cover-empty::before { content:"🖼️"; font-size:28px; opacity:.55; }
-    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:160px; }
+    .ov-brief-view .ov-brief-cover, .ov-brief-view .ov-brief-cover-empty { height:100%; min-height:150px; }
     .ov-brief-label { font-size:13px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
       display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
     .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
     .ov-brief-text { flex:1 1 200px; font-size:14px; line-height:1.8; color:var(--text); white-space:pre-line; }
-    .ov-brief-text-card { position:relative; flex:1 1 220px; background:var(--surface); border:1px solid var(--border);
-      border-radius:18px; padding:20px 22px; box-shadow:var(--shadow); display:flex; }
-    .ov-brief-edit-btn { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
+    .ov-brief-text-card { flex:1 1 220px; display:flex; }
+    .ov-brief-edit-btn { position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
       border:none; background:var(--warning-light); cursor:pointer; font-size:13px; color:var(--warning);
       box-shadow:0 2px 8px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
     .ov-brief-edit-btn:hover { background:var(--warning); color:#fff; transform:scale(1.08); }
@@ -393,8 +395,7 @@ async function renderProjectOverviewTab(el) {
   const progressCardEl = document.getElementById("ov-progress-card");
   if (progressCardEl) {
     progressCardEl.innerHTML = `
-      <div class="ov-card" style="flex:1">
-        ${_ovCardTitle("📈", "整體進度")}
+      <div class="ov-card ov-card-plain" style="flex:1">
         <div class="ov-donut-wrap">
           <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
             <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>

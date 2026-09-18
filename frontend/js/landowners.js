@@ -1247,14 +1247,19 @@ function openContactSidePanel(landownerId, siblingIds) {
   document.getElementById("lo-contact-side-cancel").addEventListener("click", () => closeSidePanel());
   document.getElementById("lo-contact-side-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    const contactDate = new Date(data.c_contact_date);
-    if (!data.c_contact_date || isNaN(contactDate.getTime())) {
-      toast("請填寫拜訪時間", "error");
-      return;
-    }
+    // 整個 handler 包一層 try/catch(連 FormData/Date 解析都包進去)- 原本只有
+    // await api(...) 那段有 try,前面同步解析萬一丟例外,async function 會讓它
+    // 變成沒人接的 rejected promise,使用者只會看到「按鈕沒反應、視窗沒關」,
+    // 連錯誤 toast 都不會跳,除非自己開 DevTools 主控台才看得到。全包起來後,
+    // 任何一步出錯都保證會跳 toast,不用再靠使用者回報主控台紅字才能定位問題。
     try {
+      const fd = new FormData(e.target);
+      const data = Object.fromEntries(fd.entries());
+      const contactDate = new Date(data.c_contact_date);
+      if (!data.c_contact_date || isNaN(contactDate.getTime())) {
+        toast("請填寫拜訪時間", "error");
+        return;
+      }
       await api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, {
         method: "POST",
         body: {
@@ -1269,7 +1274,9 @@ function openContactSidePanel(landownerId, siblingIds) {
       toast("已建立拜訪紀錄", "success");
       syncProjectAggregates();
       openEditLandownerModal(landownerId, siblingIds);
-    } catch (err) { }
+    } catch (err) {
+      toast(`建立失敗:${err && err.message ? err.message : err}`, "error");
+    }
   });
 }
 
