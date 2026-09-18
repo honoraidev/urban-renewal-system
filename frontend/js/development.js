@@ -26,6 +26,11 @@ async function renderDevelopmentTab(container) {
   const hasStages = stageKeys.length > 0;
   const canAct = isEditor();
   const sopDone = sop.final && sop.final.status !== "pending";
+  // SOP 進度的 10 個關卡(final gate,100% 同意結案或 L1/L2 強制結案)沒完成之前,
+  // 整組後續開發流程鎖死在「案件同意度通過待完成」- 不是前端單純不給點,後端
+  // routers/development.py 的 complete/reopen/meta/history 幾支 API 也一樣會擋,
+  // 避免繞過 UI 直接呼叫 API 就能在 SOP 沒跑完時把開發流程往前推。
+  const locked = hasStages && !sopDone;
   // 跟 SOP 頁「自訂關卡流程」同一個限制:流程完全還沒開始跑(還在第0階段、每一階段
   // 都還是待開始)才准調整階段名稱/順序,避免動到已經在推進中的資料。
   const canEditFlow = isManager() && dev.current_stage === 0 && stageKeys.every((k) => (dev.stages[k].status || "pending") === "pending");
@@ -35,17 +40,19 @@ async function renderDevelopmentTab(container) {
     { icon: "✅", title: "案件同意度通過", status: sopDone ? "done" : "pending", dateText: sopDone && sop.final.closed_at ? fmtDate(sop.final.closed_at) : "待完成", isReal: false, key: null },
     ...stageKeys.map((k, i) => {
       const s = dev.stages[k];
-      const isDone = s.status === "completed";
-      const isCurrent = Number(k) === dev.current_stage && !isDone;
+      const isDone = !locked && s.status === "completed";
+      const isCurrent = !locked && Number(k) === dev.current_stage && !isDone;
       return {
-        icon: DEV_STAGE_ICONS[i % DEV_STAGE_ICONS.length],
+        icon: locked ? "🔒" : DEV_STAGE_ICONS[i % DEV_STAGE_ICONS.length],
         title: s.name,
-        status: isDone ? "done" : isCurrent ? "current" : "pending",
-        dateText: isDone
-          ? (s.completed_at ? fmtDate(s.completed_at) : "已完成")
-          : s.due_date
-            ? `預計 ${fmtDate(s.due_date)}`
-            : "待開始",
+        status: locked ? "locked" : isDone ? "done" : isCurrent ? "current" : "pending",
+        dateText: locked
+          ? "尚未解鎖"
+          : isDone
+            ? (s.completed_at ? fmtDate(s.completed_at) : "已完成")
+            : s.due_date
+              ? `預計 ${fmtDate(s.due_date)}`
+              : "待開始",
         isReal: true,
         key: k,
       };
@@ -62,11 +69,11 @@ async function renderDevelopmentTab(container) {
             ${stepperNodes
               .map(
                 (n, i) => `
-              <div class="dev-stepper-node ${n.status} ${n.isReal && n.key === String(dev.current_stage) ? "selected" : ""}" ${n.isReal ? `data-dev-stepper-select="${n.key}"` : ""}>
+              <div class="dev-stepper-node ${n.status} ${!locked && n.isReal && n.key === String(dev.current_stage) ? "selected" : ""}" ${n.isReal && !locked ? `data-dev-stepper-select="${n.key}"` : ""}>
                 <div class="dev-stepper-circle">${n.status === "done" ? "✓" : n.icon}</div>
                 <div class="dev-stepper-num">${i}</div>
                 <div class="dev-stepper-title">${escapeHtml(n.title)}</div>
-                <div class="dev-stepper-status-badge">${n.status === "done" ? "已完成" : n.status === "current" ? "進行中" : "待開始"}</div>
+                <div class="dev-stepper-status-badge">${n.status === "done" ? "已完成" : n.status === "current" ? "進行中" : n.status === "locked" ? "鎖定中" : "待開始"}</div>
                 <div class="helper-text">${escapeHtml(n.dateText)}</div>
               </div>`
               )
@@ -82,7 +89,13 @@ async function renderDevelopmentTab(container) {
     : String(dev.current_stage);
   const selectedStage = dev.stages[selectedKey];
   let currentInfoHtml = "";
-  if (hasStages && selectedStage) {
+  if (locked) {
+    currentInfoHtml = `
+      <div class="card sop-subcard">
+        <div class="sop-subcard-header"><h4>🔒 都更後續開發流程尚未解鎖</h4></div>
+        <div class="empty-state">需先完成「SOP 進度」全部 10 個關卡(案件同意度通過)才會開放這裡的流程。</div>
+      </div>`;
+  } else if (hasStages && selectedStage) {
     const isDone = selectedStage.status === "completed";
     const isCurrent = Number(selectedKey) === dev.current_stage && !isDone;
     const canReopen = isDone && Number(selectedKey) === dev.current_stage - 1;
@@ -126,7 +139,7 @@ async function renderDevelopmentTab(container) {
   }
 
   // ---- 相關文件(掛在目前選取的關卡上) ----
-  const stageDocs = hasStages
+  const stageDocs = hasStages && !locked
     ? allDocs.filter((d) => d.dev_stage === Number(selectedKey)).sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))
     : [];
   const fileRowHtml = (d) => `
@@ -139,7 +152,7 @@ async function renderDevelopmentTab(container) {
       <button type="button" class="btn-secondary btn-sm" data-dev-file-download="${d.id}" data-dev-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
       ${canAct ? `<button type="button" class="btn-danger btn-sm" data-dev-file-delete="${d.id}" title="刪除">✕</button>` : ""}
     </div>`;
-  const relatedFilesHtml = hasStages
+  const relatedFilesHtml = hasStages && !locked
     ? `<div class="card sop-subcard">
         <div class="sop-subcard-header"><h4>📎 相關文件</h4></div>
         ${canAct
@@ -175,7 +188,7 @@ async function renderDevelopmentTab(container) {
   const historyHtml = `
     <div class="card sop-subcard">
       <div class="sop-subcard-header"><h4>🕒 階段歷程</h4></div>
-      ${canAct
+      ${canAct && !locked
         ? `<div class="dev-history-add">
             <input type="date" id="dev-history-date" value="${new Date().toISOString().slice(0, 10)}">
             <input type="text" id="dev-history-title" placeholder="事件標題(如:提送事業計畫書)">

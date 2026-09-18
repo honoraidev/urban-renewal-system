@@ -9,6 +9,7 @@ from deps import get_current_user, require_project_editor, require_project_manag
 from models.development_stage import DevelopmentStage
 from models.project import Project
 from models.user import User
+from routers.sop import get_or_create_sop
 from schemas.development import (
     DevelopmentCompleteRequest,
     DevelopmentHistoryEntryCreate,
@@ -34,6 +35,19 @@ DEFAULT_DEVELOPMENT_STAGES: list[str] = [
 
 def _default_stage_data() -> dict:
     return {"stages": {str(i): {"name": n, "status": "pending"} for i, n in enumerate(DEFAULT_DEVELOPMENT_STAGES)}}
+
+
+def _assert_sop_done(db: Session, project_id: int) -> None:
+    """後續開發流程(事業計畫核定...)整組鎖在「案件同意度通過」之前 - 要 SOP 進度
+    10 個關卡的 final gate 通過(100% 同意結案,或 L1/L2 強制結案)才解鎖,不是前端
+    單純不給點而已,直接呼叫這幾支 API 也一樣會被擋,不然繞過 UI 就能在 SOP 都還
+    沒跑完時把開發流程往前推。"""
+    sop = get_or_create_sop(db, project_id)
+    if sop.stage_data["final"]["status"] == "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SOP 進度尚未完成(案件同意度通過待完成),無法操作後續開發流程",
+        )
 
 
 def get_or_create_dev(db: Session, project_id: int) -> DevelopmentStage:
@@ -105,6 +119,7 @@ def complete_development_stage(
     current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_editor),
 ):
+    _assert_sop_done(db, project.id)
     dev = get_or_create_dev(db, project.id)
     final_stage = _final_stage_index(dev)
     if final_stage < 0:
@@ -141,6 +156,7 @@ def reopen_development_stage(
 ):
     """撤銷「完成」,給手滑點錯用 - 只能重開最後一個已完成的關卡,維持循序推進、
     不支援任意跳關重開。"""
+    _assert_sop_done(db, project.id)
     dev = get_or_create_dev(db, project.id)
     stages = dev.stage_data.get("stages") or {}
     if stage != dev.current_stage - 1 or str(stage) not in stages:
@@ -174,6 +190,7 @@ def update_development_stage_meta(
 ):
     """關卡的負責單位/辦理內容/所需文件/預計完成日/本階段進度% - 跟關卡流程結構
     (名稱/順序)是分開的,案件開始跑之後也能隨時改。"""
+    _assert_sop_done(db, project.id)
     dev = get_or_create_dev(db, project.id)
     if not (0 <= stage <= _final_stage_index(dev)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
@@ -207,6 +224,7 @@ def add_development_history_entry(
 ):
     """階段歷程時間軸 - 案件層級的里程碑紀錄,不綁定單一關卡(一筆事件常常橫跨/
     對應到某個關卡的某個動作,例如「第1次審查會議」),純人工新增,不是自動產生。"""
+    _assert_sop_done(db, project.id)
     title = (payload.title or "").strip()
     if not title:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="標題不可空白")
