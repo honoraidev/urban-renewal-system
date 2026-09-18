@@ -22,9 +22,9 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:18px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px; }
-    .ov-row.ov-row-top { grid-template-columns: 1fr 1.7fr; align-items:start; }
-    .ov-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
+    .ov-row.ov-row-top { grid-template-columns: 1fr 1.6fr 1fr; align-items:stretch; }
     @media (max-width:1000px) { .ov-row.ov-row-top { grid-template-columns: 1fr; } }
+    .pov-breadcrumb { font-size:12.5px; color:var(--text-muted); margin:6px 0 2px; }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
       box-shadow: 0 1px 2px rgba(0,0,0,.03); }
     .ov-card h3 { margin:0 0 14px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px;
@@ -337,6 +337,9 @@ async function renderProjectOverviewTab(el) {
           ${handlerName ? `<span class="ov-meta-item">👤 負責人:${escapeHtml(handlerName)}</span>` : ""}
           ${managerName ? `<span class="ov-meta-item">💼 主管:${escapeHtml(managerName)}</span>` : ""}
         </div>
+        <div class="ov-hero-actions">
+          <button type="button" class="btn-secondary btn-sm" id="ov-edit-project-btn">✏️ 編輯案件</button>
+        </div>
       </div>
       <div class="ov-brief-card" id="ov-brief-card">${_ovBriefViewHtml(proj)}</div>
     </div>`;
@@ -389,24 +392,22 @@ async function renderProjectOverviewTab(el) {
     <div class="ov-grid">
       ${heroHtml}
       <div class="ov-row ov-row-top">
-        <div class="ov-col">
-          <div class="ov-card">
-            <h3>整體進度</h3>
-            <div class="ov-donut-wrap">
-              <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
-                <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
-              </div>
-              <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
+        <div class="ov-card">
+          <h3>整體進度</h3>
+          <div class="ov-donut-wrap">
+            <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
+              <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
             </div>
-          </div>
-          <div class="ov-card">
-            <h3>案件狀態</h3>
-            ${_ovRiskCard(overview.case_status)}
+            <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
           </div>
         </div>
         <div class="ov-card">
           <h3>階段進度</h3>
           <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
+        </div>
+        <div class="ov-card">
+          <h3>案件狀態</h3>
+          ${_ovRiskCard(overview.case_status)}
         </div>
       </div>
 
@@ -433,5 +434,6 @@ async function renderProjectOverviewTab(el) {
       </div>
     </div>`;
 
+  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => openProjectEditModal(pid));
   _ovWireBriefCard(pid);
 }

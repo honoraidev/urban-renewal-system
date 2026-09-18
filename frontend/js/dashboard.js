@@ -880,12 +880,19 @@ async function goToProjectOverviewPage(id) {
     state.currentProject = project;
     const nameEl = document.getElementById("pov-name");
     const subEl = document.getElementById("pov-sub");
+    const badgeEl = document.getElementById("pov-status-badge");
+    const crumbEl = document.getElementById("pov-breadcrumb");
     if (nameEl) {
-      const fullName = `${project.name} (${project.project_code})${project.description ? ` · ${project.description}` : ""}`;
-      nameEl.textContent = fullName;
-      nameEl.title = fullName;
+      nameEl.textContent = project.name;
+      nameEl.title = `${project.name} (${project.project_code})`;
     }
-    if (subEl) subEl.textContent = [project.district, project.address].filter(Boolean).join(" · ") || "—";
+    if (badgeEl) {
+      badgeEl.innerHTML =
+        `<span class="status-badge status-${project.status}">${PROJECT_STATUS_LABEL[project.status] || project.status}</span>` +
+        (project.is_force_closed ? ` <span class="mini-badge alert">強制結案</span>` : "");
+    }
+    if (subEl) subEl.textContent = project.description || "";
+    if (crumbEl) crumbEl.textContent = `都更案件進度總覽 › ${project.name}`;
   } catch (e) {
     goToDashboard();
     return;
