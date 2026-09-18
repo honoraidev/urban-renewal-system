@@ -226,9 +226,6 @@ async function renderProjectOverviewTab(el) {
 
   el.innerHTML = `
     <div class="ov-grid">
-      <div style="text-align:right">
-        <button type="button" class="btn-secondary btn-sm" id="ov-open-management-btn">📂 進入案件管理(SOP進度/整合清冊等)</button>
-      </div>
       ${briefHtml}
       <div class="ov-row ov-row-3col">
         <div class="ov-card">
@@ -268,8 +265,6 @@ async function renderProjectOverviewTab(el) {
         <div class="ov-card"><h3>重要紀錄</h3>${timelineHtml}</div>
       </div>
     </div>`;
-
-  document.getElementById("ov-open-management-btn")?.addEventListener("click", () => switchProjectTab("sop"));
 
   const coverImg = document.getElementById("ov-cover-img");
   if (coverImg) {

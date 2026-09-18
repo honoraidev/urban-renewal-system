@@ -108,7 +108,6 @@ function alertTiers(alerts) {
 function showView(id) {
   [
     "view-dashboard",
-    "view-progress-report",
     "view-mywork",
     "view-new-project",
     "view-project-detail",
@@ -192,9 +191,6 @@ async function restoreLastView() {
             await renderTab(saved.tab);
           }
         }
-        break;
-      case "view-progress-report":
-        await goToProgressReport();
         break;
       case "view-mywork":
         await goToMyWork();
@@ -310,7 +306,7 @@ function renderSidebarProjects(projects) {
     });
   });
   wrap.querySelectorAll(".sb-case-item").forEach((el) => {
-    el.addEventListener("click", () => openProject(Number(el.dataset.projectId), "overview"));
+    el.addEventListener("click", () => openProject(Number(el.dataset.projectId)));
   });
 }
 
@@ -430,7 +426,7 @@ async function loadDashboard() {
       .join("");
 
     grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
-      card.addEventListener("click", () => openProject(Number(card.dataset.projectId), "overview"));
+      card.addEventListener("click", () => openProject(Number(card.dataset.projectId)));
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
 
@@ -866,11 +862,8 @@ async function openProjectEditModal(projectId) {
   });
 }
 
-// defaultTab:首頁案件卡片、側欄「案件管理」清單現在都預設先進「案件總覽」
-// (defaultTab="overview");要看 SOP 進度/整合清冊等其他分頁,得從總覽頁面上的
-// 「進入案件管理」按鈕切過去(見 project_overview.js,呼叫 switchProjectTab)。
-// 其餘少數呼叫端(例如新建案件、OCR 匯入完成導回)維持預設值 "sop",做完動作
-// 直接回工作分頁,不用多繞一層總覽。
+// defaultTab:預設進案件就是 SOP 進度頁;「案件總覽」是分頁列裡的其中一個分頁,
+// 要看的話自己點,不會被強制導過去。
 async function openProject(id, defaultTab = "sop") {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
@@ -945,19 +938,6 @@ async function switchProjectTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
-  // 「案件總覽」是進案件的落地頁(首頁卡片、側欄「案件管理」清單都先進這裡),不跟
-  // SOP 進度/整合清冊等其他分頁並排出現在同一個分頁列 - 要看其他分頁,總覽頁面上
-  // 有「進入案件管理」連結可以切過去(呼叫 switchProjectTab("sop"))。這裡把分頁列
-  // 跟 SOP 進度條藏起來,離開總覽時(tab !== "overview")再讓它們正常出現。
-  const tabBar = document.querySelector(".tab-bar");
-  const sopSummary = document.getElementById("pd-sop-summary");
-  if (tab === "overview") {
-    tabBar?.classList.add("hidden");
-    sopSummary?.classList.add("hidden");
-  } else {
-    tabBar?.classList.remove("hidden");
-    sopSummary?.classList.remove("hidden");
-  }
   // 土地登記 / 建物登記已併入「整合清冊」分頁的檢視切換下拉。舊的 "buildings" 進入點
   // (例如建物謄本匯入後)導到整合清冊並預設顯示建物登記檢視。
   if (tab === "buildings") {

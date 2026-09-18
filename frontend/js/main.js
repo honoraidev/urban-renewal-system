@@ -3,7 +3,6 @@
 function bootstrapApp() {
   initAuth();
   initDashboard();
-  initProgressReport();
   initMyWork();
   initOcrWizard();
   initMembers();
@@ -54,7 +53,6 @@ function bootstrapApp() {
       const target = btn.dataset.nav;
       if (target === "mywork") goToMyWork();
       if (target === "dashboard") goToDashboard();
-      if (target === "progressreport") goToProgressReport();
       if (target === "tools") goToTools();
       if (target === "manual") goToManual();
       if (target === "users") goToUsers();

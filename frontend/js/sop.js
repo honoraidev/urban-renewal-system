@@ -20,7 +20,7 @@ const CONTACT_RATE_THRESHOLD = 0.95;
 function sopStageLabel(key, stageObj) {
   if (stageObj && stageObj.name) return stageObj.name;
   if (stageObj && stageObj.custom_name) return stageObj.custom_name;
-  // dashboard.js / progress_report.js 只知道 current_stage 數字,沒有這個案件完整的
+  // dashboard.js 只知道 current_stage 數字,沒有這個案件完整的
   // stage 物件(拿不到客製化後的真實名稱)- 退回用內建預設流程的位置對照,對沒客製
   // 化過的案件(絕大多數)結果會是對的,客製化過的頂多顯示成預設名稱。
   const def = SOP_DEFAULT_STAGE_DEFS[Number(key)];
