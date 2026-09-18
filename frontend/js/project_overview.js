@@ -37,13 +37,12 @@ function overviewEnsureStyle() {
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
-    .ov-brief-card { position:relative; flex:1; background:var(--surface); border:1px solid var(--border);
-      border-radius:20px; padding:20px 22px; box-shadow:var(--shadow-hover); display:flex; }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; width:100%; }
-    .ov-brief-cover { width:190px; max-width:100%; height:140px; object-fit:cover; border-radius:14px; flex:0 0 auto;
-      background:var(--surface-2); box-shadow:0 6px 18px -6px rgba(15,35,38,.3); }
+    .ov-brief-card { flex:1; display:flex; align-items:stretch; }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; width:100%; }
+    .ov-brief-cover { width:200px; max-width:100%; min-height:140px; height:100%; object-fit:cover; border-radius:16px; flex:0 0 auto;
+      background:var(--surface-2); box-shadow:0 8px 22px -8px rgba(15,35,38,.35); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:190px; max-width:100%; height:140px; border-radius:14px; flex:0 0 auto;
+    .ov-brief-cover-empty { width:200px; max-width:100%; min-height:140px; height:100%; border-radius:16px; flex:0 0 auto;
       background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
       border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
     .ov-brief-cover-empty::before { content:"🖼️"; font-size:26px; opacity:.55; }
@@ -51,10 +50,12 @@ function overviewEnsureStyle() {
       display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
     .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
     .ov-brief-text { flex:1 1 200px; font-size:13.5px; line-height:1.75; color:var(--text); white-space:pre-line; }
-    .ov-brief-edit-btn { position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
-      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; color:var(--text-muted);
-      box-shadow:0 2px 8px rgba(15,35,38,.1); display:flex; align-items:center; justify-content:center; transition:all .15s; }
-    .ov-brief-edit-btn:hover { background:var(--brand); border-color:var(--brand); color:#fff; transform:scale(1.06); }
+    .ov-brief-text-card { position:relative; flex:1 1 220px; background:var(--surface); border:1px solid var(--border);
+      border-radius:18px; padding:18px 20px; box-shadow:var(--shadow); display:flex; }
+    .ov-brief-edit-btn { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
+      border:none; background:var(--warning-light); cursor:pointer; font-size:13px; color:var(--warning);
+      box-shadow:0 2px 8px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
+    .ov-brief-edit-btn:hover { background:var(--warning); color:#fff; transform:scale(1.08); }
     .ov-brief-cover-wrap { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
     .ov-brief-edit-cover-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .ov-brief-edit .ov-brief-text { display:flex; flex-direction:column; }
@@ -209,11 +210,13 @@ function _ovBriefViewHtml(proj) {
           ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">`
           : `<div class="ov-brief-cover-empty">尚無封面圖</div>`}
       </div>
-      <div class="ov-brief-text">
-        <div class="ov-brief-label">案件簡介</div>
-        ${proj.summary ? escapeHtml(proj.summary).replace(/\n/g, "<br>") : `<span class="helper-text">尚未填寫案件簡介</span>`}
+      <div class="ov-brief-text-card">
+        <div class="ov-brief-text">
+          <div class="ov-brief-label">案件簡介</div>
+          ${proj.summary ? escapeHtml(proj.summary).replace(/\n/g, "<br>") : `<span class="helper-text">尚未填寫案件簡介</span>`}
+        </div>
+        <button type="button" class="ov-brief-edit-btn" id="ov-brief-edit-btn" title="編輯簡介與封面圖">✏️</button>
       </div>
-      <button type="button" class="ov-brief-edit-btn" id="ov-brief-edit-btn" title="編輯簡介與封面圖">✏️</button>
     </div>`;
 }
 
@@ -228,12 +231,14 @@ function _ovBriefEditHtml(proj) {
           <button type="button" class="btn-secondary btn-sm" id="ov-brief-remove-cover" ${proj.has_cover_image ? "" : "disabled"}>移除圖片</button>
         </div>
       </div>
-      <div class="ov-brief-text">
-        <div class="ov-brief-label">案件簡介</div>
-        <textarea id="ov-brief-summary-input" rows="5" placeholder="案件簡介,例如基地面積、預計興建規模等">${escapeHtml(proj.summary || "")}</textarea>
-        <div class="ov-brief-edit-actions">
-          <button type="button" class="btn-secondary btn-sm" id="ov-brief-cancel-btn">取消</button>
-          <button type="button" class="btn-primary btn-sm" id="ov-brief-save-btn">儲存</button>
+      <div class="ov-brief-text-card">
+        <div class="ov-brief-text">
+          <div class="ov-brief-label">案件簡介</div>
+          <textarea id="ov-brief-summary-input" rows="5" placeholder="案件簡介,例如基地面積、預計興建規模等">${escapeHtml(proj.summary || "")}</textarea>
+          <div class="ov-brief-edit-actions">
+            <button type="button" class="btn-secondary btn-sm" id="ov-brief-cancel-btn">取消</button>
+            <button type="button" class="btn-primary btn-sm" id="ov-brief-save-btn">儲存</button>
+          </div>
         </div>
       </div>
     </div>`;
