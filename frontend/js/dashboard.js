@@ -862,8 +862,9 @@ async function openProjectEditModal(projectId) {
   });
 }
 
-// defaultTab:預設進案件就是 SOP 進度頁;「案件總覽」是分頁列裡的其中一個分頁,
-// 要看的話自己點,不會被強制導過去。
+// defaultTab:側欄「案件管理」清單、新建案件、OCR匯入完成導回等預設仍是 SOP 進度頁。
+// 只有首頁「都更案件進度總覽」的案件卡片會傳 "overview",落地到案件總覽頁(見
+// dashboard.js loadDashboard() 的 project-card click),讓兩個入口點進去不是同一頁。
 async function openProject(id, defaultTab = "sop") {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
@@ -938,6 +939,18 @@ async function switchProjectTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
+  // 「案件總覽」是首頁卡片點進來的落地頁,跟側欄「案件管理」點進來預設的 SOP 進度
+  // 頁分開 - 這裡把分頁列跟 SOP 進度條藏起來,讓兩個入口看起來是不同頁面;要切去
+  // SOP 進度等其他分頁,總覽頁面上有「進入案件管理」按鈕(見 project_overview.js)。
+  const tabBar = document.querySelector(".tab-bar");
+  const sopSummary = document.getElementById("pd-sop-summary");
+  if (tab === "overview") {
+    tabBar?.classList.add("hidden");
+    sopSummary?.classList.add("hidden");
+  } else {
+    tabBar?.classList.remove("hidden");
+    sopSummary?.classList.remove("hidden");
+  }
   // 土地登記 / 建物登記已併入「整合清冊」分頁的檢視切換下拉。舊的 "buildings" 進入點
   // (例如建物謄本匯入後)導到整合清冊並預設顯示建物登記檢視。
   if (tab === "buildings") {
