@@ -1006,6 +1006,7 @@ async function renderTab(tab) {
     sop: renderSopTab,
     integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,
+    contacts: renderContactsTab,
     documents: renderDocumentsTab,
     encumbrances: renderEncumbrancesTab,
     expenses: renderExpensesTab,
