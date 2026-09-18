@@ -48,7 +48,7 @@ async function renderContactsTab(el) {
       #contacts-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:52px; }
       #contacts-roster .col-name { font-weight:600; white-space:nowrap; }
       #contacts-roster .cell-phone { line-height:1.6; white-space:nowrap; }
-      #contacts-roster .cell-phone .ph-mobile { color:var(--text-muted); font-size:12px; }
+      #contacts-roster .cell-phone .ph-mobile { color:var(--text-muted); }
       #contacts-roster .cell-phone .ph-empty { color:var(--text-muted); }
       #contacts-roster .cell-addr { color:var(--text); }
     </style>

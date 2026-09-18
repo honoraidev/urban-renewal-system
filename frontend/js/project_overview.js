@@ -38,11 +38,24 @@ function overviewEnsureStyle() {
     .ov-meta-item { font-size:13px; color:var(--text); white-space:nowrap; }
     .ov-hero-actions { display:flex; gap:8px; flex-shrink:0; }
 
-    .ov-brief-card { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;
-      padding-top:16px; border-top:1px solid var(--border); }
+    .ov-brief-card { position:relative; padding-top:16px; border-top:1px solid var(--border); }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
     .ov-brief-cover { width:240px; max-width:100%; height:150px; object-fit:cover; border-radius:12px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-brief-cover.hidden { display:none; }
+    .ov-brief-cover-empty { width:240px; max-width:100%; height:150px; border-radius:12px; flex:0 0 auto;
+      background:var(--surface-2); color:var(--text-muted); font-size:12.5px;
+      display:flex; align-items:center; justify-content:center; }
     .ov-brief-label { font-size:12.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
     .ov-brief-text { flex:1 1 260px; font-size:13.5px; line-height:1.7; color:var(--text); white-space:pre-line; }
+    .ov-brief-edit-btn { position:absolute; top:16px; right:0; width:30px; height:30px; border-radius:50%;
+      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:14px;
+      display:flex; align-items:center; justify-content:center; }
+    .ov-brief-edit-btn:hover { background:var(--surface-2); }
+    .ov-brief-cover-wrap { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
+    .ov-brief-edit-cover-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .ov-brief-edit .ov-brief-text { display:flex; flex-direction:column; }
+    .ov-brief-edit textarea { width:100%; resize:vertical; font:inherit; }
+    .ov-brief-edit-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
 
     .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; padding:6px 0 2px; }
     .ov-donut { width:150px; height:150px; border-radius:50%; position:relative;
@@ -165,6 +178,124 @@ function _ovMemberRoleLabel(role) {
   return (typeof ROLE_LABEL !== "undefined" && ROLE_LABEL[role]) || role;
 }
 
+// 「案件簡介 + 封面圖」直接在總覽頁上編輯,不跳出「編輯案件資料」那個大視窗(裡面
+// 一堆跟簡介/封面圖無關的欄位)- 這裡是唯一入口,只管這兩樣。
+function _ovBriefViewHtml(proj) {
+  return `
+    <div class="ov-brief-view">
+      <div class="ov-brief-cover-wrap">
+        ${proj.has_cover_image
+          ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">`
+          : `<div class="ov-brief-cover-empty">尚無封面圖</div>`}
+      </div>
+      <div class="ov-brief-text">
+        <div class="ov-brief-label">案件簡介</div>
+        ${proj.summary ? escapeHtml(proj.summary).replace(/\n/g, "<br>") : `<span class="helper-text">尚未填寫案件簡介</span>`}
+      </div>
+      <button type="button" class="ov-brief-edit-btn" id="ov-brief-edit-btn" title="編輯簡介與封面圖">✏️</button>
+    </div>`;
+}
+
+function _ovBriefEditHtml(proj) {
+  return `
+    <div class="ov-brief-edit">
+      <div class="ov-brief-cover-wrap">
+        <img id="ov-brief-edit-preview" class="ov-brief-cover${proj.has_cover_image ? "" : " hidden"}" alt="案件封面圖預覽">
+        <div class="ov-brief-cover-empty" id="ov-brief-edit-empty" style="${proj.has_cover_image ? "display:none" : ""}">尚無封面圖</div>
+        <div class="ov-brief-edit-cover-actions">
+          <label class="btn-secondary btn-sm">📷 選擇圖片<input type="file" id="ov-brief-file" accept="image/*" hidden></label>
+          <button type="button" class="btn-secondary btn-sm" id="ov-brief-remove-cover" ${proj.has_cover_image ? "" : "disabled"}>移除圖片</button>
+        </div>
+      </div>
+      <div class="ov-brief-text">
+        <div class="ov-brief-label">案件簡介</div>
+        <textarea id="ov-brief-summary-input" rows="5" placeholder="案件簡介,例如基地面積、預計興建規模等">${escapeHtml(proj.summary || "")}</textarea>
+        <div class="ov-brief-edit-actions">
+          <button type="button" class="btn-secondary btn-sm" id="ov-brief-cancel-btn">取消</button>
+          <button type="button" class="btn-primary btn-sm" id="ov-brief-save-btn">儲存</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _ovLoadCoverPreview(pid) {
+  const img = document.getElementById("ov-cover-img");
+  if (!img) return;
+  api(`/projects/${pid}/cover-image`, { silent: true })
+    .then((res) => res.blob())
+    .then((blob) => { img.src = URL.createObjectURL(blob); })
+    .catch(() => {});
+}
+
+function _ovWireBriefCard(pid) {
+  document.getElementById("ov-brief-edit-btn")?.addEventListener("click", () => _ovEnterBriefEditMode(pid));
+  _ovLoadCoverPreview(pid);
+}
+
+function _ovEnterBriefEditMode(pid) {
+  const card = document.getElementById("ov-brief-card");
+  if (!card) return;
+  const proj = state.currentProject || {};
+  card.innerHTML = _ovBriefEditHtml(proj);
+
+  let pendingFile = null;
+  let removeCover = false;
+  const preview = document.getElementById("ov-brief-edit-preview");
+  const emptyLabel = document.getElementById("ov-brief-edit-empty");
+  const removeBtn = document.getElementById("ov-brief-remove-cover");
+
+  if (proj.has_cover_image) {
+    api(`/projects/${pid}/cover-image`, { silent: true })
+      .then((res) => res.blob())
+      .then((blob) => { preview.src = URL.createObjectURL(blob); })
+      .catch(() => {});
+  }
+
+  document.getElementById("ov-brief-file")?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    pendingFile = file;
+    removeCover = false;
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove("hidden");
+    if (emptyLabel) emptyLabel.style.display = "none";
+    if (removeBtn) removeBtn.disabled = false;
+  });
+
+  removeBtn?.addEventListener("click", () => {
+    pendingFile = null;
+    removeCover = true;
+    preview.removeAttribute("src");
+    preview.classList.add("hidden");
+    if (emptyLabel) emptyLabel.style.display = "";
+    removeBtn.disabled = true;
+  });
+
+  document.getElementById("ov-brief-cancel-btn")?.addEventListener("click", () => {
+    card.innerHTML = _ovBriefViewHtml(proj);
+    _ovWireBriefCard(pid);
+  });
+
+  document.getElementById("ov-brief-save-btn")?.addEventListener("click", async () => {
+    const summaryVal = document.getElementById("ov-brief-summary-input").value.trim();
+    try {
+      if (pendingFile) {
+        const fd = new FormData();
+        fd.append("file", pendingFile);
+        await api(`/projects/${pid}/cover-image`, { method: "POST", body: fd, isForm: true });
+      } else if (removeCover) {
+        await api(`/projects/${pid}/cover-image`, { method: "DELETE" });
+      }
+      const updated = await api(`/projects/${pid}`, { method: "PATCH", body: { summary: summaryVal || null } });
+      state.currentProject = updated;
+      toast("案件簡介已更新", "success");
+      card.innerHTML = _ovBriefViewHtml(updated);
+      _ovWireBriefCard(pid);
+      if (typeof loadDashboard === "function") loadDashboard().catch(() => {});
+    } catch (err) { }
+  });
+}
+
 async function renderProjectOverviewTab(el) {
   overviewEnsureStyle();
   const pid = state.currentProjectId;
@@ -206,16 +337,8 @@ async function renderProjectOverviewTab(el) {
           ${handlerName ? `<span class="ov-meta-item">👤 負責人:${escapeHtml(handlerName)}</span>` : ""}
           ${managerName ? `<span class="ov-meta-item">💼 主管:${escapeHtml(managerName)}</span>` : ""}
         </div>
-        <div class="ov-hero-actions">
-          <button type="button" class="btn-secondary btn-sm" id="ov-edit-project-btn">✏️ 編輯案件</button>
-        </div>
       </div>
-      ${proj.has_cover_image || proj.summary
-        ? `<div class="ov-brief-card">
-            ${proj.has_cover_image ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">` : ""}
-            ${proj.summary ? `<div class="ov-brief-text"><div class="ov-brief-label">案件簡介</div>${escapeHtml(proj.summary).replace(/\n/g, "<br>")}</div>` : ""}
-          </div>`
-        : ""}
+      <div class="ov-brief-card" id="ov-brief-card">${_ovBriefViewHtml(proj)}</div>
     </div>`;
 
   const membersHtml = members.length
@@ -310,15 +433,5 @@ async function renderProjectOverviewTab(el) {
       </div>
     </div>`;
 
-  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => openProjectEditModal(pid));
-
-  const coverImg = document.getElementById("ov-cover-img");
-  if (coverImg) {
-    // 封面圖跟其他上傳檔案一樣要帶登入 token 才拿得到,不能直接當 <img src> 打,
-    // 走跟文件預覽同一套 api() 抓 blob 再轉 object URL 的方式(見 documents.js)。
-    api(`/projects/${pid}/cover-image`, { silent: true })
-      .then((res) => res.blob())
-      .then((blob) => { coverImg.src = URL.createObjectURL(blob); })
-      .catch(() => {});
-  }
+  _ovWireBriefCard(pid);
 }

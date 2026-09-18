@@ -5,52 +5,31 @@ let dashboardProjectsById = {};
 const expandedSidebarCities = new Set();
 let sidebarCitiesInitialized = false;
 
-// 三色圓餅(同意/反對/其他)- 依「拜訪結果」算,不是 SOP 關卡用的嚴格雙門檻比例
-// (見 utils/visit_consent.py)。agreedPct/opposedPct 是 0~100,其餘自動算成「其他」
-// (未接聽/需回電/未決定/完全沒拜訪過)。
-function donutSvg3(agreedPct, opposedPct, size = 62) {
-  const r = size / 2 - 6;
-  const c = size / 2;
-  const circumference = 2 * Math.PI * r;
-  const agreed = Math.max(0, Math.min(100, agreedPct));
-  const opposed = Math.max(0, Math.min(100 - agreed, opposedPct));
-  const other = Math.max(0, 100 - agreed - opposed);
-  const agreedLen = (agreed / 100) * circumference;
-  const opposedLen = (opposed / 100) * circumference;
-  const otherLen = (other / 100) * circumference;
-  const seg = (color, len, offset) =>
-    len <= 0
-      ? ""
-      : `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="6"
-      stroke-dasharray="${len} ${circumference - len}" stroke-dashoffset="${-offset}"
-      transform="rotate(-90 ${c} ${c})"/>`;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="6"/>
-    ${seg("var(--success)", agreedLen, 0)}
-    ${seg("var(--danger)", opposedLen, agreedLen)}
-    ${seg("var(--text-muted)", otherLen, agreedLen + opposedLen)}
-  </svg>`;
-}
 
-// total/agreed/opposed 可以是人數,也可以是面積(m²)- 圓餅只看比例,兩種單位共用
-// 同一份邏輯。names 是目前「拜訪結果=同意」的地主姓名清單,滑鼠停在環上看。
-// unit/fmt:環下面除了%,再補一行實際數字(如「3/97人」「12.5/300 m²」),不只給%。
-function projectRingHtml(label, total, agreed, opposed, names, unit = "", fmt = (n) => Math.round(n || 0)) {
-  const t = total || 0;
-  const agreedPct = t > 0 ? (agreed / t) * 100 : 0;
-  const opposedPct = t > 0 ? (opposed / t) * 100 : 0;
-  const otherPct = Math.max(0, 100 - agreedPct - opposedPct);
-  const tooltip =
-    `同意 ${Math.round(agreedPct)}% · 反對 ${Math.round(opposedPct)}% · 其他 ${Math.round(otherPct)}%` +
-    (names && names.length ? `\n同意名單：${names.join("、")}` : "");
+// 案件卡片的「同意人數/反對人數/其他」文字統計 —— 依「拜訪結果」分類(跟樓棟視圖的
+// 拜訪結果選項同一套:agreed/opposed/callback_needed/undecided/no_answer),「其他」
+// 是把需回電/未決定/未接聽三種合併算,不細分成三個數字。取代原本土地同意/建物同意
+// 兩個面積環,只留人數(土地/建物持分同意度改到案件總覽頁的「關鍵指標」看)。
+function projectConsentBreakdownHtml(breakdown, names) {
+  const total = breakdown?.headcount_total || 0;
+  const agreed = breakdown?.headcount_agreed || 0;
+  const opposed = breakdown?.headcount_opposed || 0;
+  const other = Math.max(0, total - agreed - opposed);
+  const nameTitle = names && names.length ? ` title="${escapeHtml(names.join("、"))}"` : "";
   return `
-    <div class="project-ring" title="${escapeHtml(tooltip)}">
-      <div class="project-ring-svg-wrap">
-        ${donutSvg3(agreedPct, opposedPct, 62)}
-        <span class="project-ring-pct">${Math.round(agreedPct)}%</span>
+    <div class="project-card-consent">
+      <div class="consent-box consent-agreed"${nameTitle}>
+        <div class="consent-num">${agreed}<span class="consent-unit">人</span></div>
+        <div class="consent-lbl">同意人數</div>
       </div>
-      <div class="project-ring-label">${escapeHtml(label)}</div>
-      <div class="project-ring-count">${fmt(agreed)}/${fmt(t)}${unit}</div>
+      <div class="consent-box consent-opposed">
+        <div class="consent-num">${opposed}<span class="consent-unit">人</span></div>
+        <div class="consent-lbl">反對人數</div>
+      </div>
+      <div class="consent-box consent-other" title="需回電 / 未決定 / 未接聽">
+        <div class="consent-num">${other}<span class="consent-unit">人</span></div>
+        <div class="consent-lbl">其他</div>
+      </div>
     </div>`;
 }
 
@@ -415,11 +394,7 @@ async function loadDashboard() {
               </div>
               <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
-            <div class="project-card-rings">
-              ${projectRingHtml("人數同意", p.visit_breakdown?.headcount_total, p.visit_breakdown?.headcount_agreed, p.visit_breakdown?.headcount_opposed, p.agreed_landowner_names, "人")}
-              ${projectRingHtml("土地同意", p.visit_breakdown?.land_total_sqm, p.visit_breakdown?.land_agreed_sqm, p.visit_breakdown?.land_opposed_sqm, p.agreed_landowner_names, " m²", (n) => fmtArea(n))}
-              ${projectRingHtml("建物同意", p.visit_breakdown?.building_total_sqm, p.visit_breakdown?.building_agreed_sqm, p.visit_breakdown?.building_opposed_sqm, p.agreed_landowner_names, " m²", (n) => fmtArea(n))}
-            </div>
+            ${projectConsentBreakdownHtml(p.visit_breakdown, p.agreed_landowner_names)}
             ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown)}
             <div class="project-card-tiers">
               <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>
