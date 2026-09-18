@@ -29,9 +29,7 @@ function encumbranceObligorsSummary(enc) {
 const PARCEL_KIND_LABEL = { land: "地號", building: "建號" };
 
 function encumbranceParcelsCellHtml(enc) {
-  const value = escapeHtml(enc.applies_to_parcels) || "-";
-  const kindLabel = PARCEL_KIND_LABEL[enc.parcel_kind];
-  return kindLabel ? `<span class="mini-badge">${kindLabel}</span> ${value}` : value;
+  return escapeHtml(enc.applies_to_parcels) || "-";
 }
 
 // 地號本身沒有門牌 - 後端(見 backend routers/encumbrances.py)查地號分頁缺門牌時,
@@ -65,14 +63,19 @@ function encumbrancePropertyAddressCellHtml(enc) {
       ? `<span class="mini-badge mini-badge-shared-door"${titleAttr || ' title="依持分比例登記的地下室/車位建號,非專屬住家門牌"'}>${label}(地下持分)</span>`
       : `<span class="mini-badge"${titleAttr}>${label}</span>`;
   };
-  const badgesWrap = (list) => `<div style="display:flex;flex-wrap:wrap;gap:4px">${list.map(badgeHtml).join("")}</div>`;
+  const badgesWrap = (list) => `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(badgeHtml).join("")}</div>`;
 
   if (entries.length === 1) return badgesWrap(entries);
+  // 跟「地主聯絡簿」篩選(contacts.js 的 #contacts-phone-dd)同一套 details/summary
+  // 浮動下拉 - 點開是懸浮面板蓋在表格上面,不會把這一列的高度撐開、拖累其他欄對不
+  // 齊,跟原本用 hidden class 就地展開(會撐高整列)的 .enc-obligor-cell 不一樣。
   return `
-    <div class="enc-obligor-cell">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       ${badgesWrap([entries[0]])}
-      <button type="button" class="enc-obligor-toggle" data-obligor-toggle>共${entries.length}戶 ▾</button>
-      <div class="enc-obligor-dd-list hidden">${badgesWrap(entries)}</div>
+      <details class="enc-addr-dd">
+        <summary class="enc-addr-toggle">共${entries.length}戶 ▾</summary>
+        <div class="enc-addr-dd-panel">${badgesWrap(entries)}</div>
+      </details>
     </div>`;
 }
 
