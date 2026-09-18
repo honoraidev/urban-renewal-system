@@ -82,7 +82,21 @@ def list_encumbrances(
     # db.commit(),session 結束就丟掉,不會把算出來的地址誤存成這筆他項權利自己的
     # property_address 欄位)。
     for enc in encumbrances:
-        if not enc.property_address and enc.parcel_kind != "building":
+        if enc.property_address:
+            continue
+        if enc.parcel_kind == "building":
+            # 建物分頁本身「對應建號」就是這棟建物,直接拿它自己的門牌 - 不用像地號
+            # 分頁那樣反查,這欄本來就該只有一筆,不用「地址::建號」編碼(建號已經是
+            # 這一列自己的「建號」欄,不用在門牌地址欄重複標一次)。
+            building = db.scalar(
+                select(BuildingRecord).where(
+                    BuildingRecord.project_id == project.id,
+                    BuildingRecord.building_number == (enc.applies_to_parcels or "").strip(),
+                )
+            )
+            if building and building.address:
+                enc.property_address = building.address
+        else:
             computed = _building_addresses_for_parcel(db, project.id, enc.applies_to_parcels)
             if computed:
                 enc.property_address = computed

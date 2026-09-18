@@ -37,8 +37,11 @@ function encumbranceParcelsCellHtml(enc) {
 // 地號本身沒有門牌 - 後端(見 backend routers/encumbrances.py)查地號分頁缺門牌時,
 // 會自動補蓋在這塊地上的建物門牌,每筆編碼成「地址::建號」、用「、」串成一個字串
 // 回來。這裡拆開,比照整合清冊的門牌欄各自簡化(_shortDoorAddr,定義在
-// landowners.js)、地下室/車位持分建號一樣標灰色「(地下持分)」,同時把建號一起
-// 標出來,方便對照是哪一棟。
+// landowners.js)、地下室/車位持分建號一樣標灰色「(地下持分)」,同時把建號標出來
+// 方便對照是哪一棟。一整棟大樓的地號常常底下蓋了幾十戶,每戶又對到好幾個建號
+// (樓層/車位各自登記),不收起來的話這欄會被撐成一長串,所以:
+//   1. 每戶的建號超過 2 個就只顯示前 2 個 + 「共N筆」,完整清單放 title 提示裡。
+//   2. 戶數超過 1 戶就整體收合成「共N戶 ▾」,預設只看第一戶,點開才看全部。
 function encumbrancePropertyAddressCellHtml(enc) {
   if (!enc.property_address) return "-";
   const addrMap = new Map(); // label -> { shared, buildingNumbers: Set }
@@ -52,15 +55,25 @@ function encumbrancePropertyAddressCellHtml(enc) {
   });
   const entries = [...addrMap.entries()];
   if (!entries.length) return escapeHtml(enc.property_address);
-  return `<div style="display:flex;flex-wrap:wrap;gap:4px">${entries
-    .map(([a, info]) => {
-      const bnText = info.buildingNumbers.size ? `(建號${[...info.buildingNumbers].join("、")})` : "";
-      const label = `${escapeHtml(a)}${escapeHtml(bnText)}`;
-      return info.shared
-        ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${label}(地下持分)</span>`
-        : `<span class="mini-badge">${label}</span>`;
-    })
-    .join("")}</div>`;
+
+  const badgeHtml = ([a, info]) => {
+    const bns = [...info.buildingNumbers];
+    const bnText = bns.length ? `(建號${bns.slice(0, 2).join("、")}${bns.length > 2 ? `等${bns.length}筆` : ""})` : "";
+    const titleAttr = bns.length > 2 ? ` title="建號:${escapeHtml(bns.join("、"))}"` : "";
+    const label = `${escapeHtml(a)}${escapeHtml(bnText)}`;
+    return info.shared
+      ? `<span class="mini-badge mini-badge-shared-door"${titleAttr || ' title="依持分比例登記的地下室/車位建號,非專屬住家門牌"'}>${label}(地下持分)</span>`
+      : `<span class="mini-badge"${titleAttr}>${label}</span>`;
+  };
+  const badgesWrap = (list) => `<div style="display:flex;flex-wrap:wrap;gap:4px">${list.map(badgeHtml).join("")}</div>`;
+
+  if (entries.length === 1) return badgesWrap(entries);
+  return `
+    <div class="enc-obligor-cell">
+      ${badgesWrap([entries[0]])}
+      <button type="button" class="enc-obligor-toggle" data-obligor-toggle>共${entries.length}戶 ▾</button>
+      <div class="enc-obligor-dd-list hidden">${badgesWrap(entries)}</div>
+    </div>`;
 }
 
 // 義務人不只一位時,格子裡只先顯示第一位,其餘用一顆「共N位 ▾」按鈕點下拉才看到
