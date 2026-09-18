@@ -1339,8 +1339,11 @@
   cursor: default; font-weight: 500; opacity: .6;
 }
 .bv-cell-empty:hover { transform: none; }
-.bv-cell-agreed { background: var(--success-light); border-color: var(--success); color: var(--success); }
-.bv-cell-opposed { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+/* 顏色故意比一般的 xxx-light token 更飽和(color-mix 拉到 38%,不是預設 -light
+   token 那種近乎白的淡色)- 樓棟視圖格子很小,使用者要一眼掃過去就分得出同意/
+   反對,顏色太淡掃過去會看不出差異。 */
+.bv-cell-agreed { background: color-mix(in srgb, var(--success) 38%, white); border-color: var(--success); color: var(--success); }
+.bv-cell-opposed { background: color-mix(in srgb, var(--danger) 38%, white); border-color: var(--danger); color: var(--danger); }
 .bv-cell-pending { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
 /* 共有人意見不一(同意/反對/其他都有人) - 依 --bv-agreed-end / --bv-opposed-end
    (inline style 算好的累積百分比,見 buildingViewCellFillStyle)畫三色比例漸層:
@@ -1348,8 +1351,8 @@
    分佈,不要因為其中 1 人反對就整格蓋成純紅,埋沒其他人已經同意的事實。 */
 .bv-cell-mixed {
   background: linear-gradient(to right,
-    var(--success-light) 0%, var(--success-light) var(--bv-agreed-end, 0%),
-    var(--danger-light) var(--bv-agreed-end, 0%), var(--danger-light) var(--bv-opposed-end, 0%),
+    color-mix(in srgb, var(--success) 38%, white) 0%, color-mix(in srgb, var(--success) 38%, white) var(--bv-agreed-end, 0%),
+    color-mix(in srgb, var(--danger) 38%, white) var(--bv-agreed-end, 0%), color-mix(in srgb, var(--danger) 38%, white) var(--bv-opposed-end, 0%),
     var(--surface-2) var(--bv-opposed-end, 0%), var(--surface-2) 100%);
   border-color: var(--border); color: var(--text);
 }
