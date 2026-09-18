@@ -879,7 +879,6 @@ async function goToProjectOverviewPage(id) {
     const project = await api(`/projects/${id}`);
     state.currentProject = project;
     const nameEl = document.getElementById("pov-name");
-    const subEl = document.getElementById("pov-sub");
     const badgeEl = document.getElementById("pov-status-badge");
     const crumbEl = document.getElementById("pov-breadcrumb");
     if (nameEl) {
@@ -891,7 +890,6 @@ async function goToProjectOverviewPage(id) {
         `<span class="status-badge status-${project.status}">${PROJECT_STATUS_LABEL[project.status] || project.status}</span>` +
         (project.is_force_closed ? ` <span class="mini-badge alert">強制結案</span>` : "");
     }
-    if (subEl) subEl.textContent = project.description || "";
     if (crumbEl) crumbEl.textContent = `都更案件進度總覽 › ${project.name}`;
   } catch (e) {
     goToDashboard();
@@ -1053,6 +1051,13 @@ function initDashboard() {
   if (backToDashboardOverviewBtn) {
     backToDashboardOverviewBtn.addEventListener("click", goToDashboard);
   }
+
+  // 這顆按鈕是頁面固定的標題區裡的靜態元素(不像分頁內容每次都整個重畫),只在
+  // 這裡綁一次;讀 state.currentProjectId 而不是綁死某個 id,才會永遠對到目前在看
+  // 的案件,不會因為換案件、卻沒重新綁定而點到上一個案件。
+  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => {
+    if (state.currentProjectId) openProjectEditModal(state.currentProjectId);
+  });
 
   // 「整合清冊」的 details/summary 下拉不走這個通用 click-即-換頁的邏輯 - 它自己
   // 決定什麼時候才需要真的重新渲染(見下面),不然單純點開/關下拉選單看選項也會

@@ -31,24 +31,23 @@ function overviewEnsureStyle() {
       padding-bottom:10px; border-bottom:1px solid var(--border); }
     .ov-card h3 .helper-text { font-weight:400; }
 
-    .ov-hero-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
-      box-shadow:0 1px 2px rgba(0,0,0,.03); display:flex; flex-direction:column; gap:16px; }
-    .ov-hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
-    .ov-meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; }
+    .ov-meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:8px; }
     .ov-meta-item { font-size:13px; color:var(--text); white-space:nowrap; }
-    .ov-hero-actions { display:flex; gap:8px; flex-shrink:0; }
+    .ov-hero-actions { display:flex; justify-content:flex-end; gap:8px; }
 
-    .ov-brief-card { position:relative; padding-top:16px; border-top:1px solid var(--border); }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
-    .ov-brief-cover { width:240px; max-width:100%; height:150px; object-fit:cover; border-radius:12px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-brief-card { position:relative; }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
+    .ov-brief-cover { width:150px; max-width:100%; height:110px; object-fit:cover; border-radius:10px; flex:0 0 auto; background:var(--surface-2); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:240px; max-width:100%; height:150px; border-radius:12px; flex:0 0 auto;
-      background:var(--surface-2); color:var(--text-muted); font-size:12.5px;
+    .ov-brief-cover-empty { width:150px; max-width:100%; height:110px; border-radius:10px; flex:0 0 auto;
+      background:var(--surface-2); color:var(--text-muted); font-size:12px;
       display:flex; align-items:center; justify-content:center; }
-    .ov-brief-label { font-size:12.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
-    .ov-brief-text { flex:1 1 260px; font-size:13.5px; line-height:1.7; color:var(--text); white-space:pre-line; }
-    .ov-brief-edit-btn { position:absolute; top:16px; right:0; width:30px; height:30px; border-radius:50%;
-      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:14px;
+    .ov-brief-label { font-size:12px; font-weight:700; color:var(--brand); margin-bottom:4px;
+      display:flex; align-items:center; gap:5px; }
+    .ov-brief-label::before { content:""; width:6px; height:6px; border-radius:2px; background:var(--brand); }
+    .ov-brief-text { flex:1 1 200px; font-size:12.5px; line-height:1.6; color:var(--text); white-space:pre-line; }
+    .ov-brief-edit-btn { position:absolute; top:0; right:0; width:26px; height:26px; border-radius:50%;
+      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:12px;
       display:flex; align-items:center; justify-content:center; }
     .ov-brief-edit-btn:hover { background:var(--surface-2); }
     .ov-brief-cover-wrap { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
@@ -326,23 +325,21 @@ async function renderProjectOverviewTab(el) {
   const managerName = managerMember && (managerMember.display_name || managerMember.username);
   const dateRangeText = `${fmtDate(proj.created_at)} ~ ${proj.expected_completion_date ? fmtDate(proj.expected_completion_date) : "未定"}`;
 
-  const heroHtml = `
-    <div class="ov-hero-card">
-      <div class="ov-hero-top">
-        <div class="ov-meta-row">
-          <span class="ov-meta-item">📍 ${escapeHtml([proj.city, proj.district, proj.address].filter(Boolean).join("") || "—")}</span>
-          <span class="ov-meta-item">📁 ${escapeHtml(proj.project_code || "—")}</span>
-          ${proj.case_type ? `<span class="ov-meta-item">🏢 ${escapeHtml(proj.case_type)}</span>` : ""}
-          <span class="ov-meta-item">📅 ${dateRangeText}</span>
-          ${handlerName ? `<span class="ov-meta-item">👤 負責人:${escapeHtml(handlerName)}</span>` : ""}
-          ${managerName ? `<span class="ov-meta-item">💼 主管:${escapeHtml(managerName)}</span>` : ""}
-        </div>
-        <div class="ov-hero-actions">
-          <button type="button" class="btn-secondary btn-sm" id="ov-edit-project-btn">✏️ 編輯案件</button>
-        </div>
-      </div>
-      <div class="ov-brief-card" id="ov-brief-card">${_ovBriefViewHtml(proj)}</div>
-    </div>`;
+  // 案件資訊列/簡介卡不是 #project-overview-content 裡的東西 - 它們跟麵包屑/標題一樣
+  // 放在頁面固定的標題區(index.html 的 pd-top-grid),左右並排對齊,不是分頁內容
+  // 卷軸捲下去才看得到的一部分。
+  const metaRowEl = document.getElementById("pov-meta-row");
+  if (metaRowEl) {
+    metaRowEl.innerHTML = `
+      <span class="ov-meta-item">📍 ${escapeHtml([proj.city, proj.district, proj.address].filter(Boolean).join("") || "—")}</span>
+      <span class="ov-meta-item">📁 ${escapeHtml(proj.project_code || "—")}</span>
+      ${proj.case_type ? `<span class="ov-meta-item">🏢 ${escapeHtml(proj.case_type)}</span>` : ""}
+      <span class="ov-meta-item">📅 ${dateRangeText}</span>
+      ${handlerName ? `<span class="ov-meta-item">👤 負責人:${escapeHtml(handlerName)}</span>` : ""}
+      ${managerName ? `<span class="ov-meta-item">💼 主管:${escapeHtml(managerName)}</span>` : ""}`;
+  }
+  const briefCardEl = document.getElementById("ov-brief-card");
+  if (briefCardEl) briefCardEl.innerHTML = _ovBriefViewHtml(proj);
 
   const membersHtml = members.length
     ? members
@@ -390,7 +387,6 @@ async function renderProjectOverviewTab(el) {
 
   el.innerHTML = `
     <div class="ov-grid">
-      ${heroHtml}
       <div class="ov-row ov-row-top">
         <div class="ov-card">
           <h3>整體進度</h3>
@@ -434,6 +430,5 @@ async function renderProjectOverviewTab(el) {
       </div>
     </div>`;
 
-  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => openProjectEditModal(pid));
   _ovWireBriefCard(pid);
 }

@@ -562,6 +562,7 @@
   .pd-top-grid { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(260px, 460px); gap: 20px; align-items: stretch; margin-bottom: 4px; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
+  .pd-top-right { display: flex; flex-direction: column; gap: 10px; }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; }
   .pd-top-left .back-link { margin-bottom: 0; }
   /* 標題區在返回列下面撐滿剩餘高度、垂直置中 - 讓案名/區域文字落在返回列與下方
