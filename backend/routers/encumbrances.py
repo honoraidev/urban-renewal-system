@@ -46,19 +46,28 @@ def get_encumbrance_or_404(db: Session, project_id: int, encumbrance_id: int) ->
 def _building_addresses_for_parcel(db: Session, project_id: int, parcel_number: str | None) -> str | None:
     """地號本身沒有門牌 - 用建物標示部的「建物坐落地號」(BuildingRecord.parcel_number,
     謄本上就是印這個,不必先解出 land_record_id)反查蓋在這塊地上的建物,把它們的
-    門牌地址列出來給地號分頁的他項權利顯示,不然這欄永遠是空的。用「、」分隔,前端
-    比照整合清冊的門牌欄再各自簡化、標示地下持分。"""
+    門牌地址(連同建號)列出來給地號分頁的他項權利顯示,不然這欄永遠是空的。每筆
+    建物編碼成「地址::建號」,用「、」分隔多筆;前端比照整合清冊的門牌欄再各自
+    簡化、標示地下持分,同時把建號一起標出來。"""
     value = (parcel_number or "").strip()
     if not value:
         return None
-    addresses = db.scalars(
-        select(BuildingRecord.address).where(
+    buildings = db.scalars(
+        select(BuildingRecord).where(
             BuildingRecord.project_id == project_id,
             BuildingRecord.parcel_number == value,
             BuildingRecord.address.isnot(None),
         )
     ).all()
-    return "、".join(dict.fromkeys(a for a in addresses if a)) or None
+    seen = set()
+    parts = []
+    for b in buildings:
+        key = (b.address, b.building_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        parts.append(f"{b.address}::{b.building_number or ''}")
+    return "、".join(parts) or None
 
 
 @router.get("", response_model=list[EncumbranceRead])

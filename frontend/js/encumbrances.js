@@ -35,26 +35,31 @@ function encumbranceParcelsCellHtml(enc) {
 }
 
 // 地號本身沒有門牌 - 後端(見 backend routers/encumbrances.py)查地號分頁缺門牌時,
-// 會自動補蓋在這塊地上的建物門牌,用「、」串成一個字串回來。這裡拆開,比照整合
-// 清冊的門牌欄各自簡化(_shortDoorAddr,定義在 landowners.js)、地下室/車位持分
-// 建號一樣標灰色「(地下持分)」徽章,兩邊視覺一致。
+// 會自動補蓋在這塊地上的建物門牌,每筆編碼成「地址::建號」、用「、」串成一個字串
+// 回來。這裡拆開,比照整合清冊的門牌欄各自簡化(_shortDoorAddr,定義在
+// landowners.js)、地下室/車位持分建號一樣標灰色「(地下持分)」,同時把建號一起
+// 標出來,方便對照是哪一棟。
 function encumbrancePropertyAddressCellHtml(enc) {
   if (!enc.property_address) return "-";
-  const addrMap = new Map();
+  const addrMap = new Map(); // label -> { shared, buildingNumbers: Set }
   enc.property_address.split("、").forEach((raw) => {
-    const label = _shortDoorAddr(raw);
+    const [addrPart, buildingNumber] = raw.split("::");
+    const label = _shortDoorAddr(addrPart);
     if (!label) return;
-    const shared = /房屋地下/.test(raw);
-    if (!addrMap.has(label)) addrMap.set(label, shared);
+    const shared = /房屋地下/.test(addrPart);
+    if (!addrMap.has(label)) addrMap.set(label, { shared, buildingNumbers: new Set() });
+    if (buildingNumber) addrMap.get(label).buildingNumbers.add(buildingNumber);
   });
   const entries = [...addrMap.entries()];
   if (!entries.length) return escapeHtml(enc.property_address);
   return `<div style="display:flex;flex-wrap:wrap;gap:4px">${entries
-    .map(([a, shared]) =>
-      shared
-        ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
-        : `<span class="mini-badge">${escapeHtml(a)}</span>`
-    )
+    .map(([a, info]) => {
+      const bnText = info.buildingNumbers.size ? `(建號${[...info.buildingNumbers].join("、")})` : "";
+      const label = `${escapeHtml(a)}${escapeHtml(bnText)}`;
+      return info.shared
+        ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${label}(地下持分)</span>`
+        : `<span class="mini-badge">${label}</span>`;
+    })
     .join("")}</div>`;
 }
 
