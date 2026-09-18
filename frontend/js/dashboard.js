@@ -110,6 +110,7 @@ function showView(id) {
     "view-dashboard",
     "view-mywork",
     "view-new-project",
+    "view-project-overview",
     "view-project-detail",
     "view-ocr-batch",
     "view-users",
@@ -138,6 +139,9 @@ function persistViewState(viewId) {
     if (viewId === "view-project-detail" && state.currentProjectId) {
       snapshot.projectId = state.currentProjectId;
       snapshot.tab = state.activeTab || "sop";
+    }
+    if (viewId === "view-project-overview" && state.currentProjectId) {
+      snapshot.projectId = state.currentProjectId;
     }
     sessionStorage.setItem("lastView", JSON.stringify(snapshot));
   } catch (e) { /* sessionStorage 不可用(私密瀏覽等)就算了,不影響功能 */ }
@@ -176,6 +180,14 @@ async function restoreLastView() {
   }
   try {
     switch (saved.view) {
+      case "view-project-overview":
+        if (!saved.projectId) {
+          setActiveNav("dashboard");
+          showView("view-dashboard");
+          break;
+        }
+        await goToProjectOverviewPage(saved.projectId);
+        break;
       case "view-project-detail":
         if (!saved.projectId) {
           setActiveNav("dashboard");
@@ -426,7 +438,7 @@ async function loadDashboard() {
       .join("");
 
     grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
-      card.addEventListener("click", () => openProject(Number(card.dataset.projectId), "overview"));
+      card.addEventListener("click", () => goToProjectOverviewPage(Number(card.dataset.projectId)));
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
 
@@ -862,9 +874,39 @@ async function openProjectEditModal(projectId) {
   });
 }
 
-// defaultTab:側欄「案件管理」清單、新建案件、OCR匯入完成導回等預設仍是 SOP 進度頁。
-// 只有首頁「都更案件進度總覽」的案件卡片會傳 "overview",落地到案件總覽頁(見
-// dashboard.js loadDashboard() 的 project-card click),讓兩個入口點進去不是同一頁。
+// 首頁「都更案件進度總覽」卡片的落地頁 —— 獨立的一個 view(view-project-overview),
+// 沒有分頁列,跟 openProject() 進去的案件管理分頁頁面(view-project-detail)是完全不同
+// 的兩個畫面,不是同一頁裡切分頁/藏分頁列而已。要看 SOP 進度等其他內容,總覽頁面上
+// 的「進入案件管理」按鈕會呼叫 openProject() 換到另一個畫面。
+async function goToProjectOverviewPage(id) {
+  state.currentProjectId = id;
+  state.projectCache[id] = state.projectCache[id] || {};
+  setActiveSidebarCase(id);
+  showView("view-project-overview");
+
+  try {
+    const project = await api(`/projects/${id}`);
+    state.currentProject = project;
+    const nameEl = document.getElementById("pov-name");
+    const subEl = document.getElementById("pov-sub");
+    if (nameEl) {
+      const fullName = `${project.name} (${project.project_code})${project.description ? ` · ${project.description}` : ""}`;
+      nameEl.textContent = fullName;
+      nameEl.title = fullName;
+    }
+    if (subEl) subEl.textContent = [project.district, project.address].filter(Boolean).join(" · ") || "—";
+  } catch (e) {
+    goToDashboard();
+    return;
+  }
+
+  const el = document.getElementById("project-overview-content");
+  if (el) await renderProjectOverviewTab(el);
+}
+
+// 案件管理的分頁頁面(SOP進度/整合清冊等)- 側欄「案件管理」清單、新建案件、OCR匯入
+// 完成導回都走這裡。首頁「都更案件進度總覽」的案件卡片改走 goToProjectOverviewPage()
+// (獨立的案件總覽頁,不是這個分頁頁面裡的其中一個分頁),兩個入口是真的不同頁面。
 async function openProject(id, defaultTab = "sop") {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
@@ -939,18 +981,6 @@ async function switchProjectTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById("tab-content");
   if (!el) return;
-  // 「案件總覽」是首頁卡片點進來的落地頁,跟側欄「案件管理」點進來預設的 SOP 進度
-  // 頁分開 - 這裡把分頁列跟 SOP 進度條藏起來,讓兩個入口看起來是不同頁面;要切去
-  // SOP 進度等其他分頁,總覽頁面上有「進入案件管理」按鈕(見 project_overview.js)。
-  const tabBar = document.querySelector(".tab-bar");
-  const sopSummary = document.getElementById("pd-sop-summary");
-  if (tab === "overview") {
-    tabBar?.classList.add("hidden");
-    sopSummary?.classList.add("hidden");
-  } else {
-    tabBar?.classList.remove("hidden");
-    sopSummary?.classList.remove("hidden");
-  }
   // 土地登記 / 建物登記已併入「整合清冊」分頁的檢視切換下拉。舊的 "buildings" 進入點
   // (例如建物謄本匯入後)導到整合清冊並預設顯示建物登記檢視。
   if (tab === "buildings") {
@@ -970,7 +1000,6 @@ async function renderTab(tab) {
   state.activeTab = tab;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const renderers = {
-    overview: renderProjectOverviewTab,
     sop: renderSopTab,
     integrated: renderIntegratedRosterTab,
     buildingview: renderBuildingViewTab,
@@ -1019,6 +1048,11 @@ function initDashboard() {
   const backToDashboardDetailBtn = document.getElementById("back-to-dashboard");
   if (backToDashboardDetailBtn) {
     backToDashboardDetailBtn.addEventListener("click", goToDashboard);
+  }
+
+  const backToDashboardOverviewBtn = document.getElementById("back-to-dashboard-from-overview");
+  if (backToDashboardOverviewBtn) {
+    backToDashboardOverviewBtn.addEventListener("click", goToDashboard);
   }
 
   // 「整合清冊」的 details/summary 下拉不走這個通用 click-即-換頁的邏輯 - 它自己

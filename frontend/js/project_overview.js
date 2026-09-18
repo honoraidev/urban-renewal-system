@@ -1,8 +1,9 @@
 "use strict";
 
-// 「案件總覽」分頁 —— 從首頁/案件卡片點進案件時的預設落點(側欄「案件管理」清單
-// 點進去還是直接到 SOP 進度頁,見 dashboard.js openProject 的 defaultTab)。全部
-// 資料都串真實 API,沒有後端資料可算的欄位(待辦事項)先留空狀態,不做假資料。
+// 「案件總覽」—— 首頁「都更案件進度總覽」卡片點進去的獨立落地頁(view-project-overview,
+// 見 dashboard.js goToProjectOverviewPage),跟側欄「案件管理」清單直接進的 SOP 進度分頁
+// 頁面(view-project-detail)是不同畫面。全部資料都串真實 API,沒有後端資料可算的欄位
+// (待辦事項)先留空狀態,不做假資料。
 
 const OVERVIEW_RISK_LABEL = { low: "低", medium: "中", high: "高", "未設定": "未設定", "-": "—" };
 const OVERVIEW_RISK_CLASS = { low: "ov-risk-low", medium: "ov-risk-medium", high: "ov-risk-high" };
@@ -269,7 +270,7 @@ async function renderProjectOverviewTab(el) {
       </div>
     </div>`;
 
-  document.getElementById("ov-open-management-btn")?.addEventListener("click", () => switchProjectTab("sop"));
+  document.getElementById("ov-open-management-btn")?.addEventListener("click", () => openProject(state.currentProjectId));
 
   const coverImg = document.getElementById("ov-cover-img");
   if (coverImg) {

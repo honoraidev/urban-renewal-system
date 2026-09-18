@@ -174,6 +174,25 @@
 
           <!-- New project: built as a modal in goToNewProject() (dashboard.js) -->
 
+          <!-- Project overview:「都更案件進度總覽」卡片點進去的落地頁,獨立畫面、沒有
+               分頁列,跟下面的 view-project-detail(案件管理分頁頁面)是不同頁面 -->
+          <div id="view-project-overview" class="hidden">
+            <div class="pd-top-grid">
+              <div class="pd-top-left">
+                <div class="pd-top-line1">
+                  <button class="back-link" id="back-to-dashboard-from-overview">← 返回</button>
+                </div>
+                <div class="project-header">
+                  <div>
+                    <h2 id="pov-name"></h2>
+                    <div class="sub" id="pov-sub"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="project-overview-content"></div>
+          </div>
+
           <!-- Project detail -->
           <div id="view-project-detail" class="hidden">
             <div class="pd-top-grid">
@@ -195,7 +214,6 @@
             </div>
             <div id="pd-sop-summary" style="margin-bottom:16px"></div>
             <div class="tab-bar">
-              <button class="tab-btn" data-tab="overview">📊 案件總覽</button>
               <button class="tab-btn active" data-tab="sop">SOP 進度</button>
               <details class="tab-btn tab-select" data-tab="integrated" id="tab-integrated-details">
                 <summary class="tab-select-trigger"><span id="tab-integrated-current">整合清冊</span></summary>
