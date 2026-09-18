@@ -130,7 +130,7 @@ function renderMyWork() {
         .slice(0, 2)
         .map(
           (e) =>
-            `<div class="mw-ev ${e.project_id ? "proj" : ""}" title="${escapeHtml(e.content)}">${escapeHtml(
+            `<div class="mw-ev ${e.project_id ? "proj" : ""}" title="${escapeHtml(e.project_name ? `${e.content}(${e.project_name})` : e.content)}">${e.is_important ? "⭐" : ""}${escapeHtml(
               e.content
             )}</div>`
         )
@@ -325,7 +325,7 @@ function openMyWorkDay(dateIso, events) {
     .map(
       (e) => `
     <div class="mw-daydetail-ev" data-ev-id="${e.id}">
-      <div class="mw-ev-content" style="white-space:pre-wrap">${escapeHtml(e.content)}</div>
+      <div class="mw-ev-content" style="white-space:pre-wrap">${e.is_important ? "⭐ " : ""}${escapeHtml(e.content)}</div>
       <div class="meta">
         <span>${e.project_name ? "🟢 " + escapeHtml(e.project_name) : "🔵 個人"}</span>
         ${e.created_by_name ? `<span>· ${escapeHtml(e.created_by_name)}</span>` : ""}
@@ -349,6 +349,10 @@ function openMyWorkDay(dateIso, events) {
         <label>新增待辦</label>
         ${projectSelect}
         <textarea id="mw-ev-text" rows="3" placeholder="這天要做什麼..."></textarea>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;font-size:13px">
+          <input type="checkbox" id="mw-ev-important" style="width:auto">
+          <span>標記為重要(會出現在今日重要待辦鈴鐺提醒)</span>
+        </label>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">關閉</button>
@@ -361,14 +365,16 @@ function openMyWorkDay(dateIso, events) {
     const content = document.getElementById("mw-ev-text").value.trim();
     if (!content) return;
     const pidRaw = document.getElementById("mw-ev-project").value;
+    const isImportant = document.getElementById("mw-ev-important").checked;
     try {
       await api("/dashboard/calendar", {
         method: "POST",
-        body: { event_date: dateIso, content, project_id: pidRaw ? Number(pidRaw) : null },
+        body: { event_date: dateIso, content, project_id: pidRaw ? Number(pidRaw) : null, is_important: isImportant },
       });
       toast("已新增", "success");
       closeModal();
       await loadMyWork();
+      if (typeof refreshReminderBell === "function") refreshReminderBell();
     } catch (e) {}
   };
 
@@ -381,6 +387,7 @@ function openMyWorkDay(dateIso, events) {
         toast("已刪除", "success");
         closeModal();
         await loadMyWork();
+        if (typeof refreshReminderBell === "function") refreshReminderBell();
       } catch (err) {}
     });
   });

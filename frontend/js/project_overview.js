@@ -36,6 +36,16 @@ function overviewEnsureStyle() {
     .ov-card-icon { width:28px; height:28px; border-radius:9px; background:var(--brand-light); color:var(--brand-dark);
       display:inline-flex; align-items:center; justify-content:center; font-size:14.5px; flex:0 0 auto; margin-right:2px; }
     .ov-card h3 > span:first-child { display:inline-flex; align-items:center; gap:10px; }
+    .ov-todo-add-btn { width:26px; height:26px; border-radius:50%; border:none; background:var(--brand-light);
+      color:var(--brand-dark); font-size:16px; font-weight:800; line-height:1; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; transition:all .15s; }
+    .ov-todo-add-btn:hover { background:var(--brand); color:#fff; transform:scale(1.08); }
+    .ov-todo-list { display:flex; flex-direction:column; }
+    .ov-todo-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); }
+    .ov-todo-row:last-child { border-bottom:none; }
+    .ov-todo-text { font-size:13px; color:var(--text); line-height:1.5; }
+    .ov-todo-date { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+    .ov-todo-overdue .ov-todo-date { color:var(--danger); }
 
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
@@ -225,8 +235,26 @@ function _ovHeadcountDetailHtml(detail) {
     .join("");
 }
 
-function _ovCardTitle(icon, label) {
-  return `<h3><span><span class="ov-card-icon">${icon}</span>${label}</span></h3>`;
+function _ovCardTitle(icon, label, rightHtml) {
+  return `<h3><span><span class="ov-card-icon">${icon}</span>${label}</span>${rightHtml || ""}</h3>`;
+}
+
+// 待辦事項卡片(案件總覽頁)- 跟工作看板行事曆、全站鈴鐺提醒同一份 calendar_events
+// 資料,這裡篩成只看這個案件的,逾期的排最後面但還是要看得到(見 backend
+// routers/project_overview.py get_project_todos)。
+function _ovTodosHtml(todos, pid) {
+  if (!todos || !todos.length) return `<div class="helper-text">尚無待辦事項</div>`;
+  return `<div class="ov-todo-list">${todos
+    .map(
+      (t) => `<div class="ov-todo-row${t.is_overdue ? " ov-todo-overdue" : ""}">
+        <div class="ov-todo-main">
+          <div class="ov-todo-text">${t.is_important ? "⭐ " : ""}${escapeHtml(t.content)}</div>
+          <div class="ov-todo-date">${fmtDate(t.event_date)}${t.is_overdue ? "・已過期" : ""}</div>
+        </div>
+        ${isEditor() ? `<button type="button" class="btn-link btn-sm" data-ov-todo-delete="${t.id}">刪除</button>` : ""}
+      </div>`
+    )
+    .join("")}</div>`;
 }
 
 function _ovMemberRoleLabel(role) {
@@ -360,14 +388,15 @@ async function renderProjectOverviewTab(el) {
   const pid = state.currentProjectId;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
 
-  let overview, members, docs, notes, feed;
+  let overview, members, docs, notes, feed, todos;
   try {
-    [overview, members, docs, notes, feed] = await Promise.all([
+    [overview, members, docs, notes, feed, todos] = await Promise.all([
       api(`/projects/${pid}/overview`),
       api(`/projects/${pid}/members`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/notes`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/activity-feed`, { silent: true }).catch(() => []),
+      api(`/projects/${pid}/overview/todos`, { silent: true }).catch(() => []),
     ]);
   } catch (err) {
     el.innerHTML = `<div class="empty-state">載入失敗</div>`;
@@ -479,7 +508,7 @@ async function renderProjectOverviewTab(el) {
           ${_ovCardTitle("📋", "案件狀態")}
           ${_ovRiskCard(overview.case_status)}
         </div>
-        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
+        <div class="ov-card">${_ovCardTitle("✅", "待辦事項", isEditor() ? `<button type="button" class="ov-todo-add-btn" id="ov-todo-add-btn" title="新增待辦事項">+</button>` : "")}${_ovTodosHtml(todos, pid)}</div>
       </div>
 
       <div class="ov-row ov-row-r3">
@@ -490,4 +519,18 @@ async function renderProjectOverviewTab(el) {
     </div>`;
 
   _ovWireBriefCard(pid);
+
+  document.getElementById("ov-todo-add-btn")?.addEventListener("click", () => {
+    openAddReminderModal(pid, [{ id: pid, name: proj.name }], () => renderProjectOverviewTab(el));
+  });
+  el.querySelectorAll("[data-ov-todo-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("確定要刪除這筆待辦事項嗎?")) return;
+      try {
+        await api(`/dashboard/calendar/${btn.dataset.ovTodoDelete}`, { method: "DELETE" });
+        toast("已刪除", "success");
+        renderProjectOverviewTab(el);
+      } catch (err) { }
+    });
+  });
 }

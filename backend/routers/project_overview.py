@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from deps import require_project_staff_viewer
+from models.calendar_event import CalendarEvent
 from models.document import Document
 from models.landowner import Landowner
 from models.project import Project
@@ -21,6 +22,36 @@ from routers.sop import (
 from utils.consent_ratio import calculate_consent_ratio
 
 router = APIRouter(prefix="/projects/{project_id}/overview", tags=["project-overview"])
+
+
+@router.get("/todos")
+def get_project_todos(
+    project_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    """案件總覽頁「待辦事項」卡片用 - 這個案件底下的行事曆備註(跟工作看板行事曆
+    同一份 calendar_events 資料,只是這裡篩成單一案件),依日期由近到遠排序,今天
+    以前的過期項目排最後面(還是要看得到,只是優先權比較低)。"""
+    today = date.today()
+    events = db.scalars(
+        select(CalendarEvent)
+        .where(CalendarEvent.project_id == project_id)
+        .order_by(CalendarEvent.event_date)
+    ).all()
+    upcoming = sorted((e for e in events if e.event_date >= today), key=lambda e: e.event_date)
+    overdue = sorted((e for e in events if e.event_date < today), key=lambda e: e.event_date, reverse=True)
+    ordered = upcoming + overdue
+    return [
+        {
+            "id": e.id,
+            "event_date": e.event_date,
+            "content": e.content,
+            "is_important": e.is_important,
+            "is_overdue": e.event_date < today,
+        }
+        for e in ordered
+    ]
 
 
 def _headcount_detail(db: Session, project_id: int) -> dict:

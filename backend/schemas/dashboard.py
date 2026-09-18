@@ -30,6 +30,7 @@ class CalendarEventItem(BaseModel):
     id: int
     event_date: date
     content: str
+    is_important: bool = False
     project_id: int | None = None
     project_name: str | None = None
     created_by: int | None = None
@@ -56,8 +57,17 @@ class CalendarEventCreate(BaseModel):
     event_date: date
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
+    is_important: bool = False
 
 
 class CalendarEventUpdate(BaseModel):
     content: str | None = Field(default=None, min_length=1, max_length=2000)
     event_date: date | None = None
+    is_important: bool | None = None
+
+
+class TodayImportantItem(BaseModel):
+    id: int
+    content: str
+    project_id: int | None = None
+    project_name: str | None = None

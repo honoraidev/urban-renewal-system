@@ -21,6 +21,7 @@ from schemas.dashboard import (
     ProjectOption,
     TodayActivityItem,
     TodayFollowUpItem,
+    TodayImportantItem,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -186,6 +187,7 @@ def get_my_work(
             id=e.id,
             event_date=e.event_date,
             content=e.content,
+            is_important=e.is_important,
             project_id=e.project_id,
             project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
             created_by=e.created_by,
@@ -211,6 +213,37 @@ def get_my_work(
         calendar_events=calendar_events,
         project_options=project_options,
     )
+
+
+@router.get("/today-important", response_model=list[TodayImportantItem])
+def get_today_important(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """全站頂端鈴鐺用 - 今天、標「重要」的待辦,個人的 + 看得到的案件共用的都算
+    (跟工作看板行事曆同一份資料,同一套 _visible_project_ids 可見範圍)。"""
+    project_ids = _visible_project_ids(db, current_user)
+    today = datetime.utcnow().date()
+    ev_filter = CalendarEvent.created_by == current_user.id
+    if project_ids:
+        ev_filter = ev_filter | CalendarEvent.project_id.in_(project_ids)
+    events = db.scalars(
+        select(CalendarEvent)
+        .where(CalendarEvent.event_date == today, CalendarEvent.is_important.is_(True), ev_filter)
+        .order_by(CalendarEvent.id)
+    ).all()
+    project_name_by_id = dict(
+        db.execute(select(Project.id, Project.name).where(Project.id.in_(project_ids))).all()
+    ) if project_ids else {}
+    return [
+        TodayImportantItem(
+            id=e.id,
+            content=e.content,
+            project_id=e.project_id,
+            project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
+        )
+        for e in events
+    ]
 
 
 def _get_event_or_404(db: Session, event_id: int) -> CalendarEvent:
@@ -249,6 +282,7 @@ def create_calendar_event(
         project_id=payload.project_id,
         event_date=payload.event_date,
         content=payload.content.strip(),
+        is_important=payload.is_important,
     )
     db.add(ev)
     db.commit()
@@ -261,6 +295,7 @@ def create_calendar_event(
         id=ev.id,
         event_date=ev.event_date,
         content=ev.content,
+        is_important=ev.is_important,
         project_id=ev.project_id,
         project_name=project_name,
         created_by=ev.created_by,
@@ -283,6 +318,8 @@ def update_calendar_event(
         ev.content = payload.content.strip()
     if payload.event_date is not None:
         ev.event_date = payload.event_date
+    if payload.is_important is not None:
+        ev.is_important = payload.is_important
     db.commit()
     db.refresh(ev)
     project_name = None
@@ -294,6 +331,7 @@ def update_calendar_event(
         id=ev.id,
         event_date=ev.event_date,
         content=ev.content,
+        is_important=ev.is_important,
         project_id=ev.project_id,
         project_name=project_name,
         created_by=ev.created_by,

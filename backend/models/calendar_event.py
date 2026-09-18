@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -19,5 +19,8 @@ class CalendarEvent(Base):
     )
     event_date: Mapped[date] = mapped_column(Date, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # 標記「重要」的待辦才會出現在全站頂端的鈴鐺提醒(見 routers/dashboard.py
+    # get_today_important) - 一般行事曆備註太多了,全部推播會沒人想看。
+    is_important: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

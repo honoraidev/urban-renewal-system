@@ -2,6 +2,7 @@
 
 function bootstrapApp() {
   initAuth();
+  initReminders();
   initDashboard();
   initMyWork();
   initOcrWizard();

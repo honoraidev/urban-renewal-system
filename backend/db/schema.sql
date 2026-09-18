@@ -418,6 +418,7 @@ CREATE TABLE calendar_events (
     project_id INT NULL,
     event_date DATE NOT NULL,
     content TEXT NOT NULL,
+    is_important TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_calendar_events_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
