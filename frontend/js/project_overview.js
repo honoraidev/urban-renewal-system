@@ -20,12 +20,15 @@ function overviewEnsureStyle() {
   const s = document.createElement("style");
   s.id = "ov-style";
   s.textContent = `
-    .ov-grid { display:flex; flex-direction:column; gap:16px; }
-    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; }
-    .ov-row.ov-row-3col { grid-template-columns: 1.1fr 1.6fr 1fr; align-items:stretch; }
-    @media (max-width:1000px) { .ov-row.ov-row-3col { grid-template-columns: 1fr; } }
-    .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
-    .ov-card h3 { margin:0 0 12px; font-size:14.5px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .ov-grid { display:flex; flex-direction:column; gap:18px; }
+    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px; }
+    .ov-row.ov-row-top { grid-template-columns: 1fr 1.7fr; align-items:start; }
+    .ov-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
+    @media (max-width:1000px) { .ov-row.ov-row-top { grid-template-columns: 1fr; } }
+    .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+    .ov-card h3 { margin:0 0 14px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding-bottom:10px; border-bottom:1px solid var(--border); }
     .ov-card h3 .helper-text { font-weight:400; }
 
     .ov-brief-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;
@@ -33,17 +36,17 @@ function overviewEnsureStyle() {
     .ov-brief-cover { width:220px; max-width:100%; height:140px; object-fit:cover; border-radius:10px; flex:0 0 auto; background:var(--surface-2); }
     .ov-brief-text { flex:1 1 260px; font-size:13.5px; line-height:1.7; color:var(--text); white-space:pre-line; }
 
-    .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; }
-    .ov-donut { width:140px; height:140px; border-radius:50%; position:relative;
+    .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; padding:6px 0 2px; }
+    .ov-donut { width:150px; height:150px; border-radius:50%; position:relative;
       background: conic-gradient(var(--brand) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
-    .ov-donut-hole { position:absolute; inset:14px; border-radius:50%; background:var(--surface);
+    .ov-donut-hole { position:absolute; inset:15px; border-radius:50%; background:var(--surface);
       display:flex; flex-direction:column; align-items:center; justify-content:center; }
-    .ov-donut-hole strong { font-size:26px; line-height:1.1; }
-    .ov-donut-hole span { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .ov-donut-hole strong { font-size:28px; line-height:1.1; }
+    .ov-donut-hole span { font-size:12px; color:var(--text-muted); margin-top:3px; }
     .ov-donut-updated { font-size:12px; color:var(--text-muted); }
 
-    .ov-stage-scroll { display:flex; gap:14px; overflow-x:auto; padding-bottom:4px; }
-    .ov-stage { flex:0 0 auto; width:92px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+    .ov-stage-scroll { display:flex; flex-wrap:wrap; gap:18px 16px; }
+    .ov-stage { flex:0 0 auto; width:88px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
     .ov-stage-ring { width:64px; height:64px; border-radius:50%; position:relative;
       background: conic-gradient(var(--stage-color,var(--brand)) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
     .ov-stage-ring-hole { position:absolute; inset:6px; border-radius:50%; background:var(--surface);
@@ -52,13 +55,15 @@ function overviewEnsureStyle() {
     .ov-stage-sub { font-size:11px; color:var(--text-muted); }
 
     .ov-status-list { display:flex; flex-direction:column; gap:0; }
-    .ov-status-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
+    .ov-status-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
     .ov-status-row:last-child { border-bottom:none; }
     .ov-status-row .lbl { color:var(--text-muted); }
     .ov-risk-low { color:var(--success); font-weight:700; }
     .ov-risk-medium { color:var(--warning); font-weight:700; }
     .ov-risk-high { color:var(--danger); font-weight:700; }
 
+    .ov-metrics-group { display:flex; flex-direction:column; gap:16px; }
+    .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:16px; border-top:1px dashed var(--border); }
     .ov-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
     .ov-metric { border-radius:10px; padding:14px 10px; text-align:center; background:var(--surface-2); }
     .ov-metric .ov-metric-icon { font-size:20px; }
@@ -228,31 +233,37 @@ async function renderProjectOverviewTab(el) {
   el.innerHTML = `
     <div class="ov-grid">
       ${briefHtml}
-      <div class="ov-row ov-row-3col">
-        <div class="ov-card">
-          <h3>整體進度</h3>
-          <div class="ov-donut-wrap">
-            <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
-              <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
+      <div class="ov-row ov-row-top">
+        <div class="ov-col">
+          <div class="ov-card">
+            <h3>整體進度</h3>
+            <div class="ov-donut-wrap">
+              <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
+                <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
+              </div>
+              <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
             </div>
-            <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
+          </div>
+          <div class="ov-card">
+            <h3>案件狀態</h3>
+            ${_ovRiskCard(overview.case_status)}
           </div>
         </div>
         <div class="ov-card">
           <h3>階段進度</h3>
           <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
         </div>
-        <div class="ov-card">
-          <h3>案件狀態</h3>
-          ${_ovRiskCard(overview.case_status)}
-        </div>
       </div>
 
       <div class="ov-card">
         <h3>關鍵指標</h3>
-        <div class="ov-metrics">
-          ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
-          ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
+        <div class="ov-metrics-group">
+          <div class="ov-metrics">
+            ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
+          </div>
+          <div class="ov-metrics">
+            ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
+          </div>
         </div>
       </div>
 
