@@ -17,7 +17,6 @@ async function renderContactsTab(el) {
     return;
   }
 
-  const uniqJoin = (arr) => [...new Set(arr.filter(Boolean))].join("、");
   const hasPhone = (o) => !!(o.phone_landline || o.phone_mobile || o.phone);
 
   el.innerHTML = `
@@ -61,16 +60,35 @@ async function renderContactsTab(el) {
         <tbody>
           ${rows
             .map((o, i) => {
-              const doorLabels = [...new Set((o.building_records || []).map((r) => _shortDoorAddr(r.address)).filter(Boolean))];
-              const hay = `${o.name} ${o.phone_landline || ""} ${o.phone_mobile || ""} ${o.phone || ""} ${o.address || ""} ${doorLabels.join(" ")}`.toLowerCase();
+              // 「房屋地下N層」的地下室/車位建號常是依持分比例登記給幾十位共有人,跟
+              // 他自己真正的住家門牌標成一樣容易誤會成名下有好幾戶房子 - 標灰色
+              // 「(地下持分)」跟真正住家門牌區分開(跟「整合清冊」同一套邏輯)。
+              const addrMap = new Map();
+              (o.building_records || []).forEach((r) => {
+                const label = _shortDoorAddr(r.address);
+                if (!label) return;
+                const shared = /房屋地下/.test(r.address || "");
+                if (!addrMap.has(label)) addrMap.set(label, shared);
+              });
+              const doorEntries = [...addrMap.entries()];
+              const hay = `${o.name} ${o.phone_landline || ""} ${o.phone_mobile || ""} ${o.phone || ""} ${o.address || ""} ${doorEntries.map(([a]) => a).join(" ")}`.toLowerCase();
               const phoneTok = hasPhone(o) ? "has" : "none";
               const phoneHtml = hasPhone(o)
                 ? `${o.phone_landline ? `<div>${escapeHtml(o.phone_landline)}</div>` : ""}${o.phone_mobile ? `<div class="ph-mobile">${escapeHtml(o.phone_mobile)}</div>` : ""}${!o.phone_landline && !o.phone_mobile && o.phone ? `<div>${escapeHtml(o.phone)}</div>` : ""}`
                 : `<span class="ph-empty">未填寫</span>`;
+              const doorHtml = doorEntries.length
+                ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${doorEntries
+                    .map(([a, shared]) =>
+                      shared
+                        ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+                        : `<span class="mini-badge">${escapeHtml(a)}</span>`
+                    )
+                    .join("")}</div>`
+                : `<span style="color:var(--text-muted)">-</span>`;
               return `<tr data-hay="${escapeHtml(hay)}" data-phone-tok="${phoneTok}">
                 <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
                 <td class="col-name">${escapeHtml(o.name)}</td>
-                <td>${doorLabels.length ? escapeHtml(uniqJoin(doorLabels)) : `<span style="color:var(--text-muted)">-</span>`}</td>
+                <td>${doorHtml}</td>
                 <td class="cell-phone">${phoneHtml}</td>
                 <td class="cell-addr">${o.address ? escapeHtml(o.address) : `<span style="color:var(--text-muted)">未填寫</span>`}</td>
               </tr>`;

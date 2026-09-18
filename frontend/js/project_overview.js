@@ -31,9 +31,17 @@ function overviewEnsureStyle() {
       padding-bottom:10px; border-bottom:1px solid var(--border); }
     .ov-card h3 .helper-text { font-weight:400; }
 
-    .ov-brief-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;
-      display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
-    .ov-brief-cover { width:220px; max-width:100%; height:140px; object-fit:cover; border-radius:10px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-hero-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
+      box-shadow:0 1px 2px rgba(0,0,0,.03); display:flex; flex-direction:column; gap:16px; }
+    .ov-hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+    .ov-meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; }
+    .ov-meta-item { font-size:13px; color:var(--text); white-space:nowrap; }
+    .ov-hero-actions { display:flex; gap:8px; flex-shrink:0; }
+
+    .ov-brief-card { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;
+      padding-top:16px; border-top:1px solid var(--border); }
+    .ov-brief-cover { width:240px; max-width:100%; height:150px; object-fit:cover; border-radius:12px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-brief-label { font-size:12.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px; }
     .ov-brief-text { flex:1 1 260px; font-size:13.5px; line-height:1.7; color:var(--text); white-space:pre-line; }
 
     .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; padding:6px 0 2px; }
@@ -178,13 +186,37 @@ async function renderProjectOverviewTab(el) {
   if (state.currentProjectId !== pid) return;
 
   const proj = state.currentProject || {};
-  const briefHtml =
-    proj.has_cover_image || proj.summary
-      ? `<div class="ov-brief-card">
-          ${proj.has_cover_image ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">` : ""}
-          ${proj.summary ? `<div class="ov-brief-text">${escapeHtml(proj.summary).replace(/\n/g, "<br>")}</div>` : ""}
-        </div>`
-      : "";
+  // 「負責人」跟首頁案件卡片(dashboard-summary 的 case_handler_name/case_manager_name)
+  // 同一套邏輯:members 裡第一個 case_staff/case_owner 是負責人,第一個 manager/
+  // sys_admin 是主管(見 backend routers/projects.py _case_handler_names)。
+  const handlerMember = members.find((m) => ["case_staff", "case_owner"].includes(m.role_in_project));
+  const managerMember = members.find((m) => ["manager", "sys_admin"].includes(m.role_in_project));
+  const handlerName = handlerMember && (handlerMember.display_name || handlerMember.username);
+  const managerName = managerMember && (managerMember.display_name || managerMember.username);
+  const dateRangeText = `${fmtDate(proj.created_at)} ~ ${proj.expected_completion_date ? fmtDate(proj.expected_completion_date) : "未定"}`;
+
+  const heroHtml = `
+    <div class="ov-hero-card">
+      <div class="ov-hero-top">
+        <div class="ov-meta-row">
+          <span class="ov-meta-item">📍 ${escapeHtml([proj.city, proj.district, proj.address].filter(Boolean).join("") || "—")}</span>
+          <span class="ov-meta-item">📁 ${escapeHtml(proj.project_code || "—")}</span>
+          ${proj.case_type ? `<span class="ov-meta-item">🏢 ${escapeHtml(proj.case_type)}</span>` : ""}
+          <span class="ov-meta-item">📅 ${dateRangeText}</span>
+          ${handlerName ? `<span class="ov-meta-item">👤 負責人:${escapeHtml(handlerName)}</span>` : ""}
+          ${managerName ? `<span class="ov-meta-item">💼 主管:${escapeHtml(managerName)}</span>` : ""}
+        </div>
+        <div class="ov-hero-actions">
+          <button type="button" class="btn-secondary btn-sm" id="ov-edit-project-btn">✏️ 編輯案件</button>
+        </div>
+      </div>
+      ${proj.has_cover_image || proj.summary
+        ? `<div class="ov-brief-card">
+            ${proj.has_cover_image ? `<img id="ov-cover-img" class="ov-brief-cover" alt="案件封面圖">` : ""}
+            ${proj.summary ? `<div class="ov-brief-text"><div class="ov-brief-label">案件簡介</div>${escapeHtml(proj.summary).replace(/\n/g, "<br>")}</div>` : ""}
+          </div>`
+        : ""}
+    </div>`;
 
   const membersHtml = members.length
     ? members
@@ -232,7 +264,7 @@ async function renderProjectOverviewTab(el) {
 
   el.innerHTML = `
     <div class="ov-grid">
-      ${briefHtml}
+      ${heroHtml}
       <div class="ov-row ov-row-top">
         <div class="ov-col">
           <div class="ov-card">
@@ -277,6 +309,8 @@ async function renderProjectOverviewTab(el) {
         <div class="ov-card"><h3>重要紀錄</h3>${timelineHtml}</div>
       </div>
     </div>`;
+
+  document.getElementById("ov-edit-project-btn")?.addEventListener("click", () => openProjectEditModal(pid));
 
   const coverImg = document.getElementById("ov-cover-img");
   if (coverImg) {

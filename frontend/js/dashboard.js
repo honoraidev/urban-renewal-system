@@ -830,6 +830,7 @@ async function openProjectEditModal(projectId) {
       await api(`/projects/${projectId}/cover-image`, { method: "POST", body: fd, isForm: true });
       toast("封面圖已更新", "success");
       await loadDashboard();
+      refreshOverviewPageIfOpen(projectId);
       // 剛上傳完馬上重開一次編輯視窗,順便讓「移除封面圖」按鈕出現(第一次上傳前
       // has_cover_image 是 false,按鈕不存在)。
       closeModal();
@@ -842,6 +843,7 @@ async function openProjectEditModal(projectId) {
       await api(`/projects/${projectId}/cover-image`, { method: "DELETE" });
       toast("封面圖已移除", "success");
       await loadDashboard();
+      refreshOverviewPageIfOpen(projectId);
       closeModal();
       openProjectEditModal(projectId);
     } catch (err) { }
@@ -870,8 +872,19 @@ async function openProjectEditModal(projectId) {
         renderProjectHeader(updated);
       }
       await loadDashboard();
+      refreshOverviewPageIfOpen(projectId);
     } catch (err) { }
   });
+}
+
+// 案件資料(名稱/簡介/封面圖等)被編輯後,如果使用者當下就停在案件總覽頁,要跟著
+// 重新整理(名稱/總覽卡片裡的簡介、封面圖都可能變了),不然要手動切出去再切回來
+// 才看得到最新的。SOP 進度頁那邊已經有 renderProjectHeader() 各自處理,這裡只管
+// 總覽頁那份。
+function refreshOverviewPageIfOpen(projectId) {
+  if (state.currentProjectId !== projectId) return;
+  if (document.getElementById("view-project-overview")?.classList.contains("hidden")) return;
+  goToProjectOverviewPage(projectId);
 }
 
 // 首頁「都更案件進度總覽」卡片的落地頁 —— 獨立的一個 view(view-project-overview),
