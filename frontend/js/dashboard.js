@@ -15,11 +15,13 @@ function projectConsentBreakdownHtml(breakdown, names) {
   const agreed = breakdown?.headcount_agreed || 0;
   const opposed = breakdown?.headcount_opposed || 0;
   const other = Math.max(0, total - agreed - opposed);
+  const agreedPct = total > 0 ? Math.round((agreed / total) * 100) : 0;
   const nameTitle = names && names.length ? ` title="${escapeHtml(names.join("、"))}"` : "";
   return `
     <div class="project-card-consent">
       <div class="consent-box consent-agreed"${nameTitle}>
-        <div class="consent-num">${agreed}<span class="consent-unit">人</span></div>
+        <div class="consent-ring" style="--pct:${agreedPct}"><div class="consent-ring-hole">${agreedPct}%</div></div>
+        <div class="consent-num-sm">${agreed}<span class="consent-unit">人</span></div>
         <div class="consent-lbl">同意人數</div>
       </div>
       <div class="consent-box consent-opposed">
@@ -880,7 +882,6 @@ async function goToProjectOverviewPage(id) {
     state.currentProject = project;
     const nameEl = document.getElementById("pov-name");
     const badgeEl = document.getElementById("pov-status-badge");
-    const crumbEl = document.getElementById("pov-breadcrumb");
     if (nameEl) {
       nameEl.textContent = project.name;
       nameEl.title = `${project.name} (${project.project_code})`;
@@ -890,7 +891,6 @@ async function goToProjectOverviewPage(id) {
         `<span class="status-badge status-${project.status}">${PROJECT_STATUS_LABEL[project.status] || project.status}</span>` +
         (project.is_force_closed ? ` <span class="mini-badge alert">強制結案</span>` : "");
     }
-    if (crumbEl) crumbEl.textContent = `都更案件進度總覽 › ${project.name}`;
   } catch (e) {
     goToDashboard();
     return;

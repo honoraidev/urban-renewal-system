@@ -24,7 +24,6 @@ function overviewEnsureStyle() {
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px; }
     .ov-row.ov-row-top { grid-template-columns: 1fr 1.6fr 1fr; align-items:stretch; }
     @media (max-width:1000px) { .ov-row.ov-row-top { grid-template-columns: 1fr; } }
-    .pov-breadcrumb { font-size:12.5px; color:var(--text-muted); margin:6px 0 2px; }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
       box-shadow: 0 1px 2px rgba(0,0,0,.03); }
     .ov-card h3 { margin:0 0 14px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px;
