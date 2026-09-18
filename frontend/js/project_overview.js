@@ -20,72 +20,78 @@ function overviewEnsureStyle() {
   const s = document.createElement("style");
   s.id = "ov-style";
   s.textContent = `
-    .ov-grid { display:flex; flex-direction:column; gap:18px; }
-    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px; }
+    .ov-grid { display:flex; flex-direction:column; gap:22px; }
+    .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; }
     .ov-row.ov-row-top { grid-template-columns: 1fr 1.6fr 1fr; align-items:stretch; }
     @media (max-width:1000px) { .ov-row.ov-row-top { grid-template-columns: 1fr; } }
-    .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
-      box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-    .ov-card h3 { margin:0 0 14px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px;
-      padding-bottom:10px; border-bottom:1px solid var(--border); }
+    .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
+      box-shadow:var(--shadow); transition:box-shadow .15s; }
+    .ov-card:hover { box-shadow:var(--shadow-hover); }
+    .ov-card h3 { margin:0 0 16px; font-size:15.5px; font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding-bottom:13px; border-bottom:1px solid var(--border); letter-spacing:.01em; }
     .ov-card h3 .helper-text { font-weight:400; }
+    .ov-card-icon { width:28px; height:28px; border-radius:9px; background:var(--brand-light); color:var(--brand-dark);
+      display:inline-flex; align-items:center; justify-content:center; font-size:14.5px; flex:0 0 auto; margin-right:2px; }
+    .ov-card h3 > span:first-child { display:inline-flex; align-items:center; gap:10px; }
 
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
     .ov-brief-card { position:relative; flex:1; background:var(--surface); border:1px solid var(--border);
-      border-radius:16px; padding:16px 18px; box-shadow:var(--shadow); display:flex; }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; width:100%; }
-    .ov-brief-cover { width:190px; max-width:100%; height:140px; object-fit:cover; border-radius:12px; flex:0 0 auto;
-      background:var(--surface-2); box-shadow:0 4px 14px -6px rgba(15,35,38,.25); }
+      border-radius:20px; padding:20px 22px; box-shadow:var(--shadow-hover); display:flex; }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; width:100%; }
+    .ov-brief-cover { width:190px; max-width:100%; height:140px; object-fit:cover; border-radius:14px; flex:0 0 auto;
+      background:var(--surface-2); box-shadow:0 6px 18px -6px rgba(15,35,38,.3); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:190px; max-width:100%; height:140px; border-radius:12px; flex:0 0 auto;
-      background:var(--surface-2); color:var(--text-muted); font-size:12px; border:1px dashed var(--border);
-      display:flex; align-items:center; justify-content:center; }
-    .ov-brief-label { font-size:12.5px; font-weight:700; color:var(--brand-dark); margin-bottom:6px;
-      display:flex; align-items:center; gap:6px; }
-    .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); }
-    .ov-brief-text { flex:1 1 200px; font-size:13px; line-height:1.7; color:var(--text); white-space:pre-line; }
-    .ov-brief-edit-btn { position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%;
+    .ov-brief-cover-empty { width:190px; max-width:100%; height:140px; border-radius:14px; flex:0 0 auto;
+      background:linear-gradient(160deg, var(--brand-light), var(--surface-2)); color:var(--text-muted); font-size:12px;
+      border:1.5px dashed var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+    .ov-brief-cover-empty::before { content:"🖼️"; font-size:26px; opacity:.55; }
+    .ov-brief-label { font-size:12.5px; font-weight:800; color:var(--brand-dark); margin-bottom:7px;
+      display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.03em; }
+    .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px var(--brand-light); }
+    .ov-brief-text { flex:1 1 200px; font-size:13.5px; line-height:1.75; color:var(--text); white-space:pre-line; }
+    .ov-brief-edit-btn { position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
       border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; color:var(--text-muted);
-      box-shadow:0 2px 6px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
-    .ov-brief-edit-btn:hover { background:var(--brand-light); border-color:var(--brand); color:var(--brand-dark); }
+      box-shadow:0 2px 8px rgba(15,35,38,.1); display:flex; align-items:center; justify-content:center; transition:all .15s; }
+    .ov-brief-edit-btn:hover { background:var(--brand); border-color:var(--brand); color:#fff; transform:scale(1.06); }
     .ov-brief-cover-wrap { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
     .ov-brief-edit-cover-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .ov-brief-edit .ov-brief-text { display:flex; flex-direction:column; }
     .ov-brief-edit textarea { width:100%; resize:vertical; font:inherit; }
     .ov-brief-edit-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
 
-    .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; padding:6px 0 2px; }
-    .ov-donut { width:150px; height:150px; border-radius:50%; position:relative;
-      background: conic-gradient(var(--brand) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
-    .ov-donut-hole { position:absolute; inset:15px; border-radius:50%; background:var(--surface);
+    .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; padding:8px 0 2px; }
+    .ov-donut { width:168px; height:168px; border-radius:50%; position:relative;
+      background: conic-gradient(var(--brand) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg);
+      filter:drop-shadow(0 6px 14px rgba(66,203,208,.25)); }
+    .ov-donut-hole { position:absolute; inset:18px; border-radius:50%; background:var(--surface);
       display:flex; flex-direction:column; align-items:center; justify-content:center; }
-    .ov-donut-hole strong { font-size:28px; line-height:1.1; }
-    .ov-donut-hole span { font-size:12px; color:var(--text-muted); margin-top:3px; }
+    .ov-donut-hole strong { font-size:32px; line-height:1.1; font-weight:800; }
+    .ov-donut-hole span { font-size:12.5px; color:var(--text-muted); margin-top:4px; }
     .ov-donut-updated { font-size:12px; color:var(--text-muted); }
 
-    .ov-stage-scroll { display:flex; flex-wrap:wrap; gap:18px 16px; }
-    .ov-stage { flex:0 0 auto; width:88px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
-    .ov-stage-ring { width:64px; height:64px; border-radius:50%; position:relative;
+    .ov-stage-scroll { display:flex; flex-wrap:wrap; gap:20px 18px; }
+    .ov-stage { flex:0 0 auto; width:88px; display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+    .ov-stage-ring { width:72px; height:72px; border-radius:50%; position:relative;
       background: conic-gradient(var(--stage-color,var(--brand)) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
-    .ov-stage-ring-hole { position:absolute; inset:6px; border-radius:50%; background:var(--surface);
-      display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:var(--stage-color,var(--brand)); }
-    .ov-stage-name { font-size:12px; font-weight:600; }
+    .ov-stage-ring-hole { position:absolute; inset:7px; border-radius:50%; background:var(--surface);
+      display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:var(--stage-color,var(--brand)); }
+    .ov-stage-name { font-size:12.5px; font-weight:700; }
     .ov-stage-sub { font-size:11px; color:var(--text-muted); }
 
     .ov-status-list { display:flex; flex-direction:column; gap:0; }
-    .ov-status-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
+    .ov-status-row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
     .ov-status-row:last-child { border-bottom:none; }
     .ov-status-row .lbl { color:var(--text-muted); }
     .ov-risk-low { color:var(--success); font-weight:700; }
     .ov-risk-medium { color:var(--warning); font-weight:700; }
     .ov-risk-high { color:var(--danger); font-weight:700; }
 
-    .ov-metrics-group { display:flex; flex-direction:column; gap:16px; }
-    .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:16px; border-top:1px dashed var(--border); }
+    .ov-metrics-group { display:flex; flex-direction:column; gap:18px; }
+    .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:18px; border-top:1px dashed var(--border); }
     .ov-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
-    .ov-metric { border-radius:12px; padding:14px 10px; text-align:center; background:var(--surface-2); }
+    .ov-metric { border-radius:14px; padding:14px 10px; text-align:center; background:var(--surface-2); }
     .ov-metric .ov-metric-icon { font-size:20px; }
     .ov-metric .ov-metric-label { font-size:12.5px; color:var(--text-muted); margin:4px 0; }
     .ov-metric .ov-metric-pct { font-size:22px; font-weight:800; }
@@ -95,19 +101,29 @@ function overviewEnsureStyle() {
     .ov-detail-undecided .ov-metric-pct { color:var(--warning); }
     .ov-detail-noresponse .ov-metric-pct { color:var(--text-muted); }
 
-    .ov-metrics-primary { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
-    .ov-metric-primary { padding:18px 14px; border:1px solid var(--border); }
-    .ov-metric-primary .ov-metric-icon { font-size:24px; }
-    .ov-metric-primary .ov-metric-label { font-size:13px; font-weight:600; color:var(--text); }
-    .ov-metric-primary .ov-metric-pct { font-size:27px; color:var(--brand-dark, var(--brand)); }
+    .ov-metrics-primary { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; }
+    .ov-metric-primary { padding:20px 16px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow);
+      transition:transform .15s, box-shadow .15s; }
+    .ov-metric-primary:hover { transform:translateY(-2px); box-shadow:var(--shadow-hover); }
+    .ov-metric-icon-badge { width:48px; height:48px; border-radius:50%; margin:0 auto 10px; font-size:22px;
+      display:flex; align-items:center; justify-content:center; }
+    .ov-metric-tone-brand .ov-metric-icon-badge { background:var(--brand-light); }
+    .ov-metric-tone-info .ov-metric-icon-badge { background:var(--info-light); }
+    .ov-metric-tone-brown .ov-metric-icon-badge { background:var(--brown-light); }
+    .ov-metric-primary .ov-metric-label { font-size:13px; font-weight:700; color:var(--text); }
+    .ov-metric-primary .ov-metric-pct { font-size:30px; font-weight:800; }
+    .ov-metric-tone-brand .ov-metric-pct { color:var(--brand-dark, var(--brand)); }
+    .ov-metric-tone-info .ov-metric-pct { color:var(--info); }
+    .ov-metric-tone-brown .ov-metric-pct { color:var(--brown); }
+    .ov-metric-primary .ov-metric-sub { font-size:11.5px; margin-top:2px; }
 
-    .ov-member-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13.5px; }
-    .ov-member-avatar { width:28px; height:28px; border-radius:50%; background:var(--surface-2);
-      display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex:0 0 auto; }
+    .ov-member-row { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13.5px; }
+    .ov-member-avatar { width:32px; height:32px; border-radius:50%; background:var(--brand-light); color:var(--brand-dark);
+      display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex:0 0 auto; }
     .ov-member-main { flex:1 1 auto; min-width:0; }
     .ov-member-role { font-size:11.5px; color:var(--text-muted); }
 
-    .ov-list-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+    .ov-list-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); font-size:13px; }
     .ov-list-row:last-child { border-bottom:none; }
     .ov-list-row-main { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ov-list-row-sub { color:var(--text-muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -149,11 +165,11 @@ function _ovStageHtml(s) {
     </div>`;
 }
 
-function _ovMetric(icon, label, ratio, subText) {
+function _ovMetric(icon, label, ratio, subText, tone) {
   const pct = Math.round((ratio || 0) * 100);
   return `
-    <div class="ov-metric ov-metric-primary">
-      <div class="ov-metric-icon">${icon}</div>
+    <div class="ov-metric ov-metric-primary ov-metric-tone-${tone}">
+      <div class="ov-metric-icon-badge">${icon}</div>
       <div class="ov-metric-label">${label}</div>
       <div class="ov-metric-pct">${pct}%</div>
       <div class="ov-metric-sub">${subText}</div>
@@ -394,11 +410,13 @@ async function renderProjectOverviewTab(el) {
         .join("")
     : `<div class="helper-text">尚無紀錄</div>`;
 
+  const _t = (icon, label) => `<h3><span><span class="ov-card-icon">${icon}</span>${label}</span></h3>`;
+
   el.innerHTML = `
     <div class="ov-grid">
       <div class="ov-row ov-row-top">
         <div class="ov-card">
-          <h3>整體進度</h3>
+          ${_t("📈", "整體進度")}
           <div class="ov-donut-wrap">
             <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
               <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
@@ -407,22 +425,22 @@ async function renderProjectOverviewTab(el) {
           </div>
         </div>
         <div class="ov-card">
-          <h3>階段進度</h3>
+          ${_t("🧭", "階段進度")}
           <div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>
         </div>
         <div class="ov-card">
-          <h3>案件狀態</h3>
+          ${_t("📋", "案件狀態")}
           ${_ovRiskCard(overview.case_status)}
         </div>
       </div>
 
       <div class="ov-card">
-        <h3>關鍵指標</h3>
+        ${_t("🎯", "關鍵指標")}
         <div class="ov-metrics-group">
           <div class="ov-metrics ov-metrics-primary">
-            ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
-            ${_ovMetric("📖", "土地同意", overview.key_metrics.land_share_ratio, `${overview.key_metrics.land_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.land_share_total_sqm.toFixed(2)} m²`)}
-            ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${overview.key_metrics.building_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.building_share_total_sqm.toFixed(2)} m²`)}
+            ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`, "brand")}
+            ${_ovMetric("📖", "土地同意", overview.key_metrics.land_share_ratio, `${overview.key_metrics.land_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.land_share_total_sqm.toFixed(2)} m²`, "info")}
+            ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${overview.key_metrics.building_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.building_share_total_sqm.toFixed(2)} m²`, "brown")}
           </div>
           <div class="ov-metrics">
             ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
@@ -431,13 +449,13 @@ async function renderProjectOverviewTab(el) {
       </div>
 
       <div class="ov-row">
-        <div class="ov-card"><h3>相關人員</h3>${membersHtml}</div>
-        <div class="ov-card"><h3>待辦事項</h3><div class="helper-text">功能開發中,尚未串接</div></div>
+        <div class="ov-card">${_t("👥", "相關人員")}${membersHtml}</div>
+        <div class="ov-card">${_t("✅", "待辦事項")}<div class="helper-text">功能開發中,尚未串接</div></div>
       </div>
 
       <div class="ov-row">
-        <div class="ov-card"><h3>最近文件</h3>${docsHtml}</div>
-        <div class="ov-card"><h3>重要紀錄</h3>${timelineHtml}</div>
+        <div class="ov-card">${_t("📁", "最近文件")}${docsHtml}</div>
+        <div class="ov-card">${_t("📝", "重要紀錄")}${timelineHtml}</div>
       </div>
     </div>`;
 
