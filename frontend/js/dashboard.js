@@ -881,7 +881,10 @@ async function openProjectEditModal(projectId) {
 async function goToProjectOverviewPage(id) {
   state.currentProjectId = id;
   state.projectCache[id] = state.projectCache[id] || {};
-  setActiveSidebarCase(id);
+  // 故意不呼叫 setActiveSidebarCase() - 側欄「案件管理」清單反白代表「目前正在那個
+  // 案件的 SOP 進度頁面」,這裡是不同的獨立總覽頁,反白側欄項目會讓使用者誤以為
+  // 兩個入口其實是同一頁,維持「都更案件進度總覽」這個總覽入口反白就好。
+  setActiveNav("dashboard");
   showView("view-project-overview");
 
   try {
