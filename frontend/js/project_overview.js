@@ -30,24 +30,26 @@ function overviewEnsureStyle() {
       padding-bottom:10px; border-bottom:1px solid var(--border); }
     .ov-card h3 .helper-text { font-weight:400; }
 
-    .ov-meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:8px; }
-    .ov-meta-item { font-size:13px; color:var(--text); white-space:nowrap; }
+    .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
+    .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
-    .ov-brief-card { position:relative; }
-    .ov-brief-view, .ov-brief-edit { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
-    .ov-brief-cover { width:150px; max-width:100%; height:110px; object-fit:cover; border-radius:10px; flex:0 0 auto; background:var(--surface-2); }
+    .ov-brief-card { position:relative; flex:1; background:var(--surface); border:1px solid var(--border);
+      border-radius:16px; padding:16px 18px; box-shadow:var(--shadow); display:flex; }
+    .ov-brief-view, .ov-brief-edit { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; width:100%; }
+    .ov-brief-cover { width:190px; max-width:100%; height:140px; object-fit:cover; border-radius:12px; flex:0 0 auto;
+      background:var(--surface-2); box-shadow:0 4px 14px -6px rgba(15,35,38,.25); }
     .ov-brief-cover.hidden { display:none; }
-    .ov-brief-cover-empty { width:150px; max-width:100%; height:110px; border-radius:10px; flex:0 0 auto;
-      background:var(--surface-2); color:var(--text-muted); font-size:12px;
+    .ov-brief-cover-empty { width:190px; max-width:100%; height:140px; border-radius:12px; flex:0 0 auto;
+      background:var(--surface-2); color:var(--text-muted); font-size:12px; border:1px dashed var(--border);
       display:flex; align-items:center; justify-content:center; }
-    .ov-brief-label { font-size:12px; font-weight:700; color:var(--brand); margin-bottom:4px;
-      display:flex; align-items:center; gap:5px; }
-    .ov-brief-label::before { content:""; width:6px; height:6px; border-radius:2px; background:var(--brand); }
-    .ov-brief-text { flex:1 1 200px; font-size:12.5px; line-height:1.6; color:var(--text); white-space:pre-line; }
-    .ov-brief-edit-btn { position:absolute; top:0; right:0; width:26px; height:26px; border-radius:50%;
-      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:12px;
-      display:flex; align-items:center; justify-content:center; }
-    .ov-brief-edit-btn:hover { background:var(--surface-2); }
+    .ov-brief-label { font-size:12.5px; font-weight:700; color:var(--brand-dark); margin-bottom:6px;
+      display:flex; align-items:center; gap:6px; }
+    .ov-brief-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); }
+    .ov-brief-text { flex:1 1 200px; font-size:13px; line-height:1.7; color:var(--text); white-space:pre-line; }
+    .ov-brief-edit-btn { position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%;
+      border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; color:var(--text-muted);
+      box-shadow:0 2px 6px rgba(15,35,38,.08); display:flex; align-items:center; justify-content:center; transition:all .15s; }
+    .ov-brief-edit-btn:hover { background:var(--brand-light); border-color:var(--brand); color:var(--brand-dark); }
     .ov-brief-cover-wrap { display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
     .ov-brief-edit-cover-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .ov-brief-edit .ov-brief-text { display:flex; flex-direction:column; }
@@ -83,7 +85,7 @@ function overviewEnsureStyle() {
     .ov-metrics-group { display:flex; flex-direction:column; gap:16px; }
     .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:16px; border-top:1px dashed var(--border); }
     .ov-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
-    .ov-metric { border-radius:10px; padding:14px 10px; text-align:center; background:var(--surface-2); }
+    .ov-metric { border-radius:12px; padding:14px 10px; text-align:center; background:var(--surface-2); }
     .ov-metric .ov-metric-icon { font-size:20px; }
     .ov-metric .ov-metric-label { font-size:12.5px; color:var(--text-muted); margin:4px 0; }
     .ov-metric .ov-metric-pct { font-size:22px; font-weight:800; }
@@ -93,13 +95,11 @@ function overviewEnsureStyle() {
     .ov-detail-undecided .ov-metric-pct { color:var(--warning); }
     .ov-detail-noresponse .ov-metric-pct { color:var(--text-muted); }
 
-    .ov-metric-hero { display:flex; align-items:center; gap:14px; padding:14px 18px; border-radius:10px; background:var(--surface-2); }
-    .ov-metric-hero-icon { width:42px; height:42px; border-radius:50%; background:var(--brand-light);
-      display:flex; align-items:center; justify-content:center; font-size:19px; flex:0 0 auto; }
-    .ov-metric-hero-main { flex:1; min-width:0; }
-    .ov-metric-hero-label { font-size:13.5px; font-weight:700; color:var(--text); }
-    .ov-metric-hero-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
-    .ov-metric-hero-pct { font-size:26px; font-weight:800; color:var(--brand-dark, var(--brand)); flex:0 0 auto; }
+    .ov-metrics-primary { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .ov-metric-primary { padding:18px 14px; border:1px solid var(--border); }
+    .ov-metric-primary .ov-metric-icon { font-size:24px; }
+    .ov-metric-primary .ov-metric-label { font-size:13px; font-weight:600; color:var(--text); }
+    .ov-metric-primary .ov-metric-pct { font-size:27px; color:var(--brand-dark, var(--brand)); }
 
     .ov-member-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13.5px; }
     .ov-member-avatar { width:28px; height:28px; border-radius:50%; background:var(--surface-2);
@@ -149,16 +149,14 @@ function _ovStageHtml(s) {
     </div>`;
 }
 
-function _ovMetric(icon, label, ratio, agreedText) {
+function _ovMetric(icon, label, ratio, subText) {
   const pct = Math.round((ratio || 0) * 100);
   return `
-    <div class="ov-metric-hero">
-      <div class="ov-metric-hero-icon">${icon}</div>
-      <div class="ov-metric-hero-main">
-        <div class="ov-metric-hero-label">${label}</div>
-        <div class="ov-metric-hero-sub">${agreedText}</div>
-      </div>
-      <div class="ov-metric-hero-pct">${pct}%</div>
+    <div class="ov-metric ov-metric-primary">
+      <div class="ov-metric-icon">${icon}</div>
+      <div class="ov-metric-label">${label}</div>
+      <div class="ov-metric-pct">${pct}%</div>
+      <div class="ov-metric-sub">${subText}</div>
     </div>`;
 }
 
@@ -421,8 +419,10 @@ async function renderProjectOverviewTab(el) {
       <div class="ov-card">
         <h3>關鍵指標</h3>
         <div class="ov-metrics-group">
-          <div class="ov-metrics">
+          <div class="ov-metrics ov-metrics-primary">
             ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`)}
+            ${_ovMetric("📖", "土地同意", overview.key_metrics.land_share_ratio, `${overview.key_metrics.land_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.land_share_total_sqm.toFixed(2)} m²`)}
+            ${_ovMetric("🏠", "建物同意", overview.key_metrics.building_share_ratio, `${overview.key_metrics.building_share_agreed_sqm.toFixed(2)} / ${overview.key_metrics.building_share_total_sqm.toFixed(2)} m²`)}
           </div>
           <div class="ov-metrics">
             ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}

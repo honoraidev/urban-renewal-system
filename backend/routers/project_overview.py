@@ -161,5 +161,11 @@ def get_project_overview(
             "headcount_agreed": consent["headcount_agreed"],
             "headcount_total": consent["headcount_total"],
             "headcount_detail": _headcount_detail(db, project_id),
+            "land_share_ratio": consent["land_share_ratio"],
+            "land_share_agreed_sqm": consent["land_share_agreed_sqm"],
+            "land_share_total_sqm": consent["land_share_total_sqm"],
+            "building_share_ratio": consent["building_share_ratio"],
+            "building_share_agreed_sqm": consent["building_share_agreed_sqm"],
+            "building_share_total_sqm": consent["building_share_total_sqm"],
         },
     }
