@@ -426,7 +426,7 @@ async function loadDashboard() {
       .join("");
 
     grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
-      card.addEventListener("click", () => openProject(Number(card.dataset.projectId)));
+      card.addEventListener("click", () => openProject(Number(card.dataset.projectId), "overview"));
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
 
