@@ -34,14 +34,61 @@ function encumbranceParcelsCellHtml(enc) {
   return kindLabel ? `<span class="mini-badge">${kindLabel}</span> ${value}` : value;
 }
 
+// 地號本身沒有門牌 - 後端(見 backend routers/encumbrances.py)查地號分頁缺門牌時,
+// 會自動補蓋在這塊地上的建物門牌,用「、」串成一個字串回來。這裡拆開,比照整合
+// 清冊的門牌欄各自簡化(_shortDoorAddr,定義在 landowners.js)、地下室/車位持分
+// 建號一樣標灰色「(地下持分)」徽章,兩邊視覺一致。
+function encumbrancePropertyAddressCellHtml(enc) {
+  if (!enc.property_address) return "-";
+  const addrMap = new Map();
+  enc.property_address.split("、").forEach((raw) => {
+    const label = _shortDoorAddr(raw);
+    if (!label) return;
+    const shared = /房屋地下/.test(raw);
+    if (!addrMap.has(label)) addrMap.set(label, shared);
+  });
+  const entries = [...addrMap.entries()];
+  if (!entries.length) return escapeHtml(enc.property_address);
+  return `<div style="display:flex;flex-wrap:wrap;gap:4px">${entries
+    .map(([a, shared]) =>
+      shared
+        ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+        : `<span class="mini-badge">${escapeHtml(a)}</span>`
+    )
+    .join("")}</div>`;
+}
+
+// 義務人不只一位時,格子裡只先顯示第一位,其餘用一顆「共N位 ▾」按鈕點下拉才看到
+// 完整名單 - 不然共有人一多,這欄會被撐得比其他欄都寬,整張表版面跟著跑掉。只有
+// 一位就直接顯示,不用多一層點開的動作。
+function encumbranceObligorsCellHtml(enc) {
+  const list =
+    enc.obligors && enc.obligors.length
+      ? enc.obligors.map((o) => {
+          const ratio = o.numerator && o.denominator ? `(${o.denominator}分之${o.numerator})` : "";
+          return `${o.name || "(未填姓名)"}${ratio}`;
+        })
+      : enc.debtor_info
+        ? [enc.debtor_info]
+        : [];
+  if (!list.length) return "-";
+  if (list.length === 1) return escapeHtml(list[0]);
+  return `
+    <div class="enc-obligor-cell">
+      <span class="enc-obligor-first">${escapeHtml(list[0])}</span>
+      <button type="button" class="enc-obligor-toggle" data-obligor-toggle>共${list.length}位 ▾</button>
+      <div class="enc-obligor-dd-list hidden">${list.map((s) => `<div>${escapeHtml(s)}</div>`).join("")}</div>
+    </div>`;
+}
+
 function encumbranceRowHtml(enc) {
   return `<tr>
     <td>${escapeHtml(enc.registration_order) || "-"}</td>
     <td>${encumbranceParcelsCellHtml(enc)}</td>
-    <td>${escapeHtml(enc.property_address) || "-"}</td>
+    <td>${encumbrancePropertyAddressCellHtml(enc)}</td>
     <td>${escapeHtml(enc.right_type) || "-"}</td>
     <td>${escapeHtml(enc.right_holder) || "-"}</td>
-    <td>${escapeHtml(encumbranceObligorsSummary(enc)) || "-"}</td>
+    <td>${encumbranceObligorsCellHtml(enc)}</td>
     <td style="text-align:right;white-space:nowrap">${formatSecuredAmount(enc.secured_amount) || "-"}</td>
     ${isEditor()
       ? `<td class="actions-cell">
@@ -95,14 +142,14 @@ async function renderEncumbrancesTab(el) {
       <input type="search" id="encumbrance-search" class="search-input-pill" style="max-width:260px" placeholder="搜尋地號/門牌/權利種類/權利人...">
       ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
     </div>
-    <div class="tab-bar" id="enc-kind-tabs" style="margin-bottom:14px">
-      <button type="button" class="tab-btn ${encActiveKind === "land" ? "active" : ""}" data-enc-kind="land">土地 (${landCount})</button>
-      <button type="button" class="tab-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建物 (${buildingCount})</button>
+    <div class="enc-kind-toggle" id="enc-kind-tabs">
+      <button type="button" class="enc-kind-btn ${encActiveKind === "land" ? "active" : ""}" data-enc-kind="land">土地 (${landCount})</button>
+      <button type="button" class="enc-kind-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建物 (${buildingCount})</button>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>義務人(債務額比例)</th><th style="text-align:right">擔保債權總金額</th>
+          <th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>債權額比例</th><th style="text-align:right">擔保債權總金額</th>
           ${isEditor() ? "<th>操作</th>" : ""}
         </tr></thead>
         <tbody id="encumbrance-tbody">${renderEncumbranceTbody(currentList())}</tbody>
@@ -131,6 +178,11 @@ async function renderEncumbrancesTab(el) {
       btn.addEventListener("click", () => {
         const enc = encumbrances.find((e) => e.id === Number(btn.dataset.editEncumbrance));
         if (enc) openEncumbranceFormModal(enc);
+      });
+    });
+    el.querySelectorAll("[data-obligor-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        btn.nextElementSibling?.classList.toggle("hidden");
       });
     });
   }
@@ -223,7 +275,7 @@ function openEncumbranceFormModal(encumbrance, defaultKind) {
         <div class="field"><label>他項權利人</label><input name="right_holder" value="${escapeHtml(e.right_holder)}" autocomplete="off"></div>
       </div>
       <div class="field">
-        <label>義務人(可填多位,各自標債務額比例)</label>
+        <label>義務人(可填多位,各自標債權額比例)</label>
         <div id="obligor-rows">${obligors.map(obligorRowHtml).join("")}</div>
         <button type="button" class="btn-secondary btn-sm" id="obligor-add-btn" style="margin-top:6px">+ 新增義務人</button>
       </div>
