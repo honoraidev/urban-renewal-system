@@ -16,20 +16,28 @@ function projectConsentBreakdownHtml(breakdown, names) {
   const opposed = breakdown?.headcount_opposed || 0;
   const other = Math.max(0, total - agreed - opposed);
   const agreedPct = total > 0 ? Math.round((agreed / total) * 100) : 0;
+  const agreedDeg = total > 0 ? (agreed / total) * 360 : 0;
+  const opposedDeg = total > 0 ? agreedDeg + (opposed / total) * 360 : 0;
   const nameTitle = names && names.length ? ` title="${escapeHtml(names.join("、"))}"` : "";
   return `
     <div class="project-card-consent">
-      <div class="consent-box consent-agreed"${nameTitle}>
-        <div class="consent-ring" style="--pct:${agreedPct}"><div class="consent-ring-hole">${agreed}<span class="consent-ring-unit">人</span></div></div>
-        <div class="consent-lbl">同意人數</div>
+      <div class="consent-pie"
+        style="background:conic-gradient(var(--success) 0deg ${agreedDeg}deg, var(--danger) ${agreedDeg}deg ${opposedDeg}deg, #fff ${opposedDeg}deg 360deg)"${nameTitle}>
+        <div class="consent-pie-hole">${agreedPct}<span class="consent-pie-unit">%</span></div>
       </div>
-      <div class="consent-box consent-opposed">
-        <div class="consent-num">${opposed}<span class="consent-unit">人</span></div>
-        <div class="consent-lbl">反對人數</div>
-      </div>
-      <div class="consent-box consent-other" title="需回電 / 未決定 / 未接聽">
-        <div class="consent-num">${other}<span class="consent-unit">人</span></div>
-        <div class="consent-lbl">其他</div>
+      <div class="consent-stats">
+        <div class="consent-stat consent-stat-agreed">
+          <div class="consent-num">${agreed}<span class="consent-unit">人</span></div>
+          <div class="consent-lbl">同意人數</div>
+        </div>
+        <div class="consent-stat consent-stat-opposed">
+          <div class="consent-num">${opposed}<span class="consent-unit">人</span></div>
+          <div class="consent-lbl">反對人數</div>
+        </div>
+        <div class="consent-stat consent-stat-other" title="需回電 / 未決定 / 未接聽">
+          <div class="consent-num">${other}<span class="consent-unit">人</span></div>
+          <div class="consent-lbl">其他</div>
+        </div>
       </div>
     </div>`;
 }

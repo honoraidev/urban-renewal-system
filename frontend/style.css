@@ -1484,22 +1484,26 @@
 .project-stage-bar { display: flex; gap: 3px; }
 .project-stage-bar span { flex: 1; height: 6px; border-radius: 100px; background: var(--surface-2); }
 .project-stage-bar span.filled { background: var(--stat-accent, var(--brand)); }
-.project-card-consent { display: flex; justify-content: space-between; gap: 8px; }
-.consent-box { flex: 1; text-align: center; border-radius: 10px; padding: 10px 6px; background: var(--surface-2); }
+.project-card-consent { display: flex; align-items: center; gap: 12px; border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
 .consent-num { font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .consent-num .consent-unit { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
 .consent-lbl { font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
-.consent-opposed .consent-num { color: var(--danger); }
-.consent-ring {
-  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto;
-  background: conic-gradient(var(--success) calc(var(--pct, 0) * 3.6deg), var(--surface) 0deg);
+.consent-stat-agreed .consent-num { color: var(--success); }
+.consent-stat-opposed .consent-num { color: var(--danger); }
+/* 單一整合圓餅圖:同意=綠、反對=紅、其他=白 三色一次呈現,取代原本「只有同意
+   有環、反對/其他純文字」高度不一致、看起來像三塊獨立元件的舊版。 */
+.consent-pie {
+  flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%; position: relative;
+  border: 1px solid var(--border); box-sizing: border-box;
 }
-.consent-ring-hole {
-  width: 44px; height: 44px; margin: 6px; border-radius: 50%; background: var(--surface-2);
+.consent-pie-hole {
+  position: absolute; inset: 7px; border-radius: 50%; background: var(--surface);
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;
+  font-size: 14px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;
 }
-.consent-ring-hole .consent-ring-unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
+.consent-pie-hole .consent-pie-unit { font-size: 10.5px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
+.consent-stats { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.consent-stat { flex: 1; text-align: center; }
 .project-card-tiers { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .tier-badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 100px; white-space: nowrap; }
 
