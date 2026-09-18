@@ -560,11 +560,16 @@
      固定上限 —— 兩邊都設固定上限時,螢幕越寬、justify-content:space-between 中間
      那段空白只會越留越大(寬螢幕上很明顯)。右欄仍然限制最大 460px 不被撐寬。 */
   .pd-top-grid { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(260px, 460px); gap: 20px; align-items: stretch; margin-bottom: 4px; }
-  #view-project-overview .pd-top-grid { grid-template-columns: minmax(300px, 1fr) minmax(320px, 520px) minmax(220px, 300px); }
-  .pd-top-donut { display: flex; }
+  #view-project-overview .pd-top-grid { grid-template-columns: minmax(320px, 1fr) minmax(360px, 560px); }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
-  .pd-top-right { display: flex; flex-direction: column; gap: 10px; }
+  /* 返回鈕維持貼齊最上面,標題+meta 這組當成一體垂直置中在剩餘高度中間,不要貼
+     在最上面、下面留一大片空白(右欄的案件簡介卡片通常比這欄內容高很多)。 */
+  #view-project-overview .pd-top-left { position: relative; justify-content: center; padding-top: 30px; }
+  #view-project-overview .pd-top-left .back-link { position: absolute; top: 0; left: 0; }
+  .pd-top-right { display: flex; flex-direction: column; gap: 10px; position: relative; }
+  /* 整體進度縮小成右下角浮動的小圓環,疊在案件簡介卡片上,不用另外佔一整欄 */
+  .pd-top-donut { position: absolute; right: 14px; bottom: 14px; z-index: 1; }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; }
   .pd-top-left .back-link { margin-bottom: 0; }
   /* 標題區在返回列下面撐滿剩餘高度、垂直置中 - 讓案名/區域文字落在返回列與下方

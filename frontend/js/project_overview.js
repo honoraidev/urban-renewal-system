@@ -22,7 +22,8 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
-    .ov-row.ov-row-r1, .ov-row.ov-row-r2 { grid-template-columns: 1.6fr 1fr; }
+    .ov-row.ov-row-r1 { grid-template-columns: 2.6fr 1fr; }
+    .ov-row.ov-row-r2 { grid-template-columns: 1.6fr 1fr; }
     @media (max-width:1000px) { .ov-row.ov-row-r1, .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
       box-shadow:var(--shadow); transition:box-shadow .15s; }
@@ -40,7 +41,7 @@ function overviewEnsureStyle() {
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
 
     .ov-brief-card { position:relative; flex:1; display:flex; align-items:stretch; background:var(--surface);
-      border:1px solid var(--border); border-radius:18px; padding:20px 22px; box-shadow:var(--shadow); }
+      border:1px solid var(--border); border-radius:18px; padding:20px 22px 112px; box-shadow:var(--shadow); }
     .ov-brief-view, .ov-brief-edit { display:flex; gap:18px; flex-wrap:wrap; width:100%; }
     .ov-brief-view { align-items:stretch; }
     .ov-brief-edit { align-items:flex-start; }
@@ -67,7 +68,6 @@ function overviewEnsureStyle() {
     .ov-brief-edit textarea { width:100%; resize:vertical; font:inherit; }
     .ov-brief-edit-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
 
-    .ov-donut-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; padding:8px 0 2px; }
     .ov-donut { width:168px; height:168px; border-radius:50%; position:relative;
       background: conic-gradient(var(--brand) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg);
       filter:drop-shadow(0 6px 14px rgba(66,203,208,.25)); }
@@ -75,14 +75,19 @@ function overviewEnsureStyle() {
       display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .ov-donut-hole strong { font-size:32px; line-height:1.1; font-weight:800; }
     .ov-donut-hole span { font-size:12.5px; color:var(--text-muted); margin-top:4px; }
-    .ov-donut-updated { font-size:12px; color:var(--text-muted); }
+    /* 案件簡介卡右下角的迷你版整體進度環,疊在卡片上要有自己的白底陰影撐出層次,
+       不然疊在封面圖上會糊在一起看不清楚。 */
+    .ov-donut-mini { width:96px; height:96px; box-shadow:0 4px 14px -4px rgba(15,35,38,.35), 0 0 0 4px var(--surface); }
+    .ov-donut-mini .ov-donut-hole { inset:10px; }
+    .ov-donut-mini .ov-donut-hole strong { font-size:19px; }
+    .ov-donut-mini .ov-donut-hole span { font-size:9.5px; margin-top:1px; }
 
-    .ov-stage-scroll { display:flex; flex-wrap:wrap; gap:20px 18px; }
-    .ov-stage { flex:0 0 auto; width:88px; display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
-    .ov-stage-ring { width:72px; height:72px; border-radius:50%; position:relative;
+    .ov-stage-scroll { display:flex; flex-wrap:nowrap; gap:14px; overflow-x:auto; padding-bottom:4px; }
+    .ov-stage { flex:0 0 auto; width:92px; display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+    .ov-stage-ring { width:76px; height:76px; border-radius:50%; position:relative;
       background: conic-gradient(var(--stage-color,var(--brand)) calc(var(--pct,0)*3.6deg), var(--surface-2) 0deg); }
     .ov-stage-ring-hole { position:absolute; inset:7px; border-radius:50%; background:var(--surface);
-      display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:var(--stage-color,var(--brand)); }
+      display:flex; align-items:center; justify-content:center; font-size:13.5px; font-weight:800; color:var(--stage-color,var(--brand)); }
     .ov-stage-name { font-size:12.5px; font-weight:700; }
     .ov-stage-sub { font-size:11px; color:var(--text-muted); }
 
@@ -395,13 +400,8 @@ async function renderProjectOverviewTab(el) {
   const progressCardEl = document.getElementById("ov-progress-card");
   if (progressCardEl) {
     progressCardEl.innerHTML = `
-      <div class="ov-card ov-card-plain" style="flex:1">
-        <div class="ov-donut-wrap">
-          <div class="ov-donut" style="--pct:${overview.overall_progress_pct}">
-            <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
-          </div>
-          <div class="ov-donut-updated">更新日期:${fmtDate(overview.case_status.updated_at)}</div>
-        </div>
+      <div class="ov-donut ov-donut-mini" style="--pct:${overview.overall_progress_pct}" title="整體進度 ${overview.overall_progress_pct}%">
+        <div class="ov-donut-hole"><strong>${overview.overall_progress_pct}%</strong><span>${escapeHtml(PROJECT_STATUS_LABEL[overview.case_status.status] || overview.case_status.status)}</span></div>
       </div>`;
   }
 
