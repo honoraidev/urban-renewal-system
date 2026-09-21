@@ -13,23 +13,51 @@ function remindersEnsureStyle() {
   s.textContent = `
     .nav-bell-wrap { position: relative; }
     .nav-bell-btn { position: relative; }
-    .nav-bell-badge {
+    @keyframes bell-badge-pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    .nav-bell-badge { animation: bell-badge-pop .35s cubic-bezier(.22, 1, .36, 1);
       position: absolute; top: -4px; right: -4px; background: var(--danger); color: #fff;
       font-size: 10px; font-weight: 800; line-height: 1; padding: 3px 4px; border-radius: 999px;
       min-width: 15px; text-align: center; border: 1.5px solid var(--surface);
     }
     .nav-bell-dropdown {
-      position: fixed; z-index: 60; width: min(300px, calc(100vw - 24px)); max-height: 360px;
-      overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: var(--shadow-modal, 0 12px 32px rgba(0,0,0,.18)); padding: 8px;
+      position: fixed; z-index: 60; width: min(290px, calc(100vw - 24px));
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      box-shadow: 0 16px 40px -12px rgba(15, 35, 38, .28), 0 4px 12px rgba(15, 35, 38, .08);
+      padding: 6px; transform-origin: var(--caret-x, 30px) 100%;
+      animation: bell-pop .22s cubic-bezier(.22, 1, .36, 1);
     }
-    .nav-bell-dropdown-head { font-size: 12.5px; font-weight: 800; color: var(--text-muted); padding: 6px 8px 8px; }
+    /* 底下指向鈴鐺的小三角(位置由 JS 依按鈕算好放進 --caret-x) */
+    .nav-bell-dropdown::after {
+      content: ""; position: absolute; bottom: -6px; left: calc(var(--caret-x, 30px) - 6px); width: 12px; height: 12px;
+      background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      transform: rotate(45deg); border-bottom-right-radius: 3px;
+    }
+    @keyframes bell-pop {
+      from { opacity: 0; transform: translateY(10px) scale(.94); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .nav-bell-dropdown-head {
+      display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 800;
+      color: var(--text-muted); padding: 8px 10px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+    }
+    .nav-bell-count { font-size: 11px; font-weight: 800; background: var(--danger-light); color: var(--danger);
+      border-radius: 999px; padding: 1px 8px; }
+    .nav-bell-list { max-height: 260px; overflow-y: auto; }
+    @keyframes bell-item-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes bell-ring {
+      0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); }
+      45% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 75% { transform: rotate(3deg); }
+    }
+    .nav-bell-btn.has-items .nav-bell-icon { display: inline-block; transform-origin: 50% 8%; animation: bell-ring 1.1s ease-in-out .3s 2; }
+    .nav-bell-btn:hover .nav-bell-icon { display: inline-block; transform-origin: 50% 8%; animation: bell-ring .8s ease-in-out; }
     .nav-bell-item { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
       padding: 8px; border-radius: 8px; }
+    .nav-bell-item { animation: bell-item-in .3s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 45ms + 80ms); }
     .nav-bell-item:hover { background: var(--surface-2); }
     .nav-bell-item-text { font-size: 13px; color: var(--text); line-height: 1.4; }
     .nav-bell-item-proj { font-size: 11.5px; color: var(--brand-dark, var(--brand)); font-weight: 700; margin-top: 3px; }
-    .nav-bell-empty { padding: 16px 8px; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+    .nav-bell-empty { padding: 22px 10px 20px; text-align: center; font-size: 12.5px; color: var(--text-muted); line-height: 1.7; }
+    .nav-bell-empty .e { display: block; font-size: 26px; opacity: .55; margin-bottom: 4px; }
   `;
   document.head.appendChild(s);
 }
@@ -47,18 +75,18 @@ function _renderBellDropdown() {
   if (!dd) return;
   const items = remindersState.items;
   dd.innerHTML = `
-    <div class="nav-bell-dropdown-head">🔔 今日重要待辦</div>
-    ${items.length
+    <div class="nav-bell-dropdown-head"><span>🔔 今日重要待辦</span>${items.length ? `<span class="nav-bell-count">${items.length}</span>` : ""}</div>
+    <div class="nav-bell-list">${items.length
       ? items
           .map(
-            (it) => `<button type="button" class="nav-bell-item" data-bell-item="${it.id}" data-bell-project="${it.project_id ?? ""}">
-              <div class="nav-bell-item-text">${escapeHtml(it.content)}</div>
+            (it, i) => `<button type="button" class="nav-bell-item" style="--i:${i}" data-bell-item="${it.id}" data-bell-project="${it.project_id ?? ""}">
+              <div class="nav-bell-item-text">⭐ ${escapeHtml(it.content)}</div>
               <div class="nav-bell-item-proj">${it.project_name ? "📁 " + escapeHtml(it.project_name) : "👤 個人"}</div>
             </button>`
           )
           .join("")
-      : `<div class="nav-bell-empty">今天沒有標記重要的待辦</div>`
-    }`;
+      : `<div class="nav-bell-empty"><span class="e">🔕</span>今天沒有標記重要的待辦<br>在案件頁右上角「+」新增並勾選「重要」</div>`
+    }</div>`;
   dd.querySelectorAll("[data-bell-item]").forEach((row) => {
     row.addEventListener("click", () => {
       closeBellDropdown();
@@ -81,6 +109,7 @@ async function refreshReminderBell() {
   const badge = document.getElementById("nav-bell-badge");
   if (badge) {
     const n = remindersState.items.length;
+    document.getElementById("nav-bell-btn")?.classList.toggle("has-items", n > 0);
     if (n) {
       badge.textContent = n > 9 ? "9+" : String(n);
       badge.classList.remove("hidden");
@@ -111,6 +140,7 @@ function initReminders() {
       // 才不會被側欄的窄寬度或 overflow 切掉一半(原本 right:0 往左長會超出螢幕)。
       const r = btn.getBoundingClientRect();
       dd.style.left = "12px";
+      dd.style.setProperty("--caret-x", `${Math.max(18, r.left + r.width / 2 - 12)}px`);
       dd.style.bottom = `${Math.max(8, window.innerHeight - r.top + 10)}px`;
       dd.style.top = "auto";
       dd.classList.remove("hidden");
