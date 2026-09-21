@@ -58,6 +58,7 @@ class CalendarEventCreate(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
     is_important: bool = False
+    sop_stage: int | None = Field(default=None, ge=0, le=99)
 
 
 class CalendarEventUpdate(BaseModel):

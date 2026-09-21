@@ -283,6 +283,7 @@ def create_calendar_event(
         event_date=payload.event_date,
         content=payload.content.strip(),
         is_important=payload.is_important,
+        sop_stage=payload.sop_stage if payload.project_id is not None else None,
     )
     db.add(ev)
     db.commit()

@@ -578,7 +578,8 @@
   #view-project-overview .pd-top-left .back-link { position: absolute; top: 0; left: 0; }
   /* 階段進度橫幅放在 meta 列(地點/編號/日期/主管)正下方、左欄內 - 空間比整頁寬窄,
      圓環與字級縮小一點,10 個關卡才排得進一行(排不下時橫向捲動)。 */
-  #view-project-overview .pd-top-left .ov-stage-band { margin: 16px 0 0; padding: 14px 12px; border-radius: 14px; background: var(--surface); border-color: transparent; box-shadow: none; }
+  #view-project-overview .pd-top-left .ov-stage-band { margin: 16px 0 0; padding: 6px 0; border-radius: 0; background: transparent; border-color: transparent; box-shadow: none; }
+  #view-project-overview .pd-top-left .ov-stage-band:hover { box-shadow: none; }
   #view-project-overview .pd-top-left .ov-stage-scroll { gap: 4px; overflow: visible; flex-wrap: nowrap; padding-bottom: 0; }
   #view-project-overview .pd-top-left .ov-stage { flex: 1 1 0; min-width: 0; width: auto; gap: 5px; }
   #view-project-overview .pd-top-left .ov-stage-ring { width: 100%; max-width: 54px; height: auto; aspect-ratio: 1; }

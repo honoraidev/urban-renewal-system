@@ -22,8 +22,38 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
-    .ov-row.ov-row-r2 { grid-template-columns: 2.3fr 1.1fr 1fr; }
-    @media (max-width:1100px) { .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
+    .ov-row.ov-row-r2 { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); }
+    .ov-row.ov-row-r3 { grid-template-columns: minmax(0,2.4fr) minmax(0,1fr); }
+    @media (max-width:1100px) { .ov-row.ov-row-r2, .ov-row.ov-row-r3 { grid-template-columns: 1fr; } }
+    /* 合併卡片:一張卡裡左右兩個區塊(各自有小標題),中間一條細分隔線 */
+    .ov-card-merged { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:0 26px; }
+    .ov-card-merged > .ov-sec + .ov-sec { border-left:1px solid var(--border); padding-left:26px; }
+    .ov-card-merged-even { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+    @media (max-width:760px) {
+      .ov-card-merged, .ov-card-merged-even { grid-template-columns:1fr; }
+      .ov-card-merged > .ov-sec + .ov-sec { border-left:none; padding-left:0; margin-top:22px; }
+    }
+    .ov-sec { min-width:0; }
+    .ov-sec h3 { margin-top:0; }
+
+    .ov-todo-zone + .ov-todo-zone { margin-top:16px; }
+    .ov-todo-zone-head { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; margin-bottom:4px; }
+    .ov-zone-tag { font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px; }
+    .ov-zone-tag.now { background:var(--brand-light); color:var(--brand-dark, var(--brand)); }
+    .ov-zone-tag.next { background:var(--surface-2); color:var(--text-muted); }
+    .ov-zone-stage { color:var(--text-muted); font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ov-zone-count { color:var(--text-muted); font-weight:600; font-size:11.5px; }
+    .ov-todo-mark { flex:0 0 auto; width:15px; height:15px; margin:2px 8px 0 0; border-radius:50%; border:2px solid var(--border-strong, #cbd5d8); box-sizing:border-box; }
+    .ov-todo-lead { display:flex; min-width:0; flex:1; }
+    .ov-todo-body { min-width:0; }
+    .ov-todo-chip { font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--surface-2); color:var(--text-muted); margin-left:6px; white-space:nowrap; }
+    .ov-todo-empty { font-size:12.5px; color:var(--text-muted); padding:8px 0; }
+
+    .ov-metric-delta { margin-top:6px; font-size:11.5px; font-weight:700; display:flex; justify-content:center; align-items:baseline; gap:5px; flex-wrap:wrap; }
+    .ov-metric-delta .prev { font-weight:500; color:var(--text-muted); }
+    .ov-metric-delta.good { color:var(--success); }
+    .ov-metric-delta.bad { color:var(--danger); }
+    .ov-metric-delta.flat { color:var(--text-muted); }
     .ov-stage-band { margin:22px 0; }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
       box-shadow:var(--shadow); transition:box-shadow .15s; }
@@ -150,7 +180,19 @@ function _ovStageHtml(s) {
     </div>`;
 }
 
-function _ovMetric(icon, label, ratio, subText, tone) {
+// 本週 vs 上週的小箭頭列。goodWhen: "up" = 變多是好事(同意)、"down" = 變多是壞事(反對)、
+// null = 中性(其他/未決定)。unit "%" 顯示百分點差,"" 顯示人數差。沒有上週資料(舊後端)就不畫。
+function _ovDeltaHtml(cur, prev, unit, goodWhen) {
+  if (prev == null || cur == null) return "";
+  const delta = cur - prev;
+  const dir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const arrow = dir === "up" ? "↑" : dir === "down" ? "↓" : "→";
+  const tone = dir === "flat" || !goodWhen ? "flat" : dir === goodWhen ? "good" : "bad";
+  const sign = delta > 0 ? "+" : "";
+  return `<div class="ov-metric-delta ${tone}">${arrow} ${sign}${delta}${unit}<span class="prev">上週 ${prev}${unit}</span></div>`;
+}
+
+function _ovMetric(icon, label, ratio, subText, tone, deltaHtml) {
   const pct = Math.round((ratio || 0) * 100);
   return `
     <div class="ov-metric ov-metric-primary ov-metric-tone-${tone}">
@@ -158,7 +200,12 @@ function _ovMetric(icon, label, ratio, subText, tone) {
       <div class="ov-metric-label">${label}</div>
       <div class="ov-metric-pct">${pct}%</div>
       <div class="ov-metric-sub">${subText}</div>
+      ${deltaHtml || ""}
     </div>`;
+}
+
+function _ovPctOf(count, total) {
+  return total > 0 ? Math.round((count / total) * 100) : 0;
 }
 
 function _ovDetailOther(detail) {
@@ -172,20 +219,21 @@ function _ovDetailRatio(detail, kind) {
   return count / detail.total;
 }
 
-function _ovHeadcountDetailHtml(detail) {
+function _ovHeadcountDetailHtml(detail, lastWeek) {
   if (!detail) return "";
   const items = [
-    { label: "同意", count: detail.agreed, cls: "ov-detail-agreed" },
-    { label: "反對", count: detail.opposed, cls: "ov-detail-opposed" },
-    { label: "未決定", count: detail.undecided, cls: "ov-detail-undecided" },
-    { label: "未回覆", count: detail.no_response, cls: "ov-detail-noresponse" },
+    { label: "同意", key: "agreed", cls: "ov-detail-agreed", goodWhen: "up" },
+    { label: "反對", key: "opposed", cls: "ov-detail-opposed", goodWhen: "down" },
+    { label: "未決定", key: "undecided", cls: "ov-detail-undecided", goodWhen: null },
+    { label: "未回覆", key: "no_response", cls: "ov-detail-noresponse", goodWhen: null },
   ];
   return items
     .map(
       (it) => `<div class="ov-metric ${it.cls}">
         <div class="ov-metric-label">${it.label}</div>
-        <div class="ov-metric-pct">${it.count}</div>
+        <div class="ov-metric-pct">${detail[it.key]}</div>
         <div class="ov-metric-sub">/ ${detail.total} 人</div>
+        ${lastWeek ? _ovDeltaHtml(detail[it.key], lastWeek[it.key], "", it.goodWhen) : ""}
       </div>`
     )
     .join("");
@@ -198,19 +246,62 @@ function _ovCardTitle(icon, label, rightHtml) {
 // 待辦事項卡片(案件總覽頁)- 跟工作看板行事曆、全站鈴鐺提醒同一份 calendar_events
 // 資料,這裡篩成只看這個案件的,逾期的排最後面但還是要看得到(見 backend
 // routers/project_overview.py get_project_todos)。
-function _ovTodosHtml(todos, pid) {
-  if (!todos || !todos.length) return `<div class="helper-text">尚無待辦事項</div>`;
-  return `<div class="ov-todo-list">${todos
-    .map(
-      (t) => `<div class="ov-todo-row${t.is_overdue ? " ov-todo-overdue" : ""}">
-        <div class="ov-todo-main">
-          <div class="ov-todo-text">${t.is_important ? "⭐ " : ""}${escapeHtml(t.content)}</div>
-          <div class="ov-todo-date">${fmtDate(t.event_date)}${t.is_overdue ? "・已過期" : ""}</div>
-        </div>
-        ${isEditor() ? `<button type="button" class="btn-link btn-sm" data-ov-todo-delete="${t.id}">刪除</button>` : ""}
-      </div>`
-    )
-    .join("")}</div>`;
+function _ovTodoRowHtml(t) {
+  return `<div class="ov-todo-row${t.is_overdue ? " ov-todo-overdue" : ""}">
+    <div class="ov-todo-lead">
+      <span class="ov-todo-mark"></span>
+      <div class="ov-todo-body">
+        <div class="ov-todo-text">${t.is_important ? "⭐ " : ""}${escapeHtml(t.content)}</div>
+        <div class="ov-todo-date">${fmtDate(t.event_date)}${t.is_overdue ? "・已過期" : ""}</div>
+      </div>
+    </div>
+    ${isEditor() ? `<button type="button" class="btn-link btn-sm" data-ov-todo-delete="${t.id}">刪除</button>` : ""}
+  </div>`;
+}
+
+function _ovSopTaskRowHtml(task) {
+  return `<div class="ov-todo-row">
+    <div class="ov-todo-lead">
+      <span class="ov-todo-mark"></span>
+      <div class="ov-todo-body"><div class="ov-todo-text">${escapeHtml(task.label)}<span class="ov-todo-chip">SOP</span></div></div>
+    </div>
+  </div>`;
+}
+
+// 一個區塊(這階段 / 下階段):SOP 這關還沒完成的項目(自動帶入,不能刪) + 歸在這關的
+// 自訂待辦(行事曆備註)。block 是 overview.stage_tasks.current/next,null = 沒有這一關。
+function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
+  const pending = block ? block.tasks.filter((t) => !t.done) : [];
+  const stageText = block ? `第${block.index}階段 ${escapeHtml(block.name || "")}` : "";
+  const countText = block && block.tasks.length ? `${block.tasks.length - pending.length}/${block.tasks.length} 已完成` : "";
+  const rows = pending.map(_ovSopTaskRowHtml).join("") + customTodos.map(_ovTodoRowHtml).join("");
+  return `
+    <div class="ov-todo-zone">
+      <div class="ov-todo-zone-head">
+        <span class="ov-zone-tag ${tagCls}">${tagText}</span>
+        <span class="ov-zone-stage">${stageText}</span>
+        <span class="ov-zone-count">${countText}</span>
+      </div>
+      ${rows ? `<div class="ov-todo-list">${rows}</div>` : `<div class="ov-todo-empty">${emptyText}</div>`}
+    </div>`;
+}
+
+function _ovTodosHtml(todos, stageTasks) {
+  const cur = stageTasks ? stageTasks.current : null;
+  const next = stageTasks ? stageTasks.next : null;
+  // 歸「下階段」的:指定關卡編號比目前這關大的自訂待辦;沒指定(舊資料)或已經輪到的都歸這階段。
+  const isNext = (t) => cur && t.sop_stage != null && t.sop_stage > cur.index;
+  const nowTodos = (todos || []).filter((t) => !isNext(t));
+  const nextTodos = (todos || []).filter(isNext);
+  const nowHtml = _ovTodoZoneHtml(
+    "now", "這階段", cur, nowTodos,
+    cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項"
+  );
+  // 沒有下一關(已經是最後一關 / 舊後端沒回 stage_tasks)就不畫下階段區塊。
+  const nextHtml = next
+    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目")
+    : "";
+  return nowHtml + nextHtml;
 }
 
 function _ovMemberRoleLabel(role) {
@@ -311,36 +402,64 @@ async function renderProjectOverviewTab(el) {
   const stageBandEl = document.getElementById("ov-stage-band");
   if (stageBandEl) stageBandEl.innerHTML = `<div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>`;
 
+  // 關鍵指標的「本週 vs 上週」:人數同意/反對/其他的百分比差,以及同意/反對/未決定/未回覆
+  // 四格的人數差。本週、上週都用「每位地主最新一次拜訪結果」(headcount_detail)算,口徑一致。
+  const km = overview.key_metrics;
+  const cur = km.headcount_detail;
+  const prev = km.headcount_detail_last_week;
+  const pctDelta = (kind, goodWhen) => {
+    if (!cur || !prev) return "";
+    const count = (d) => (kind === "agreed" ? d.agreed : kind === "opposed" ? d.opposed : _ovDetailOther(d));
+    return _ovDeltaHtml(_ovPctOf(count(cur), cur.total), _ovPctOf(count(prev), prev.total), "%", goodWhen);
+  };
+  const weekHint = prev && km.last_week_date ? `<span class="helper-text">本週 vs 上週(至 ${fmtDate(km.last_week_date)})</span>` : "";
+
+  const stageTasks = overview.stage_tasks || null;
+  const stageChoices = stageTasks && stageTasks.current
+    ? { current: stageTasks.current, next: stageTasks.next }
+    : null;
+  const todoAddBtn = `<button type="button" class="ov-todo-add-btn" data-ov-todo-add title="新增待辦事項">+</button>`;
+
   el.innerHTML = `
     <div class="ov-grid">
       <div class="ov-row ov-row-r2">
         <div class="ov-card">
-          ${_ovCardTitle("🎯", "關鍵指標")}
+          ${_ovCardTitle("🎯", "關鍵指標", weekHint)}
           <div class="ov-metrics-group">
             <div class="ov-metrics ov-metrics-primary">
-              ${_ovMetric("👥", "人數同意", overview.key_metrics.headcount_ratio, `${overview.key_metrics.headcount_agreed} / ${overview.key_metrics.headcount_total} 人`, "brand")}
-              ${_ovMetric("❌", "反對", _ovDetailRatio(overview.key_metrics.headcount_detail, "opposed"), `${overview.key_metrics.headcount_detail?.opposed || 0} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "danger")}
-              ${_ovMetric("❔", "其他", _ovDetailRatio(overview.key_metrics.headcount_detail, "other"), `${_ovDetailOther(overview.key_metrics.headcount_detail)} / ${overview.key_metrics.headcount_detail?.total || 0} 人`, "muted")}
+              ${_ovMetric("👥", "人數同意", cur ? (cur.total ? cur.agreed / cur.total : 0) : km.headcount_ratio, cur ? `${cur.agreed} / ${cur.total} 人` : `${km.headcount_agreed} / ${km.headcount_total} 人`, "brand", pctDelta("agreed", "up"))}
+              ${_ovMetric("❌", "反對", _ovDetailRatio(cur, "opposed"), `${cur?.opposed || 0} / ${cur?.total || 0} 人`, "danger", pctDelta("opposed", "down"))}
+              ${_ovMetric("❔", "其他", _ovDetailRatio(cur, "other"), `${_ovDetailOther(cur)} / ${cur?.total || 0} 人`, "muted", pctDelta("other", null))}
             </div>
             <div class="ov-metrics">
-              ${_ovHeadcountDetailHtml(overview.key_metrics.headcount_detail)}
+              ${_ovHeadcountDetailHtml(cur, prev)}
             </div>
           </div>
         </div>
-        <div class="ov-card">
-          ${_ovCardTitle("📋", "案件狀態")}
-          ${_ovRiskCard(overview.case_status)}
+        <div class="ov-card ov-card-merged">
+          <div class="ov-sec">
+            ${_ovCardTitle("📋", "案件狀態")}
+            ${_ovRiskCard(overview.case_status)}
+          </div>
+          <div class="ov-sec">
+            ${_ovCardTitle("✅", "待辦事項", todoAddBtn)}
+            ${_ovTodosHtml(todos, stageTasks)}
+          </div>
         </div>
-        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}${_ovTodosHtml(todos, pid)}</div>
       </div>
 
       <div class="ov-row ov-row-r3">
-        <div class="ov-card">${_ovCardTitle("📝", "重要紀錄")}${timelineHtml}</div>
-        <div class="ov-card">${_ovCardTitle("📁", "最近文件")}${docsHtml}</div>
+        <div class="ov-card ov-card-merged ov-card-merged-even">
+          <div class="ov-sec">${_ovCardTitle("📝", "重要紀錄")}${timelineHtml}</div>
+          <div class="ov-sec">${_ovCardTitle("📁", "最近文件")}${docsHtml}</div>
+        </div>
         <div class="ov-card">${_ovCardTitle("👥", "相關人員")}${membersHtml}</div>
       </div>
     </div>`;
 
+  el.querySelector("[data-ov-todo-add]")?.addEventListener("click", () => {
+    openAddReminderModal(pid, [{ id: pid, name: proj.name || `案件 ${pid}` }], () => renderProjectOverviewTab(el), stageChoices);
+  });
 
   el.querySelectorAll("[data-ov-todo-delete]").forEach((btn) => {
     btn.addEventListener("click", async () => {

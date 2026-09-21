@@ -154,7 +154,7 @@ function initReminders() {
     const pid = state.currentProjectId;
     if (!pid) return;
     const name = state.currentProject?.name || `案件 ${pid}`;
-    openAddReminderModal(pid, [{ id: pid, name }]);
+    openAddReminderModal(pid, [{ id: pid, name }], null, reminderStageChoicesFromSop(state.projectCache?.[pid]?.sop));
   });
 }
 
@@ -175,9 +175,30 @@ function stopReminderPolling() {
 
 // 「新增重要待辦」快速表單 - 案件總覽頁的待辦事項卡片、工作看板都會用到同一個
 // modal,差別只在 defaultProjectId 是否預帶(案件總覽頁帶當前案件、工作看板帶空)。
-function openAddReminderModal(defaultProjectId, projectOptions, onDone) {
+// SOP 進度(GET /projects/{id}/sop 的回傳)→ 「新增待辦」表單的所屬階段選項。
+// 案件已全部結案(final 不是 pending)就沒有「這階段」,回 null(表單不顯示階段欄位)。
+function reminderStageChoicesFromSop(sop) {
+  if (!sop || !sop.stages || (sop.final && sop.final.status !== "pending")) return null;
+  const at = (i) => (sop.stages[String(i)] ? { index: i, name: sop.stages[String(i)].name } : null);
+  const current = at(sop.current_stage);
+  return current ? { current, next: at(sop.current_stage + 1) } : null;
+}
+
+// stageChoices = { current: {index,name}, next: {index,name}|null }(給了才會出現「所屬階段」欄位,
+// 而且只在選了案件時顯示 - 個人備註沒有階段)。存的是關卡編號,之後案件進到下一關,
+// 原本歸「下階段」的待辦會自然變成「這階段」。
+function openAddReminderModal(defaultProjectId, projectOptions, onDone, stageChoices) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const opts = projectOptions || [];
+  const stageFieldHtml = stageChoices
+    ? `<div class="field" id="reminder-stage-field" ${defaultProjectId ? "" : 'style="display:none"'}>
+        <label>所屬階段</label>
+        <select name="sop_stage">
+          <option value="${stageChoices.current.index}">這階段:第${stageChoices.current.index}階段 ${escapeHtml(stageChoices.current.name || "")}</option>
+          ${stageChoices.next ? `<option value="${stageChoices.next.index}">下階段:第${stageChoices.next.index}階段 ${escapeHtml(stageChoices.next.name || "")}</option>` : ""}
+        </select>
+      </div>`
+    : "";
   openModal(
     "新增待辦事項",
     `
@@ -189,6 +210,7 @@ function openAddReminderModal(defaultProjectId, projectOptions, onDone) {
           ${opts.map((p) => `<option value="${p.id}" ${defaultProjectId && p.id === defaultProjectId ? "selected" : ""}>${escapeHtml(p.name)}(案件成員共用)</option>`).join("")}
         </select>
       </div>
+      ${stageFieldHtml}
       <div class="field"><label>日期</label><input type="date" name="event_date" value="${todayIso}" required></div>
       <div class="field"><label>內容</label><textarea name="content" rows="3" placeholder="這天要做什麼..." required></textarea></div>
       <div class="field" style="margin-bottom:0">
@@ -204,10 +226,16 @@ function openAddReminderModal(defaultProjectId, projectOptions, onDone) {
     </form>`,
     { width: "420px" }
   );
-  document.getElementById("reminder-add-form").addEventListener("submit", async (e) => {
+  const addForm = document.getElementById("reminder-add-form");
+  addForm.querySelector('select[name="project_id"]').addEventListener("change", (e) => {
+    const field = document.getElementById("reminder-stage-field");
+    if (field) field.style.display = e.target.value ? "" : "none";
+  });
+  addForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const pidRaw = fd.get("project_id");
+    const stageRaw = fd.get("sop_stage");
     try {
       await api("/dashboard/calendar", {
         method: "POST",
@@ -216,6 +244,7 @@ function openAddReminderModal(defaultProjectId, projectOptions, onDone) {
           content: fd.get("content"),
           project_id: pidRaw ? Number(pidRaw) : null,
           is_important: fd.get("is_important") === "on",
+          sop_stage: pidRaw && stageRaw !== null && stageRaw !== "" ? Number(stageRaw) : null,
         },
       });
       closeModal();
