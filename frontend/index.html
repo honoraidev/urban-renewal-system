@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_19">
+  <link rel="stylesheet" href="style.css?v=20260921_20">
 </head>
 
 <body>
@@ -482,69 +482,72 @@
 
           <!-- 部門物品管制表 -->
           <div id="view-inventory" class="hidden">
-            <div class="iv-top">
-              <nav class="nw-crumbs"><a href="#" id="inv-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>部門物品管制表</span></nav>
-              <div class="iv-hero">
-                <div class="iv-hero-left">
-                  <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
-                  <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
-                </div>
-                <div class="iv-hero-right">
+            <div class="iv-layout">
+              <div class="iv-top">
+                <nav class="nw-crumbs"><a href="#" id="inv-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>部門物品管制表</span></nav>
+                <div class="iv-top-head">
+                  <div class="iv-hero-left">
+                    <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
+                    <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
+                  </div>
                   <div class="iv-actions">
                     <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
                     <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
                   </div>
-                  <div class="iv-hero-deco" aria-hidden="true">
-                    <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                    <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
-                      <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
-                      <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
-                      <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
-                      <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
-                      <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
-                      <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
-                      <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
-                      <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
-                    </svg>
+                </div>
+                <!-- 搜尋框位置跟 Q&A知識庫 / 相關網站頁一樣:貼標題下方、只佔左欄寬度 -->
+                <div class="iv-search-row">
+                  <div class="iv-search">
+                    <span class="iv-search-icon">🔍</span>
+                    <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
+                    <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
                   </div>
-                </div>
-              </div>
-              <div class="iv-search-row">
-                <div class="iv-search">
-                  <span class="iv-search-icon">🔍</span>
-                  <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
-                  <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
-                </div>
-                <div class="iv-filter-wrap">
-                  <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
-                  <div class="iv-filter-panel hidden" id="inv-filter-panel">
-                    <p class="iv-filter-panel-title">依狀態篩選</p>
-                    <div class="iv-filter-chips" id="inv-filter-status"></div>
-                    <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
-                  </div>
-                </div>
-              </div>
-              <div class="iv-tabs" id="inventory-dept-bar"></div>
-            </div>
-
-            <div class="iv-main">
-              <div class="iv-card">
-                <div class="iv-card-head">
-                  <h2 class="iv-card-title" id="inv-list-title">物品列表(0)</h2>
-                  <div class="iv-toolbar">
-                    <div class="iv-view-toggle" id="inv-view-toggle">
-                      <button type="button" class="iv-view-btn act" data-inv-view="list" title="清單檢視">☰</button>
-                      <button type="button" class="iv-view-btn" data-inv-view="grid" title="卡片檢視">▦</button>
+                  <div class="iv-filter-wrap">
+                    <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
+                    <div class="iv-filter-panel hidden" id="inv-filter-panel">
+                      <p class="iv-filter-panel-title">依狀態篩選</p>
+                      <div class="iv-filter-chips" id="inv-filter-status"></div>
+                      <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
                     </div>
-                    <select id="inv-sort-select" class="iv-sort-select">
-                      <option value="created_desc">建立時間(新→舊)</option>
-                      <option value="created_asc">建立時間(舊→新)</option>
-                      <option value="name_asc">名稱(A→Z)</option>
-                    </select>
                   </div>
                 </div>
-                <div id="inventory-table-wrap"></div>
+              </div>
+
+              <div class="iv-deco" aria-hidden="true">
+                <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
+                  <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
+                  <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
+                  <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
+                  <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
+                  <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
+                  <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
+                  <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
+                  <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
+                </svg>
+              </div>
+
+              <div class="iv-tabs" id="inventory-dept-bar"></div>
+
+              <div class="iv-main">
+                <div class="iv-card">
+                  <div class="iv-card-head">
+                    <h2 class="iv-card-title" id="inv-list-title">物品列表(0)</h2>
+                    <div class="iv-toolbar">
+                      <div class="iv-view-toggle" id="inv-view-toggle">
+                        <button type="button" class="iv-view-btn act" data-inv-view="list" title="清單檢視">☰</button>
+                        <button type="button" class="iv-view-btn" data-inv-view="grid" title="卡片檢視">▦</button>
+                      </div>
+                      <select id="inv-sort-select" class="iv-sort-select">
+                        <option value="created_desc">建立時間(新→舊)</option>
+                        <option value="created_asc">建立時間(舊→新)</option>
+                        <option value="name_asc">名稱(A→Z)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div id="inventory-table-wrap"></div>
+                </div>
               </div>
             </div>
           </div>
