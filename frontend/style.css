@@ -2594,16 +2594,16 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 .lv-title-area { grid-area: title; display: flex; align-items: center; gap: 16px; min-width: 0; }
 .lv-title-icon {
-  width: 60px; height: 60px; border-radius: 18px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 15px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   background: var(--brand-light); color: var(--brand-dark, var(--brand));
 }
 .lv-title-line { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.lv-title { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: .01em; line-height: 1.2; }
+.lv-title { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .01em; line-height: 1.2; }
 .lv-pill {
-  padding: 6px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap;
+  padding: 5px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap;
   background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand-dark, var(--brand));
 }
-.lv-sub-title { margin-top: 4px; font-size: 17px; font-weight: 700; }
+.lv-sub-title { margin-top: 2px; font-size: 15px; font-weight: 700; }
 .lv-head-actions { grid-area: actions; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .lv-hbtn {
   display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 12px; font-size: 15px; font-weight: 700;
@@ -2764,7 +2764,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 @media (max-width: 760px) {
   .lv-foot { grid-template-columns: 1fr; justify-items: center; }
   .lv-toolbar-right { margin-left: 0; }
-  .lv-title { font-size: 26px; }
+  .lv-title { font-size: 22px; }
 }
 
 /* 「…」浮動選單 */
