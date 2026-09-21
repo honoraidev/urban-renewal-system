@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_24">
+  <link rel="stylesheet" href="style.css?v=20260921_26">
 </head>
 
 <body>
@@ -385,11 +385,6 @@
                     <h1 class="reg-title"><span class="reg-title-icon">⚖️</span>相關法規</h1>
                     <p class="reg-sub">彙整中央與地方都市更新相關法規,快速查詢最新法規內容</p>
                   </div>
-                  <div class="reg-actions">
-                    <button class="btn-secondary btn-sm hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
-                    <button class="btn-secondary btn-sm hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
-                    <button class="btn-primary btn-sm hidden" id="new-regulation-btn">+ 新增連結</button>
-                  </div>
                 </div>
                 <div class="reg-search">
                   <span class="reg-search-icon">🔍</span>
@@ -398,22 +393,29 @@
                 </div>
               </div>
 
-              <div class="reg-deco" aria-hidden="true">
-                <div class="reg-slogan">掌握法規動態,<br>讓更新更安心!<svg viewBox="0 0 190 14" class="reg-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                <svg class="reg-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <linearGradient id="regBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
-                    <pattern id="regWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
-                  </defs>
-                  <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
-                  <rect x="20" y="72" width="46" height="68" fill="url(#regBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#regWin)"/>
-                  <rect x="74" y="34" width="54" height="106" fill="url(#regBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#regWin)"/>
-                  <rect x="136" y="10" width="42" height="130" fill="url(#regBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#regWin)"/>
-                  <rect x="186" y="52" width="48" height="88" fill="url(#regBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#regWin)"/>
-                  <rect x="242" y="80" width="42" height="60" fill="url(#regBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#regWin)"/>
-                  <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
-                  <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
-                </svg>
+              <div class="reg-deco">
+                <div class="reg-actions">
+                  <button class="btn-secondary btn-sm hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
+                  <button class="btn-secondary btn-sm hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
+                  <button class="btn-primary btn-sm hidden" id="new-regulation-btn">+ 新增連結</button>
+                </div>
+                <div class="reg-deco-illust" aria-hidden="true">
+                  <div class="reg-slogan">掌握法規動態,<br>讓更新更安心!<svg viewBox="0 0 190 14" class="reg-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                  <svg class="reg-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="regBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                      <pattern id="regWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                    </defs>
+                    <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                    <rect x="20" y="72" width="46" height="68" fill="url(#regBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#regWin)"/>
+                    <rect x="74" y="34" width="54" height="106" fill="url(#regBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#regWin)"/>
+                    <rect x="136" y="10" width="42" height="130" fill="url(#regBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#regWin)"/>
+                    <rect x="186" y="52" width="48" height="88" fill="url(#regBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#regWin)"/>
+                    <rect x="242" y="80" width="42" height="60" fill="url(#regBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#regWin)"/>
+                    <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                    <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                  </svg>
+                </div>
               </div>
 
               <div class="reg-tabs-row">
@@ -441,11 +443,6 @@
                     <h1 class="ws-title"><span class="ws-title-icon">🌐</span>相關網站</h1>
                     <p class="ws-sub">整合政府機關與相關資源,快速連結您需要的網站</p>
                   </div>
-                  <div class="ws-actions">
-                    <button class="btn-secondary btn-sm hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
-                    <button class="btn-secondary btn-sm hidden" id="toggle-website-edit-btn">✏️ 修改</button>
-                    <button class="btn-primary btn-sm hidden" id="new-website-btn">+ 新增連結</button>
-                  </div>
                 </div>
                 <!-- 搜尋框位置跟 Q&A知識庫頁一樣:貼著標題下方、只佔左欄寬度,不會被右邊插圖/側欄擠壓 -->
                 <div class="ws-search">
@@ -455,22 +452,29 @@
                 </div>
               </div>
 
-              <div class="ws-deco" aria-hidden="true">
-                <div class="ws-slogan">善用公開資源,<br>讓都更作業更順利<svg viewBox="0 0 190 14" class="ws-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                <svg class="ws-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <linearGradient id="wsBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
-                    <pattern id="wsWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
-                  </defs>
-                  <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
-                  <rect x="20" y="72" width="46" height="68" fill="url(#wsBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#wsWin)"/>
-                  <rect x="74" y="34" width="54" height="106" fill="url(#wsBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#wsWin)"/>
-                  <rect x="136" y="10" width="42" height="130" fill="url(#wsBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#wsWin)"/>
-                  <rect x="186" y="52" width="48" height="88" fill="url(#wsBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#wsWin)"/>
-                  <rect x="242" y="80" width="42" height="60" fill="url(#wsBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#wsWin)"/>
-                  <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
-                  <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
-                </svg>
+              <div class="ws-deco">
+                <div class="ws-actions">
+                  <button class="btn-secondary btn-sm hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
+                  <button class="btn-secondary btn-sm hidden" id="toggle-website-edit-btn">✏️ 修改</button>
+                  <button class="btn-primary btn-sm hidden" id="new-website-btn">+ 新增連結</button>
+                </div>
+                <div class="ws-deco-illust" aria-hidden="true">
+                  <div class="ws-slogan">善用公開資源,<br>讓都更作業更順利<svg viewBox="0 0 190 14" class="ws-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                  <svg class="ws-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="wsBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                      <pattern id="wsWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                    </defs>
+                    <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                    <rect x="20" y="72" width="46" height="68" fill="url(#wsBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#wsWin)"/>
+                    <rect x="74" y="34" width="54" height="106" fill="url(#wsBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#wsWin)"/>
+                    <rect x="136" y="10" width="42" height="130" fill="url(#wsBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#wsWin)"/>
+                    <rect x="186" y="52" width="48" height="88" fill="url(#wsBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#wsWin)"/>
+                    <rect x="242" y="80" width="42" height="60" fill="url(#wsBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#wsWin)"/>
+                    <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                    <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                  </svg>
+                </div>
               </div>
 
               <div class="ws-main">

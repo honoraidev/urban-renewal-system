@@ -2260,12 +2260,14 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "main aside";
 }
 .ws-top { grid-area: top; min-width: 0; }
-.ws-deco { grid-area: deco; position: relative; min-height: 190px; }
+/* ws-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
+.ws-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.ws-deco-illust { position: relative; min-height: 190px; width: 100%; }
 .ws-main { grid-area: main; min-width: 0; }
 .ws-aside { grid-area: aside; align-self: start; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; }
 @media (max-width: 1100px) {
-  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "top" "main" "aside"; gap: 18px 0; }
-  .ws-deco { display: none; }
+  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "main" "aside"; gap: 18px 0; }
+  .ws-deco-illust { display: none; }
 }
 
 .ws-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 18px; }
@@ -2275,7 +2277,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 .ws-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
-.ws-deco .ws-slogan {
+.ws-deco-illust .ws-slogan {
   position: absolute; right: 4px; top: 20px; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
@@ -2369,12 +2371,14 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "tabs tabs" "main main";
 }
 .reg-top { grid-area: top; min-width: 0; }
-.reg-deco { grid-area: deco; position: relative; min-height: 190px; }
+/* reg-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
+.reg-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.reg-deco-illust { position: relative; min-height: 190px; width: 100%; }
 .reg-tabs-row { grid-area: tabs; }
 .reg-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
-  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "top" "tabs" "main"; gap: 0; }
-  .reg-deco { display: none; }
+  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "tabs" "main"; gap: 0; }
+  .reg-deco-illust { display: none; }
 }
 
 .reg-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 18px; }
@@ -2384,7 +2388,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 .reg-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
-.reg-deco .reg-slogan {
+.reg-deco-illust .reg-slogan {
   position: absolute; right: 4px; top: 20px; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
@@ -2491,7 +2495,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 .cd-search-btn:hover { filter: brightness(1.06); }
 
-.cd-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; margin-bottom: 20px; }
+/* 公版文件分類名稱比部門物品管制表的部門名稱長(4~6字),頁籤最小寬度要拉大一點才不會擠到
+   縮寫;字仍放不下時改成正常換兩行,不用刪節號吃掉看不出是哪個分類。 */
+.cd-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .cd-tab {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; min-width: 0;
   border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; text-align: left;
@@ -2502,8 +2508,8 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
   font-size: 16px; background: var(--brand-light);
 }
-.cd-tab-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
-.cd-tab-name { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cd-tab-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.cd-tab-name { font-size: 14px; font-weight: 700; white-space: normal; overflow-wrap: break-word; }
 .cd-tab-n { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 .cd-tab.act { background: var(--brand); border-color: var(--brand); color: #fff; }
 .cd-tab.act .cd-tab-ic { background: rgba(255,255,255,.22); }
