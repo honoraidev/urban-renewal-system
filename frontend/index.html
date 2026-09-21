@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_37">
+  <link rel="stylesheet" href="style.css?v=20260921_38">
 </head>
 
 <body>
@@ -550,37 +550,31 @@
           <!-- 部門物品管制表 -->
           <div id="view-inventory" class="hidden">
             <div class="iv-layout">
-              <div class="iv-head">
+              <div class="iv-top">
                 <nav class="nw-crumbs"><a href="#" id="inv-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>部門物品管制表</span></nav>
                 <div class="iv-hero-left">
                   <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
                   <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
                 </div>
-              </div>
-
-              <div class="iv-actions">
-                <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
-                <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
-              </div>
-
-              <!-- 插圖跟搜尋框同一列、同高度並排(不再貼在按鈕下面一路延伸) -->
-              <div class="iv-search-row">
-                <div class="iv-search">
-                  <span class="iv-search-icon">🔍</span>
-                  <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
-                  <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
-                </div>
-                <div class="iv-filter-wrap">
-                  <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
-                  <div class="iv-filter-panel hidden" id="inv-filter-panel">
-                    <p class="iv-filter-panel-title">依狀態篩選</p>
-                    <div class="iv-filter-chips" id="inv-filter-status"></div>
-                    <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
+                <!-- 插圖跟排版完全比照 Q&A知識庫:標語貼插圖左邊同高並排;搜尋框在標題下方只佔左欄 -->
+                <div class="iv-search-row">
+                  <div class="iv-search">
+                    <span class="iv-search-icon">🔍</span>
+                    <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
+                    <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
+                  </div>
+                  <div class="iv-filter-wrap">
+                    <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
+                    <div class="iv-filter-panel hidden" id="inv-filter-panel">
+                      <p class="iv-filter-panel-title">依狀態篩選</p>
+                      <div class="iv-filter-chips" id="inv-filter-status"></div>
+                      <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div class="iv-deco-illust" aria-hidden="true">
+              <div class="iv-deco" aria-hidden="true">
                 <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
                 <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
                   <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
@@ -602,6 +596,8 @@
                   <div class="iv-card-head">
                     <h2 class="iv-card-title" id="inv-list-title">物品列表(0)</h2>
                     <div class="iv-toolbar">
+                      <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
+                      <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
                       <div class="iv-view-toggle" id="inv-view-toggle">
                         <button type="button" class="iv-view-btn act" data-inv-view="list" title="清單檢視">☰</button>
                         <button type="button" class="iv-view-btn" data-inv-view="grid" title="卡片檢視">▦</button>
