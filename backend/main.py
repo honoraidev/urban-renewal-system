@@ -96,6 +96,7 @@ def _auto_migrate() -> None:
         ("news_items", "published_at", "DATETIME NULL"),
         ("calendar_events", "is_important", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("calendar_events", "sop_stage", "INT NULL"),
+        ("building_records", "original_address", "VARCHAR(255) NULL"),
     ):
         try:
             with engine.connect() as _conn:

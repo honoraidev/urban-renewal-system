@@ -142,6 +142,7 @@ CREATE TABLE building_records (
     source_ocr_job_id INT NULL,
     building_number VARCHAR(100),
     address VARCHAR(255),
+    original_address VARCHAR(255) NULL,
     floor VARCHAR(20),
     total_floors VARCHAR(50),
     registration_order VARCHAR(50),

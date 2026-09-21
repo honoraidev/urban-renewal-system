@@ -1,7 +1,8 @@
 "use strict";
 
-// 全站頂端鈴鐺 - 今天、標「重要」的待辦提醒(跟工作看板行事曆同一份 calendar_events
-// 資料,is_important=true 才會出現在這裡,一般備註太多了全部推播沒人想看)。
+// 全站頂端鈴鐺 - 緊急且重要的待辦提醒:後端自動判斷(逾期/快到期且重要的行事曆備註、
+// 案件延遲時這階段未完成的 SOP 項目,規則見 backend utils/todo_priority.py),加上
+// 今天手動標「重要」的備註(跟工作看板行事曆同一份 calendar_events 資料)。
 // 登入後開始輪詢(見 auth.js loadCurrentUser),登出停止(見 doLogout)。
 
 const remindersState = { pollTimer: null, items: [] };
@@ -55,6 +56,7 @@ function remindersEnsureStyle() {
     .nav-bell-item { animation: bell-item-in .3s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 45ms + 80ms); }
     .nav-bell-item:hover { background: var(--surface-2); }
     .nav-bell-item-text { font-size: 13px; color: var(--text); line-height: 1.4; }
+    .nav-bell-item-reason { font-size: 11.5px; color: var(--danger); font-weight: 600; margin-top: 2px; }
     .nav-bell-item-proj { font-size: 11.5px; color: var(--brand-dark, var(--brand)); font-weight: 700; margin-top: 3px; }
     .nav-bell-empty { padding: 22px 10px 20px; text-align: center; font-size: 12.5px; color: var(--text-muted); line-height: 1.7; }
     .nav-bell-empty .e { display: block; font-size: 26px; opacity: .55; margin-bottom: 4px; }
@@ -75,17 +77,18 @@ function _renderBellDropdown() {
   if (!dd) return;
   const items = remindersState.items;
   dd.innerHTML = `
-    <div class="nav-bell-dropdown-head"><span>🔔 今日重要待辦</span>${items.length ? `<span class="nav-bell-count">${items.length}</span>` : ""}</div>
+    <div class="nav-bell-dropdown-head"><span>🔔 緊急重要待辦</span>${items.length ? `<span class="nav-bell-count">${items.length}</span>` : ""}</div>
     <div class="nav-bell-list">${items.length
       ? items
           .map(
             (it, i) => `<button type="button" class="nav-bell-item" style="--i:${i}" data-bell-item="${it.id}" data-bell-project="${it.project_id ?? ""}">
-              <div class="nav-bell-item-text">⭐ ${escapeHtml(it.content)}</div>
+              <div class="nav-bell-item-text">${it.kind === "sop" ? "📋" : "🔥"} ${escapeHtml(it.content)}</div>
+              ${it.reason ? `<div class="nav-bell-item-reason">${escapeHtml(it.reason)}</div>` : ""}
               <div class="nav-bell-item-proj">${it.project_name ? "📁 " + escapeHtml(it.project_name) : "👤 個人"}</div>
             </button>`
           )
           .join("")
-      : `<div class="nav-bell-empty"><span class="e">🔕</span>今天沒有標記重要的待辦<br>在案件頁右上角「+」新增並勾選「重要」</div>`
+      : `<div class="nav-bell-empty"><span class="e">🔕</span>目前沒有緊急重要的待辦<br>逾期或快到期的重要事項會自動出現在這裡</div>`
     }</div>`;
   dd.querySelectorAll("[data-bell-item]").forEach((row) => {
     row.addEventListener("click", () => {

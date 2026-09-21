@@ -218,41 +218,10 @@ function _ovCardTitle(icon, label, rightHtml) {
 // 資料,這裡篩成只看這個案件的,逾期的排最後面但還是要看得到(見 backend
 // routers/project_overview.py get_project_todos)。
 // ---- 自動判斷「重要 / 緊急」 ----
-// 純規則式(不呼叫 AI),每個判斷都附原因,滑鼠移到徽章上看得到為什麼:
-//   緊急 = 已逾期 / 2 天內到期 / 內文有「緊急、盡快、立即…」;SOP 項目則看案件本身
-//          已經延遲、或離預計完成日 ≤ 30 天(對應案件風險等級的高/中)。
-//   重要 = 手動標了 ⭐ / 內文有「簽約、同意書、送件、審查…」;這階段還沒完成的 SOP
-//          項目本身就是過關的必要條件,一律算重要(下階段的只是預先準備,不算)。
-const _OV_URGENT_WORDS = /緊急|急件|盡快|儘快|立即|馬上|立刻|今天|逾期|催|asap/i;
-const _OV_IMPORTANT_WORDS = /簽約|同意書|送件|審查|核定|核准|申請|截止|說明會|反對|陳情|補件|公文|簽署|聽證|公聽會/;
-
-function _ovDaysUntil(dateStr) {
-  const d = new Date(String(dateStr).slice(0, 10) + "T00:00:00");
-  const t = new Date();
-  t.setHours(0, 0, 0, 0);
-  return Math.round((d - t) / 86400000);
-}
-
-// ctx = { delayDays, daysToDeadline }(案件延遲天數 / 離預計完成日還幾天,沒設定就是 null)
-function _ovPriorityOfTodo(t, ctx) {
-  const reasons = { urgent: [], important: [] };
-  const days = _ovDaysUntil(t.event_date);
-  if (t.is_overdue || days < 0) reasons.urgent.push(`已逾期 ${Math.abs(days)} 天`);
-  else if (days === 0) reasons.urgent.push("今天到期");
-  else if (days <= 2) reasons.urgent.push(`${days} 天內到期`);
-  if (_OV_URGENT_WORDS.test(t.content)) reasons.urgent.push("內容含緊急字眼");
-  if (t.is_important) reasons.important.push("已手動標為重要");
-  if (_OV_IMPORTANT_WORDS.test(t.content)) reasons.important.push("內容與簽約/送件/審查等關鍵事項有關");
-  return reasons;
-}
-
-function _ovPriorityOfSopTask(isCurrent, ctx) {
-  const reasons = { urgent: [], important: [] };
-  if (!isCurrent) return reasons;
-  reasons.important.push("這階段的過關必要項目");
-  if (ctx.delayDays > 0) reasons.urgent.push(`案件已延遲 ${ctx.delayDays} 天`);
-  else if (ctx.daysToDeadline != null && ctx.daysToDeadline <= 30) reasons.urgent.push(`距預計完成日只剩 ${ctx.daysToDeadline} 天`);
-  return reasons;
+// 判斷在後端(utils/todo_priority.py,鈴鐺也用同一份規則),每筆帶 urgent_reasons /
+// important_reasons(空陣列 = 不符合);滑鼠移到徽章上看得到原因。舊後端沒回這兩欄就不畫徽章。
+function _ovPriorityOf(item) {
+  return { urgent: item.urgent_reasons || [], important: item.important_reasons || [] };
 }
 
 function _ovPriorityScore(r) {
@@ -292,7 +261,7 @@ function _ovSopTaskRowHtml(task, r) {
 
 // 一個區塊(這階段 / 下階段):SOP 這關還沒完成的項目(自動帶入,不能刪) + 歸在這關的
 // 自訂待辦(行事曆備註)。block 是 overview.stage_tasks.current/next,null = 沒有這一關。
-function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText, ctx) {
+function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
   const pending = block ? block.tasks.filter((t) => !t.done) : [];
   const stageText = block ? `第${block.index}階段 ${escapeHtml(block.name || "")}` : "";
   const countText = block && block.tasks.length ? `${block.tasks.length - pending.length}/${block.tasks.length} 已完成` : "";
@@ -300,11 +269,11 @@ function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText, ctx) {
   // (SOP 項目在前、自訂待辦依日期)。
   const items = [
     ...pending.map((task) => {
-      const r = _ovPriorityOfSopTask(tagCls === "now", ctx);
+      const r = _ovPriorityOf(task);
       return { r, html: _ovSopTaskRowHtml(task, r) };
     }),
     ...customTodos.map((t) => {
-      const r = _ovPriorityOfTodo(t, ctx);
+      const r = _ovPriorityOf(t);
       return { r, html: _ovTodoRowHtml(t, r) };
     }),
   ];
@@ -321,11 +290,7 @@ function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText, ctx) {
     </div>`;
 }
 
-function _ovTodosHtml(todos, stageTasks, caseStatus) {
-  const ctx = {
-    delayDays: (caseStatus && caseStatus.delay_days) || 0,
-    daysToDeadline: caseStatus && caseStatus.expected_completion_date ? _ovDaysUntil(caseStatus.expected_completion_date) : null,
-  };
+function _ovTodosHtml(todos, stageTasks) {
   const cur = stageTasks ? stageTasks.current : null;
   const next = stageTasks ? stageTasks.next : null;
   // 歸「下階段」的:指定關卡編號比目前這關大的自訂待辦;沒指定(舊資料)或已經輪到的都歸這階段。
@@ -334,12 +299,11 @@ function _ovTodosHtml(todos, stageTasks, caseStatus) {
   const nextTodos = (todos || []).filter(isNext);
   const nowHtml = _ovTodoZoneHtml(
     "now", "這階段", cur, nowTodos,
-    cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項",
-    ctx
+    cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項"
   );
   // 沒有下一關(已經是最後一關 / 舊後端沒回 stage_tasks)就不畫下階段區塊。
   const nextHtml = next
-    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目", ctx)
+    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目")
     : "";
   return nowHtml + nextHtml;
 }
@@ -465,7 +429,7 @@ async function renderProjectOverviewTab(el) {
         </div>
         <div class="ov-card">
           ${_ovCardTitle("✅", "待辦事項", todoAddBtn)}
-          ${_ovTodosHtml(todos, stageTasks, overview.case_status)}
+          ${_ovTodosHtml(todos, stageTasks)}
         </div>
       </div>
 

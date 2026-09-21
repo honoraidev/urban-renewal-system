@@ -962,6 +962,12 @@
   .lo-edit-section-title { padding: 11px 14px; font-weight: 700; background: var(--surface-2); }
   .lo-edit-section-body { padding: 14px; }
   .lo-edit-section-body .field:last-child, .lo-edit-section-body .field-row:last-child { margin-bottom: 0; }
+  /* 編輯地主 → 原謄本門牌地址(唯讀,每個建號一行) */
+  .lo-deed-addr-list { display: flex; flex-direction: column; gap: 6px; padding: 9px 12px; border-radius: 10px;
+    background: var(--surface-2); border: 1px dashed var(--border); font-size: 13.5px; color: var(--text); }
+  .lo-deed-addr-row { display: flex; align-items: baseline; gap: 8px; line-height: 1.5; }
+  .lo-deed-addr-no { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; }
 
   .gate-bars { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
   .gate-bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }

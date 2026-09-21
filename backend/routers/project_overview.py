@@ -12,6 +12,7 @@ from models.document import Document
 from models.land_record import LandRecord
 from models.landowner import Landowner
 from models.project import Project
+from models.sop import SopStage
 from routers.contacts import _last_contact_result_by_landowner
 from routers.documents import DOC_TYPE_LABELS_MAP
 from routers.sop import (
@@ -23,6 +24,7 @@ from routers.sop import (
     get_or_create_sop,
 )
 from utils.consent_ratio import calculate_consent_ratio
+from utils.todo_priority import DEADLINE_URGENT_DAYS, sop_task_priority, todo_priority
 
 router = APIRouter(prefix="/projects/{project_id}/overview", tags=["project-overview"])
 
@@ -137,16 +139,74 @@ def _stage_tasks(db: Session, project_id: int, idx_str: str, entry: dict) -> lis
     return tasks
 
 
-def _stage_task_block(db: Session, project_id: int, stages: dict, idx: int | None) -> dict | None:
+def _project_urgency_ctx(project: Project) -> tuple[int, int | None]:
+    """(延遲天數, 離預計完成日還幾天或 None) — SOP 項目緊急判斷用。已結案/強制結案的案件
+    不算緊急(延遲 0、沒有期限)。"""
+    if project.status == "closed" or project.is_force_closed or not project.expected_completion_date:
+        return 0, None
+    days_left = (project.expected_completion_date - date.today()).days
+    return (-days_left if days_left < 0 else 0), days_left
+
+
+def _stage_task_block(
+    db: Session, project_id: int, stages: dict, idx: int | None, is_current: bool = False, project: Project | None = None
+) -> dict | None:
     if idx is None or str(idx) not in stages:
         return None
     entry = stages[str(idx)]
+    delay_days, days_to_deadline = _project_urgency_ctx(project) if project else (0, None)
+    tasks = _stage_tasks(db, project_id, str(idx), entry)
+    for t in tasks:
+        # 只有還沒完成的項目才需要優先度徽章
+        urgent, important = ([], []) if t["done"] else sop_task_priority(is_current, delay_days, days_to_deadline)
+        t["urgent_reasons"] = urgent
+        t["important_reasons"] = important
     return {
         "index": idx,
         "name": entry.get("name"),
         "status": entry.get("status") or "pending",
-        "tasks": _stage_tasks(db, project_id, str(idx), entry),
+        "tasks": tasks,
     }
+
+
+def urgent_sop_bell_items(db: Session, projects: list[Project]) -> list[dict]:
+    """全站鈴鐺用 — 每個「案件已延遲、或離預計完成日 ≤ 30 天」的案件,若這階段還有未完成
+    的 SOP 項目(它們本身就算重要),就整合成一則:「第N階段『XX』還有 K 項未完成」。
+    先用案件本身的日期篩掉不緊急的,不用每個案件都去算關卡項目。"""
+    items = []
+    for p in projects:
+        delay_days, days_to_deadline = _project_urgency_ctx(p)
+        if not (delay_days > 0 or (days_to_deadline is not None and days_to_deadline <= DEADLINE_URGENT_DAYS)):
+            continue
+        sop = db.scalar(select(SopStage).where(SopStage.project_id == p.id))
+        if sop is None or sop.stage_data["final"]["status"] != "pending":
+            continue
+        stages = _resolved_stages(sop)
+        block = _stage_task_block(db, p.id, stages, sop.current_stage, True, p)
+        if not block:
+            continue
+        if not block["tasks"]:
+            continue
+        pending = [t for t in block["tasks"] if not t["done"]]
+        # 項目都做完了卻還沒按「完成本關卡」,案件已在延遲/快到期,一樣要提醒去過關。
+        reason = "、".join(pending[0]["urgent_reasons"]) if pending else (
+            f"案件已延遲 {delay_days} 天" if delay_days > 0 else f"距預計完成日只剩 {days_to_deadline} 天"
+        )
+        items.append(
+            {
+                "id": -p.id,  # 負數 = 不是行事曆備註(SOP 彙整項),避免跟 calendar_events.id 撞
+                "content": (
+                    f"第{block['index']}階段「{block['name']}」還有 {len(pending)} 項未完成"
+                    if pending
+                    else f"第{block['index']}階段「{block['name']}」項目都完成了,請按「完成本關卡」過關"
+                ),
+                "project_id": p.id,
+                "project_name": p.name,
+                "kind": "sop",
+                "reason": reason,
+            }
+        )
+    return items
 
 
 @router.get("/todos")
@@ -168,17 +228,23 @@ def get_project_todos(
     upcoming = sorted((e for e in events if e.event_date >= today), key=lambda e: e.event_date)
     overdue = sorted((e for e in events if e.event_date < today), key=lambda e: e.event_date, reverse=True)
     ordered = upcoming + overdue
-    return [
-        {
-            "id": e.id,
-            "event_date": e.event_date,
-            "content": e.content,
-            "is_important": e.is_important,
-            "sop_stage": e.sop_stage,
-            "is_overdue": e.event_date < today,
-        }
-        for e in ordered
-    ]
+    result = []
+    for e in ordered:
+        urgent, important = todo_priority(e.event_date, e.content, e.is_important, today)
+        result.append(
+            {
+                "id": e.id,
+                "event_date": e.event_date,
+                "content": e.content,
+                "is_important": e.is_important,
+                "sop_stage": e.sop_stage,
+                "is_overdue": e.event_date < today,
+                # 自動判斷的緊急/重要原因(空 = 不符合),規則見 utils/todo_priority.py
+                "urgent_reasons": urgent,
+                "important_reasons": important,
+            }
+        )
+    return result
 
 
 def _headcount_detail(db: Session, project_id: int, before: datetime | None = None) -> dict:
@@ -313,8 +379,8 @@ def get_project_overview(
 
     return {
         "stage_tasks": {
-            "current": _stage_task_block(db, project_id, stages, current_idx),
-            "next": _stage_task_block(db, project_id, stages, next_idx),
+            "current": _stage_task_block(db, project_id, stages, current_idx, True, project),
+            "next": _stage_task_block(db, project_id, stages, next_idx, False, project),
         },
         "overall_progress_pct": overall_pct,
         "stages": stage_list,

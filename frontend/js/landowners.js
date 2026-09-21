@@ -966,6 +966,11 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 多筆時逐行列出(不再擠成一行用「、」串接被輸入框裁掉看不到後面),方便一眼看完。
   const buildingRecordsList = owner.building_records || [];
   const doorAddresses = [...new Set(buildingRecordsList.map((r) => r.address).filter(Boolean))];
+  // 原謄本門牌(匯入當下登載的,改「門牌地址」不會動它)- 每個建號一行;舊資料沒有
+  // original_address 就退回目前的門牌。
+  const deedAddresses = buildingRecordsList
+    .map((r) => ({ no: r.building_number, addr: r.original_address || r.address }))
+    .filter((d) => d.addr);
   // 同一案件底下每戶的路名/幾段幾乎都一樣,每個膠囊都重複顯示一次很雜訊 - 只留巷弄號樓
   // 那段(真正能分辨是哪一戶的部分);完整地址還是留在 title,滑鼠移上去看得到。
   const stripRoadPrefix = (addr) =>
@@ -1034,6 +1039,18 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
             </div>`
     }
           </div>
+          ${deedAddresses.length
+      ? `<div class="field">
+            <label>原謄本門牌地址${deedAddresses.length > 1 ? `(共 ${deedAddresses.length} 戶)` : ""}</label>
+            <div class="lo-deed-addr-list" title="謄本匯入時登載的門牌,不會隨上面「門牌地址」的修改而變動">
+              ${deedAddresses
+        .map(
+          (d) => `<div class="lo-deed-addr-row">${d.no ? `<span class="lo-deed-addr-no">建號 ${escapeHtml(d.no)}</span>` : ""}<span>${escapeHtml(d.addr)}</span></div>`
+        )
+        .join("")}
+            </div>
+          </div>`
+      : ""}
           ${loFieldHtml("地址", "address", owner.address)}
         </div>
       </details>

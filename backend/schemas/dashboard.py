@@ -72,3 +72,7 @@ class TodayImportantItem(BaseModel):
     content: str
     project_id: int | None = None
     project_name: str | None = None
+    # todo = 行事曆備註;sop = 案件這階段未完成項目的彙整(id 為負數,見 project_overview.urgent_sop_bell_items)
+    kind: str = "todo"
+    # 為什麼會出現在鈴鐺(自動判斷的緊急原因,或「今天標了重要」)
+    reason: str | None = None

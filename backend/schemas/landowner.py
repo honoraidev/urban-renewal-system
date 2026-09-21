@@ -116,6 +116,8 @@ class BuildingRecordRead(BaseModel):
     building_number: str | None = None
     parcel_number: str | None = None
     address: str | None = None
+    # 謄本匯入時的門牌(之後改 address 也不變);舊資料是 None,前端用 original_address || address。
+    original_address: str | None = None
     floor: str | None = None
     total_floors: str | None = None
     floors_detail: list | None = None

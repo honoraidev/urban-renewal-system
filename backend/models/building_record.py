@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, event, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -30,6 +30,10 @@ class BuildingRecord(Base):
     # resolved at import time.
     parcel_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 「原謄本門牌地址」— 謄本匯入時的門牌,之後就算有人改了上面的 address 也不會跟著變
+    # (見檔尾兩個 event:新增時自動帶入 address;address 第一次被改掉時把舊值存下來)。
+    # 舊資料這欄是 NULL,顯示端一律 `original_address or address`。
+    original_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     floor: Mapped[str | None] = mapped_column(String(20), nullable=True)
     total_floors: Mapped[str | None] = mapped_column(String(50), nullable=True)
     registration_order: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -52,3 +56,16 @@ class BuildingRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     landowner: Mapped["Landowner"] = relationship(back_populates="building_records")
+
+
+@event.listens_for(BuildingRecord, "before_insert")
+def _fill_original_address(mapper, connection, target):
+    if target.original_address is None and target.address:
+        target.original_address = target.address
+
+
+@event.listens_for(BuildingRecord.address, "set", active_history=True)
+def _keep_original_address(target, value, oldvalue, initiator):
+    # 已存在的紀錄第一次被改地址:把改之前的值(= 謄本原本的門牌)留下來。
+    if target.original_address is None and isinstance(oldvalue, str) and oldvalue and oldvalue != value:
+        target.original_address = oldvalue

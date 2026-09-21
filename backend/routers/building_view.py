@@ -95,7 +95,7 @@ def get_building_view(
             "address": r.landowner.address if r.landowner else None,
             # 原謄本(建物標示部)登載的門牌與建號 - 跟地主自己的戶籍地址(address)是兩件事,
             # 格子 hover 提示要能對照謄本。
-            "building_address": r.address,
+            "building_address": r.original_address or r.address,
             "building_number": r.building_number,
             "consent_status": consent_by_landowner.get(r.landowner_id, "pending"),
             "agreement_status": r.landowner.agreement_status if r.landowner else "not_signed",

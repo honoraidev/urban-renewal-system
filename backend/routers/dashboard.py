@@ -13,6 +13,8 @@ from models.landowner import Landowner
 from models.project import Project, ProjectMember
 from models.project_note import ProjectNote
 from models.user import User
+from routers.project_overview import urgent_sop_bell_items
+from utils.todo_priority import DUE_URGENT_DAYS, todo_priority
 from schemas.dashboard import (
     CalendarEventCreate,
     CalendarEventItem,
@@ -220,8 +222,11 @@ def get_today_important(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """全站頂端鈴鐺用 - 今天、標「重要」的待辦,個人的 + 看得到的案件共用的都算
-    (跟工作看板行事曆同一份資料,同一套 _visible_project_ids 可見範圍)。"""
+    """全站頂端鈴鐺用(個人的 + 看得到的案件共用的都算,跟工作看板行事曆同一份資料,
+    同一套 _visible_project_ids 可見範圍)。會出現的有三種:
+      1. 自動判斷「緊急且重要」的待辦(逾期 30 天內 ~ 2 天內到期;規則見 utils/todo_priority.py)
+      2. 案件已延遲/快到期、這階段還有未完成 SOP 項目的案件(彙整成一則)
+      3. 今天、手動標「重要」的待辦(即使還沒到緊急)"""
     project_ids = _visible_project_ids(db, current_user)
     today = datetime.utcnow().date()
     ev_filter = CalendarEvent.created_by == current_user.id
@@ -229,21 +234,37 @@ def get_today_important(
         ev_filter = ev_filter | CalendarEvent.project_id.in_(project_ids)
     events = db.scalars(
         select(CalendarEvent)
-        .where(CalendarEvent.event_date == today, CalendarEvent.is_important.is_(True), ev_filter)
-        .order_by(CalendarEvent.id)
+        .where(
+            CalendarEvent.event_date >= today - timedelta(days=30),
+            CalendarEvent.event_date <= today + timedelta(days=DUE_URGENT_DAYS),
+            ev_filter,
+        )
+        .order_by(CalendarEvent.event_date, CalendarEvent.id)
     ).all()
-    project_name_by_id = dict(
-        db.execute(select(Project.id, Project.name).where(Project.id.in_(project_ids))).all()
-    ) if project_ids else {}
-    return [
-        TodayImportantItem(
+    projects = list(db.scalars(select(Project).where(Project.id.in_(project_ids)))) if project_ids else []
+    project_name_by_id = {p.id: p.name for p in projects}
+
+    def _todo_item(e: CalendarEvent, reason: str) -> TodayImportantItem:
+        return TodayImportantItem(
             id=e.id,
             content=e.content,
             project_id=e.project_id,
             project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
+            reason=reason,
         )
-        for e in events
-    ]
+
+    items: list[TodayImportantItem] = []
+    seen: set[int] = set()
+    for e in events:
+        urgent, important = todo_priority(e.event_date, e.content, e.is_important, today)
+        if urgent and important:
+            items.append(_todo_item(e, "、".join(urgent)))
+            seen.add(e.id)
+    items += [TodayImportantItem(**it) for it in urgent_sop_bell_items(db, projects)]
+    for e in events:
+        if e.event_date == today and e.is_important and e.id not in seen:
+            items.append(_todo_item(e, "今天標為重要"))
+    return items
 
 
 def _get_event_or_404(db: Session, event_id: int) -> CalendarEvent:
