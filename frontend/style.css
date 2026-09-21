@@ -2004,15 +2004,15 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 /* ================= Q&A 知識庫頁 ================= */
 .fq-layout {
   display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 26px; align-items: start;
-  grid-template-areas: "top deco" "main aside";
+  grid-template-areas: "top deco" "tabs tabs" "main aside";
 }
 .fq-top { grid-area: top; min-width: 0; }
-.fq-deco { grid-area: deco; position: relative; min-height: 215px; }
+.fq-deco { grid-area: deco; position: relative; min-height: 190px; }
 .fq-main { grid-area: main; min-width: 0; }
 /* 相關資源貼在主卡片頂端對齊、捲動時黏在畫面上,不會孤零零掉到頁面最底下、中間留一大塊空白 */
 .fq-aside { grid-area: aside; align-self: start; position: sticky; top: 16px; }
 @media (max-width: 1100px) {
-  .fq-layout { grid-template-columns: 1fr; grid-template-areas: "top" "main" "aside"; gap: 18px 0; }
+  .fq-layout { grid-template-columns: 1fr; grid-template-areas: "top" "tabs" "main" "aside"; gap: 18px 0; }
   .fq-deco { display: none; }
 }
 .fq-title { margin: 6px 0 4px; font-size: 40px; font-weight: 800; letter-spacing: .01em; }
@@ -2034,7 +2034,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .fq-search-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 
 /* 頁籤等寬排整齊:寬度夠就一整排,不夠就整齊折成幾排(不會落單一顆拉很長) */
-.fq-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.fq-tabs { grid-area: tabs; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .fq-tab {
   display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 16px; border-radius: 16px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; text-align: left;
