@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_27">
+  <link rel="stylesheet" href="style.css?v=20260921_28">
 </head>
 
 <body>
@@ -566,10 +566,6 @@
                     <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
                     <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
                   </div>
-                  <div class="iv-actions">
-                    <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
-                    <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
-                  </div>
                 </div>
                 <!-- 搜尋框位置跟 Q&A知識庫 / 相關網站頁一樣:貼標題下方、只佔左欄寬度 -->
                 <div class="iv-search-row">
@@ -589,19 +585,25 @@
                 </div>
               </div>
 
-              <div class="iv-deco" aria-hidden="true">
-                <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
-                  <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
-                  <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
-                  <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
-                  <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
-                  <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
-                  <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
-                  <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
-                  <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
-                </svg>
+              <div class="iv-deco">
+                <div class="iv-actions">
+                  <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
+                  <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
+                </div>
+                <div class="iv-deco-illust" aria-hidden="true">
+                  <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                  <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
+                    <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
+                    <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
+                    <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
+                    <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
+                    <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
+                    <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
+                    <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
+                    <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
+                  </svg>
+                </div>
               </div>
 
               <div class="iv-tabs" id="inventory-dept-bar"></div>

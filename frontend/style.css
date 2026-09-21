@@ -2123,12 +2123,14 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "tabs tabs" "main main";
 }
 .iv-top { grid-area: top; min-width: 0; }
-.iv-deco { grid-area: deco; position: relative; min-height: 150px; }
+/* iv-deco 現在裝兩塊東西:匯出清單/新增物品按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
+.iv-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.iv-deco-illust { position: relative; min-height: 150px; width: 100%; }
 .iv-tabs { grid-area: tabs; }
 .iv-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
-  .iv-layout { grid-template-columns: 1fr; grid-template-areas: "top" "tabs" "main"; gap: 0; }
-  .iv-deco { display: none; }
+  .iv-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "tabs" "main"; gap: 0; }
+  .iv-deco-illust { display: none; }
 }
 
 .iv-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
@@ -2138,14 +2140,13 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 .iv-btn-outline:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); }
 
-/* 匯出/新增按鈕跟著標題那一行,不再貼在麵包屑那一列的最頂端 */
 .iv-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 20px; }
 .iv-hero-left { min-width: 240px; }
 .iv-title { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
 .iv-title-icon { font-size: 28px; }
 .iv-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
-.iv-deco .iv-slogan {
+.iv-deco-illust .iv-slogan {
   position: absolute; right: 4px; top: 30px; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
