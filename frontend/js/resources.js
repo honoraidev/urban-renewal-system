@@ -1114,10 +1114,10 @@ function renderWebsitesList(items, editable) {
 
   el.innerHTML = Object.entries(byCategory)
     .map(([cat, rows]) => {
-      const [icon] = _wsCatStyle(cat);
+      const [icon, tone] = _wsCatStyle(cat);
       return `
       <div class="ws-section" id="ws-sec-${encodeURIComponent(cat)}">
-        <div class="ws-section-hdr"><span>${icon}</span>${escapeHtml(cat)}<span class="ws-section-dash">—</span></div>
+        <div class="ws-section-hdr" style="--tone:${tone}"><span class="ws-section-icon">${icon}</span>${escapeHtml(cat)}<span class="ws-section-dash">—</span></div>
         <div class="ws-cards-grid">${rows.map((r) => _wsItemHtml(r, cat, editable)).join("")}</div>
       </div>`;
     })

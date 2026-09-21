@@ -2305,7 +2305,12 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 
 .ws-section { margin-bottom: 28px; scroll-margin-top: 16px; }
 .ws-section-hdr {
-  display: flex; align-items: center; gap: 8px; font-size: 16.5px; font-weight: 800; color: var(--text); margin: 0 0 12px;
+  display: flex; align-items: center; gap: 10px; font-size: 16.5px; font-weight: 800; color: var(--text); margin: 0 0 14px;
+}
+/* 跟底下卡片同一套圖示(色塊圓角方塊),分類標題不再是光禿禿的 emoji */
+.ws-section-icon {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; background: color-mix(in srgb, var(--tone) 16%, transparent);
 }
 .ws-section-dash { color: var(--text-muted); font-weight: 400; margin-left: 2px; }
 .ws-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
