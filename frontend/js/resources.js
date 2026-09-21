@@ -92,7 +92,6 @@ function _cdEmptyHtml() {
         <div class="cd-empty-icon">📤</div>
         <h3 class="cd-empty-title">尚無公版文件</h3>
         <p class="cd-empty-sub">開始上傳常用文件範本,建立團隊的知識資產。</p>
-        ${isManager() ? `<button type="button" class="btn-primary cd-empty-btn" id="cd-empty-upload-btn">↑ 上傳新版本</button>` : ""}
       </div>
       <div class="cd-tips">
         <div class="cd-tip"><div class="cd-tip-icon">📐</div><div class="cd-tip-title">標準化文件</div><div class="cd-tip-desc">建立統一格式<br>提升作業效率</div></div>
@@ -119,7 +118,6 @@ function renderCompanyDocsList() {
 
   if (!rows.length) {
     wrap.innerHTML = _cdEmptyHtml();
-    wrap.querySelector("#cd-empty-upload-btn")?.addEventListener("click", () => document.getElementById("upload-companydoc-btn")?.click());
     return;
   }
 
