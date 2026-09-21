@@ -169,7 +169,12 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         or 0
     )
 
-    last_week_cutoff = date.today() - timedelta(days=7)
+    # 「上週」= 上週結束(本週一 00:00)當下的狀態:直接用 contact_logs 歷史還原每位地主當時
+    # 最新的拜訪結果,不用等每日快照累積滿一週才有得比。
+    today_d = date.today()
+    this_monday = today_d - timedelta(days=today_d.weekday())
+    last_week_end = datetime.combine(this_monday, datetime.min.time())
+    last_sunday = this_monday - timedelta(days=1)
 
     project_items = []
     for p in projects:
@@ -178,27 +183,10 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         alert_tiers = _alert_tier_counts(db, p.id)
         handler_name, manager_name = _case_handler_names(db, p.id)
         visit_breakdown = compute_visit_breakdown(db, p.id)
-        last_week_snapshot = db.scalar(
-            select(ConsentSnapshot)
-            .where(ConsentSnapshot.project_id == p.id, ConsentSnapshot.snapshot_date <= last_week_cutoff)
-            .order_by(ConsentSnapshot.snapshot_date.desc())
-        )
-        last_week_breakdown = (
-            {
-                "headcount_total": last_week_snapshot.headcount_total,
-                "headcount_agreed": last_week_snapshot.headcount_agreed,
-                "headcount_opposed": last_week_snapshot.headcount_opposed,
-                "land_total_sqm": last_week_snapshot.land_total_sqm,
-                "land_agreed_sqm": last_week_snapshot.land_agreed_sqm,
-                "land_opposed_sqm": last_week_snapshot.land_opposed_sqm,
-                "building_total_sqm": last_week_snapshot.building_total_sqm,
-                "building_agreed_sqm": last_week_snapshot.building_agreed_sqm,
-                "building_opposed_sqm": last_week_snapshot.building_opposed_sqm,
-                "snapshot_date": last_week_snapshot.snapshot_date.isoformat(),
-            }
-            if last_week_snapshot
-            else None
-        )
+        last_week_breakdown = {
+            **compute_visit_breakdown(db, p.id, last_week_end),
+            "snapshot_date": last_sunday.isoformat(),
+        }
         project_items.append(
             DashboardProjectItem(
                 id=p.id,

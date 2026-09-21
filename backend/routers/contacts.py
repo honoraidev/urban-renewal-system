@@ -121,15 +121,18 @@ def _contactable_landowners_with_last_contact(db: Session, project_id: int):
     return landowners, last_contact_by_landowner
 
 
-def _last_contact_result_by_landowner(db: Session, project_id: int) -> dict[int, str]:
+def _last_contact_result_by_landowner(db: Session, project_id: int, before: datetime | None = None) -> dict[int, str]:
     """Latest contact_logs row per landowner (by contact_date), just the result field -
     separate from _contactable_landowners_with_last_contact's max(date) query since that
     one doesn't tell us which row the max date actually came from. Backs the roster
     table's 聯絡結果 column (replaced the old reply_status field there)."""
+    # before 有值時只看那個時間點「以前」的聯絡紀錄 - 案件卡片「本週 vs 上週」用來還原上週結束時
+    # 每位地主的最新拜訪結果(contact_logs 本身就是完整歷史,不用等每日快照累積)。
     result: dict[int, str] = {}
-    logs = db.scalars(
-        select(ContactLog).where(ContactLog.project_id == project_id).order_by(ContactLog.contact_date.asc())
-    ).all()
+    stmt = select(ContactLog).where(ContactLog.project_id == project_id)
+    if before is not None:
+        stmt = stmt.where(ContactLog.contact_date < before)
+    logs = db.scalars(stmt.order_by(ContactLog.contact_date.asc())).all()
     for log in logs:
         result[log.landowner_id] = log.contact_result
     return result

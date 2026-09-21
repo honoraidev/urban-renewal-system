@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -15,13 +15,13 @@ from routers.contacts import _last_contact_result_by_landowner
 _OWNED_BUILDING_AREA = BuildingRecord.total_area_sqm * BuildingRecord.ownership_share_pct / 100
 
 
-def compute_visit_breakdown(db: Session, project_id: int) -> dict:
+def compute_visit_breakdown(db: Session, project_id: int, before: datetime | None = None) -> dict:
     """依「每位地主最新一次拜訪結果」(contact_logs,不是 SOP 關卡用的嚴格雙門檻
     定義)把地主分成同意/反對/其他三類,算人數與持分面積 —— 案件卡片的三色圓餅圖
     跟本週/上週比較都是用這份資料,跟 utils/consent_ratio.py 的
     calculate_consent_ratio(SOP 雙門檻關卡湊關用,要求電訪同意「且」已簽約)是兩套
     獨立定義,不要混用。"""
-    results = _last_contact_result_by_landowner(db, project_id)
+    results = _last_contact_result_by_landowner(db, project_id, before)
     landowner_ids = set(db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all())
     agreed_ids = {lid for lid in landowner_ids if results.get(lid) == "agreed"}
     opposed_ids = {lid for lid in landowner_ids if results.get(lid) == "opposed"}
