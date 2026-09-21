@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_20">
+  <link rel="stylesheet" href="style.css?v=20260921_21">
 </head>
 
 <body>
@@ -348,15 +348,58 @@
 
           <!-- 相關法規 -->
           <div id="view-regulations" class="hidden">
-            <div class="page-header">
-              <h2>相關法規</h2>
-              <div style="display:flex;gap:8px">
-                <button class="btn-secondary hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
-                <button class="btn-secondary hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
-                <button class="btn-primary hidden" id="new-regulation-btn">+ 新增連結</button>
+            <div class="reg-layout">
+              <div class="reg-top">
+                <nav class="nw-crumbs"><a href="#" id="reg-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>相關法規</span></nav>
+                <div class="reg-top-head">
+                  <div class="reg-hero-left">
+                    <h1 class="reg-title"><span class="reg-title-icon">⚖️</span>相關法規</h1>
+                    <p class="reg-sub">彙整中央與地方都市更新相關法規,快速查詢最新法規內容</p>
+                  </div>
+                  <div class="reg-actions">
+                    <button class="btn-secondary btn-sm hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
+                    <button class="btn-secondary btn-sm hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
+                    <button class="btn-primary btn-sm hidden" id="new-regulation-btn">+ 新增連結</button>
+                  </div>
+                </div>
+                <div class="reg-search">
+                  <span class="reg-search-icon">🔍</span>
+                  <input type="search" id="reg-search-input" placeholder="搜尋法規名稱、關鍵字...(例如:都市更新、容積獎勵、危老條例...)" autocomplete="off">
+                  <button type="button" class="reg-search-btn" id="reg-search-btn">搜尋</button>
+                </div>
               </div>
+
+              <div class="reg-deco" aria-hidden="true">
+                <div class="reg-slogan">掌握法規動態,<br>讓更新更安心!<svg viewBox="0 0 190 14" class="reg-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="reg-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="regBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                    <pattern id="regWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                  </defs>
+                  <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                  <rect x="20" y="72" width="46" height="68" fill="url(#regBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#regWin)"/>
+                  <rect x="74" y="34" width="54" height="106" fill="url(#regBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#regWin)"/>
+                  <rect x="136" y="10" width="42" height="130" fill="url(#regBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#regWin)"/>
+                  <rect x="186" y="52" width="48" height="88" fill="url(#regBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#regWin)"/>
+                  <rect x="242" y="80" width="42" height="60" fill="url(#regBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#regWin)"/>
+                  <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                  <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                </svg>
+              </div>
+
+              <div class="reg-tabs-row">
+                <div class="reg-tabs" id="reg-cat-bar"></div>
+                <div class="reg-toolbar">
+                  <span class="reg-count" id="reg-count"></span>
+                  <div class="reg-view-toggle" id="reg-view-toggle">
+                    <button type="button" class="reg-view-btn act" data-reg-view="grid" title="卡片檢視">▦</button>
+                    <button type="button" class="reg-view-btn" data-reg-view="list" title="清單檢視">☰</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="reg-main" id="regulations-list"></div>
             </div>
-            <div id="regulations-list"></div>
           </div>
 
           <!-- 相關網站 -->
@@ -913,7 +956,7 @@
   <script src="js/encumbrances.js?v=20260921_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
-  <script src="js/resources.js?v=20260921_4"></script>
+  <script src="js/resources.js?v=20260921_5"></script>
   <script src="js/inventory.js?v=20260921_1"></script>
   <script src="js/buildingview.js?v=20260921_1"></script>
   <script src="js/land_value_tax.js?v=20260921_3"></script>

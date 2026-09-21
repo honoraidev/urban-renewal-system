@@ -606,6 +606,12 @@ async function goToRegulations() {
   setActiveNav("regulations");
   showView("view-regulations");
   regulationsEditMode = false;
+  regQuery = "";
+  regCurCat = "全部";
+  regViewMode = "grid";
+  const searchInput = document.getElementById("reg-search-input");
+  if (searchInput) searchInput.value = "";
+  document.querySelectorAll("#reg-view-toggle [data-reg-view]").forEach((b) => b.classList.toggle("act", b.dataset.regView === "grid"));
   document.getElementById("new-regulation-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-regulation-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-regulation-cats-btn")?.classList.toggle("hidden", !isManager());
@@ -618,11 +624,185 @@ async function loadRegulations() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/regulations");
   currentLoadedRegulations = items || [];
-  renderLinkListPage(items, "regulations-list", isManager() && regulationsEditMode);
-  if (isManager() && regulationsEditMode) {
+  renderRegulationsList(currentLoadedRegulations, isManager() && regulationsEditMode);
+}
+
+// ===== 相關法規頁版面(獨立於 renderLinkListPage,跟相關網站頁同一套骨架但卡片改成左側
+// 圖示的橫式列表、分類頁籤可篩選、「全部」頁籤下每個分類先只預覽 3 筆+「查看全部」) =====
+let regQuery = ""; // 搜尋框(已小寫)
+let regCurCat = "全部";
+let regViewMode = "grid"; // grid | list
+const REG_PREVIEW_COUNT = 3;
+
+const REG_CAT_ICON = {
+  中央法規: "🏛️",
+  地方自治條例: "🏢",
+  都更配套子法: "🧩",
+  "行政命令/函釋": "📢",
+  其他: "🗂️",
+};
+const REG_CAT_DESC = {
+  中央法規: "中央主管機關發布之都市更新相關法規",
+  地方自治條例: "地方政府公布之都市更新相關法規",
+  都更配套子法: "都市更新配套子法及相關辦法",
+  "行政命令/函釋": "主管機關函釋及行政命令",
+  其他: "其他都市更新相關資源",
+};
+function _regCatIcon(cat) {
+  return REG_CAT_ICON[cat] || "📁";
+}
+// 卡片圖示 / 色調各自獨立挑選(圖示依名稱關鍵字比對內容類型,色調依卡片順序輪替配色),
+// 呈現跟新聞/知識庫頁同樣「每張卡自己一個顏色」的視覺效果,不是每個分類固定一色。
+const REG_TONE_PALETTE = ["#2563eb", "#16a34a", "#7c3aed", "#ea580c", "#db2777", "#0d9488"];
+function _regItemIcon(name) {
+  const t = name || "";
+  if (/GIS|查詢平台|地圖/.test(t)) return "📍";
+  if (/審議會|委員會|決議/.test(t)) return "👥";
+  if (/危老|加速重建|老舊建築/.test(t)) return "🛡️";
+  if (/權利變換|實施辦法/.test(t)) return "🔄";
+  if (/總覽|覽表|彙整|一覽/.test(t)) return "📋";
+  return "📄";
+}
+
+const REG_TAG_RULES = [
+  ["母法", /母法/], ["都市更新", /都更|都市更新/], ["危老", /危老|老舊建築/], ["容積獎勵", /容積/],
+  ["權利變換", /權利變換|權變/], ["實施辦法", /實施辦法/], ["自治條例", /自治條例/], ["地方法規", /地方自治|地方法規/],
+  ["中央法規", /中央法規|中央主管/], ["審議會", /審議會|審議/], ["公聽會", /公聽會|聽證/], ["GIS", /GIS/i],
+  ["案件查詢", /案件查詢|案件/], ["法規總覽", /總覽|覽表/], ["便民服務", /便民/], ["函釋", /函釋|行政命令/],
+];
+const REG_CITY_RE = /(台北|臺北|新北|桃園|台中|臺中|台南|臺南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|台東|臺東)(市|縣)?/;
+const REG_COUNTY_BASES = ["苗栗", "彰化", "南投", "雲林", "屏東", "宜蘭", "花蓮", "台東"];
+
+function _regTagsOf(r) {
+  if (r._regTags) return r._regTags;
+  const text = `${r.name || ""} ${r.description || ""}`;
+  const tags = REG_TAG_RULES.filter(([, re]) => re.test(text)).map(([t]) => t).slice(0, 2);
+  const m = text.match(REG_CITY_RE);
+  if (m) {
+    const base = m[1].replace("臺", "台");
+    const suffix = m[2] || (REG_COUNTY_BASES.includes(base) ? "縣" : ["新竹", "嘉義"].includes(base) ? "" : "市");
+    const city = base + suffix;
+    if (!tags.includes(city)) tags.push(city);
+  }
+  r._regTags = tags.slice(0, 3);
+  return r._regTags;
+}
+
+function _regMatchesQuery(r, q) {
+  if (!q) return true;
+  return [r.name, r.description, r.category].some((t) => (t || "").toLowerCase().includes(q));
+}
+
+function _regCardHtml(r, tone, editable) {
+  const url = escapeHtml(r.url);
+  const icon = _regItemIcon(r.name);
+  const tags = _regTagsOf(r);
+  return `
+    <div class="reg-card" style="--tone:${tone}" data-id="${r.id}">
+      <span class="reg-card-icon">${icon}</span>
+      <div class="reg-card-body">
+        <div class="reg-card-top">
+          <a class="reg-card-title" href="${url}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
+          <a class="reg-card-arrow" href="${url}" target="_blank" rel="noopener" title="開啟原文">→</a>
+        </div>
+        ${r.description ? `<div class="reg-card-desc">${escapeHtml(r.description)}</div>` : ""}
+        <div class="reg-card-foot">
+          <span class="reg-card-tags">${tags.map((t) => `<span class="reg-tag">#${escapeHtml(t)}</span>`).join("")}</span>
+          ${editable
+      ? `<span class="news-card-actions">
+                 <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+                 <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>
+               </span>`
+      : ""
+    }
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderRegulationsList(items, editable) {
+  const el = document.getElementById("regulations-list");
+  if (!el) return;
+
+  const catOf = (i) => (i.category || "").trim() || "未分類";
+  const cats = [...new Set([...REGULATION_DEFAULT_CATS, ...items.map(catOf)])];
+  const q = (regQuery || "").toLowerCase().trim();
+  const searched = items.filter((i) => _regMatchesQuery(i, q));
+
+  const bar = document.getElementById("reg-cat-bar");
+  if (bar) {
+    bar.innerHTML = ["全部", ...cats]
+      .map((c) => {
+        const n = c === "全部" ? searched.length : searched.filter((i) => catOf(i) === c).length;
+        return `<button type="button" class="reg-tab ${regCurCat === c ? "act" : ""}" data-reg-cat="${escapeHtml(c)}">
+          <span>${c === "全部" ? "📚" : _regCatIcon(c)}</span>${escapeHtml(c)}<span class="reg-tab-n">${n}</span>
+        </button>`;
+      })
+      .join("");
+    bar.querySelectorAll("[data-reg-cat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        regCurCat = btn.dataset.regCat;
+        renderRegulationsList(items, editable);
+      });
+    });
+  }
+
+  const countEl = document.getElementById("reg-count");
+  if (countEl) countEl.textContent = `共 ${searched.length} 個連結`;
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">尚無連結,${editable ? "點右上角新增" : "請洽管理員新增"}</div>`;
+    return;
+  }
+  if (!searched.length) {
+    el.innerHTML = `<div class="empty-state">找不到符合「${escapeHtml(regQuery)}」的法規</div>`;
+    return;
+  }
+
+  const gridCls = regViewMode === "list" ? "reg-cards-list" : "reg-cards-grid";
+  let toneIdx = 0;
+  const nextTone = () => REG_TONE_PALETTE[toneIdx++ % REG_TONE_PALETTE.length];
+
+  let sectionsHtml;
+  if (regCurCat === "全部") {
+    const byCategory = {};
+    searched.forEach((item) => (byCategory[catOf(item)] = byCategory[catOf(item)] || []).push(item));
+    sectionsHtml = Object.entries(byCategory)
+      .map(([cat, rows]) => {
+        const tone = nextTone();
+        const preview = rows.slice(0, REG_PREVIEW_COUNT);
+        return `
+        <div class="reg-section">
+          <div class="reg-section-hdr" style="--tone:${tone}">
+            <span class="reg-section-bar"></span>
+            <span class="reg-section-icon">${_regCatIcon(cat)}</span>
+            <span class="reg-section-name">${escapeHtml(cat)}</span>
+            ${REG_CAT_DESC[cat] ? `<span class="reg-section-desc">${escapeHtml(REG_CAT_DESC[cat])}</span>` : ""}
+            ${rows.length > REG_PREVIEW_COUNT ? `<button type="button" class="reg-section-more" data-reg-cat="${escapeHtml(cat)}">查看全部 →</button>` : ""}
+          </div>
+          <div class="${gridCls}">${preview.map((r) => _regCardHtml(r, tone, editable)).join("")}</div>
+        </div>`;
+      })
+      .join("");
+  } else {
+    const rows = searched.filter((i) => catOf(i) === regCurCat);
+    sectionsHtml = rows.length
+      ? `<div class="${gridCls}">${rows.map((r) => _regCardHtml(r, nextTone(), editable)).join("")}</div>`
+      : `<div class="empty-state">此分類尚無連結</div>`;
+  }
+  el.innerHTML = sectionsHtml;
+
+  // 每個分類區塊的「查看全部 →」:切到該分類的頁籤(el = regulations-list,不包含上面的頁籤列)
+  el.querySelectorAll("[data-reg-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      regCurCat = btn.dataset.regCat;
+      renderRegulationsList(items, editable);
+    });
+  });
+  if (editable) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        const item = currentLoadedRegulations.find((r) => r.id === Number(btn.dataset.editLink));
         openLinkFormModal("編輯法規連結", "/regulations", item, loadRegulations);
       });
     });
@@ -1401,6 +1581,23 @@ function initResources() {
     e.currentTarget.classList.toggle("btn-primary", regulationsEditMode);
     e.currentTarget.classList.toggle("btn-secondary", !regulationsEditMode);
     loadRegulations();
+  });
+  document.getElementById("reg-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
+  });
+  const runRegSearch = () => {
+    regQuery = document.getElementById("reg-search-input")?.value || "";
+    renderRegulationsList(currentLoadedRegulations, isManager() && regulationsEditMode);
+  };
+  document.getElementById("reg-search-input")?.addEventListener("input", runRegSearch);
+  document.getElementById("reg-search-btn")?.addEventListener("click", runRegSearch);
+  document.getElementById("reg-view-toggle")?.querySelectorAll("[data-reg-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      regViewMode = btn.dataset.regView;
+      document.querySelectorAll("#reg-view-toggle [data-reg-view]").forEach((b) => b.classList.toggle("act", b === btn));
+      renderRegulationsList(currentLoadedRegulations, isManager() && regulationsEditMode);
+    });
   });
 
   document.getElementById("new-website-btn")?.addEventListener("click", () => {
