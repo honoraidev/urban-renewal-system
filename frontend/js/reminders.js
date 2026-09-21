@@ -52,7 +52,7 @@ function remindersEnsureStyle() {
     .nav-bell-btn.has-items .nav-bell-icon { display: inline-block; transform-origin: 50% 8%; animation: bell-ring 1.1s ease-in-out .3s 2; }
     .nav-bell-btn:hover .nav-bell-icon { display: inline-block; transform-origin: 50% 8%; animation: bell-ring .8s ease-in-out; }
     .nav-bell-item { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
-      padding: 8px; border-radius: 8px; }
+      padding: 8px; border-radius: 8px; white-space: normal; word-break: break-word; }
     .nav-bell-item { animation: bell-item-in .3s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 45ms + 80ms); }
     .nav-bell-item:hover { background: var(--surface-2); }
     .nav-bell-item-text { font-size: 13px; color: var(--text); line-height: 1.4; }
