@@ -55,7 +55,7 @@ async function renderContactsTab(el) {
     <div id="contacts-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>地主姓名</th><th>建物門牌</th><th>連絡電話</th><th>戶籍地址</th>
+          <th class="col-idx">#</th><th>地主姓名</th><th>建物門牌</th><th>樓層</th><th>連絡電話</th><th>戶籍地址</th>
         </tr></thead>
         <tbody>
           ${rows
@@ -71,7 +71,8 @@ async function renderContactsTab(el) {
                 if (!addrMap.has(label)) addrMap.set(label, shared);
               });
               const doorEntries = [...addrMap.entries()];
-              const hay = `${o.name} ${o.phone_landline || ""} ${o.phone_mobile || ""} ${o.phone || ""} ${o.address || ""} ${doorEntries.map(([a]) => a).join(" ")}`.toLowerCase();
+              const floorText = [...new Set((o.building_records || []).map(_floorLabelOf).filter(Boolean))].join("、");
+              const hay = `${o.name} ${o.phone_landline || ""} ${o.phone_mobile || ""} ${o.phone || ""} ${o.address || ""} ${doorEntries.map(([a]) => a).join(" ")} ${floorText}`.toLowerCase();
               const phoneTok = hasPhone(o) ? "has" : "none";
               const phoneHtml = hasPhone(o)
                 ? `${o.phone_landline ? `<div>${escapeHtml(o.phone_landline)}</div>` : ""}${o.phone_mobile ? `<div class="ph-mobile">${escapeHtml(o.phone_mobile)}</div>` : ""}${!o.phone_landline && !o.phone_mobile && o.phone ? `<div>${escapeHtml(o.phone)}</div>` : ""}`
@@ -89,6 +90,7 @@ async function renderContactsTab(el) {
                 <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
                 <td class="col-name">${escapeHtml(o.name)}</td>
                 <td>${doorHtml}</td>
+                <td class="col-nowrap">${floorText ? escapeHtml(floorText) : `<span style="color:var(--text-muted)">-</span>`}</td>
                 <td class="cell-phone">${phoneHtml}</td>
                 <td class="cell-addr">${o.address ? escapeHtml(o.address) : `<span style="color:var(--text-muted)">未填寫</span>`}</td>
               </tr>`;

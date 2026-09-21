@@ -133,7 +133,7 @@ async function renderLandValueTaxTab(el) {
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
-          <th>編號</th><th>地主</th><th>計算明細</th><th>本次申報移轉現值(元)</th>
+          <th>編號</th><th>地主</th><th>建物門牌</th><th>樓層</th><th>計算明細</th><th>本次申報移轉現值(元)</th>
           <th>稅額試算(自用／一般／節省)</th>
         </tr></thead>
         <tbody id="ltt-tbody"></tbody>
@@ -190,10 +190,29 @@ function renderLttTbody(el, landOwners, liveValues) {
       const seq = String(i + 1).padStart(3, "0");
       const recs = o.land_records || [];
       const parcels = [...new Set(recs.map((lr) => lr.parcel_number).filter(Boolean))].join("、");
+      // 建物門牌/樓層(跟「整合清冊」同一套簡化:_shortDoorAddr / _floorLabelOf,定義在
+      // landowners.js;房屋地下N層的持分建號標灰色「(地下持分)」),地主層級顯示一次。
+      const doorMap = new Map();
+      (o.building_records || []).forEach((r) => {
+        const label = _shortDoorAddr(r.address);
+        if (label && !doorMap.has(label)) doorMap.set(label, /房屋地下/.test(r.address || ""));
+      });
+      const doorHtml = doorMap.size
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${[...doorMap.entries()]
+            .map(([a, shared]) =>
+              shared
+                ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+                : `<span class="mini-badge">${escapeHtml(a)}</span>`
+            )
+            .join("")}</div>`
+        : `<span class="helper-text">-</span>`;
+      const floors = [...new Set((o.building_records || []).map(_floorLabelOf).filter(Boolean))].join("、");
       const parent = `
         <tr class="ltt-parent" data-owner-parent="${o.id}">
           <td style="white-space:nowrap"><button type="button" class="ltt-toggle" data-owner-toggle="${o.id}" style="border:none;background:none;cursor:pointer;font-size:13px;margin-right:4px;color:var(--text-muted)">▸</button>${seq}</td>
           <td>${escapeHtml(o.name)}</td>
+          <td>${doorHtml}</td>
+          <td style="white-space:nowrap">${floors ? escapeHtml(floors) : `<span class="helper-text">-</span>`}</td>
           <td colspan="2" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
           <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o, liveValues)}</td>
         </tr>`;
@@ -261,7 +280,7 @@ function lttChildRowHtml(owner, record, liveValues) {
     : `${record.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${record.ltt_current_value ? `${Number(record.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
   return `
     <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
-      <td colspan="2" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
+      <td colspan="4" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
       <td>${lttDetailCellHtml(record, result)}</td>
       <td class="ltt-current-cell">${currentValueCell}</td>
       <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>

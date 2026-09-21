@@ -1339,23 +1339,6 @@ function landRecordFormFields(record) {
         <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="金額 (例: 456000)" style="flex:1;min-width:100px" autocomplete="off">
       </div>
       <div class="helper-text" style="margin-top:4px">供「土增稅」頁自動計算「本月申報移轉現值」用;臺北市案件「土增稅」頁會自動查詢帶入,這裡填的值只在查無資料時當備援。</div>
-    </div>
-    <div class="field-row">
-      <div class="field">
-        <label>物價指數調整比例(%)</label>
-        <input name="ltt_cpi_index" type="number" step="0.01" value="${r.ltt_cpi_index ?? ""}" placeholder="留空=土增稅頁自動查詢" autocomplete="off">
-        <div class="helper-text" style="margin-top:4px">前次移轉當時消費者物價總指數換算成以前次現值為基期100的比值。留空的話「土增稅」頁會依前次移轉年月自動查主計總處官方換算表帶入;這裡填了值就以這裡為準。</div>
-      </div>
-      <div class="field">
-        <label>持有年限(年)</label>
-        <input name="ltt_holding_years" type="number" step="1" value="${r.ltt_holding_years ?? ""}" placeholder="留空=依上方年月自動計算" autocomplete="off">
-        <div class="helper-text" style="margin-top:4px">留空由系統依「前次移轉」與「當期公告現值」年月自動算,年月無法判讀或需人工修正時才手動填。</div>
-      </div>
-      <div class="field">
-        <label>改良土地費用等可扣除金額</label>
-        <input name="ltt_deductible_cost" type="number" step="1" value="${r.ltt_deductible_cost ?? ""}" placeholder="無單據留空" autocomplete="off">
-        <div class="helper-text" style="margin-top:4px">土地改良費用、工程受益費等依法可從漲價總數額扣除的項目,沒有單據留空。</div>
-      </div>
     </div>`;
 }
 
@@ -1412,9 +1395,8 @@ function readLandRecordForm(fd) {
     ltt_original_value: Number(data.ltt_original_value) || null,
     ltt_current_value_period: data.ltt_current_value_period || null,
     ltt_current_value: Number(data.ltt_current_value) || null,
-    ltt_cpi_index: data.ltt_cpi_index ? Number(data.ltt_cpi_index) : null,
-    ltt_holding_years: data.ltt_holding_years ? Number(data.ltt_holding_years) : null,
-    ltt_deductible_cost: data.ltt_deductible_cost ? Number(data.ltt_deductible_cost) : null,
+    // 物價指數調整比例/持有年限/可扣除金額三欄已從表單移除,這裡刻意不送,才不會在編輯時
+    // 把資料庫裡既有的手動值覆蓋成 null(土增稅頁仍會用這些值,沒填就走自動計算)。
   };
 }
 
