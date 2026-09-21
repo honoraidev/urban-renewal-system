@@ -54,28 +54,38 @@ function encumbrancePropertyAddressCellHtml(enc) {
   const entries = [...addrMap.entries()];
   if (!entries.length) return escapeHtml(enc.property_address);
 
-  const badgeHtml = ([a, info]) => {
+  // 一戶 = 門牌徽章(只放簡化後的門牌,短短一顆) + 底下一行灰字建號;建號多了只列前 2 個
+  // + 「等N筆」,完整清單放 title。徽章跟建號拆開,才不會整顆膠囊被拉得又長又擠。
+  const badgeOnly = ([a, info]) =>
+    info.shared
+      ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+      : `<span class="mini-badge">${escapeHtml(a)}</span>`;
+  const bnHtml = (info) => {
     const bns = [...info.buildingNumbers];
-    const bnText = bns.length ? `(建號${bns.slice(0, 2).join("、")}${bns.length > 2 ? `等${bns.length}筆` : ""})` : "";
-    const titleAttr = bns.length > 2 ? ` title="建號:${escapeHtml(bns.join("、"))}"` : "";
-    const label = `${escapeHtml(a)}${escapeHtml(bnText)}`;
-    return info.shared
-      ? `<span class="mini-badge mini-badge-shared-door"${titleAttr || ' title="依持分比例登記的地下室/車位建號,非專屬住家門牌"'}>${label}(地下持分)</span>`
-      : `<span class="mini-badge"${titleAttr}>${label}</span>`;
+    if (!bns.length) return "";
+    const text = `建號 ${bns.slice(0, 2).join("、")}${bns.length > 2 ? ` 等${bns.length}筆` : ""}`;
+    return `<div class="enc-addr-bn"${bns.length > 2 ? ` title="建號:${escapeHtml(bns.join("、"))}"` : ""}>${escapeHtml(text)}</div>`;
   };
-  const badgesWrap = (list) => `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(badgeHtml).join("")}</div>`;
 
-  if (entries.length === 1) return badgesWrap(entries);
+  if (entries.length === 1) {
+    return `<div class="enc-addr-cell"><div class="enc-addr-line">${badgeOnly(entries[0])}</div>${bnHtml(entries[0][1])}</div>`;
+  }
   // 跟「地主聯絡簿」篩選(contacts.js 的 #contacts-phone-dd)同一套 details/summary
   // 浮動下拉 - 點開是懸浮面板蓋在表格上面,不會把這一列的高度撐開、拖累其他欄對不
   // 齊,跟原本用 hidden class 就地展開(會撐高整列)的 .enc-obligor-cell 不一樣。
+  const panelHtml = entries
+    .map((e) => `<div class="enc-addr-panel-row">${badgeOnly(e)}${bnHtml(e[1])}</div>`)
+    .join("");
   return `
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-      ${badgesWrap([entries[0]])}
-      <details class="enc-addr-dd">
-        <summary class="enc-addr-toggle">共${entries.length}戶 ▾</summary>
-        <div class="enc-addr-dd-panel">${badgesWrap(entries)}</div>
-      </details>
+    <div class="enc-addr-cell">
+      <div class="enc-addr-line">
+        ${badgeOnly(entries[0])}
+        <details class="enc-addr-dd">
+          <summary class="enc-addr-toggle">共${entries.length}戶 ▾</summary>
+          <div class="enc-addr-dd-panel">${panelHtml}</div>
+        </details>
+      </div>
+      ${bnHtml(entries[0][1])}
     </div>`;
 }
 
@@ -168,7 +178,7 @@ async function renderEncumbrancesTab(el) {
       <button type="button" class="enc-kind-btn ${encActiveKind === "building" ? "active" : ""}" data-enc-kind="building">建物 (${buildingCount})</button>
     </div>
     <div class="table-wrap">
-      <table>
+      <table class="enc-table">
         <thead><tr>
           <th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>債權額比例</th><th style="text-align:right">擔保債權總金額</th>
           ${isEditor() ? "<th>操作</th>" : ""}
