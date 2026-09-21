@@ -603,12 +603,6 @@ async function renderSopTab(el) {
   const isDualGate = selectedIsCurrent && !stageRequirements && DUAL_GATE_KEYS.includes(selectedStage.key);
   const stageMeta = (selectedStage.data && selectedStage.data.meta) || {};
   const userById = Object.fromEntries(assignableUsers.map((u) => [u.id, u]));
-  const stageDocs = allDocs
-    .filter((d) => d.sop_stage === Number(selected))
-    .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-
-  // 階段任務清單裡已經有「預覽」眼睛按鈕的檔案(該項目最新上傳的那份),相關檔案列表就不重複放。
-  const checklistPreviewDocIds = new Set();
   let checklistHtml = "";
   let checklistAllDone = true;
   let checklistDoneCount = 0;
@@ -652,7 +646,7 @@ async function renderSopTab(el) {
           if (formEntry) {
             sub = `已填表・${fmtDateTime(formEntry.submitted_at)}${doc ? "・另有上傳檔案" : ""}`;
           } else {
-            sub = doc ? `已上傳・${fmtDateTime(doc.uploaded_at)}` : "尚未上傳";
+            sub = doc ? `${doc.file_name}・${fmtDateTime(doc.uploaded_at)}` : "尚未上傳";
           }
         } else if (item.countOf === "landowner_with_phone") {
           done = phoneCount > 0;
@@ -690,7 +684,6 @@ async function renderSopTab(el) {
         // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
         // 「相關檔案」找。
         const previewDoc = item.docType ? latestByType[item.docType] : null;
-        if (previewDoc) checklistPreviewDocIds.add(previewDoc.id);
         const previewBtn = previewDoc
           ? `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">👁</button>`
           : "";
@@ -747,23 +740,6 @@ async function renderSopTab(el) {
     ? `最後更新:${fmtDateTime(stageMeta.updated_at)}${updatedByUser ? `・${escapeHtml(updatedByUser.display_name)}` : ""}`
     : "";
 
-  const fileSizeText = (bytes) => {
-    if (!bytes) return "";
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  };
-  const fileRowHtml = (d) => `
-    <div class="sop-file-row" data-doc-id="${d.id}">
-      <span class="sop-file-icon">📄</span>
-      <div class="sop-file-main">
-        <div class="sop-file-name">${escapeHtml(d.file_name)}</div>
-        <div class="helper-text">${fmtDateTime(d.uploaded_at)}${fileSizeText(d.file_size_bytes) ? `・${fileSizeText(d.file_size_bytes)}` : ""}${d.uploaded_by && userById[d.uploaded_by] ? `・上傳:${escapeHtml(userById[d.uploaded_by].display_name)}` : ""}</div>
-      </div>
-      ${checklistPreviewDocIds.has(d.id) ? "" : `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" data-sop-file-view-name="${escapeHtml(d.file_name)}" title="預覽">👁</button>`}
-      <button type="button" class="btn-secondary btn-sm" data-sop-file-download="${d.id}" data-sop-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
-      ${canEditMeta ? `<button type="button" class="btn-danger btn-sm" data-sop-file-delete="${d.id}" title="刪除">✕</button>` : ""}
-    </div>`;
-
   el.innerHTML = `
     <div class="sop-panel-layout">
       <div class="sop-nav-list-wrap">
@@ -792,20 +768,6 @@ async function renderSopTab(el) {
         </div>
 
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
-
-        <div class="card sop-subcard">
-          <div class="sop-subcard-header">
-            <h4>📎 相關檔案</h4>
-          </div>
-          <div class="sop-file-list">${stageDocs.length ? stageDocs.map(fileRowHtml).join("") : `<div class="empty-state">尚無相關檔案</div>`}</div>
-        </div>
-
-        <div class="card sop-subcard">
-          <h4>📝 階段備註</h4>
-          <textarea id="sop-meta-notes" maxlength="500" rows="3" ${!canEditMeta ? "readonly" : ""} placeholder="${canEditMeta ? "輸入備註內容..." : ""}">${escapeHtml(stageMeta.notes) || ""}</textarea>
-          <div class="helper-text sop-notes-count"><span id="sop-notes-count">${(stageMeta.notes || "").length}</span>/500</div>
-          ${canEditMeta ? `<div style="text-align:right"><button type="button" class="btn-secondary btn-sm" id="sop-save-meta-btn">儲存備註</button></div>` : ""}
-        </div>
 
         ${selectedIsCurrent && isEditor()
           ? `<div class="sop-action-bar">
@@ -948,47 +910,10 @@ async function renderSopTab(el) {
       } catch (err) { }
     });
   }
-
-  // ---- 相關檔案:預覽/下載/刪除(上傳功能移除,這裡只保留檢視既有檔案) ----
+  // ---- 階段任務清單上傳項目的預覽按鈕 ----
   el.querySelectorAll("[data-sop-file-view]").forEach((btn) => {
     btn.addEventListener("click", () => viewDocument(Number(btn.dataset.sopFileView), btn.dataset.sopFileViewName));
   });
-  el.querySelectorAll("[data-sop-file-download]").forEach((btn) => {
-    btn.addEventListener("click", () => downloadDocument(Number(btn.dataset.sopFileDownload), btn.dataset.sopFileName));
-  });
-  el.querySelectorAll("[data-sop-file-delete]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("確定要刪除這個檔案嗎?")) return;
-      try {
-        await api(`/projects/${pid}/documents/${btn.dataset.sopFileDelete}`, { method: "DELETE" });
-        toast("已刪除", "success");
-        renderSopTab(el);
-      } catch (err) { }
-    });
-  });
-
-  // ---- 階段備註字數計數 ----
-  const notesInput = document.getElementById("sop-meta-notes");
-  const notesCount = document.getElementById("sop-notes-count");
-  if (notesInput && notesCount) {
-    notesInput.addEventListener("input", () => {
-      notesCount.textContent = notesInput.value.length;
-    });
-  }
-
-  // ---- 階段備註存檔,PATCH .../sop/{stage}/meta ----
-  if (canEditMeta) {
-    const saveMetaBtn = document.getElementById("sop-save-meta-btn");
-    if (saveMetaBtn) {
-      saveMetaBtn.addEventListener("click", async () => {
-        try {
-          await api(`/projects/${pid}/sop/${selected}/meta`, { method: "PATCH", body: { notes: notesInput.value || null } });
-          toast("已儲存", "success");
-          renderSopTab(el);
-        } catch (err) { }
-      });
-    }
-  }
 }
 
 async function renderConsentPanel(el, stage) {
