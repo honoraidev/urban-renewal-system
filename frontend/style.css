@@ -2262,11 +2262,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "toolbar toolbar" "main aside";
 }
 .ws-top { grid-area: top; min-width: 0; }
-/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
-   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。
-   display:none 的媒體查詢一定要放在同一個規則的「之後」才會蓋掉這裡的 display:flex ——
-   兩條規則specificity 一樣時是看原始碼順序,寫反了窄螢幕就會蓋不掉,插圖還是跑出來。 */
-.ws-deco { grid-area: deco; position: relative; min-height: 190px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+/* 標語 + 插圖的排版跟位置、字體大小完全比照 Q&A知識庫頁(.fq-deco):標語貼在插圖左邊、
+   同一個水平高度並排(不是疊在插圖上面)。 */
+.ws-deco { grid-area: deco; position: relative; min-height: 190px; }
 .ws-list-toolbar { grid-area: toolbar; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 14px; }
 .ws-main { grid-area: main; min-width: 0; }
 /* 固定跟著頁面一起捲動(不用 sticky)—— sticky 黏住後跟主欄清單的捲動進度會不同步,
@@ -2282,13 +2280,13 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-title-icon { font-size: 28px; }
 .ws-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
-.ws-slogan {
-  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
-  font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
+.ws-deco .ws-slogan {
+  position: absolute; right: 330px; top: 30px; z-index: 1; white-space: nowrap; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
+  font-size: 23px; line-height: 1.5; color: #1f2a44; transform: rotate(-3deg); text-align: left;
 }
 [data-theme="dark"] .ws-slogan { color: #dbe4f0; }
-.ws-slogan-line { display: block; width: 160px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
-.ws-city { width: 320px; max-width: 100%; height: auto; opacity: .95; }
+.ws-slogan-line { display: block; width: 210px; height: 12px; color: var(--brand); margin-top: 2px; }
+.ws-city { position: absolute; right: 0; top: 0; width: 310px; max-width: 100%; height: auto; opacity: .95; }
 
 .ws-search {
   display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border);
@@ -2376,11 +2374,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "tabs tabs" "main main";
 }
 .reg-top { grid-area: top; min-width: 0; }
-/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
-   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。
-   display:none 的媒體查詢一定要放在同一個規則的「之後」才會蓋掉這裡的 display:flex ——
-   兩條規則 specificity 一樣時是看原始碼順序,寫反了窄螢幕就會蓋不掉,插圖還是跑出來。 */
-.reg-deco { grid-area: deco; position: relative; min-height: 190px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+/* 標語 + 插圖的排版跟位置、字體大小完全比照 Q&A知識庫頁(.fq-deco):標語貼在插圖左邊、
+   同一個水平高度並排(不是疊在插圖上面)。 */
+.reg-deco { grid-area: deco; position: relative; min-height: 190px; }
 .reg-tabs-row { grid-area: tabs; }
 .reg-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
@@ -2393,13 +2389,13 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-title-icon { font-size: 28px; }
 .reg-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
-.reg-slogan {
-  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
-  font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
+.reg-deco .reg-slogan {
+  position: absolute; right: 330px; top: 30px; z-index: 1; white-space: nowrap; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
+  font-size: 23px; line-height: 1.5; color: #1f2a44; transform: rotate(-3deg); text-align: left;
 }
 [data-theme="dark"] .reg-slogan { color: #dbe4f0; }
-.reg-slogan-line { display: block; width: 160px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
-.reg-city { width: 320px; max-width: 100%; height: auto; opacity: .95; }
+.reg-slogan-line { display: block; width: 210px; height: 12px; color: var(--brand); margin-top: 2px; }
+.reg-city { position: absolute; right: 0; top: 0; width: 310px; max-width: 100%; height: auto; opacity: .95; }
 
 .reg-search {
   display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border);
