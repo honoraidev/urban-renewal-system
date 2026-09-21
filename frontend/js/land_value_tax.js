@@ -164,7 +164,9 @@ async function renderLandValueTaxTab(el) {
   let cpiNote = "";
   try {
     const cpiLookup = await api(`/projects/${pid}/landowners/ltt-cpi-index-lookup-all`, { silent: true });
-    if (!cpiLookup.error) {
+    if (cpiLookup.error) {
+      cpiNote = "⚠ 物價指數(主計總處官方換算表)自動查詢失敗,暫以 100% 計算,前次移轉現值未做物價調整,稅額會偏高。";
+    } else {
       Object.entries(cpiLookup.records || {}).forEach(([id, v]) => {
         liveValues[id] = { ...(liveValues[id] || {}), cpi_index: v.cpi_index };
       });
