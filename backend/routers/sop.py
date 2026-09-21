@@ -31,6 +31,8 @@ from schemas.sop import (
     SopStageMetaUpdate,
     SopStatusResponse,
     StageFormRequest,
+    StageTodoCreate,
+    StageTodoUpdate,
 )
 from utils.consent_ratio import calculate_consent_ratio
 
@@ -668,6 +670,136 @@ def save_stage_form(
 
     entry_data["forms"] = forms
     stage_entry["data"] = entry_data
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
+# 自訂待辦事項:存在 stage.data.custom_todos(list of {id, content, done, created_at,
+# created_by, done_at, done_by}),跟 confirm_checklist_item/save_stage_form 一樣直接
+# 存在關卡自己的 JSON 裡,不另外開表。故意不計進 _assert_gate_passed/checklistAllDone -
+# 這是使用者自己記的待辦,不是系統認得的完成門檻,打勾與否不該卡住「完成本階段」。
+def _next_todo_id(todos: list[dict]) -> int:
+    return max((t.get("id", 0) for t in todos), default=0) + 1
+
+
+@router.post("/{stage}/todos", response_model=SopStatusResponse, status_code=status.HTTP_201_CREATED)
+def add_stage_todo(
+    stage: int,
+    payload: StageTodoCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+    if not (0 <= stage <= _final_stage_index(sop)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+    content = (payload.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="待辦事項內容不可空白")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    todos = list(entry_data.get("custom_todos") or [])
+    todos.append(
+        {
+            "id": _next_todo_id(todos),
+            "content": content,
+            "done": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_by": current_user.id,
+        }
+    )
+    entry_data["custom_todos"] = todos
+    stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
+@router.patch("/{stage}/todos/{todo_id}", response_model=SopStatusResponse)
+def update_stage_todo(
+    stage: int,
+    todo_id: int,
+    payload: StageTodoUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+    if not (0 <= stage <= _final_stage_index(sop)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    todos = list(entry_data.get("custom_todos") or [])
+    idx = next((i for i, t in enumerate(todos) if t.get("id") == todo_id), None)
+    if idx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
+
+    todo = dict(todos[idx])
+    updates = payload.model_dump(exclude_unset=True)
+    if updates.get("content") is not None:
+        content = updates["content"].strip()
+        if not content:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="待辦事項內容不可空白")
+        todo["content"] = content
+    if "done" in updates and updates["done"] is not None:
+        todo["done"] = updates["done"]
+        todo["done_at"] = datetime.now(timezone.utc).isoformat() if updates["done"] else None
+        todo["done_by"] = current_user.id if updates["done"] else None
+    todos[idx] = todo
+    entry_data["custom_todos"] = todos
+    stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
+@router.delete("/{stage}/todos/{todo_id}", response_model=SopStatusResponse)
+def delete_stage_todo(
+    stage: int,
+    todo_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+    if not (0 <= stage <= _final_stage_index(sop)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    todos = [t for t in (entry_data.get("custom_todos") or []) if t.get("id") != todo_id]
+    entry_data["custom_todos"] = todos
+    stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
     stages[stage_key] = stage_entry
     stage_data["stages"] = stages
     sop.stage_data = stage_data

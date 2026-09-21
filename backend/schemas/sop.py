@@ -61,6 +61,19 @@ class ChecklistConfirmRequest(BaseModel):
     confirmed: bool = True
 
 
+class StageTodoCreate(BaseModel):
+    # 使用者在關卡自己手動加的待辦事項(跟系統認得的上傳/匯入/門檻需求是分開的兩件事)—
+    # 存在 stage.data.custom_todos,不會計進「完成本階段」的門檻判斷,純粹給團隊自己
+    # 記事、打勾用。
+    content: str
+
+
+class StageTodoUpdate(BaseModel):
+    # 都留 None = 不更新那個欄位。只給 done 就是打勾/取消勾,只給 content 就是改文字。
+    done: bool | None = None
+    content: str | None = None
+
+
 class StageFormRequest(BaseModel):
     # doc_type names which 範本 checklist item this online form belongs to
     # (e.g. "consent_form_template"); form_data is the free-form field bag the

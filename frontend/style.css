@@ -898,6 +898,20 @@
   .sop-checklist-label { font-weight: 700; font-size: 13.5px; color: var(--text); }
   .sop-checklist-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
+  /* ---------- 自訂待辦事項(sop-subcard 裡的第二個 checklist,checkbox 是可以點的按鈕) ---------- */
+  button.sop-checklist-icon.sop-todo-check {
+    background: var(--surface); padding: 0; cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  button.sop-checklist-icon.sop-todo-check:hover:not(:disabled) { border-color: var(--success); }
+  button.sop-checklist-icon.sop-todo-check:disabled { cursor: default; opacity: .6; }
+  .sop-todo-label-done { color: var(--text-muted); text-decoration: line-through; font-weight: 600; }
+  .sop-todo-add-row { display: flex; gap: 8px; margin-top: 12px; }
+  .sop-todo-add-row input {
+    flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13.5px; background: var(--surface); color: var(--text);
+  }
+  .sop-todo-add-row input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(13, 148, 136, .12); }
+
   /* ---------- SOP 整體進度(左側欄上方) ---------- */
   .sop-overall-progress { margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
   .sop-overall-progress-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
