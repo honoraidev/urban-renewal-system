@@ -607,6 +607,8 @@ async function renderSopTab(el) {
     .filter((d) => d.sop_stage === Number(selected))
     .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
 
+  // 階段任務清單裡已經有「預覽」眼睛按鈕的檔案(該項目最新上傳的那份),相關檔案列表就不重複放。
+  const checklistPreviewDocIds = new Set();
   let checklistHtml = "";
   let checklistAllDone = true;
   let checklistDoneCount = 0;
@@ -685,6 +687,13 @@ async function renderSopTab(el) {
           item.manual && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
             : "";
+        // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
+        // 「相關檔案」找。
+        const previewDoc = item.docType ? latestByType[item.docType] : null;
+        if (previewDoc) checklistPreviewDocIds.add(previewDoc.id);
+        const previewBtn = previewDoc
+          ? `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">👁</button>`
+          : "";
         const uploadBtn =
           item.docType && canOcr()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-upload="${item.docType}">${done ? "重新上傳" : "上傳"}</button>
@@ -714,7 +723,7 @@ async function renderSopTab(el) {
             <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
             <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
           </div>
-          ${rosterBtn}${confirmBtn}${formBtn}${uploadBtn}${actionBtn}
+          ${rosterBtn}${confirmBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
         </div>`;
       })
       .join("");
@@ -750,7 +759,7 @@ async function renderSopTab(el) {
         <div class="sop-file-name">${escapeHtml(d.file_name)}</div>
         <div class="helper-text">${fmtDateTime(d.uploaded_at)}${fileSizeText(d.file_size_bytes) ? `・${fileSizeText(d.file_size_bytes)}` : ""}${d.uploaded_by && userById[d.uploaded_by] ? `・上傳:${escapeHtml(userById[d.uploaded_by].display_name)}` : ""}</div>
       </div>
-      <button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" data-sop-file-view-name="${escapeHtml(d.file_name)}" title="預覽">👁</button>
+      ${checklistPreviewDocIds.has(d.id) ? "" : `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${d.id}" data-sop-file-view-name="${escapeHtml(d.file_name)}" title="預覽">👁</button>`}
       <button type="button" class="btn-secondary btn-sm" data-sop-file-download="${d.id}" data-sop-file-name="${escapeHtml(d.file_name)}" title="下載">⬇</button>
       ${canEditMeta ? `<button type="button" class="btn-danger btn-sm" data-sop-file-delete="${d.id}" title="刪除">✕</button>` : ""}
     </div>`;
