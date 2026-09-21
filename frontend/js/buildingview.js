@@ -61,7 +61,8 @@ function buildingViewCellTooltip(cell) {
     const parts = [o.name || "(未填姓名)"];
     if (o.phone_mobile) parts.push(`📱${o.phone_mobile}`);
     if (o.phone_landline) parts.push(`☎${o.phone_landline}`);
-    if (o.address) parts.push(o.address);
+    if (o.building_address) parts.push(`🏠謄本門牌:${o.building_address}${o.building_number ? `(建號${o.building_number})` : ""}`);
+    if (o.address) parts.push(`戶籍:${o.address}`);
     parts.push(o.last_contact_result ? CONTACT_RESULT_LABEL[o.last_contact_result] || o.last_contact_result : "尚無聯絡紀錄");
     return parts.join(" · ");
   });
