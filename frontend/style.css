@@ -2584,3 +2584,204 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   .cd-title { font-size: 24px; }
   .cd-tips { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ================= 土地增值稅試算頁 ================= */
+/* 版面:標題+插圖同一列(右邊放三顆動作鈕),說明框、篩選列、可展開清單卡片、分頁。 */
+.lv-page { display: flex; flex-direction: column; gap: 16px; }
+.lv-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 12px 24px; align-items: start;
+  grid-template-areas: "title actions" "note deco";
+}
+.lv-title-area { grid-area: title; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.lv-title-icon {
+  width: 60px; height: 60px; border-radius: 18px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--brand-light); color: var(--brand-dark, var(--brand));
+}
+.lv-title-line { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lv-title { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: .01em; line-height: 1.2; }
+.lv-pill {
+  padding: 6px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap;
+  background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand-dark, var(--brand));
+}
+.lv-sub-title { margin-top: 4px; font-size: 17px; font-weight: 700; }
+.lv-head-actions { grid-area: actions; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.lv-hbtn {
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 12px; font-size: 15px; font-weight: 700;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.lv-hbtn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+.lv-hbtn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; border-color: transparent; }
+.lv-hbtn-primary:hover { color: #fff; filter: brightness(1.05); }
+.lv-note {
+  grid-area: note; display: flex; gap: 12px; align-items: flex-start; padding: 14px 18px; border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--border));
+  font-size: 14px; line-height: 1.75; color: var(--text-muted); min-width: 0;
+}
+.lv-note-ic { flex: 0 0 auto; display: inline-flex; color: #3b82f6; margin-top: 1px; }
+/* 插圖蓋在按鈕列下方、跟說明框同一排,標語壓在插圖左側(比照 Q&A 知識庫的作法) */
+.lv-deco { grid-area: deco; position: relative; height: 130px; margin-top: -22px; justify-self: end; width: 100%; max-width: 420px; }
+.lv-city { position: absolute; right: 0; top: 0; width: 240px; height: auto; opacity: .95; }
+.lv-slogan {
+  position: absolute; left: 6px; top: 22px; z-index: 1; white-space: nowrap; transform: rotate(-4deg); text-align: left;
+  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive; font-size: 20px; line-height: 1.5; color: #1f2a44;
+}
+[data-theme="dark"] .lv-slogan { color: #dbe4f0; }
+.lv-slogan-line { display: block; width: 190px; height: 12px; color: var(--brand); margin-top: 2px; }
+@media (max-width: 1100px) {
+  .lv-head { grid-template-columns: 1fr; grid-template-areas: "title" "actions" "note"; }
+  .lv-head-actions { justify-content: flex-start; }
+  .lv-deco { display: none; }
+}
+
+.lv-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lv-search {
+  display: flex; align-items: center; gap: 10px; flex: 1 1 260px; max-width: 356px; height: 48px; padding: 0 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); color: var(--text);
+}
+.lv-search:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(45, 212, 221, .18); }
+.lv-search input {
+  flex: 1; min-width: 0; height: 100%; border: none !important; background: transparent !important; box-shadow: none !important;
+  outline: none !important; padding: 0 !important; border-radius: 0 !important; font-size: 15px;
+}
+.lv-select {
+  appearance: none; -webkit-appearance: none; height: 48px; min-width: 176px; width: auto; padding: 0 44px 0 18px; border-radius: 14px;
+  font-size: 15.5px; font-weight: 600; cursor: pointer; color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371838a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center / 16px;
+}
+.lv-select-sm { height: 40px; min-width: 0; padding: 0 36px 0 14px; font-size: 14.5px; border-radius: 10px; background-position: right 12px center; }
+.lv-toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.lv-viewtoggle { display: inline-flex; padding: 4px; gap: 2px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.lv-viewtoggle button { width: 46px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-muted); border-radius: 10px; }
+.lv-viewtoggle button.active { background: var(--brand-light); color: var(--brand-dark, var(--brand)); }
+.lv-advbtn {
+  display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px; border-radius: 14px; font-size: 15.5px; font-weight: 700;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.lv-advbtn:hover, .lv-advbtn.open { border-color: var(--brand); opacity: 1; }
+.lv-adv-caret { display: inline-flex; margin-left: 10px; padding-left: 12px; border-left: 1px solid var(--border); color: var(--text-muted); transition: transform .2s; }
+.lv-advbtn.open .lv-adv-caret { transform: rotate(180deg); }
+.lv-adv {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px 18px; border-radius: 14px;
+  background: var(--surface); border: 1px dashed color-mix(in srgb, var(--brand) 40%, var(--border));
+}
+.lv-adv-field { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--text-muted); }
+.lv-check { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer; }
+.lv-adv-reset { margin-left: auto; background: none; color: var(--brand-dark, var(--brand)); font-weight: 700; padding: 4px 8px; text-decoration: underline; }
+
+.lv-list-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+.lv-scroll { overflow-x: auto; }
+.lv-table { min-width: 1100px; }
+.lv-cols {
+  display: grid; align-items: center; column-gap: 12px; padding: 0 20px;
+  grid-template-columns: 88px minmax(80px, .7fr) 130px minmax(120px, .9fr) minmax(300px, 2.6fr) 90px 170px;
+}
+.lv-thead { height: 54px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 14.5px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.lv-right { text-align: right; padding-right: 28px; }
+.lv-center { text-align: center; }
+.lv-row-wrap { border-bottom: 1px solid var(--border); }
+.lv-row-wrap:last-child { border-bottom: none; }
+.lv-row { min-height: 68px; cursor: pointer; font-size: 16px; transition: background .12s; }
+.lv-row:hover { background: var(--surface-2); }
+.lv-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.lv-c-seq { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+.lv-chev { display: inline-flex; color: var(--text-muted); }
+.lv-c-name { font-weight: 800; font-size: 17px; }
+.lv-c-count { display: flex; align-items: center; gap: 10px; }
+.lv-count-pill {
+  display: inline-block; padding: 5px 14px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap;
+  background: color-mix(in srgb, #3b82f6 13%, transparent); color: #2f6fd6;
+}
+[data-theme="dark"] .lv-count-pill { color: #8db8ff; }
+.lv-chev-up { display: inline-flex; color: var(--text-muted); transition: transform .2s; }
+.lv-row-wrap.open .lv-chev-up { transform: rotate(180deg); color: var(--brand-dark, var(--brand)); }
+.lv-c-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lv-c-tax { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0; font-size: 15px; container-type: inline-size; }
+/* 欄位寬到一整排放得下才用分隔線;不夠寬就折行,改用間距分開(避免行尾孤零零一條線) */
+@container (max-width: 520px) { .lv-tax-sep { display: none; } .lv-c-tax > .lv-tax-item { margin-right: 22px; } }
+.lv-tax-item { display: inline-flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.lv-tax-item em { font-style: normal; font-size: 14px; color: var(--text-muted); }
+.lv-tax-item b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.lv-tax-sep { width: 1px; height: 18px; margin: 0 12px; background: var(--border); flex: 0 0 auto; }
+.lv-c-self { color: var(--success); }
+.lv-c-save { color: var(--danger); }
+.lv-tax-item em.lv-c-save { color: var(--danger); }
+.lv-muted { color: var(--text-muted); font-weight: 500; font-size: 14px; }
+.lv-status { display: inline-block; padding: 5px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.lv-status-done { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.lv-status-part, .lv-status-none { background: var(--warning-light); color: var(--warning); }
+.lv-c-act { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.lv-btn-detail {
+  display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border-radius: 10px; font-size: 14px; font-weight: 700;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.lv-btn-detail:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+.lv-btn-sm { height: 34px; padding: 0 12px; font-size: 13.5px; box-shadow: none; }
+.lv-more {
+  width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.lv-more:hover { border-color: var(--brand); opacity: 1; }
+
+/* 展開的土地明細 */
+.lv-sub { display: none; padding: 4px 20px 20px; }
+.lv-row-wrap.open .lv-sub { display: block; }
+.lv-sub-scroll { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.lv-sub-table { width: 100%; border-collapse: collapse; border-radius: 0; font-size: 14.5px; }
+.lv-sub-table thead th { text-transform: none; letter-spacing: 0; font-size: 13.5px; padding: 11px 14px; }
+.lv-sub-table tbody td { padding: 12px 14px; font-size: 14.5px; white-space: nowrap; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--border); }
+.lv-sub-table tbody tr:hover { background: transparent; }
+.lv-sub-table .num { text-align: right; }
+.lv-sub-table th.num { text-align: right; }
+.lv-sub-table .lv-center { text-align: center; }
+.lv-sub-table .lv-parcel { font-weight: 700; }
+.lv-sub-table .lv-subtotal td { background: color-mix(in srgb, var(--brand) 13%, var(--surface)); font-weight: 800; border-bottom: none; }
+.lv-sub-table .lv-subtotal:hover td { background: color-mix(in srgb, var(--brand) 13%, var(--surface)); }
+.lv-sub .ltt-split-badge { margin-top: 10px; text-align: left; }
+
+/* 卡片檢視 */
+.lv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 16px; }
+.lv-card { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.lv-card-top { display: flex; align-items: center; gap: 10px; }
+.lv-card-seq { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.lv-card-name { font-size: 18px; font-weight: 800; flex: 1; min-width: 0; }
+.lv-card-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+.lv-card-meta b { color: var(--text); font-variant-numeric: tabular-nums; }
+.lv-card-tax { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.lv-card-tax .lv-tax-item { justify-content: space-between; }
+.lv-card-tax .lv-tax-sep { display: none; }
+.lv-card-act { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 分頁列 */
+.lv-foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 0 4px 12px; }
+.lv-foot-info { color: var(--text-muted); font-size: 14.5px; }
+.lv-pager { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+.lv-pg { min-width: 40px; height: 40px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: transparent; color: var(--text); font-size: 15.5px; font-weight: 600; }
+.lv-pg:hover:not(:disabled) { background: var(--surface-2); opacity: 1; }
+.lv-pg.active { background: var(--brand); color: #fff; font-weight: 800; }
+.lv-pg-gap { min-width: 28px; text-align: center; color: var(--text-muted); }
+.lv-foot-size { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: var(--text-muted); font-size: 14.5px; }
+.lv-foot-size .lv-select { min-width: 92px; }
+@media (max-width: 760px) {
+  .lv-foot { grid-template-columns: 1fr; justify-items: center; }
+  .lv-toolbar-right { margin-left: 0; }
+  .lv-title { font-size: 26px; }
+}
+
+/* 「…」浮動選單 */
+.lv-menu {
+  position: fixed; z-index: 3000; min-width: 168px; padding: 6px; border-radius: 12px; background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-hover, var(--shadow)); display: flex; flex-direction: column;
+}
+.lv-menu button { text-align: left; padding: 10px 12px; border-radius: 8px; background: transparent; color: var(--text); font-size: 14.5px; font-weight: 600; }
+.lv-menu button:hover { background: var(--surface-2); opacity: 1; }
+
+/* 查看明細視窗 */
+.lv-dt-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+.lv-dt-parcel { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+.lv-dt-parcel-title { font-weight: 800; font-size: 16px; margin-bottom: 10px; }
+.lv-dt-parcel-title span { margin-left: 10px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.lv-dt-grid { display: grid; grid-template-columns: minmax(260px, 1.3fr) minmax(130px, .7fr) minmax(200px, 1fr); gap: 16px; align-items: start; }
+.lv-dt-cap { font-size: 12.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.lv-dt-grid .ltt-tax-block { align-items: flex-start; }
+.lv-dt-grid .ltt-tax-note, .lv-dt-grid .ltt-split-badge { text-align: left; }
+@media (max-width: 760px) { .lv-dt-grid { grid-template-columns: 1fr; } }

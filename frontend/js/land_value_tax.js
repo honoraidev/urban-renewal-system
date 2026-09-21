@@ -106,6 +106,95 @@ function landValueTaxRowResult(lr, liveValues) {
   };
 }
 
+// ================= 頁面(版面比照設計稿:標題+插圖、篩選列、可展開清單、分頁) =================
+
+const LTT_DEFAULT_SPLIT = { owner: 0.4, developer: 0.6 };
+
+// 協議合建分攤比例是每案自己談的,存在瀏覽器(依案件分開記),按「試算設定」可調;沒設過就用預設4/6。
+function lttLoadSplitSetting(pid) {
+  let owner = LTT_DEFAULT_SPLIT.owner;
+  try {
+    const v = parseFloat(localStorage.getItem(`ltt_split_owner_${pid}`));
+    if (v >= 0 && v <= 1) owner = v;
+  } catch (e) {
+    // localStorage 不能用就維持預設
+  }
+  LTT_GENERAL_SPLIT.owner = owner;
+  LTT_GENERAL_SPLIT.developer = 1 - owner;
+}
+
+function lttSplitLabel() {
+  const o = Math.round(LTT_GENERAL_SPLIT.owner * 100);
+  return o % 10 === 0 ? `${o / 10}/${10 - o / 10}` : `${o}%/${100 - o}%`;
+}
+
+const _lttSvg = (body, size = 18, sw = 1.9) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const LTT_ICON = {
+  calc: _lttSvg(`<rect x="5" y="3" width="14" height="18" rx="2.5"/><rect x="8" y="6" width="8" height="3.5" rx=".8"/><path d="M8.5 13.2h.01M12 13.2h.01M15.5 13.2h.01M8.5 16.8h.01M12 16.8h.01M15.5 16.8h.01" stroke-width="2.6"/>`, 30, 1.7),
+  gear: _lttSvg(`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>`, 17, 1.8),
+  download: _lttSvg(`<path d="M12 3v12M7 10.5l5 5 5-5M4 20h16"/>`, 17),
+  trend: _lttSvg(`<path d="M3 17l5.5-5.5 4 4L21 7"/><path d="M15 7h6v6"/>`, 18, 2.1),
+  info: `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 11v6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7.4" r="1.4" fill="#fff"/></svg>`,
+  search: _lttSvg(`<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>`, 22, 2.1),
+  list: _lttSvg(`<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3"/>`, 20, 2),
+  grid: _lttSvg(`<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>`, 20),
+  filter: _lttSvg(`<path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/>`, 18),
+  chevDown: _lttSvg(`<path d="M6 9l6 6 6-6"/>`, 16, 2.2),
+  chevUp: _lttSvg(`<path d="M6 15l6-6 6 6"/>`, 16, 2.2),
+  chevLeft: _lttSvg(`<path d="M15 6l-6 6 6 6"/>`, 16, 2.2),
+  chevRight: _lttSvg(`<path d="M9 6l6 6-6 6"/>`, 16, 2.2),
+  doc: _lttSvg(`<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>`, 16, 1.8),
+  more: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>`,
+};
+
+const lttUiDefaults = () => ({
+  q: "", section: "", status: "", view: window.innerWidth < 900 ? "grid" : "list", sort: "seq", onlySaving: false, advOpen: false,
+  page: 1, pageSize: 10, expanded: new Set(),
+});
+let lttUi = lttUiDefaults();
+// pid: 換案件才重置篩選/頁碼;token: 讓過期的非同步查詢結果不會蓋掉新的畫面。
+let lttCtx = { pid: null, token: 0, el: null, landOwners: [], liveValues: {}, summaries: [] };
+
+const LTT_STATUS_LABEL = { done: "已試算", part: "部分試算", none: "未試算" };
+const _lttFmt = (n) => Math.round(n).toLocaleString();
+
+function _lttSectionLabel(lr) {
+  return [lr.section, lr.subsection].filter(Boolean).join("") || "(未填地段)";
+}
+
+function lttBuildSummaries(landOwners, liveValues) {
+  return landOwners.map((o, i) => {
+    const parcels = (o.land_records || []).map((lr) => {
+      const result = landValueTaxRowResult(lr, liveValues);
+      const live = liveValues[lr.id];
+      const currentValue = result
+        ? result.currentValue
+        : live && live.current_value != null
+          ? live.current_value
+          : Number(lr.ltt_current_value) || 0;
+      const area = Number(lr.owned_area_sqm) || 0;
+      const unitPrice = live && live.unit_price_per_sqm != null ? live.unit_price_per_sqm : area > 0 && currentValue ? currentValue / area : null;
+      const selfTax = result ? result.selfUse.totalTax : 0;
+      const generalTax = result ? result.general.totalTax : 0;
+      return { record: lr, result, currentValue, area, unitPrice, selfTax, generalTax, savings: Math.max(0, generalTax - selfTax) };
+    });
+    const filled = parcels.filter((p) => p.result).length;
+    const sum = (k) => parcels.reduce((s, p) => s + p[k], 0);
+    return {
+      owner: o,
+      seq: String(i + 1).padStart(3, "0"),
+      parcels,
+      status: filled === 0 ? "none" : filled === parcels.length ? "done" : "part",
+      area: sum("area"),
+      currentValue: sum("currentValue"),
+      selfTax: sum("selfTax"),
+      generalTax: sum("generalTax"),
+      savings: Math.max(0, sum("generalTax") - sum("selfTax")),
+    };
+  });
+}
+
 async function renderLandValueTaxTab(el) {
   const pid = state.currentProjectId;
   const landowners = await api(`/projects/${pid}/landowners`);
@@ -114,34 +203,97 @@ async function renderLandValueTaxTab(el) {
   // 編號與排序都跟「土地登記清冊」對齊:同一份 landowners 順序,編號 = 該地主在清冊裡的序位
   // (有土地登記的地主),同一地主的多筆土地登記共用同一個編號。
   const landOwners = landowners.filter((o) => (o.land_records || []).length > 0);
+  const parcelCount = landOwners.reduce((n, o) => n + o.land_records.length, 0);
 
-  const rows = [];
-  landOwners.forEach((o) => {
-    (o.land_records || []).forEach((lr) => rows.push({ owner: o, record: lr }));
-  });
-
-  if (!rows.length) {
+  if (!parcelCount) {
     el.innerHTML = `<div class="empty-state">尚無土地登記資料,請先於「土地登記」頁籤匯入資料</div>`;
     return;
   }
 
+  lttLoadSplitSetting(pid);
+  if (lttCtx.pid !== pid) lttUi = lttUiDefaults();
+  const token = lttCtx.token + 1;
+  // 「重新試算」會重跑整個 render,上一輪查到的即時現值先留著顯示,新的查完再換,畫面不會閃成空白。
+  const keepLive = lttCtx.pid === pid ? lttCtx.liveValues : {};
+  lttCtx = { pid, token, el, landOwners, liveValues: keepLive, summaries: lttBuildSummaries(landOwners, keepLive) };
+
+  const sections = [...new Set(landOwners.flatMap((o) => o.land_records.map(_lttSectionLabel)))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  if (lttUi.section && !sections.includes(lttUi.section)) lttUi.section = "";
+
   el.innerHTML = `
-    <div class="section-toolbar">
-      <h3>土地增值稅試算(自用／一般稅率同時試算,共 ${landOwners.length} 位地主 / ${rows.length} 筆土地登記)</h3>
-    </div>
-    <div class="helper-text" style="margin-bottom:12px" id="ltt-tab-note">⚠ 僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。本月申報移轉現值查詢中…</div>
-    <div class="table-wrap">
-      <table class="ltt-table">
-        <thead><tr>
-          <th>編號</th><th>地主</th><th>建物門牌</th><th class="col-floor">樓層</th><th>計算明細</th><th>本次申報移轉現值(元)</th>
-          <th>稅額試算(自用／一般／節省)</th>
-        </tr></thead>
-        <tbody id="ltt-tbody"></tbody>
-      </table>
+    <div class="lv-page">
+      <div class="lv-head">
+        <div class="lv-title-area">
+          <span class="lv-title-icon">${LTT_ICON.calc}</span>
+          <div>
+            <div class="lv-title-line"><h2 class="lv-title">土地增值稅試算</h2><span class="lv-pill">自用／一般稅率同時試算</span></div>
+            <div class="lv-sub-title">共 ${landOwners.length} 位地主 / ${parcelCount} 筆土地登記</div>
+          </div>
+        </div>
+        <div class="lv-head-actions">
+          <button type="button" class="lv-hbtn" id="lv-settings-btn">${LTT_ICON.gear}試算設定</button>
+          <button type="button" class="lv-hbtn" id="lv-export-btn">${LTT_ICON.download}匯出報表</button>
+          <button type="button" class="lv-hbtn lv-hbtn-primary" id="lv-recalc-btn">${LTT_ICON.trend}重新試算</button>
+        </div>
+        <div class="lv-note"><span class="lv-note-ic">${LTT_ICON.info}</span><span id="ltt-tab-note">僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。本月申報移轉現值查詢中…</span></div>
+        <div class="lv-deco" aria-hidden="true">
+          <div class="lv-slogan">透明試算<br>協助都更更順利!<svg viewBox="0 0 220 14" class="lv-slogan-line"><path d="M2 11 C 60 3, 140 3, 218 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+          <svg class="lv-city" viewBox="0 0 380 210" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="lvBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+              <pattern id="lvWin" width="14" height="16" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="8" height="8" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+            </defs>
+            <rect x="10" y="196" width="360" height="8" rx="4" fill="#dfe8ee"/>
+            <rect x="30" y="90" width="70" height="106" fill="url(#lvBld)"/><rect x="30" y="90" width="70" height="106" fill="url(#lvWin)"/>
+            <rect x="112" y="40" width="84" height="156" fill="url(#lvBld)"/><rect x="112" y="40" width="84" height="156" fill="url(#lvWin)"/>
+            <rect x="208" y="10" width="66" height="186" fill="url(#lvBld)"/><rect x="208" y="10" width="66" height="186" fill="url(#lvWin)"/>
+            <rect x="286" y="70" width="70" height="126" fill="url(#lvBld)"/><rect x="286" y="70" width="70" height="126" fill="url(#lvWin)"/>
+            <g fill="#7cc7a4"><circle cx="24" cy="170" r="17"/><circle cx="100" cy="172" r="15"/><circle cx="200" cy="176" r="14"/><circle cx="352" cy="168" r="17"/></g>
+            <g fill="#4faa86" opacity=".85"><circle cx="30" cy="164" r="11"/><circle cx="106" cy="168" r="10"/><circle cx="346" cy="162" r="11"/></g>
+            <g stroke="#a98b6b" stroke-width="3" stroke-linecap="round"><path d="M24 186v10M100 186v10M200 190v6M352 184v12"/></g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="lv-toolbar">
+        <div class="lv-search">${LTT_ICON.search}<input type="search" id="lv-q" placeholder="搜尋地主姓名、地號..." autocomplete="off" value="${escapeHtml(lttUi.q)}"></div>
+        <select class="lv-select" id="lv-section">
+          <option value="">全部地段</option>
+          ${sections.map((s) => `<option value="${escapeHtml(s)}"${s === lttUi.section ? " selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+        </select>
+        <select class="lv-select" id="lv-status">
+          <option value="">全部狀態</option>
+          ${Object.entries(LTT_STATUS_LABEL).map(([k, v]) => `<option value="${k}"${k === lttUi.status ? " selected" : ""}>${v}</option>`).join("")}
+        </select>
+        <div class="lv-toolbar-right">
+          <div class="lv-viewtoggle" role="group" aria-label="檢視方式">
+            <button type="button" data-lv-view="list" title="清單檢視">${LTT_ICON.list}</button>
+            <button type="button" data-lv-view="grid" title="卡片檢視">${LTT_ICON.grid}</button>
+          </div>
+          <button type="button" class="lv-advbtn" id="lv-adv-btn">${LTT_ICON.filter}<span>進階篩選</span><span class="lv-adv-caret">${LTT_ICON.chevDown}</span></button>
+        </div>
+      </div>
+
+      <div class="lv-adv hidden" id="lv-adv">
+        <div class="lv-adv-field"><span>排序</span>
+          <select class="lv-select lv-select-sm" id="lv-sort">
+            <option value="seq">依編號</option>
+            <option value="general">一般稅額 高 → 低</option>
+            <option value="savings">節省金額 高 → 低</option>
+            <option value="value">申報移轉現值 高 → 低</option>
+          </select>
+        </div>
+        <label class="lv-check"><input type="checkbox" id="lv-only-saving"> 只看自用比一般有節省的</label>
+        <button type="button" class="lv-adv-reset" id="lv-adv-reset">清除全部篩選</button>
+      </div>
+
+      <div class="lv-list-card"><div id="lv-list"></div></div>
+      <div class="lv-foot" id="lv-foot"></div>
     </div>`;
 
-  renderLttTbody(el, landOwners, {});
-  wireLandValueTaxToggles(el);
+  lttWirePage(el.querySelector(".lv-page"));
+  lttSyncControls(el);
+  lttRenderList();
 
   let liveValues = {};
   let note = "本月申報移轉現值請至「土地登記」頁的「當期公告土地現值」填寫。";
@@ -178,114 +330,454 @@ async function renderLandValueTaxTab(el) {
     // 查不到就維持原本手動輸入的物價指數(或不調整),不影響其他試算結果。
   }
 
-  const noteEl = document.getElementById("ltt-tab-note");
-  if (noteEl) noteEl.textContent = `⚠ 僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。${note}${cpiNote}`;
-  renderLttTbody(el, landOwners, liveValues);
-  wireLandValueTaxToggles(el);
+  // 查詢期間使用者已經切走分頁/案件,或又按了一次重新試算,這一輪的結果就作廢。
+  if (lttCtx.token !== token || !el.isConnected) return;
+  lttCtx.liveValues = liveValues;
+  lttCtx.summaries = lttBuildSummaries(landOwners, liveValues);
+  const noteEl = el.querySelector("#ltt-tab-note");
+  if (noteEl) noteEl.innerHTML = `僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。${note}${cpiNote}`;
+  lttRenderList();
 }
 
-function renderLttTbody(el, landOwners, liveValues) {
-  const tbody = el.querySelector("#ltt-tbody");
-  if (!tbody) return;
-  tbody.innerHTML = landOwners
-    .map((o, i) => {
-      const seq = String(i + 1).padStart(3, "0");
-      const recs = o.land_records || [];
-      const parcels = [...new Set(recs.map((lr) => lr.parcel_number).filter(Boolean))].join("、");
-      // 建物門牌/樓層(跟「整合清冊」同一套簡化:_shortDoorAddr / _floorLabelOf,定義在
-      // landowners.js;房屋地下N層的持分建號標灰色「(地下持分)」),地主層級顯示一次。
-      const doorMap = new Map();
-      (o.building_records || []).forEach((r) => {
-        const label = _shortDoorAddr(r.address);
-        if (label && !doorMap.has(label)) doorMap.set(label, /房屋地下/.test(r.address || ""));
-      });
-      const doorHtml = doorMap.size
-        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${[...doorMap.entries()]
-            .map(([a, shared]) =>
-              shared
-                ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
-                : `<span class="mini-badge">${escapeHtml(a)}</span>`
-            )
-            .join("")}</div>`
-        : `<span class="helper-text">-</span>`;
-      const parent = `
-        <tr class="ltt-parent" data-owner-parent="${o.id}">
-          <td style="white-space:nowrap"><button type="button" class="ltt-toggle" data-owner-toggle="${o.id}" style="border:none;background:none;cursor:pointer;font-size:13px;margin-right:4px;color:var(--text-muted)">▸</button>${seq}</td>
-          <td>${escapeHtml(o.name)}</td>
-          <td>${doorHtml}</td>
-          <td class="col-floor">${_floorsCellHtml(o.building_records)}</td>
-          <td colspan="2" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
-          <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o, liveValues)}</td>
-        </tr>`;
-      const children = recs.map((lr) => lttChildRowHtml(o, lr, liveValues)).join("");
-      return parent + children;
+// 把目前的篩選狀態同步回控制項(重新渲染整頁時用)。
+function lttSyncControls(el) {
+  el.querySelectorAll("[data-lv-view]").forEach((b) => b.classList.toggle("active", b.dataset.lvView === lttUi.view));
+  el.querySelector("#lv-sort").value = lttUi.sort;
+  el.querySelector("#lv-only-saving").checked = lttUi.onlySaving;
+  el.querySelector("#lv-adv").classList.toggle("hidden", !lttUi.advOpen);
+  el.querySelector("#lv-adv-btn").classList.toggle("open", lttUi.advOpen);
+}
+
+function lttWirePage(page) {
+  const $ = (sel) => page.querySelector(sel);
+  const refresh = () => {
+    lttUi.page = 1;
+    lttRenderList();
+  };
+  $("#lv-q").addEventListener("input", (e) => { lttUi.q = e.target.value; refresh(); });
+  $("#lv-section").addEventListener("change", (e) => { lttUi.section = e.target.value; refresh(); });
+  $("#lv-status").addEventListener("change", (e) => { lttUi.status = e.target.value; refresh(); });
+  $("#lv-sort").addEventListener("change", (e) => { lttUi.sort = e.target.value; refresh(); });
+  $("#lv-only-saving").addEventListener("change", (e) => { lttUi.onlySaving = e.target.checked; refresh(); });
+  $("#lv-adv-btn").addEventListener("click", () => {
+    lttUi.advOpen = !lttUi.advOpen;
+    lttSyncControls(page);
+  });
+  $("#lv-adv-reset").addEventListener("click", () => {
+    Object.assign(lttUi, { q: "", section: "", status: "", sort: "seq", onlySaving: false, page: 1 });
+    $("#lv-q").value = "";
+    $("#lv-section").value = "";
+    $("#lv-status").value = "";
+    lttSyncControls(page);
+    lttRenderList();
+  });
+  $("#lv-settings-btn").addEventListener("click", openLttSettingsModal);
+  $("#lv-export-btn").addEventListener("click", () => lttExportCsv(lttFilteredSummaries(), "土地增值稅試算"));
+  $("#lv-recalc-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.lastChild.textContent = "試算中…";
+    // renderLandValueTaxTab 每次都會重新向政府開放資料/主計總處查一次,舊的即時現值先留著顯示。
+    try {
+      await renderLandValueTaxTab(lttCtx.el);
+      toast("已重新試算", "success");
+    } catch (err) {
+      btn.disabled = false;
+      btn.lastChild.textContent = "重新試算";
+    }
+  });
+
+  // 清單/卡片內的所有互動都走事件委派,清單重繪不用重新綁。
+  const list = $("#lv-list");
+  list.addEventListener("click", (e) => {
+    const t = e.target;
+    const detailBtn = t.closest("[data-lv-detail]");
+    if (detailBtn) return openLttDetailModal(Number(detailBtn.dataset.lvDetail), null);
+    const parcelBtn = t.closest("[data-lv-parcel]");
+    if (parcelBtn) return openLttDetailModal(Number(parcelBtn.dataset.lvOwner), Number(parcelBtn.dataset.lvParcel));
+    const moreBtn = t.closest("[data-lv-more]");
+    if (moreBtn) return lttOpenMoreMenu(moreBtn, Number(moreBtn.dataset.lvMore));
+    const row = t.closest("[data-lv-toggle]");
+    if (row) lttToggleRow(row);
+  });
+  list.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest && e.target.closest("[data-lv-toggle]");
+    if (row && e.target === row) {
+      e.preventDefault();
+      lttToggleRow(row);
+    }
+  });
+  page.addEventListener("click", (e) => {
+    const viewBtn = e.target.closest("[data-lv-view]");
+    if (viewBtn) {
+      lttUi.view = viewBtn.dataset.lvView;
+      lttSyncControls(page);
+      lttRenderList();
+      return;
+    }
+    const pg = e.target.closest("[data-lv-page]");
+    if (pg && !pg.disabled) {
+      lttUi.page = Number(pg.dataset.lvPage);
+      lttRenderList();
+    }
+  });
+  page.addEventListener("change", (e) => {
+    if (e.target.id === "lv-page-size") {
+      lttUi.pageSize = Number(e.target.value);
+      lttUi.page = 1;
+      lttRenderList();
+    }
+  });
+}
+
+function lttToggleRow(row) {
+  const wrap = row.closest(".lv-row-wrap");
+  const id = Number(wrap.dataset.lvOwner);
+  const open = !wrap.classList.contains("open");
+  wrap.classList.toggle("open", open);
+  row.setAttribute("aria-expanded", String(open));
+  if (open) lttUi.expanded.add(id);
+  else lttUi.expanded.delete(id);
+}
+
+function lttFilteredSummaries() {
+  const q = lttUi.q.trim().toLowerCase();
+  let rows = lttCtx.summaries.filter((s) => {
+    if (lttUi.status && s.status !== lttUi.status) return false;
+    if (lttUi.section && !s.parcels.some((p) => _lttSectionLabel(p.record) === lttUi.section)) return false;
+    if (lttUi.onlySaving && !(s.savings > 0)) return false;
+    if (q) {
+      const hay = [s.owner.name, s.seq, ...s.parcels.map((p) => p.record.parcel_number)].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const sorters = {
+    general: (a, b) => b.generalTax - a.generalTax,
+    savings: (a, b) => b.savings - a.savings,
+    value: (a, b) => b.currentValue - a.currentValue,
+  };
+  if (sorters[lttUi.sort]) rows = [...rows].sort(sorters[lttUi.sort]);
+  return rows;
+}
+
+// 頁碼列:永遠有第1/最後一頁,目前頁前後各1頁,離開頭近時顯示前5頁,中間隔太遠用「…」。
+function lttPageItems(cur, total) {
+  const keep = new Set([1, 2, total, cur - 1, cur, cur + 1]);
+  if (cur <= 3) [3, 4, 5].forEach((n) => keep.add(n));
+  const nums = [...keep].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+  const out = [];
+  nums.forEach((n, i) => {
+    if (i > 0) {
+      const gap = n - nums[i - 1];
+      if (gap === 2) out.push(n - 1);
+      else if (gap > 2) out.push("…");
+    }
+    out.push(n);
+  });
+  return out;
+}
+
+function lttRenderList() {
+  const el = lttCtx.el;
+  const listEl = el && el.querySelector("#lv-list");
+  if (!listEl) return;
+  const filtered = lttFilteredSummaries();
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / lttUi.pageSize));
+  if (lttUi.page > pages) lttUi.page = pages;
+  const start = (lttUi.page - 1) * lttUi.pageSize;
+  const slice = filtered.slice(start, start + lttUi.pageSize);
+
+  listEl.className = lttUi.view === "grid" ? "lv-grid" : "lv-scroll";
+  listEl.innerHTML = !total
+    ? `<div class="empty-state">沒有符合條件的地主</div>`
+    : lttUi.view === "grid"
+      ? slice.map(lttCardHtml).join("")
+      : `<div class="lv-table">
+          <div class="lv-cols lv-thead"><div>編號</div><div>地主</div><div>土地筆數</div><div class="lv-right">本次申報移轉現值(元)</div><div>稅額試算 (自用／一般／節省)</div><div class="lv-center">狀態</div><div class="lv-center">操作</div></div>
+          ${slice.map(lttRowHtml).join("")}
+        </div>`;
+
+  const pageBtn = (label, n, opts = {}) =>
+    `<button type="button" class="lv-pg${opts.active ? " active" : ""}${opts.arrow ? " lv-pg-arrow" : ""}" data-lv-page="${n}"${opts.disabled ? " disabled" : ""}${opts.aria ? ` aria-label="${opts.aria}"` : ""}>${label}</button>`;
+  const items = lttPageItems(lttUi.page, pages)
+    .map((n) => (n === "…" ? `<span class="lv-pg-gap">…</span>` : pageBtn(n, n, { active: n === lttUi.page })))
+    .join("");
+  el.querySelector("#lv-foot").innerHTML = `
+    <div class="lv-foot-info">${total ? `顯示 ${start + 1} - ${start + slice.length} 筆,共 ${total} 筆` : "共 0 筆"}</div>
+    <div class="lv-pager">
+      ${pageBtn(LTT_ICON.chevLeft, lttUi.page - 1, { arrow: true, disabled: lttUi.page <= 1, aria: "上一頁" })}
+      ${items}
+      ${pageBtn(LTT_ICON.chevRight, lttUi.page + 1, { arrow: true, disabled: lttUi.page >= pages, aria: "下一頁" })}
+    </div>
+    <div class="lv-foot-size"><span>每頁顯示</span>
+      <select class="lv-select lv-select-sm" id="lv-page-size">${[5, 10, 20, 50].map((n) => `<option value="${n}"${n === lttUi.pageSize ? " selected" : ""}>${n}</option>`).join("")}</select>
+    </div>`;
+}
+
+function lttStatusChipHtml(status) {
+  return `<span class="lv-status lv-status-${status}">${LTT_STATUS_LABEL[status]}</span>`;
+}
+
+// 一列的稅額欄:自用(綠)／一般(深)／節省(紅)並排;沒輸入前次移轉現值就顯示提示,不硬塞 0 元。
+function lttTaxLineHtml(s) {
+  if (s.status === "none") return `<span class="lv-muted">尚未輸入前次移轉現值</span>`;
+  return (
+    `<span class="lv-tax-item"><em>自用</em><b class="lv-c-self">約 ${_lttFmt(s.selfTax)} 元</b></span>` +
+    `<span class="lv-tax-sep"></span>` +
+    `<span class="lv-tax-item"><em>一般</em><b>約 ${_lttFmt(s.generalTax)} 元</b></span>` +
+    `<span class="lv-tax-sep"></span>` +
+    `<span class="lv-tax-item"><em class="lv-c-save">節省</em><b class="lv-c-save">約 ${_lttFmt(s.savings)} 元</b></span>`
+  );
+}
+
+function lttActionsHtml(s) {
+  return `<button type="button" class="lv-btn-detail" data-lv-detail="${s.owner.id}">${LTT_ICON.doc}查看明細</button>
+    <button type="button" class="lv-more" data-lv-more="${s.owner.id}" aria-label="更多">${LTT_ICON.more}</button>`;
+}
+
+function lttRowHtml(s) {
+  const open = lttUi.expanded.has(s.owner.id);
+  return `
+    <div class="lv-row-wrap${open ? " open" : ""}" data-lv-owner="${s.owner.id}">
+      <div class="lv-cols lv-row" data-lv-toggle="1" role="button" tabindex="0" aria-expanded="${open}">
+        <div class="lv-c-seq"><span class="lv-chev">${LTT_ICON.chevDown}</span>${s.seq}</div>
+        <div class="lv-c-name">${escapeHtml(s.owner.name)}</div>
+        <div class="lv-c-count"><span class="lv-count-pill">${s.parcels.length} 筆土地</span><span class="lv-chev-up">${LTT_ICON.chevDown}</span></div>
+        <div class="lv-right lv-c-value">${s.currentValue ? _lttFmt(s.currentValue) : `<span class="lv-muted">-</span>`}</div>
+        <div class="lv-c-tax">${lttTaxLineHtml(s)}</div>
+        <div class="lv-center">${lttStatusChipHtml(s.status)}</div>
+        <div class="lv-c-act">${lttActionsHtml(s)}</div>
+      </div>
+      <div class="lv-sub">${lttSubTableHtml(s)}</div>
+    </div>`;
+}
+
+function lttSubTableHtml(s) {
+  const num = (v, fmt) => (v ? fmt(v) : `<span class="lv-muted">—</span>`);
+  const body = s.parcels
+    .map((p, i) => {
+      const r = p.result;
+      return `<tr>
+        <td class="lv-center">${i + 1}</td>
+        <td class="lv-parcel">${escapeHtml(p.record.parcel_number) || "-"}</td>
+        <td class="num">${num(p.area, (v) => v.toFixed(2))}</td>
+        <td class="num">${num(p.unitPrice, _lttFmt)}</td>
+        <td class="num">${num(p.currentValue, _lttFmt)}</td>
+        <td class="num">${r ? _lttFmt(p.selfTax) : `<span class="lv-muted">—</span>`}</td>
+        <td class="num">${r ? _lttFmt(p.generalTax) : `<span class="lv-muted">—</span>`}</td>
+        <td class="num">${r ? `<span class="lv-c-save">${_lttFmt(p.savings)}</span>` : `<span class="lv-muted">—</span>`}</td>
+        <td class="lv-center"><button type="button" class="lv-btn-detail lv-btn-sm" data-lv-parcel="${p.record.id}" data-lv-owner="${s.owner.id}">${LTT_ICON.doc}查看詳情</button></td>
+      </tr>`;
     })
     .join("");
+  const anyTax = s.status !== "none";
+  return `
+    <div class="lv-sub-scroll"><table class="lv-sub-table">
+      <thead><tr><th class="lv-center">項次</th><th>地號</th><th class="num">持分面積(㎡)</th><th class="num">公告現值(元/㎡)</th><th class="num">本次申報移轉現值(元)</th><th class="num">自用稅額(元)</th><th class="num">一般稅額(元)</th><th class="num">節省稅額(元)</th><th class="lv-center">操作</th></tr></thead>
+      <tbody>${body}
+        <tr class="lv-subtotal"><td colspan="2" class="lv-center">小計(${escapeHtml(s.owner.name)})</td>
+          <td class="num">${s.area ? s.area.toFixed(2) : "—"}</td><td class="num">—</td>
+          <td class="num">${s.currentValue ? _lttFmt(s.currentValue) : "—"}</td>
+          <td class="num">${anyTax ? _lttFmt(s.selfTax) : "—"}</td>
+          <td class="num">${anyTax ? _lttFmt(s.generalTax) : "—"}</td>
+          <td class="num"><span class="lv-c-save">${anyTax ? _lttFmt(s.savings) : "—"}</span></td>
+          <td class="lv-center">—</td></tr>
+      </tbody>
+    </table></div>
+    ${anyTax && s.generalTax ? lttGeneralSplitHtml(s.generalTax) : ""}`;
 }
 
-function lttOwnerTotal(owner, liveValues) {
-  return (owner.land_records || []).reduce(
-    (s, lr) => {
-      const r = landValueTaxRowResult(lr, liveValues);
-      return {
-        general: s.general + (r ? r.general.totalTax : 0),
-        selfUse: s.selfUse + (r ? r.selfUse.totalTax : 0),
-      };
-    },
-    { general: 0, selfUse: 0 }
-  );
+function lttCardHtml(s) {
+  return `
+    <div class="lv-card">
+      <div class="lv-card-top"><span class="lv-card-seq">${s.seq}</span><span class="lv-card-name">${escapeHtml(s.owner.name)}</span>${lttStatusChipHtml(s.status)}</div>
+      <div class="lv-card-meta"><span class="lv-count-pill">${s.parcels.length} 筆土地</span><span>申報移轉現值 <b>${s.currentValue ? _lttFmt(s.currentValue) : "-"}</b> 元</span></div>
+      <div class="lv-card-tax">${lttTaxLineHtml(s)}</div>
+      <div class="lv-card-act">${lttActionsHtml(s)}</div>
+    </div>`;
 }
 
-function lttGeneralSplitHtml(generalTax) {
-  if (!generalTax) return "";
-  const ownerShare = generalTax * LTT_GENERAL_SPLIT.owner;
-  const developerShare = generalTax * LTT_GENERAL_SPLIT.developer;
-  return `<div class="ltt-split-badge">協議合建4/6分攤 · 地主 ${Math.round(ownerShare).toLocaleString()} 元 / 建商 ${Math.round(developerShare).toLocaleString()} 元</div>`;
+// 「…」選單:貼在按鈕下方的浮動小選單(fixed 定位,不會被清單的橫向捲動容器切掉)。
+function lttCloseMoreMenu() {
+  const m = document.getElementById("lv-more-menu");
+  if (m) {
+    m._cleanup && m._cleanup();
+    m.remove();
+  }
 }
 
-function lttOwnerTotalHtml(owner, liveValues) {
-  const anyFilled = (owner.land_records || []).some((lr) => lr.ltt_original_value);
-  if (!anyFilled) return `<span class="helper-text">尚未輸入</span>`;
-  const t = lttOwnerTotal(owner, liveValues);
-  const savings = Math.max(0, t.general - t.selfUse);
-  return (
-    `<div class="ltt-tax-block">` +
-    `<div class="ltt-tax-row"><span class="ltt-tax-label">自用</span><span class="ltt-tax-amount">約 ${Math.round(t.selfUse).toLocaleString()} 元</span></div>` +
-    `<div class="ltt-tax-row"><span class="ltt-tax-label">一般</span><span class="ltt-tax-amount">約 ${Math.round(t.general).toLocaleString()} 元</span></div>` +
-    `<div class="ltt-tax-note">自用比一般省 約 ${Math.round(savings).toLocaleString()} 元</div>` +
-    `</div>` +
-    lttGeneralSplitHtml(t.general)
-  );
-}
-
-function wireLandValueTaxToggles(el) {
-  el.querySelectorAll("[data-owner-toggle]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.ownerToggle;
-      const opening = btn.textContent.trim() === "▸";
-      btn.textContent = opening ? "▾" : "▸";
-      el.querySelectorAll(`.ltt-child-of-${id}`).forEach((tr) => tr.classList.toggle("hidden", !opening));
-    });
+function lttOpenMoreMenu(btn, ownerId) {
+  lttCloseMoreMenu();
+  const s = lttCtx.summaries.find((x) => x.owner.id === ownerId);
+  if (!s) return;
+  const menu = document.createElement("div");
+  menu.className = "lv-menu";
+  menu.id = "lv-more-menu";
+  menu.innerHTML = `<button type="button" data-act="copy">複製試算摘要</button><button type="button" data-act="csv">匯出此地主 CSV</button>`;
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 6}px`;
+  menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+  menu.addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    lttCloseMoreMenu();
+    if (act === "csv") return lttExportCsv([s], `土地增值稅試算_${s.owner.name}`);
+    try {
+      await navigator.clipboard.writeText(lttSummaryText(s));
+      toast("已複製試算摘要", "success");
+    } catch (err) {
+      toast("瀏覽器不允許複製,請改用「查看明細」自行選取", "error");
+    }
   });
+  const onDown = (ev) => { if (!menu.contains(ev.target)) lttCloseMoreMenu(); };
+  const onScroll = () => lttCloseMoreMenu();
+  document.addEventListener("mousedown", onDown, true);
+  window.addEventListener("scroll", onScroll, true);
+  window.addEventListener("resize", onScroll);
+  menu._cleanup = () => {
+    document.removeEventListener("mousedown", onDown, true);
+    window.removeEventListener("scroll", onScroll, true);
+    window.removeEventListener("resize", onScroll);
+  };
+}
+
+function lttSummaryText(s) {
+  const lines = [`${s.seq} ${s.owner.name}(${s.parcels.length} 筆土地,${LTT_STATUS_LABEL[s.status]})`];
+  lines.push(`本次申報移轉現值:${_lttFmt(s.currentValue)} 元`);
+  if (s.status !== "none") {
+    lines.push(`自用稅額:約 ${_lttFmt(s.selfTax)} 元`, `一般稅額:約 ${_lttFmt(s.generalTax)} 元`, `自用比一般省:約 ${_lttFmt(s.savings)} 元`);
+  }
+  lines.push("(僅供參考,實際應納稅額以主管稽徵機關核定為準)");
+  return lines.join("\n");
+}
+
+// 匯出成 CSV(Excel 可直接開,加 BOM 避免中文亂碼),一筆土地登記一列。
+function lttExportCsv(summaries, baseName) {
+  if (!summaries.length) {
+    toast("目前沒有可匯出的資料", "error");
+    return;
+  }
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["編號", "地主", "地號", "持分面積(㎡)", "公告現值(元/㎡)", "本次申報移轉現值(元)", "自用稅額(元)", "一般稅額(元)", "節省稅額(元)", "狀態"];
+  const lines = [head.map(esc).join(",")];
+  summaries.forEach((s) =>
+    s.parcels.forEach((p) => {
+      const has = !!p.result;
+      lines.push(
+        [
+          s.seq, s.owner.name, p.record.parcel_number, p.area ? p.area.toFixed(2) : "", p.unitPrice ? Math.round(p.unitPrice) : "",
+          p.currentValue ? Math.round(p.currentValue) : "", has ? Math.round(p.selfTax) : "", has ? Math.round(p.generalTax) : "",
+          has ? Math.round(p.savings) : "", has ? "已試算" : "未試算",
+        ].map(esc).join(",")
+      );
+    })
+  );
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${baseName}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function openLttSettingsModal() {
+  const pid = lttCtx.pid;
+  const ownerPct = Math.round(LTT_GENERAL_SPLIT.owner * 100);
+  openModal(
+    "試算設定",
+    `<div class="field"><label>協議合建稅額分攤比例 - 地主負擔(%)</label>
+       <input type="number" id="lv-split-owner" min="0" max="100" step="1" value="${ownerPct}">
+       <div class="helper-text" style="margin-top:6px">建商負擔:<b id="lv-split-dev">${100 - ownerPct}</b>%。只影響展開明細裡「協議合建分攤」那一行顯示的地主/建商金額,不改變稅額本身。</div>
+     </div>
+     <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+       <button type="button" class="btn-secondary" id="lv-split-reset">恢復預設(4/6)</button>
+       <button type="button" class="btn-primary" id="lv-split-save">儲存</button>
+     </div>`,
+    { width: "440px" }
+  );
+  const input = document.getElementById("lv-split-owner");
+  const devEl = document.getElementById("lv-split-dev");
+  const clamp = () => Math.min(100, Math.max(0, Math.round(Number(input.value) || 0)));
+  input.addEventListener("input", () => { devEl.textContent = String(100 - clamp()); });
+  const apply = (owner) => {
+    try {
+      localStorage.setItem(`ltt_split_owner_${pid}`, String(owner));
+    } catch (e) {
+      // 存不了就只在這次瀏覽有效
+    }
+    LTT_GENERAL_SPLIT.owner = owner;
+    LTT_GENERAL_SPLIT.developer = 1 - owner;
+    closeModal();
+    lttRenderList();
+    toast("已更新分攤比例", "success");
+  };
+  document.getElementById("lv-split-save").addEventListener("click", () => apply(clamp() / 100));
+  document.getElementById("lv-split-reset").addEventListener("click", () => apply(LTT_DEFAULT_SPLIT.owner));
+}
+
+// 「查看明細/查看詳情」:每筆土地登記的完整算法(前次移轉現值 → 物價指數 → 漲價總數額 → 倍數/持有年限 → 稅額)。
+function openLttDetailModal(ownerId, recordId) {
+  const s = lttCtx.summaries.find((x) => x.owner.id === ownerId);
+  if (!s) return;
+  const parcels = recordId ? s.parcels.filter((p) => p.record.id === recordId) : s.parcels;
+  const doorMap = new Map();
+  (s.owner.building_records || []).forEach((r) => {
+    const label = _shortDoorAddr(r.address);
+    if (label && !doorMap.has(label)) doorMap.set(label, /房屋地下/.test(r.address || ""));
+  });
+  const doorHtml = doorMap.size
+    ? [...doorMap.entries()]
+        .map(([a, shared]) =>
+          shared
+            ? `<span class="mini-badge mini-badge-shared-door" title="依持分比例登記的地下室/車位建號,非專屬住家門牌">${escapeHtml(a)}(地下持分)</span>`
+            : `<span class="mini-badge">${escapeHtml(a)}</span>`
+        )
+        .join("")
+    : "";
+  const live = lttCtx.liveValues;
+  const parcelHtml = parcels
+    .map((p) => {
+      const lr = p.record;
+      const lv = live[lr.id];
+      const currentCell =
+        lv && lv.current_value != null
+          ? `<div class="ltt-current-period">${escapeHtml(lv.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(lv.current_value).toLocaleString()} 元</div>`
+          : `${lr.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(lr.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${lr.ltt_current_value ? `${Number(lr.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
+      return `
+        <div class="lv-dt-parcel">
+          <div class="lv-dt-parcel-title">地號 ${escapeHtml(lr.parcel_number) || "-"}${lr.registration_order ? `<span>次序 ${escapeHtml(lr.registration_order)}</span>` : ""}</div>
+          <div class="lv-dt-grid">
+            <div><div class="lv-dt-cap">計算明細</div>${lttDetailCellHtml(lr, p.result)}</div>
+            <div class="ltt-current-cell"><div class="lv-dt-cap">本次申報移轉現值</div>${currentCell}</div>
+            <div class="ltt-result-cell"><div class="lv-dt-cap">稅額試算</div>${lttResultCellHtml(p.result)}</div>
+          </div>
+        </div>`;
+    })
+    .join("");
+  openModal(
+    `${escapeHtml(s.owner.name)} · 土增稅試算明細`,
+    `${doorHtml ? `<div class="lv-dt-doors">${doorHtml}${_floorsCellHtml(s.owner.building_records)}</div>` : ""}${parcelHtml}
+     <div class="helper-text" style="margin-top:12px">僅供參考,實際應納土地增值稅仍以主管稽徵機關核定金額為準。</div>`,
+    { width: "820px" }
+  );
 }
 
 function lttDetailRow(label, value, opts = {}) {
   return `<div class="ltt-detail-row${opts.muted ? " is-muted" : ""}${opts.strong ? " is-strong" : ""}"><span class="ltt-detail-label">${label}</span><span class="ltt-detail-value">${value}</span></div>`;
 }
 
-function lttChildRowHtml(owner, record, liveValues) {
-  const result = landValueTaxRowResult(record, liveValues);
-  const live = liveValues && liveValues[record.id];
-  const currentValueCell = live && live.current_value != null
-    ? `<div class="ltt-current-period">${escapeHtml(live.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(live.current_value).toLocaleString()} 元</div>`
-    : `${record.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(record.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${record.ltt_current_value ? `${Number(record.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
-  return `
-    <tr class="ltt-child ltt-child-of-${owner.id} hidden" data-ltt-row="${record.id}">
-      <td colspan="4" class="ltt-child-parcel">${escapeHtml(record.parcel_number) || "-"}${record.registration_order ? `<span>次序 ${escapeHtml(record.registration_order)}</span>` : ""}</td>
-      <td>${lttDetailCellHtml(record, result)}</td>
-      <td class="ltt-current-cell">${currentValueCell}</td>
-      <td class="ltt-result-cell">${lttResultCellHtml(result)}</td>
-    </tr>`;
+function lttGeneralSplitHtml(generalTax) {
+  if (!generalTax) return "";
+  const ownerShare = generalTax * LTT_GENERAL_SPLIT.owner;
+  const developerShare = generalTax * LTT_GENERAL_SPLIT.developer;
+  return `<div class="ltt-split-badge">協議合建${lttSplitLabel()}分攤 · 地主 ${Math.round(ownerShare).toLocaleString()} 元 / 建商 ${Math.round(developerShare).toLocaleString()} 元</div>`;
 }
 
 // 計算明細欄:把「前次移轉現值 → 物價指數調整 → 調整後前次移轉現值 → 漲價總數額 → 漲價倍數
