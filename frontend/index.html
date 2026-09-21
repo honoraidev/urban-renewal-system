@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_31">
+  <link rel="stylesheet" href="style.css?v=20260921_32">
 </head>
 
 <body>
@@ -378,44 +378,43 @@
           <!-- 相關法規 -->
           <div id="view-regulations" class="hidden">
             <div class="reg-layout">
-              <div class="reg-top">
+              <div class="reg-head">
                 <nav class="nw-crumbs"><a href="#" id="reg-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>相關法規</span></nav>
-                <div class="reg-top-head">
-                  <div class="reg-hero-left">
-                    <h1 class="reg-title"><span class="reg-title-icon">⚖️</span>相關法規</h1>
-                    <p class="reg-sub">彙整中央與地方都市更新相關法規,快速查詢最新法規內容</p>
-                  </div>
-                </div>
-                <div class="reg-search">
-                  <span class="reg-search-icon">🔍</span>
-                  <input type="search" id="reg-search-input" placeholder="搜尋法規名稱、關鍵字...(例如:都市更新、容積獎勵、危老條例...)" autocomplete="off">
-                  <button type="button" class="reg-search-btn" id="reg-search-btn">搜尋</button>
+                <div class="reg-hero-left">
+                  <h1 class="reg-title"><span class="reg-title-icon">⚖️</span>相關法規</h1>
+                  <p class="reg-sub">彙整中央與地方都市更新相關法規,快速查詢最新法規內容</p>
                 </div>
               </div>
 
-              <div class="reg-deco">
-                <div class="reg-actions">
-                  <button class="btn-secondary btn-sm hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
-                  <button class="btn-secondary btn-sm hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
-                  <button class="btn-primary btn-sm hidden" id="new-regulation-btn">+ 新增連結</button>
-                </div>
-                <div class="reg-deco-illust" aria-hidden="true">
-                  <div class="reg-slogan">掌握法規動態,<br>讓更新更安心!<svg viewBox="0 0 190 14" class="reg-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                  <svg class="reg-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="regBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
-                      <pattern id="regWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
-                    </defs>
-                    <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
-                    <rect x="20" y="72" width="46" height="68" fill="url(#regBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#regWin)"/>
-                    <rect x="74" y="34" width="54" height="106" fill="url(#regBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#regWin)"/>
-                    <rect x="136" y="10" width="42" height="130" fill="url(#regBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#regWin)"/>
-                    <rect x="186" y="52" width="48" height="88" fill="url(#regBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#regWin)"/>
-                    <rect x="242" y="80" width="42" height="60" fill="url(#regBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#regWin)"/>
-                    <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
-                    <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
-                  </svg>
-                </div>
+              <div class="reg-actions">
+                <button class="btn-secondary btn-sm hidden" id="manage-regulation-cats-btn">⚙ 管理分類</button>
+                <button class="btn-secondary btn-sm hidden" id="toggle-regulation-edit-btn">✏️ 修改</button>
+                <button class="btn-primary btn-sm hidden" id="new-regulation-btn">+ 新增連結</button>
+              </div>
+
+              <!-- 插圖跟搜尋框同一列、同高度並排(不再貼在按鈕下面一路延伸) -->
+              <div class="reg-search">
+                <span class="reg-search-icon">🔍</span>
+                <input type="search" id="reg-search-input" placeholder="搜尋法規名稱、關鍵字...(例如:都市更新、容積獎勵、危老條例...)" autocomplete="off">
+                <button type="button" class="reg-search-btn" id="reg-search-btn">搜尋</button>
+              </div>
+
+              <div class="reg-deco-illust" aria-hidden="true">
+                <div class="reg-slogan">掌握法規動態,<br>讓更新更安心!<svg viewBox="0 0 190 14" class="reg-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="reg-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="regBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                    <pattern id="regWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                  </defs>
+                  <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                  <rect x="20" y="72" width="46" height="68" fill="url(#regBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#regWin)"/>
+                  <rect x="74" y="34" width="54" height="106" fill="url(#regBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#regWin)"/>
+                  <rect x="136" y="10" width="42" height="130" fill="url(#regBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#regWin)"/>
+                  <rect x="186" y="52" width="48" height="88" fill="url(#regBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#regWin)"/>
+                  <rect x="242" y="80" width="42" height="60" fill="url(#regBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#regWin)"/>
+                  <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                  <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                </svg>
               </div>
 
               <div class="reg-tabs-row">
@@ -436,45 +435,43 @@
           <!-- 相關網站 -->
           <div id="view-websites" class="hidden">
             <div class="ws-layout">
-              <div class="ws-top">
+              <div class="ws-head">
                 <nav class="nw-crumbs"><a href="#" id="ws-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>相關網站</span></nav>
-                <div class="ws-top-head">
-                  <div class="ws-hero-left">
-                    <h1 class="ws-title"><span class="ws-title-icon">🌐</span>相關網站</h1>
-                    <p class="ws-sub">整合政府機關與相關資源,快速連結您需要的網站</p>
-                  </div>
-                </div>
-                <!-- 搜尋框位置跟 Q&A知識庫頁一樣:貼著標題下方、只佔左欄寬度,不會被右邊插圖/側欄擠壓 -->
-                <div class="ws-search">
-                  <span class="ws-search-icon">🔍</span>
-                  <input type="search" id="ws-search-input" placeholder="搜尋網站名稱、關鍵字...(例如:地籍、GIS、電子地圖)" autocomplete="off">
-                  <button type="button" class="ws-search-btn" id="ws-search-btn">搜尋</button>
+                <div class="ws-hero-left">
+                  <h1 class="ws-title"><span class="ws-title-icon">🌐</span>相關網站</h1>
+                  <p class="ws-sub">整合政府機關與相關資源,快速連結您需要的網站</p>
                 </div>
               </div>
 
-              <div class="ws-deco">
-                <div class="ws-actions">
-                  <button class="btn-secondary btn-sm hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
-                  <button class="btn-secondary btn-sm hidden" id="toggle-website-edit-btn">✏️ 修改</button>
-                  <button class="btn-primary btn-sm hidden" id="new-website-btn">+ 新增連結</button>
-                </div>
-                <div class="ws-deco-illust" aria-hidden="true">
-                  <div class="ws-slogan">善用公開資源,<br>讓都更作業更順利<svg viewBox="0 0 190 14" class="ws-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                  <svg class="ws-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="wsBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
-                      <pattern id="wsWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
-                    </defs>
-                    <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
-                    <rect x="20" y="72" width="46" height="68" fill="url(#wsBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#wsWin)"/>
-                    <rect x="74" y="34" width="54" height="106" fill="url(#wsBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#wsWin)"/>
-                    <rect x="136" y="10" width="42" height="130" fill="url(#wsBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#wsWin)"/>
-                    <rect x="186" y="52" width="48" height="88" fill="url(#wsBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#wsWin)"/>
-                    <rect x="242" y="80" width="42" height="60" fill="url(#wsBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#wsWin)"/>
-                    <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
-                    <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
-                  </svg>
-                </div>
+              <div class="ws-actions">
+                <button class="btn-secondary btn-sm hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
+                <button class="btn-secondary btn-sm hidden" id="toggle-website-edit-btn">✏️ 修改</button>
+                <button class="btn-primary btn-sm hidden" id="new-website-btn">+ 新增連結</button>
+              </div>
+
+              <!-- 插圖跟搜尋框同一列、同高度並排(不再貼在按鈕下面一路延伸) -->
+              <div class="ws-search">
+                <span class="ws-search-icon">🔍</span>
+                <input type="search" id="ws-search-input" placeholder="搜尋網站名稱、關鍵字...(例如:地籍、GIS、電子地圖)" autocomplete="off">
+                <button type="button" class="ws-search-btn" id="ws-search-btn">搜尋</button>
+              </div>
+
+              <div class="ws-deco-illust" aria-hidden="true">
+                <div class="ws-slogan">善用公開資源,<br>讓都更作業更順利<svg viewBox="0 0 190 14" class="ws-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="ws-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="wsBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                    <pattern id="wsWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                  </defs>
+                  <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                  <rect x="20" y="72" width="46" height="68" fill="url(#wsBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#wsWin)"/>
+                  <rect x="74" y="34" width="54" height="106" fill="url(#wsBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#wsWin)"/>
+                  <rect x="136" y="10" width="42" height="130" fill="url(#wsBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#wsWin)"/>
+                  <rect x="186" y="52" width="48" height="88" fill="url(#wsBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#wsWin)"/>
+                  <rect x="242" y="80" width="42" height="60" fill="url(#wsBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#wsWin)"/>
+                  <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                  <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                </svg>
               </div>
 
               <div class="ws-main">
@@ -559,51 +556,49 @@
           <!-- 部門物品管制表 -->
           <div id="view-inventory" class="hidden">
             <div class="iv-layout">
-              <div class="iv-top">
+              <div class="iv-head">
                 <nav class="nw-crumbs"><a href="#" id="inv-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>部門物品管制表</span></nav>
-                <div class="iv-top-head">
-                  <div class="iv-hero-left">
-                    <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
-                    <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
-                  </div>
+                <div class="iv-hero-left">
+                  <h1 class="iv-title"><span class="iv-title-icon">📦</span>部門物品管制表</h1>
+                  <p class="iv-sub">管理各部門的物品、保管人與財產編號,掌握公司資產使用情形。</p>
                 </div>
-                <!-- 搜尋框位置跟 Q&A知識庫 / 相關網站頁一樣:貼標題下方、只佔左欄寬度 -->
-                <div class="iv-search-row">
-                  <div class="iv-search">
-                    <span class="iv-search-icon">🔍</span>
-                    <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
-                    <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
-                  </div>
-                  <div class="iv-filter-wrap">
-                    <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
-                    <div class="iv-filter-panel hidden" id="inv-filter-panel">
-                      <p class="iv-filter-panel-title">依狀態篩選</p>
-                      <div class="iv-filter-chips" id="inv-filter-status"></div>
-                      <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
-                    </div>
+              </div>
+
+              <div class="iv-actions">
+                <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
+                <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
+              </div>
+
+              <!-- 插圖跟搜尋框同一列、同高度並排(不再貼在按鈕下面一路延伸) -->
+              <div class="iv-search-row">
+                <div class="iv-search">
+                  <span class="iv-search-icon">🔍</span>
+                  <input type="text" id="inventory-search-input" placeholder="搜尋物品、保管人、財產編號、品牌、型號...">
+                  <button type="button" class="iv-search-btn" id="inv-search-btn">搜尋</button>
+                </div>
+                <div class="iv-filter-wrap">
+                  <button type="button" class="iv-filter-btn" id="inv-filter-btn">▽ 進階篩選<span class="iv-filter-badge hidden" id="inv-filter-badge">0</span></button>
+                  <div class="iv-filter-panel hidden" id="inv-filter-panel">
+                    <p class="iv-filter-panel-title">依狀態篩選</p>
+                    <div class="iv-filter-chips" id="inv-filter-status"></div>
+                    <button type="button" class="iv-filter-clear" id="inv-filter-clear">清除篩選</button>
                   </div>
                 </div>
               </div>
 
-              <div class="iv-deco">
-                <div class="iv-actions">
-                  <button type="button" class="iv-btn-outline" id="inv-export-btn">⬇ 匯出清單</button>
-                  <button class="btn-primary" id="new-inventory-btn">+ 新增物品</button>
-                </div>
-                <div class="iv-deco-illust" aria-hidden="true">
-                  <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-                  <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
-                    <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
-                    <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
-                    <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
-                    <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
-                    <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
-                    <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
-                    <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
-                    <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
-                  </svg>
-                </div>
+              <div class="iv-deco-illust" aria-hidden="true">
+                <div class="iv-slogan">資產管理更清楚<br>工作更有效率!<svg viewBox="0 0 190 14" class="iv-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="iv-shelf" viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="14" y="18" width="152" height="120" rx="10" fill="#e8f1f6" stroke="#cfe0ec" stroke-width="2"/>
+                  <rect x="14" y="72" width="152" height="4" fill="#cfe0ec"/>
+                  <rect x="46" y="32" width="52" height="36" rx="4" fill="#8fc3da"/>
+                  <path d="M46 40h52M72 32v36" stroke="#e8f1f6" stroke-width="2"/>
+                  <rect x="104" y="30" width="42" height="40" rx="4" fill="#0d9488"/>
+                  <path d="M104 30l21 12 21-12" fill="none" stroke="#cdeee8" stroke-width="2"/>
+                  <rect x="34" y="90" width="46" height="34" rx="4" fill="#f6c453"/>
+                  <path d="M34 98h46" stroke="#fff3d6" stroke-width="2"/>
+                  <rect x="94" y="86" width="50" height="38" rx="4" fill="#8fc3da" opacity=".85"/>
+                </svg>
               </div>
 
               <div class="iv-tabs" id="inventory-dept-bar"></div>

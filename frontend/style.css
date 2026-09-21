@@ -2116,34 +2116,33 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 
 /* ================= 部門物品管制表 ================= */
-/* 版面骨架跟 Q&A知識庫 / 相關網站頁(.fq-layout / .ws-layout)同一套:top/deco 同一列,
-   search 貼在 top 欄位裡(只佔左欄寬度,不會被右邊插圖擠壓),tabs/main 各自整列。 */
+/* 版面 4 個角色各自一格:標題(head)/按鈕(actions)同一列,搜尋框(search)/插圖(illust)
+   同一列且同高度並排,再下面才是頁籤跟主內容整列滿版。 */
 .iv-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 0 26px; align-items: start;
-  grid-template-areas: "top deco" "tabs tabs" "main main";
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px 26px; align-items: start;
+  grid-template-areas: "head actions" "search illust" "tabs tabs" "main main";
 }
-.iv-top { grid-area: top; min-width: 0; }
-/* iv-deco 現在裝兩塊東西:匯出清單/新增物品按鈕(貼最右邊)+ 下面的插圖(純裝飾)。
-   標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
-   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
-.iv-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.iv-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
+.iv-head { grid-area: head; min-width: 0; }
+.iv-actions { grid-area: actions; align-self: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.iv-search-row { grid-area: search; align-self: center; }
+/* 插圖(純裝飾)跟搜尋框同高度並排,不再貼在按鈕下面一路往下延伸 */
+.iv-deco-illust {
+  grid-area: illust; align-self: center; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%;
+}
 .iv-tabs { grid-area: tabs; }
 .iv-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
-  .iv-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "tabs" "main"; gap: 0; }
+  .iv-layout { grid-template-columns: 1fr; grid-template-areas: "head" "actions" "search" "tabs" "main"; gap: 0; }
   .iv-deco-illust { display: none; }
 }
 
-.iv-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .iv-btn-outline {
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 14px;
   padding: 9px 16px; border-radius: 10px; cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
 }
 .iv-btn-outline:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); }
 
-.iv-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 20px; }
-.iv-hero-left { min-width: 240px; }
+.iv-hero-left { min-width: 240px; margin: 14px 0 20px; }
 .iv-title { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
 .iv-title-icon { font-size: 28px; }
 .iv-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
@@ -2258,31 +2257,32 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 /* ================= 相關網站 ================= */
 /* 版面跟 Q&A知識庫頁(.fq-layout)同一個骨架:top/deco 同一列,search 貼在 top 欄位裡
    (只佔左欄寬度,不會被右邊插圖或側欄擠壓),main/aside 在下一列。 */
+/* 版面 4 個角色各自一格:標題(head)/按鈕(actions)同一列,搜尋框(search)/插圖(illust)
+   同一列且同高度並排,再下面才是主內容/側欄整列。 */
 .ws-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 26px; align-items: start;
-  grid-template-areas: "top deco" "main aside";
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 10px 26px; align-items: start;
+  grid-template-areas: "head actions" "search illust" "main aside";
 }
-.ws-top { grid-area: top; min-width: 0; }
-/* ws-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
-.ws-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
-   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
-.ws-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
+.ws-head { grid-area: head; min-width: 0; }
+.ws-actions { grid-area: actions; align-self: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.ws-search { grid-area: search; align-self: center; }
+/* 插圖(純裝飾)跟搜尋框同高度並排,不再貼在按鈕下面一路往下延伸 */
+.ws-deco-illust {
+  grid-area: illust; align-self: center; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%;
+}
 .ws-main { grid-area: main; min-width: 0; }
 /* 固定跟著頁面一起捲動(不用 sticky)—— sticky 黏住後跟主欄清單的捲動進度會不同步,
    捲一段之後兩欄的卡片頂端會對不齊(這頁清單通常不長,不需要側欄一直黏在畫面上)。 */
 .ws-aside { grid-area: aside; align-self: start; display: flex; flex-direction: column; gap: 16px; }
 @media (max-width: 1100px) {
-  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "main" "aside"; gap: 18px 0; }
+  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "head" "actions" "search" "main" "aside"; gap: 18px 0; }
   .ws-deco-illust { display: none; }
 }
 
-.ws-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 18px; }
-.ws-hero-left { min-width: 240px; }
+.ws-hero-left { min-width: 240px; margin: 14px 0 18px; }
 .ws-title { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
 .ws-title-icon { font-size: 28px; }
 .ws-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
-.ws-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
 .ws-deco-illust .ws-slogan {
   font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
@@ -2373,29 +2373,30 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 /* ================= 相關法規 ================= */
 /* 版面骨架跟相關網站/Q&A知識庫同一套:top/deco 同一列,search 貼在 top 欄位裡;
    這頁沒有側欄,分類頁籤 + 筆數/檢視切換整列滿版,底下主內容也整列滿版。 */
+/* 版面 4 個角色各自一格:標題(head)/按鈕(actions)同一列,搜尋框(search)/插圖(illust)
+   同一列且同高度並排,再下面才是頁籤跟主內容整列滿版。 */
 .reg-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 26px; align-items: start;
-  grid-template-areas: "top deco" "tabs tabs" "main main";
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 10px 26px; align-items: start;
+  grid-template-areas: "head actions" "search illust" "tabs tabs" "main main";
 }
-.reg-top { grid-area: top; min-width: 0; }
-/* reg-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
-.reg-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
-   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
-.reg-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
+.reg-head { grid-area: head; min-width: 0; }
+.reg-actions { grid-area: actions; align-self: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.reg-search { grid-area: search; align-self: center; }
+/* 插圖(純裝飾)跟搜尋框同高度並排,不再貼在按鈕下面一路往下延伸 */
+.reg-deco-illust {
+  grid-area: illust; align-self: center; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%;
+}
 .reg-tabs-row { grid-area: tabs; }
 .reg-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
-  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "top" "deco" "tabs" "main"; gap: 0; }
+  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "head" "actions" "search" "tabs" "main"; gap: 0; }
   .reg-deco-illust { display: none; }
 }
 
-.reg-top-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 18px; }
-.reg-hero-left { min-width: 240px; }
+.reg-hero-left { min-width: 240px; margin: 14px 0 18px; }
 .reg-title { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
 .reg-title-icon { font-size: 28px; }
 .reg-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
-.reg-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
 .reg-deco-illust .reg-slogan {
   font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
