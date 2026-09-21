@@ -643,6 +643,9 @@ async function goToWebsites() {
   setActiveNav("websites");
   showView("view-websites");
   websitesEditMode = false;
+  wsQuery = "";
+  const searchInput = document.getElementById("ws-search-input");
+  if (searchInput) searchInput.value = "";
   document.getElementById("new-website-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-website-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-website-cats-btn")?.classList.toggle("hidden", !isManager());
@@ -655,11 +658,126 @@ async function loadWebsites() {
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/websites");
   currentLoadedWebsites = items || [];
-  renderLinkListPage(items, "websites-list", isManager() && websitesEditMode);
-  if (isManager() && websitesEditMode) {
+  renderWebsitesList(currentLoadedWebsites, isManager() && websitesEditMode);
+  _renderWsHotList(currentLoadedWebsites);
+  _renderWsQuickCats(currentLoadedWebsites);
+}
+
+// ===== 相關網站頁版面(獨立於 renderLinkListPage,規劃跟法規頁不同的樣式:分類色塊卡片 +
+// 右側熱門網站/快速分類側欄)=====
+// 「熱門網站」目前系統沒有點擊次數統計,先用清單前 5 筆(依建立順序)當代表,不是真的用量排名。
+let wsQuery = ""; // 搜尋框(已小寫)
+
+const WS_CAT_STYLE = {
+  "地籍 & 地圖": ["📍", "#0d9488"],
+  "都更 GIS": ["🏢", "#7c3aed"],
+  建管查詢: ["🏗️", "#ea580c"],
+  不動產行情: ["📈", "#0ea5e9"],
+  "謄本 & 產權": ["📄", "#2563eb"],
+  其他工具: ["🧰", "#64748b"],
+  未分類: ["🔗", "#64748b"],
+};
+const WS_TONE_FALLBACK = ["#db2777", "#0891b2", "#16a34a", "#4f46e5", "#c2410c"];
+function _wsCatStyle(cat) {
+  if (WS_CAT_STYLE[cat]) return WS_CAT_STYLE[cat];
+  let h = 0;
+  for (const ch of cat || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return ["🔗", WS_TONE_FALLBACK[h % WS_TONE_FALLBACK.length]];
+}
+
+// 標籤:從名稱 + 說明的關鍵字比對出來(跟新聞頁 NEWS_TAG_RULES 同一套做法,各自一份詞庫、不是存在資料庫的欄位)。
+const WS_TAG_RULES = [
+  ["地籍圖", /地籍圖/], ["地段地號", /地段|地號/], ["地籍", /地籍/], ["電子地圖", /電子地圖/],
+  ["航照圖", /航照/], ["地形圖", /地形/], ["都市計畫", /都市計畫/], ["歷史地圖", /歷史/],
+  ["都更", /都更|都市更新/], ["容積獎勵", /容積/], ["GIS", /GIS/i], ["謄本申請", /謄本/],
+  ["產權", /產權/], ["實價登錄", /實價/], ["不動產", /不動產/], ["案件查詢", /案件/], ["建照 / 建管", /建照|建管/],
+];
+const WS_CITY_RE = /(台北|臺北|新北|桃園|台中|臺中|台南|臺南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|台東|臺東)(市|縣)?/;
+const WS_COUNTY_BASES = ["苗栗", "彰化", "南投", "雲林", "屏東", "宜蘭", "花蓮", "台東"];
+
+function _wsTagsOf(r) {
+  if (r._wsTags) return r._wsTags;
+  const text = `${r.name || ""} ${r.description || ""}`;
+  const tags = WS_TAG_RULES.filter(([, re]) => re.test(text)).map(([t]) => t).slice(0, 2);
+  const m = text.match(WS_CITY_RE);
+  if (m) {
+    const base = m[1].replace("臺", "台");
+    const suffix = m[2] || (WS_COUNTY_BASES.includes(base) ? "縣" : ["新竹", "嘉義"].includes(base) ? "" : "市");
+    const city = base + suffix;
+    if (!tags.includes(city)) tags.push(city);
+  }
+  r._wsTags = tags.slice(0, 3);
+  return r._wsTags;
+}
+
+function _wsMatchesQuery(r, q) {
+  if (!q) return true;
+  return [r.name, r.description, r.category].some((t) => (t || "").toLowerCase().includes(q));
+}
+
+function _wsItemHtml(r, cat, editable) {
+  const [icon, tone] = _wsCatStyle(cat);
+  const url = escapeHtml(r.url);
+  const tags = _wsTagsOf(r);
+  return `
+    <div class="ws-card" style="--tone:${tone}" data-id="${r.id}">
+      <a class="ws-card-open" href="${url}" target="_blank" rel="noopener" title="開啟原網站">↗</a>
+      <div class="ws-card-top">
+        <span class="ws-card-icon">${icon}</span>
+        <div class="ws-card-text">
+          <a class="ws-card-title" href="${url}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
+          ${r.description ? `<div class="ws-card-desc">${escapeHtml(r.description)}</div>` : ""}
+        </div>
+      </div>
+      <div class="ws-card-foot">
+        <span class="ws-card-tags">${tags.map((t) => `<span class="ws-tag">${escapeHtml(t)}</span>`).join("")}</span>
+        <a class="ws-card-arrow" href="${url}" target="_blank" rel="noopener" title="前往網站">›</a>
+      </div>
+      ${editable
+      ? `<div class="news-card-actions" style="padding:0 16px 14px">
+             <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+             <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>
+           </div>`
+      : ""
+    }
+    </div>`;
+}
+
+function renderWebsitesList(items, editable) {
+  const el = document.getElementById("websites-list");
+  if (!el) return;
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">尚無連結,${editable ? "點右上角新增" : "請洽管理員新增"}</div>`;
+    return;
+  }
+  const q = (wsQuery || "").toLowerCase().trim();
+  const matched = items.filter((i) => _wsMatchesQuery(i, q));
+  if (!matched.length) {
+    el.innerHTML = `<div class="empty-state">找不到符合「${escapeHtml(wsQuery)}」的網站</div>`;
+    return;
+  }
+
+  const byCategory = {};
+  matched.forEach((item) => {
+    const cat = (item.category || "").trim() || "未分類";
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+
+  el.innerHTML = Object.entries(byCategory)
+    .map(([cat, rows]) => {
+      const [icon] = _wsCatStyle(cat);
+      return `
+      <div class="ws-section" id="ws-sec-${encodeURIComponent(cat)}">
+        <div class="ws-section-hdr"><span>${icon}</span>${escapeHtml(cat)}<span class="ws-section-dash">—</span></div>
+        <div class="ws-cards-grid">${rows.map((r) => _wsItemHtml(r, cat, editable)).join("")}</div>
+      </div>`;
+    })
+    .join("");
+
+  if (editable) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        const item = currentLoadedWebsites.find((r) => r.id === Number(btn.dataset.editLink));
         openLinkFormModal("編輯網站連結", "/websites", item, loadWebsites);
       });
     });
@@ -674,6 +792,50 @@ async function loadWebsites() {
       });
     });
   }
+}
+
+function _renderWsHotList(items) {
+  const wrap = document.getElementById("ws-hot-list");
+  if (!wrap) return;
+  const top = items.slice(0, 5);
+  wrap.innerHTML = top.length
+    ? top
+      .map(
+        (r, i) => `
+      <a class="ws-hot-row" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">
+        <span class="ws-hot-rank">${i + 1}</span>
+        <span class="ws-hot-name">${escapeHtml(r.name)}</span>
+        <span class="ws-hot-arr">›</span>
+      </a>`
+      )
+      .join("")
+    : `<div class="empty-state" style="padding:10px 0">尚無資料</div>`;
+}
+
+function _renderWsQuickCats(items) {
+  const wrap = document.getElementById("ws-quickcats");
+  if (!wrap) return;
+  const cats = [...new Set([...WEBSITE_DEFAULT_CATS, ...items.map((i) => (i.category || "").trim()).filter(Boolean)])];
+  wrap.innerHTML = cats
+    .map((c) => {
+      const [icon] = _wsCatStyle(c);
+      return `<button type="button" class="ws-qc-btn" data-ws-goto-cat="${escapeHtml(c)}"><span>${icon}</span>${escapeHtml(c)}<span class="ws-qc-arr">›</span></button>`;
+    })
+    .join("");
+  wrap.querySelectorAll("[data-ws-goto-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.wsGotoCat;
+      if (wsQuery) {
+        wsQuery = "";
+        const input = document.getElementById("ws-search-input");
+        if (input) input.value = "";
+        renderWebsitesList(currentLoadedWebsites, isManager() && websitesEditMode);
+      }
+      requestAnimationFrame(() => {
+        document.getElementById(`ws-sec-${encodeURIComponent(cat)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  });
 }
 
 /* ================= 知識庫 (FAQ) ================= */
@@ -1250,6 +1412,16 @@ function initResources() {
     e.currentTarget.classList.toggle("btn-secondary", !websitesEditMode);
     loadWebsites();
   });
+  document.getElementById("ws-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
+  });
+  const runWsSearch = () => {
+    wsQuery = document.getElementById("ws-search-input")?.value || "";
+    renderWebsitesList(currentLoadedWebsites, isManager() && websitesEditMode);
+  };
+  document.getElementById("ws-search-input")?.addEventListener("input", runWsSearch);
+  document.getElementById("ws-search-btn")?.addEventListener("click", runWsSearch);
 
   document.getElementById("new-faq-btn")?.addEventListener("click", () => {
     openFaqFormModal("新增問答", null);

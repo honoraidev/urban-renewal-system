@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_17">
+  <link rel="stylesheet" href="style.css?v=20260921_18">
 </head>
 
 <body>
@@ -361,15 +361,61 @@
 
           <!-- 相關網站 -->
           <div id="view-websites" class="hidden">
-            <div class="page-header">
-              <h2>相關網站</h2>
-              <div style="display:flex;gap:8px">
-                <button class="btn-secondary hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
-                <button class="btn-secondary hidden" id="toggle-website-edit-btn">✏️ 修改</button>
-                <button class="btn-primary hidden" id="new-website-btn">+ 新增連結</button>
+            <div class="ws-layout">
+              <div class="ws-top">
+                <nav class="nw-crumbs"><a href="#" id="ws-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>相關網站</span></nav>
+                <div class="ws-hero">
+                  <div class="ws-hero-left">
+                    <h1 class="ws-title"><span class="ws-title-icon">🌐</span>相關網站</h1>
+                    <p class="ws-sub">整合政府機關與相關資源,快速連結您需要的網站</p>
+                  </div>
+                  <div class="ws-hero-right">
+                    <div class="ws-actions">
+                      <button class="btn-secondary btn-sm hidden" id="manage-website-cats-btn">⚙ 管理分類</button>
+                      <button class="btn-secondary btn-sm hidden" id="toggle-website-edit-btn">✏️ 修改</button>
+                      <button class="btn-primary btn-sm hidden" id="new-website-btn">+ 新增連結</button>
+                    </div>
+                    <div class="ws-hero-deco" aria-hidden="true">
+                      <div class="ws-slogan">善用公開資源,<br>讓都更作業更順利<svg viewBox="0 0 190 14" class="ws-slogan-line"><path d="M2 11 C 50 3, 120 3, 188 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                      <svg class="ws-city" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="wsBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                          <pattern id="wsWin" width="12" height="14" patternUnits="userSpaceOnUse"><rect x="2" y="3" width="7" height="7" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                        </defs>
+                        <rect x="6" y="140" width="288" height="6" rx="3" fill="#dfe8ee"/>
+                        <rect x="20" y="72" width="46" height="68" fill="url(#wsBld)"/><rect x="20" y="72" width="46" height="68" fill="url(#wsWin)"/>
+                        <rect x="74" y="34" width="54" height="106" fill="url(#wsBld)"/><rect x="74" y="34" width="54" height="106" fill="url(#wsWin)"/>
+                        <rect x="136" y="10" width="42" height="130" fill="url(#wsBld)"/><rect x="136" y="10" width="42" height="130" fill="url(#wsWin)"/>
+                        <rect x="186" y="52" width="48" height="88" fill="url(#wsBld)"/><rect x="186" y="52" width="48" height="88" fill="url(#wsWin)"/>
+                        <rect x="242" y="80" width="42" height="60" fill="url(#wsBld)"/><rect x="242" y="80" width="42" height="60" fill="url(#wsWin)"/>
+                        <g fill="#7cc7a4"><circle cx="14" cy="128" r="12"/><circle cx="70" cy="130" r="10"/><circle cx="292" cy="126" r="12"/></g>
+                        <g fill="#4faa86" opacity=".85"><circle cx="18" cy="122" r="7"/><circle cx="288" cy="120" r="7"/></g>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="ws-search">
+                  <span class="ws-search-icon">🔍</span>
+                  <input type="search" id="ws-search-input" placeholder="搜尋網站名稱、關鍵字...(例如:地籍、GIS、電子地圖)" autocomplete="off">
+                  <button type="button" class="ws-search-btn" id="ws-search-btn">搜尋</button>
+                </div>
               </div>
+
+              <div class="ws-main">
+                <div id="websites-list"></div>
+              </div>
+
+              <aside class="ws-aside">
+                <div class="ws-side-card">
+                  <h3 class="ws-side-title"><span class="ws-side-icon">⭐</span>熱門網站</h3>
+                  <div id="ws-hot-list"></div>
+                </div>
+                <div class="ws-side-card">
+                  <h3 class="ws-side-title"><span class="ws-side-icon">🗂️</span>快速分類</h3>
+                  <div class="ws-quickcats" id="ws-quickcats"></div>
+                </div>
+              </aside>
             </div>
-            <div id="websites-list"></div>
           </div>
 
           <!-- 知識庫 -->
@@ -864,7 +910,7 @@
   <script src="js/encumbrances.js?v=20260921_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
-  <script src="js/resources.js?v=20260921_3"></script>
+  <script src="js/resources.js?v=20260921_4"></script>
   <script src="js/inventory.js?v=20260921_1"></script>
   <script src="js/buildingview.js?v=20260921_1"></script>
   <script src="js/land_value_tax.js?v=20260921_3"></script>
