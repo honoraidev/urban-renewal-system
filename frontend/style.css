@@ -563,15 +563,6 @@
   #view-project-overview .pd-top-grid { grid-template-columns: 1fr; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
-  /* 案件詳情頁(SOP 進度等分頁)右上角的「+」新增待辦事項按鈕 - 絕對定位貼齊頁面右上角 */
-  #view-project-detail { position: relative; }
-  .pd-add-todo-btn {
-    position: absolute; top: 4px; right: 4px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: none;
-    background: var(--brand-light); color: var(--brand-dark, var(--brand)); font-size: 20px; font-weight: 800; line-height: 1;
-    cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s;
-    box-shadow: 0 2px 8px rgba(15, 35, 38, .08);
-  }
-  .pd-add-todo-btn:hover { background: var(--brand); color: #fff; transform: scale(1.08); }
   /* 返回鈕維持貼齊最上面,標題+meta 這組當成一體垂直置中在剩餘高度中間,不要貼
      在最上面、下面留一大片空白(右欄的案件簡介卡片通常比這欄內容高很多)。 */
   #view-project-overview .pd-top-left { position: relative; justify-content: center; padding-top: 30px; }

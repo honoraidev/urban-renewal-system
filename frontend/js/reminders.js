@@ -148,14 +148,6 @@ function initReminders() {
   });
   dd.addEventListener("click", (e) => e.stopPropagation());
   document.addEventListener("click", closeBellDropdown);
-
-  // 案件詳情頁右上角的「+」(見 index.html #pd-add-todo-btn)- 預帶目前案件。
-  document.getElementById("pd-add-todo-btn")?.addEventListener("click", () => {
-    const pid = state.currentProjectId;
-    if (!pid) return;
-    const name = state.currentProject?.name || `案件 ${pid}`;
-    openAddReminderModal(pid, [{ id: pid, name }], null, reminderStageChoicesFromSop(state.projectCache?.[pid]?.sop));
-  });
 }
 
 // 登入後立刻抓一次 + 每分鐘輪詢(見 auth.js loadCurrentUser/doLogout)。
@@ -175,15 +167,6 @@ function stopReminderPolling() {
 
 // 「新增重要待辦」快速表單 - 案件總覽頁的待辦事項卡片、工作看板都會用到同一個
 // modal,差別只在 defaultProjectId 是否預帶(案件總覽頁帶當前案件、工作看板帶空)。
-// SOP 進度(GET /projects/{id}/sop 的回傳)→ 「新增待辦」表單的所屬階段選項。
-// 案件已全部結案(final 不是 pending)就沒有「這階段」,回 null(表單不顯示階段欄位)。
-function reminderStageChoicesFromSop(sop) {
-  if (!sop || !sop.stages || (sop.final && sop.final.status !== "pending")) return null;
-  const at = (i) => (sop.stages[String(i)] ? { index: i, name: sop.stages[String(i)].name } : null);
-  const current = at(sop.current_stage);
-  return current ? { current, next: at(sop.current_stage + 1) } : null;
-}
-
 // stageChoices = { current: {index,name}, next: {index,name}|null }(給了才會出現「所屬階段」欄位,
 // 而且只在選了案件時顯示 - 個人備註沒有階段)。存的是關卡編號,之後案件進到下一關,
 // 原本歸「下階段」的待辦會自然變成「這階段」。

@@ -5,9 +5,6 @@
 // 頁面(view-project-detail)是不同畫面。全部資料都串真實 API,沒有後端資料可算的欄位
 // (待辦事項)先留空狀態,不做假資料。
 
-const OVERVIEW_RISK_LABEL = { low: "低", medium: "中", high: "高", "未設定": "未設定", "-": "—" };
-const OVERVIEW_RISK_CLASS = { low: "ov-risk-low", medium: "ov-risk-medium", high: "ov-risk-high" };
-
 const OVERVIEW_STAGE_STATUS_LABEL = {
   completed: "已完成",
   force_closed: "強制結案",
@@ -23,18 +20,8 @@ function overviewEnsureStyle() {
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
     .ov-row.ov-row-r2 { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); }
-    .ov-row.ov-row-r3 { grid-template-columns: minmax(0,2.4fr) minmax(0,1fr); }
+    .ov-row.ov-row-r3 { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); }
     @media (max-width:1100px) { .ov-row.ov-row-r2, .ov-row.ov-row-r3 { grid-template-columns: 1fr; } }
-    /* 合併卡片:一張卡裡左右兩個區塊(各自有小標題),中間一條細分隔線 */
-    .ov-card-merged { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:0 26px; }
-    .ov-card-merged > .ov-sec + .ov-sec { border-left:1px solid var(--border); padding-left:26px; }
-    .ov-card-merged-even { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
-    @media (max-width:760px) {
-      .ov-card-merged, .ov-card-merged-even { grid-template-columns:1fr; }
-      .ov-card-merged > .ov-sec + .ov-sec { border-left:none; padding-left:0; margin-top:22px; }
-    }
-    .ov-sec { min-width:0; }
-    .ov-sec h3 { margin-top:0; }
 
     .ov-todo-zone + .ov-todo-zone { margin-top:16px; }
     .ov-todo-zone-head { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; margin-bottom:4px; }
@@ -47,6 +34,11 @@ function overviewEnsureStyle() {
     .ov-todo-lead { display:flex; min-width:0; flex:1; }
     .ov-todo-body { min-width:0; }
     .ov-todo-chip { font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--surface-2); color:var(--text-muted); margin-left:6px; white-space:nowrap; }
+    .ov-todo-mark.pri-urgent { border-color:var(--danger); }
+    .ov-todo-mark.pri-important { border-color:var(--warning); }
+    .ov-pri-chip { font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:6px; margin-left:6px; white-space:nowrap; cursor:help; }
+    .ov-pri-chip.urgent { color:var(--danger); background:color-mix(in srgb, var(--danger) 13%, transparent); }
+    .ov-pri-chip.important { color:var(--warning); background:color-mix(in srgb, var(--warning) 16%, transparent); }
     .ov-todo-empty { font-size:12.5px; color:var(--text-muted); padding:8px 0; }
 
     .ov-metric-delta { margin-top:6px; font-size:11.5px; font-weight:700; display:flex; justify-content:center; align-items:baseline; gap:5px; flex-wrap:wrap; }
@@ -91,13 +83,6 @@ function overviewEnsureStyle() {
     .ov-stage-name { font-size:12.5px; font-weight:700; }
     .ov-stage-sub { font-size:11px; color:var(--text-muted); }
 
-    .ov-status-list { display:flex; flex-direction:column; gap:0; }
-    .ov-status-row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
-    .ov-status-row:last-child { border-bottom:none; }
-    .ov-status-row .lbl { color:var(--text-muted); }
-    .ov-risk-low { color:var(--success); font-weight:700; }
-    .ov-risk-medium { color:var(--warning); font-weight:700; }
-    .ov-risk-high { color:var(--danger); font-weight:700; }
 
     .ov-metrics-group { display:flex; flex-direction:column; gap:18px; }
     .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:18px; border-top:1px dashed var(--border); }
@@ -145,20 +130,6 @@ function overviewEnsureStyle() {
     .ov-list-row-meta { flex:0 0 auto; color:var(--text-muted); font-size:11.5px; text-align:right; white-space:nowrap; padding-top:1px; }
   `;
   document.head.appendChild(s);
-}
-
-function _ovRiskCard(caseStatus) {
-  const riskCls = OVERVIEW_RISK_CLASS[caseStatus.risk_level] || "";
-  const riskLabel = OVERVIEW_RISK_LABEL[caseStatus.risk_level] || caseStatus.risk_level || "—";
-  return `
-    <div class="ov-status-list">
-      <div class="ov-status-row"><span class="lbl">案件狀態</span><span><span class="status-badge status-${caseStatus.status}">${escapeHtml(PROJECT_STATUS_LABEL[caseStatus.status] || caseStatus.status)}</span>${caseStatus.is_force_closed ? ` <span class="mini-badge alert">強制結案</span>` : ""}</span></div>
-      <div class="ov-status-row"><span class="lbl">風險等級</span><span class="${riskCls}">${escapeHtml(riskLabel)}</span></div>
-      <div class="ov-status-row"><span class="lbl">延遲天數</span><span>${caseStatus.delay_days > 0 ? `${caseStatus.delay_days} 天` : "0 天"}</span></div>
-      <div class="ov-status-row"><span class="lbl">下次里程碑</span><span>${escapeHtml(caseStatus.next_milestone_name || "—")}</span></div>
-      <div class="ov-status-row"><span class="lbl">預計完成日</span><span>${caseStatus.expected_completion_date ? fmtDate(caseStatus.expected_completion_date) : "未設定"}</span></div>
-      <div class="ov-status-row"><span class="lbl">更新日期</span><span>${fmtDateTime(caseStatus.updated_at)}</span></div>
-    </div>`;
 }
 
 function _ovStageColor(status) {
@@ -246,12 +217,63 @@ function _ovCardTitle(icon, label, rightHtml) {
 // 待辦事項卡片(案件總覽頁)- 跟工作看板行事曆、全站鈴鐺提醒同一份 calendar_events
 // 資料,這裡篩成只看這個案件的,逾期的排最後面但還是要看得到(見 backend
 // routers/project_overview.py get_project_todos)。
-function _ovTodoRowHtml(t) {
+// ---- 自動判斷「重要 / 緊急」 ----
+// 純規則式(不呼叫 AI),每個判斷都附原因,滑鼠移到徽章上看得到為什麼:
+//   緊急 = 已逾期 / 2 天內到期 / 內文有「緊急、盡快、立即…」;SOP 項目則看案件本身
+//          已經延遲、或離預計完成日 ≤ 30 天(對應案件風險等級的高/中)。
+//   重要 = 手動標了 ⭐ / 內文有「簽約、同意書、送件、審查…」;這階段還沒完成的 SOP
+//          項目本身就是過關的必要條件,一律算重要(下階段的只是預先準備,不算)。
+const _OV_URGENT_WORDS = /緊急|急件|盡快|儘快|立即|馬上|立刻|今天|逾期|催|asap/i;
+const _OV_IMPORTANT_WORDS = /簽約|同意書|送件|審查|核定|核准|申請|截止|說明會|反對|陳情|補件|公文|簽署|聽證|公聽會/;
+
+function _ovDaysUntil(dateStr) {
+  const d = new Date(String(dateStr).slice(0, 10) + "T00:00:00");
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return Math.round((d - t) / 86400000);
+}
+
+// ctx = { delayDays, daysToDeadline }(案件延遲天數 / 離預計完成日還幾天,沒設定就是 null)
+function _ovPriorityOfTodo(t, ctx) {
+  const reasons = { urgent: [], important: [] };
+  const days = _ovDaysUntil(t.event_date);
+  if (t.is_overdue || days < 0) reasons.urgent.push(`已逾期 ${Math.abs(days)} 天`);
+  else if (days === 0) reasons.urgent.push("今天到期");
+  else if (days <= 2) reasons.urgent.push(`${days} 天內到期`);
+  if (_OV_URGENT_WORDS.test(t.content)) reasons.urgent.push("內容含緊急字眼");
+  if (t.is_important) reasons.important.push("已手動標為重要");
+  if (_OV_IMPORTANT_WORDS.test(t.content)) reasons.important.push("內容與簽約/送件/審查等關鍵事項有關");
+  return reasons;
+}
+
+function _ovPriorityOfSopTask(isCurrent, ctx) {
+  const reasons = { urgent: [], important: [] };
+  if (!isCurrent) return reasons;
+  reasons.important.push("這階段的過關必要項目");
+  if (ctx.delayDays > 0) reasons.urgent.push(`案件已延遲 ${ctx.delayDays} 天`);
+  else if (ctx.daysToDeadline != null && ctx.daysToDeadline <= 30) reasons.urgent.push(`距預計完成日只剩 ${ctx.daysToDeadline} 天`);
+  return reasons;
+}
+
+function _ovPriorityScore(r) {
+  return (r.urgent.length ? 2 : 0) + (r.important.length ? 1 : 0);
+}
+
+function _ovPriorityChipsHtml(r) {
+  const chip = (cls, text, list) => `<span class="ov-pri-chip ${cls}" title="${escapeHtml(list.join("、"))}">${text}</span>`;
+  return (r.urgent.length ? chip("urgent", "🔥 緊急", r.urgent) : "") + (r.important.length ? chip("important", "⭐ 重要", r.important) : "");
+}
+
+function _ovPriorityCls(r) {
+  return r.urgent.length ? "pri-urgent" : r.important.length ? "pri-important" : "";
+}
+
+function _ovTodoRowHtml(t, r) {
   return `<div class="ov-todo-row${t.is_overdue ? " ov-todo-overdue" : ""}">
     <div class="ov-todo-lead">
-      <span class="ov-todo-mark"></span>
+      <span class="ov-todo-mark ${_ovPriorityCls(r)}"></span>
       <div class="ov-todo-body">
-        <div class="ov-todo-text">${t.is_important ? "⭐ " : ""}${escapeHtml(t.content)}</div>
+        <div class="ov-todo-text">${escapeHtml(t.content)}${_ovPriorityChipsHtml(r)}</div>
         <div class="ov-todo-date">${fmtDate(t.event_date)}${t.is_overdue ? "・已過期" : ""}</div>
       </div>
     </div>
@@ -259,22 +281,35 @@ function _ovTodoRowHtml(t) {
   </div>`;
 }
 
-function _ovSopTaskRowHtml(task) {
+function _ovSopTaskRowHtml(task, r) {
   return `<div class="ov-todo-row">
     <div class="ov-todo-lead">
-      <span class="ov-todo-mark"></span>
-      <div class="ov-todo-body"><div class="ov-todo-text">${escapeHtml(task.label)}<span class="ov-todo-chip">SOP</span></div></div>
+      <span class="ov-todo-mark ${_ovPriorityCls(r)}"></span>
+      <div class="ov-todo-body"><div class="ov-todo-text">${escapeHtml(task.label)}<span class="ov-todo-chip">SOP</span>${_ovPriorityChipsHtml(r)}</div></div>
     </div>
   </div>`;
 }
 
 // 一個區塊(這階段 / 下階段):SOP 這關還沒完成的項目(自動帶入,不能刪) + 歸在這關的
 // 自訂待辦(行事曆備註)。block 是 overview.stage_tasks.current/next,null = 沒有這一關。
-function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
+function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText, ctx) {
   const pending = block ? block.tasks.filter((t) => !t.done) : [];
   const stageText = block ? `第${block.index}階段 ${escapeHtml(block.name || "")}` : "";
   const countText = block && block.tasks.length ? `${block.tasks.length - pending.length}/${block.tasks.length} 已完成` : "";
-  const rows = pending.map(_ovSopTaskRowHtml).join("") + customTodos.map(_ovTodoRowHtml).join("");
+  // 兩種項目混在一起,依自動判斷的優先度排(緊急+重要 > 緊急 > 重要 > 一般),同級維持原順序
+  // (SOP 項目在前、自訂待辦依日期)。
+  const items = [
+    ...pending.map((task) => {
+      const r = _ovPriorityOfSopTask(tagCls === "now", ctx);
+      return { r, html: _ovSopTaskRowHtml(task, r) };
+    }),
+    ...customTodos.map((t) => {
+      const r = _ovPriorityOfTodo(t, ctx);
+      return { r, html: _ovTodoRowHtml(t, r) };
+    }),
+  ];
+  items.sort((a, b) => _ovPriorityScore(b.r) - _ovPriorityScore(a.r));
+  const rows = items.map((it) => it.html).join("");
   return `
     <div class="ov-todo-zone">
       <div class="ov-todo-zone-head">
@@ -286,7 +321,11 @@ function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
     </div>`;
 }
 
-function _ovTodosHtml(todos, stageTasks) {
+function _ovTodosHtml(todos, stageTasks, caseStatus) {
+  const ctx = {
+    delayDays: (caseStatus && caseStatus.delay_days) || 0,
+    daysToDeadline: caseStatus && caseStatus.expected_completion_date ? _ovDaysUntil(caseStatus.expected_completion_date) : null,
+  };
   const cur = stageTasks ? stageTasks.current : null;
   const next = stageTasks ? stageTasks.next : null;
   // 歸「下階段」的:指定關卡編號比目前這關大的自訂待辦;沒指定(舊資料)或已經輪到的都歸這階段。
@@ -295,11 +334,12 @@ function _ovTodosHtml(todos, stageTasks) {
   const nextTodos = (todos || []).filter(isNext);
   const nowHtml = _ovTodoZoneHtml(
     "now", "這階段", cur, nowTodos,
-    cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項"
+    cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項",
+    ctx
   );
   // 沒有下一關(已經是最後一關 / 舊後端沒回 stage_tasks)就不畫下階段區塊。
   const nextHtml = next
-    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目")
+    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目", ctx)
     : "";
   return nowHtml + nextHtml;
 }
@@ -313,12 +353,11 @@ async function renderProjectOverviewTab(el) {
   const pid = state.currentProjectId;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
 
-  let overview, members, docs, notes, feed, todos;
+  let overview, members, notes, feed, todos;
   try {
-    [overview, members, docs, notes, feed, todos] = await Promise.all([
+    [overview, members, notes, feed, todos] = await Promise.all([
       api(`/projects/${pid}/overview`),
       api(`/projects/${pid}/members`, { silent: true }).catch(() => []),
-      api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/notes`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/activity-feed`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/overview/todos`, { silent: true }).catch(() => []),
@@ -365,18 +404,6 @@ async function renderProjectOverviewTab(el) {
         )
         .join("")
     : `<div class="helper-text">尚未指派相關人員</div>`;
-
-  const recentDocs = [...docs].sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at)).slice(0, 6);
-  const docsHtml = recentDocs.length
-    ? recentDocs
-        .map(
-          (d) => `<div class="ov-list-row">
-            <div class="ov-list-row-main" title="${escapeHtml(d.file_name)}">📄 ${escapeHtml(d.file_name)}</div>
-            <div class="ov-list-row-meta">${fmtDate(d.uploaded_at)}</div>
-          </div>`
-        )
-        .join("")
-    : `<div class="helper-text">尚無文件</div>`;
 
   const timeline = [
     ...notes.map((n) => ({ time: n.occurred_at, text: n.content, who: n.author_name, isNote: true })),
@@ -436,23 +463,14 @@ async function renderProjectOverviewTab(el) {
             </div>
           </div>
         </div>
-        <div class="ov-card ov-card-merged">
-          <div class="ov-sec">
-            ${_ovCardTitle("📋", "案件狀態")}
-            ${_ovRiskCard(overview.case_status)}
-          </div>
-          <div class="ov-sec">
-            ${_ovCardTitle("✅", "待辦事項", todoAddBtn)}
-            ${_ovTodosHtml(todos, stageTasks)}
-          </div>
+        <div class="ov-card">
+          ${_ovCardTitle("✅", "待辦事項", todoAddBtn)}
+          ${_ovTodosHtml(todos, stageTasks, overview.case_status)}
         </div>
       </div>
 
       <div class="ov-row ov-row-r3">
-        <div class="ov-card ov-card-merged ov-card-merged-even">
-          <div class="ov-sec">${_ovCardTitle("📝", "重要紀錄")}${timelineHtml}</div>
-          <div class="ov-sec">${_ovCardTitle("📁", "最近文件")}${docsHtml}</div>
-        </div>
+        <div class="ov-card">${_ovCardTitle("📝", "重要紀錄")}${timelineHtml}</div>
         <div class="ov-card">${_ovCardTitle("👥", "相關人員")}${membersHtml}</div>
       </div>
     </div>`;
