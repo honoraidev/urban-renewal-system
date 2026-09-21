@@ -116,6 +116,15 @@ function overviewEnsureStyle() {
     .ov-metric-tone-danger .ov-metric-pct { color:var(--danger); }
     .ov-metric-tone-muted .ov-metric-pct { color:var(--text-muted); }
     .ov-metric-primary .ov-metric-sub { font-size:11.5px; margin-top:2px; }
+    .ov-metric-clickable { cursor:pointer; }
+    .ov-metric-clickable:hover, .ov-metric-clickable:focus-visible { background:var(--surface-2); outline:none; }
+    .ov-metric-primary.ov-metric-clickable:hover, .ov-metric-primary.ov-metric-clickable:focus-visible { background:var(--surface); border-color:var(--brand); }
+
+    .ov-metric-detail-list { display:flex; flex-direction:column; gap:2px; max-height:60vh; overflow-y:auto; }
+    .ov-metric-detail-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:1px solid var(--border); }
+    .ov-metric-detail-row:last-child { border-bottom:none; }
+    .ov-metric-detail-name { font-weight:700; font-size:14px; }
+    .ov-metric-detail-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
 
     .ov-member-row { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13.5px; }
     .ov-member-avatar { width:32px; height:32px; border-radius:50%; background:var(--brand-light); color:var(--brand-dark);
@@ -163,10 +172,10 @@ function _ovDeltaHtml(cur, prev, unit, goodWhen) {
   return `<div class="ov-metric-delta ${tone}">${arrow} ${sign}${delta}${unit}<span class="prev">上週 ${prev}${unit}</span></div>`;
 }
 
-function _ovMetric(icon, label, ratio, subText, tone, deltaHtml) {
+function _ovMetric(icon, label, ratio, subText, tone, deltaHtml, kind) {
   const pct = Math.round((ratio || 0) * 100);
   return `
-    <div class="ov-metric ov-metric-primary ov-metric-tone-${tone}">
+    <div class="ov-metric ov-metric-primary ov-metric-tone-${tone}${kind ? " ov-metric-clickable" : ""}"${kind ? ` data-ov-metric="${kind}" data-ov-metric-label="${escapeHtml(label)}" tabindex="0" role="button"` : ""}>
       <div class="ov-metric-icon-badge">${icon}</div>
       <div class="ov-metric-label">${label}</div>
       <div class="ov-metric-pct">${pct}%</div>
@@ -200,7 +209,7 @@ function _ovHeadcountDetailHtml(detail, lastWeek) {
   ];
   return items
     .map(
-      (it) => `<div class="ov-metric ${it.cls}">
+      (it) => `<div class="ov-metric ${it.cls} ov-metric-clickable" data-ov-metric="${it.key}" data-ov-metric-label="${escapeHtml(it.label)}" tabindex="0" role="button">
         <div class="ov-metric-label">${it.label}</div>
         <div class="ov-metric-pct">${detail[it.key]}</div>
         <div class="ov-metric-sub">/ ${detail.total} 人</div>
@@ -208,6 +217,60 @@ function _ovHeadcountDetailHtml(detail, lastWeek) {
       </div>`
     )
     .join("");
+}
+
+// 點「關鍵指標」任一格(人數同意/反對/其他,或下面同意/反對/未決定/未回覆細項)彈出這一類
+// 是哪些地主 —— 分類邏輯跟後端 project_overview.py _headcount_detail 同一套(每位地主
+// 最新一次拜訪結果),用 /landowners + /contact-summary 兜出來,不用另外開後端 API。
+// 沒有土地/建物持分的地主(contact-summary 不會列)一律算「未回覆」,跟後端預設一致
+// (這種人本來就不是真的聯絡對象,幾乎不會有拜訪紀錄)。
+function _ovClassifyContactResult(result) {
+  if (result === "agreed") return "agreed";
+  if (result === "opposed") return "opposed";
+  if (result === "undecided" || result === "callback_needed") return "undecided";
+  return "no_response";
+}
+
+const OV_METRIC_KIND_LABEL = { agreed: "同意", opposed: "反對", undecided: "未決定", no_response: "未回覆", other: "其他(未決定/未回覆)" };
+
+async function _ovOpenMetricDetail(pid, kind) {
+  const title = `${OV_METRIC_KIND_LABEL[kind] || kind} 名單`;
+  const panel = openModal(title, `<div class="empty-state">載入中...</div>`, { width: "460px" });
+  let landowners, summary;
+  try {
+    [landowners, summary] = await Promise.all([
+      api(`/projects/${pid}/landowners`),
+      api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
+    ]);
+  } catch (err) {
+    panel.querySelector(".modal-body").innerHTML = `<div class="empty-state">載入失敗</div>`;
+    return;
+  }
+  const resultBy = new Map(summary.map((s) => [s.landowner_id, s]));
+  const matched = landowners.filter((o) => {
+    const cls = _ovClassifyContactResult(resultBy.get(o.id)?.last_contact_result);
+    return kind === "other" ? cls === "undecided" || cls === "no_response" : cls === kind;
+  });
+
+  const bodyEl = panel.querySelector(".modal-body");
+  if (!bodyEl) return;
+  if (!matched.length) {
+    bodyEl.innerHTML = `<div class="empty-state">目前沒有地主屬於這一類</div>`;
+    return;
+  }
+  bodyEl.innerHTML = `<div class="ov-metric-detail-list">${matched
+    .map((o) => {
+      const s = resultBy.get(o.id);
+      const phone = o.phone_mobile || o.phone_landline || o.phone || "";
+      const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "尚無拜訪紀錄";
+      return `<div class="ov-metric-detail-row">
+        <div>
+          <div class="ov-metric-detail-name">${escapeHtml(o.name)}</div>
+          <div class="ov-metric-detail-meta">${phone ? escapeHtml(phone) + " · " : ""}最近聯絡:${escapeHtml(lastDate)}</div>
+        </div>
+      </div>`;
+    })
+    .join("")}</div>`;
 }
 
 function _ovCardTitle(icon, label, rightHtml) {
@@ -418,9 +481,9 @@ async function renderProjectOverviewTab(el) {
           ${_ovCardTitle("🎯", "關鍵指標", weekHint)}
           <div class="ov-metrics-group">
             <div class="ov-metrics ov-metrics-primary">
-              ${_ovMetric("👥", "人數同意", cur ? (cur.total ? cur.agreed / cur.total : 0) : km.headcount_ratio, cur ? `${cur.agreed} / ${cur.total} 人` : `${km.headcount_agreed} / ${km.headcount_total} 人`, "brand", pctDelta("agreed", "up"))}
-              ${_ovMetric("❌", "反對", _ovDetailRatio(cur, "opposed"), `${cur?.opposed || 0} / ${cur?.total || 0} 人`, "danger", pctDelta("opposed", "down"))}
-              ${_ovMetric("❔", "其他", _ovDetailRatio(cur, "other"), `${_ovDetailOther(cur)} / ${cur?.total || 0} 人`, "muted", pctDelta("other", null))}
+              ${_ovMetric("👥", "人數同意", cur ? (cur.total ? cur.agreed / cur.total : 0) : km.headcount_ratio, cur ? `${cur.agreed} / ${cur.total} 人` : `${km.headcount_agreed} / ${km.headcount_total} 人`, "brand", pctDelta("agreed", "up"), "agreed")}
+              ${_ovMetric("❌", "反對", _ovDetailRatio(cur, "opposed"), `${cur?.opposed || 0} / ${cur?.total || 0} 人`, "danger", pctDelta("opposed", "down"), "opposed")}
+              ${_ovMetric("❔", "其他", _ovDetailRatio(cur, "other"), `${_ovDetailOther(cur)} / ${cur?.total || 0} 人`, "muted", pctDelta("other", null), "other")}
             </div>
             <div class="ov-metrics">
               ${_ovHeadcountDetailHtml(cur, prev)}
@@ -441,6 +504,17 @@ async function renderProjectOverviewTab(el) {
 
   el.querySelector("[data-ov-todo-add]")?.addEventListener("click", () => {
     openAddReminderModal(pid, [{ id: pid, name: proj.name || `案件 ${pid}` }], () => renderProjectOverviewTab(el), stageChoices);
+  });
+
+  el.querySelectorAll("[data-ov-metric]").forEach((tile) => {
+    const open = () => _ovOpenMetricDetail(pid, tile.dataset.ovMetric);
+    tile.addEventListener("click", open);
+    tile.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
   });
 
   el.querySelectorAll("[data-ov-todo-delete]").forEach((btn) => {
