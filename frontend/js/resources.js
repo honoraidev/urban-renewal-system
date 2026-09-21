@@ -317,8 +317,14 @@ async function goToNews() {
   showView("view-news");
   newsEditMode = false;
   newsDateFilter = fmtDateTW(new Date().toISOString()); // 預設只看今天,清空篩選才是看全部
+  newsCatFilter = "";
+  newsTagFilter = "";
+  newsQuery = "";
+  newsTagsExpanded = false;
   const dateFilterEl = document.getElementById("news-date-filter");
   if (dateFilterEl) dateFilterEl.value = newsDateFilter;
+  const searchEl = document.getElementById("news-search");
+  if (searchEl) searchEl.value = "";
   document.getElementById("new-news-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("toggle-news-edit-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
@@ -349,25 +355,232 @@ async function loadNews() {
   renderNewsList();
 }
 
-// 依右上角日期選擇器篩選(空字串 = 全部),篩選是在前端對已經抓回來的
-// currentLoadedNews 做,不用重新打 API - 換日期時反應才會快。
-let newsDateFilter = "";
+// ===== 新聞頁 =====
+// 版面:左邊依分類分成幾張卡片區塊(每塊預設放最新 2 則,「查看更多」= 只看這個分類),
+// 右邊是搜尋框 / 分類篩選(附篇數) / 熱門標籤。所有篩選都在前端對已經抓回來的
+// currentLoadedNews 做,不用重新打 API - 換日期、切分類時反應才會快。
+// 資料庫只存標題/網址/來源/日期,沒有縮圖跟摘要,所以:縮圖用分類色塊 + 來源名稱代替;
+// 標籤是從標題關鍵字比對出來的(見 _newsTagsOf),不是另外存的欄位。
+let newsDateFilter = ""; // 右上角日期選擇器(空字串 = 全部)
+let newsCatFilter = ""; // 分類篩選(空字串 = 全部分類)
+let newsTagFilter = ""; // 熱門標籤篩選
+let newsQuery = ""; // 搜尋框(已小寫)
+let newsTagsExpanded = false;
+const NEWS_SECTION_PREVIEW = 2;
+const NEWS_HOT_TAG_LIMIT = 8;
+
+const NEWS_CAT_STYLE = {
+  地主財稅: ["💰", "#f59e0b"],
+  都更政策: ["🏛️", "#8b5cf6"],
+  法規異動: ["📜", "#10b981"],
+  市場動態: ["📈", "#0ea5e9"],
+  案件報導: ["🏗️", "#3b82f6"],
+  其他: ["📰", "#64748b"],
+  未分類: ["📰", "#64748b"],
+};
+
+function _newsCatStyle(cat) {
+  return NEWS_CAT_STYLE[cat] || ["📁", "#14b8a6"];
+}
+
+// 標籤詞庫:標題裡比對到就掛上該標籤(每則最多 2 個主題標籤 + 1 個縣市)。
+const NEWS_TAG_RULES = [
+  ["都市更新", /都更|都市更新/],
+  ["危老", /危老|危險及老舊/],
+  ["老宅延壽", /延壽/],
+  ["老屋", /老屋|老宅|老舊/],
+  ["補助", /補助|補貼/],
+  ["政策", /政策|內政部|獎勵/],
+  ["稅務", /稅/],
+  ["財務", /財務|貸款|分回|找補/],
+  ["容積", /容積/],
+  ["捷運聯開", /捷運|聯開/],
+  ["修法", /修法|條例|草案|立法/],
+  ["安全", /安全|耐震|海砂/],
+  ["投資", /投資|房價|行情/],
+  ["權利變換", /權利變換|權變/],
+];
+const NEWS_CITY_RE = /(台北|臺北|新北|桃園|台中|臺中|台南|臺南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|台東|臺東)(市|縣)?/;
+const NEWS_COUNTY_BASES = ["苗栗", "彰化", "南投", "雲林", "屏東", "宜蘭", "花蓮", "台東"];
+
+function _newsSourceOf(r) {
+  return r.description && r.description.startsWith("來源:") ? r.description.slice(3).trim() : "";
+}
+
+function _newsSummaryOf(r) {
+  return r.description && !r.description.startsWith("來源:") ? r.description : "";
+}
+
+function _newsTagsOf(r) {
+  if (r._tags) return r._tags;
+  const text = `${r.name || ""} ${_newsSummaryOf(r)}`;
+  const tags = NEWS_TAG_RULES.filter(([, re]) => re.test(text)).map(([t]) => t).slice(0, 2);
+  const m = text.match(NEWS_CITY_RE);
+  if (m) {
+    const base = m[1].replace("臺", "台");
+    const suffix = m[2] || (NEWS_COUNTY_BASES.includes(base) ? "縣" : ["新竹", "嘉義"].includes(base) ? "" : "市");
+    const city = base + suffix;
+    if (!tags.includes(city)) tags.push(city);
+  }
+  r._tags = tags;
+  return tags;
+}
+
+function _newsItemHtml(r, cat, editable) {
+  const [icon, tone] = _newsCatStyle(cat);
+  const src = _newsSourceOf(r);
+  const summary = _newsSummaryOf(r);
+  const tags = _newsTagsOf(r);
+  const url = escapeHtml(r.url);
+  return `
+    <article class="nw-item" data-id="${r.id}">
+      <a class="nw-thumb" href="${url}" target="_blank" rel="noopener" style="--tone:${tone}" tabindex="-1" aria-hidden="true">
+        <span class="nw-thumb-icon">${icon}</span>
+        ${src ? `<span class="nw-thumb-src">${escapeHtml(src)}</span>` : ""}
+      </a>
+      <div class="nw-item-body">
+        <div class="nw-item-top">
+          <span class="nw-item-date">🕐 ${fmtDateTW(r.published_at || r.created_at)}</span>
+          <a class="nw-item-open" href="${url}" target="_blank" rel="noopener" title="開啟原文">↗</a>
+        </div>
+        <a class="nw-item-title" href="${url}" target="_blank" rel="noopener">${escapeHtml(r.name)}</a>
+        ${summary ? `<div class="nw-item-summary">${escapeHtml(summary)}</div>` : ""}
+        <div class="nw-item-foot">
+          ${src ? `<span class="nw-src-pill">來源:${escapeHtml(src)}</span>` : ""}
+          <span class="nw-item-tags">${tags.map((t) => `<button type="button" class="nw-tag" data-news-tag="${escapeHtml(t)}"># ${escapeHtml(t)}</button>`).join("")}</span>
+        </div>
+        ${editable
+      ? `<div class="news-card-actions">
+             <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
+             <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>
+           </div>`
+      : ""}
+      </div>
+    </article>`;
+}
 
 function renderNewsList() {
   const el = document.getElementById("news-list");
   if (!el) return;
-  const items = newsDateFilter
+  const editable = isManager() && newsEditMode;
+
+  const dated = newsDateFilter
     ? currentLoadedNews.filter((r) => fmtDateTW(r.published_at || r.created_at) === newsDateFilter)
     : currentLoadedNews;
-  renderLinkListPage(items, "news-list", isManager() && newsEditMode);
-  if (!items.length && newsDateFilter) {
-    el.innerHTML = `<div class="empty-state">這天沒有新聞,換個日期看看,或清除篩選看全部</div>`;
-    return;
+  const catOf = (r) => (r.category || "").trim() || "未分類";
+  const matchesQuery = (r) =>
+    !newsQuery ||
+    `${r.name} ${_newsSummaryOf(r)} ${_newsSourceOf(r)} ${_newsTagsOf(r).join(" ")}`.toLowerCase().includes(newsQuery);
+  const matchesTag = (r) => !newsTagFilter || _newsTagsOf(r).includes(newsTagFilter);
+
+  // 側欄的分類篇數:吃日期 + 搜尋 + 標籤,但不吃分類本身(不然選了一個分類,其他分類全變 0)
+  const forCats = dated.filter((r) => matchesQuery(r) && matchesTag(r));
+  const catCounts = {};
+  forCats.forEach((r) => {
+    const c = catOf(r);
+    catCounts[c] = (catCounts[c] || 0) + 1;
+  });
+  const catOrder = (c) => {
+    const i = NEWS_DEFAULT_CATS.indexOf(c);
+    if (c === "其他" || c === "未分類") return 999;
+    return i === -1 ? 500 : i;
+  };
+  const cats = Object.keys(catCounts).sort((a, b) => catOrder(a) - catOrder(b));
+
+  const shown = forCats.filter((r) => !newsCatFilter || catOf(r) === newsCatFilter);
+
+  // ---- 主要內容 ----
+  if (!currentLoadedNews.length) {
+    el.innerHTML = `<div class="empty-state">尚無新聞,${isManager() ? "點右上角「立即抓新聞」或「新增連結」" : "請洽管理員新增"}</div>`;
+  } else if (!dated.length) {
+    el.innerHTML = `<div class="empty-state">這天沒有新聞,換個日期看看,或清除日期篩選看全部</div>`;
+  } else if (!shown.length) {
+    el.innerHTML = `<div class="empty-state">沒有符合條件的新聞,試試清除搜尋或標籤篩選</div>`;
+  } else {
+    const byCat = {};
+    shown.forEach((r) => (byCat[catOf(r)] = byCat[catOf(r)] || []).push(r));
+    el.innerHTML = Object.keys(byCat)
+      .sort((a, b) => catOrder(a) - catOrder(b))
+      .map((cat) => {
+        const rows = byCat[cat];
+        const [icon, tone] = _newsCatStyle(cat);
+        const focused = !!newsCatFilter;
+        const visible = focused ? rows : rows.slice(0, NEWS_SECTION_PREVIEW);
+        const moreBtn = focused
+          ? `<button type="button" class="nw-more" data-news-cat="">‹ 返回全部</button>`
+          : rows.length > NEWS_SECTION_PREVIEW
+            ? `<button type="button" class="nw-more" data-news-cat="${escapeHtml(cat)}">查看更多(${rows.length}) ›</button>`
+            : "";
+        return `
+          <section class="nw-section">
+            <div class="nw-section-hdr">
+              <span class="nw-section-icon" style="--tone:${tone}">${icon}</span>
+              <h2>${escapeHtml(cat)}</h2>
+              ${moreBtn}
+            </div>
+            <div class="nw-items ${visible.length > 1 ? "nw-items-2col" : ""}">
+              ${visible.map((r) => _newsItemHtml(r, cat, editable)).join("")}
+            </div>
+          </section>`;
+      })
+      .join("");
   }
-  if (isManager() && newsEditMode) {
+
+  // ---- 側欄:分類篩選 ----
+  const catsEl = document.getElementById("news-cats");
+  if (catsEl) {
+    catsEl.innerHTML =
+      `<button type="button" class="nw-cat-row ${newsCatFilter ? "" : "active"}" data-news-cat="">
+         <span class="nw-cat-icon" style="--tone:var(--brand)">🗞️</span><span class="nw-cat-name">全部新聞</span><span class="nw-cat-count">${forCats.length}</span>
+       </button>` +
+      cats
+        .map((c) => {
+          const [icon, tone] = _newsCatStyle(c);
+          return `<button type="button" class="nw-cat-row ${newsCatFilter === c ? "active" : ""}" data-news-cat="${escapeHtml(c)}">
+            <span class="nw-cat-icon" style="--tone:${tone}">${icon}</span><span class="nw-cat-name">${escapeHtml(c)}</span><span class="nw-cat-count">${catCounts[c]}</span>
+          </button>`;
+        })
+        .join("");
+  }
+
+  // ---- 側欄:熱門標籤(日期 + 搜尋範圍內,依出現次數) ----
+  const tagsEl = document.getElementById("news-tags");
+  if (tagsEl) {
+    const tagCounts = {};
+    dated.filter(matchesQuery).forEach((r) => _newsTagsOf(r).forEach((t) => (tagCounts[t] = (tagCounts[t] || 0) + 1)));
+    const sorted = Object.entries(tagCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-Hant"));
+    const list = newsTagsExpanded ? sorted : sorted.slice(0, NEWS_HOT_TAG_LIMIT);
+    tagsEl.innerHTML = list.length
+      ? list
+          .map(([t, n]) => `<button type="button" class="nw-tag nw-tag-lg ${newsTagFilter === t ? "active" : ""}" data-news-tag="${escapeHtml(t)}"># ${escapeHtml(t)}<span class="nw-tag-n">${n}</span></button>`)
+          .join("")
+      : `<span class="helper-text">還沒有標籤</span>`;
+    const moreBtn = document.getElementById("news-tags-more");
+    if (moreBtn) {
+      moreBtn.classList.toggle("hidden", sorted.length <= NEWS_HOT_TAG_LIMIT);
+      moreBtn.textContent = newsTagsExpanded ? "收合 ‹" : "查看更多 ›";
+    }
+  }
+
+  // ---- 事件 ----
+  document.querySelectorAll("#view-news [data-news-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const c = btn.dataset.newsCat;
+      newsCatFilter = c === newsCatFilter ? "" : c;
+      renderNewsList();
+    });
+  });
+  document.querySelectorAll("#view-news [data-news-tag]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.dataset.newsTag;
+      newsTagFilter = t === newsTagFilter ? "" : t;
+      renderNewsList();
+    });
+  });
+  if (editable) {
     el.querySelectorAll("[data-edit-link]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const item = items.find((r) => r.id === Number(btn.dataset.editLink));
+        const item = currentLoadedNews.find((r) => r.id === Number(btn.dataset.editLink));
         openLinkFormModal("編輯新聞連結", "/news", item, loadNews);
       });
     });
@@ -925,6 +1138,18 @@ function initResources() {
   document.getElementById("news-date-filter")?.addEventListener("change", (e) => {
     newsDateFilter = e.currentTarget.value; // yyyy-mm-dd,清空(按瀏覽器內建的 x)就是全部
     renderNewsList();
+  });
+  document.getElementById("news-search")?.addEventListener("input", (e) => {
+    newsQuery = e.currentTarget.value.trim().toLowerCase();
+    renderNewsList();
+  });
+  document.getElementById("news-tags-more")?.addEventListener("click", () => {
+    newsTagsExpanded = !newsTagsExpanded;
+    renderNewsList();
+  });
+  document.getElementById("news-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
   });
 
   document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {

@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_9">
+  <link rel="stylesheet" href="style.css?v=20260921_10">
 </head>
 
 <body>
@@ -310,11 +310,15 @@
 
           <!-- 新聞 -->
           <div id="view-news" class="hidden">
-            <div class="page-header">
-              <h2>新聞</h2>
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-                <div style="display:flex;gap:8px">
-                  <input type="date" id="news-date-filter" title="依日期篩選新聞" style="width:auto">
+            <nav class="nw-crumbs"><a href="#" id="news-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>新聞</span></nav>
+            <div class="nw-head">
+              <div>
+                <h1 class="nw-title">新聞</h1>
+                <p class="nw-sub">掌握都更最新動態、政策資訊與產業新聞</p>
+              </div>
+              <div class="nw-head-right">
+                <div class="nw-toolbar">
+                  <input type="date" id="news-date-filter" class="nw-date" title="依日期篩選新聞">
                   <button class="btn-secondary hidden" id="manage-news-cats-btn">⚙ 管理分類</button>
                   <button class="btn-secondary hidden" id="toggle-news-edit-btn">✏️ 修改</button>
                   <button class="btn-secondary hidden" id="fetch-news-now-btn">🔄 立即抓新聞</button>
@@ -323,7 +327,23 @@
                 <span class="helper-text" id="news-sync-time"></span>
               </div>
             </div>
-            <div id="news-list"></div>
+            <div class="nw-layout">
+              <div id="news-list" class="nw-main"></div>
+              <aside class="nw-aside">
+                <div class="nw-panel nw-search">
+                  <span class="nw-search-icon">🔍</span>
+                  <input type="search" id="news-search" placeholder="搜尋新聞標題、關鍵字..." autocomplete="off">
+                </div>
+                <div class="nw-panel">
+                  <h3 class="nw-panel-title"><span class="nw-panel-icon">🗂️</span>分類篩選</h3>
+                  <div id="news-cats" class="nw-cat-list"></div>
+                </div>
+                <div class="nw-panel">
+                  <h3 class="nw-panel-title"><span class="nw-panel-icon">🔥</span>熱門標籤<button type="button" class="nw-more" id="news-tags-more">查看更多 ›</button></h3>
+                  <div id="news-tags" class="nw-tag-cloud"></div>
+                </div>
+              </aside>
+            </div>
           </div>
 
           <!-- 相關法規 -->
@@ -755,7 +775,7 @@
   <script src="js/encumbrances.js?v=20260921_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
-  <script src="js/resources.js?v=20260914_1"></script>
+  <script src="js/resources.js?v=20260921_1"></script>
   <script src="js/inventory.js?v=20260909_1"></script>
   <script src="js/buildingview.js?v=20260921_1"></script>
   <script src="js/land_value_tax.js?v=20260921_3"></script>
