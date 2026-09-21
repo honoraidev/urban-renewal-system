@@ -2123,9 +2123,11 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   grid-template-areas: "top deco" "tabs tabs" "main main";
 }
 .iv-top { grid-area: top; min-width: 0; }
-/* iv-deco 現在裝兩塊東西:匯出清單/新增物品按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
+/* iv-deco 現在裝兩塊東西:匯出清單/新增物品按鈕(貼最右邊)+ 下面的插圖(純裝飾)。
+   標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
+   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
 .iv-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.iv-deco-illust { position: relative; min-height: 195px; width: 100%; }
+.iv-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
 .iv-tabs { grid-area: tabs; }
 .iv-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
@@ -2147,14 +2149,12 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .iv-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
 .iv-deco-illust .iv-slogan {
-  position: absolute; right: 4px; top: 0; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
+  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
 [data-theme="dark"] .iv-slogan { color: #dbe4f0; }
 .iv-slogan-line { display: block; width: 160px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
-/* 插圖(高:寬 = 150:180)放在標語下方,兩者之間留夠間距才不會疊字(標語旋轉過,實際佔高比純
-   兩行文字高一些,量過實際渲染高度後留這個 top 值才不會卡到) */
-.iv-shelf { position: absolute; right: 10px; top: 80px; width: 130px; height: auto; }
+.iv-shelf { width: 130px; height: auto; }
 
 .iv-search-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .iv-search {
@@ -2265,7 +2265,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-top { grid-area: top; min-width: 0; }
 /* ws-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
 .ws-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.ws-deco-illust { position: relative; min-height: 190px; width: 100%; }
+/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
+   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
+.ws-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
 .ws-main { grid-area: main; min-width: 0; }
 /* 固定跟著頁面一起捲動(不用 sticky)—— sticky 黏住後跟主欄清單的捲動進度會不同步,
    捲一段之後兩欄的卡片頂端會對不齊(這頁清單通常不長,不需要側欄一直黏在畫面上)。 */
@@ -2283,12 +2285,12 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
 .ws-deco-illust .ws-slogan {
-  position: absolute; right: 4px; top: 20px; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
+  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
 [data-theme="dark"] .ws-slogan { color: #dbe4f0; }
 .ws-slogan-line { display: block; width: 160px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
-.ws-city { position: absolute; right: 0; top: 40px; width: 320px; max-width: 100%; height: auto; opacity: .95; }
+.ws-city { width: 320px; max-width: 100%; height: auto; opacity: .95; }
 
 .ws-search {
   display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border);
@@ -2378,7 +2380,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-top { grid-area: top; min-width: 0; }
 /* reg-deco 現在裝兩塊東西:管理分類/修改/新增連結按鈕(貼最右邊)+ 下面的插圖(純裝飾) */
 .reg-deco { grid-area: deco; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.reg-deco-illust { position: relative; min-height: 190px; width: 100%; }
+/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
+   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。 */
+.reg-deco-illust { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%; }
 .reg-tabs-row { grid-area: tabs; }
 .reg-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
@@ -2394,12 +2398,12 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
 .reg-deco-illust .reg-slogan {
-  position: absolute; right: 4px; top: 20px; z-index: 1; font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
+  font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
 [data-theme="dark"] .reg-slogan { color: #dbe4f0; }
 .reg-slogan-line { display: block; width: 160px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
-.reg-city { position: absolute; right: 0; top: 40px; width: 320px; max-width: 100%; height: auto; opacity: .95; }
+.reg-city { width: 320px; max-width: 100%; height: auto; opacity: .95; }
 
 .reg-search {
   display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border);
