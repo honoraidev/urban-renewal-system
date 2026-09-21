@@ -443,6 +443,32 @@ def _resolve_upload_folder_id(
     return folder_id_for_doc_type(folder_map, doc_type)
 
 
+# 每案只會有一份的文件類型 → 上傳時自動改名成「案名-類型.副檔名」。
+# 同名就會被文件清單歸成同一份文件的不同版本,重新上傳剛好變成新版。
+# 同意書/合約/意願書(常是一人一份)、照片、其他、說明會資料、顧問文件可能一次好幾份,保留原檔名。
+STANDARD_UPLOAD_NAME_LABELS = {
+    "cadastral_map": "地籍圖",
+    "property_register": "土地謄本",
+    "building_register": "建物謄本",
+    "roi_report": "投報表",
+    "landowner_roster": "地主清冊",
+    "consent_form_template": "同意書範本",
+    "contract_template": "合約範本",
+}
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
+
+
+def _standard_upload_name(project_name: str, doc_type: str, landowner_id: int | None, original: str) -> str:
+    label = STANDARD_UPLOAD_NAME_LABELS.get(doc_type)
+    if not label or landowner_id:
+        return original
+    safe_project = _UNSAFE_FILENAME_CHARS.sub("", project_name or "").strip()
+    if not safe_project:
+        return original
+    ext = os.path.splitext(original)[1].lower()
+    return f"{safe_project}-{label}{ext}"
+
+
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def upload_document(
     request: Request,
@@ -464,7 +490,7 @@ def upload_document(
 
     folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 
-    upload_filename = file.filename or "upload"
+    upload_filename = _standard_upload_name(project.name, doc_type, landowner_id, file.filename or "upload")
     content = file.file.read()
     # 讓 ActivityLogMiddleware（讀 scope["state"]，跟這個 Request 共用同一份 scope）
     # 能把實際檔名帶進案件公告 / LINE 通知，而不是只有「上傳文件」這種通用標籤。
