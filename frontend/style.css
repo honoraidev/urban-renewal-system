@@ -2255,28 +2255,26 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 
 /* ================= 相關網站 ================= */
-/* 版面跟 Q&A知識庫頁(.fq-layout)同一個骨架:top/deco 同一列,search 貼在 top 欄位裡
-   (只佔左欄寬度,不會被右邊插圖或側欄擠壓),main/aside 在下一列。 */
-/* 版面 4 個角色各自一格:標題(head)/按鈕(actions)同一列,搜尋框(search)/插圖(illust)
-   同一列且同高度並排,再下面才是主內容/側欄整列。 */
+/* 版面骨架完全比照 Q&A知識庫(.fq-layout):標題跟插圖同一列(top/deco),搜尋框在標題下方
+   只佔左欄寬度;「管理分類/修改/新增連結」跟 FAQ 一樣收進下面清單的標題列(ws-list-toolbar)。 */
 .ws-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 10px 26px; align-items: start;
-  grid-template-areas: "head actions" "search illust" "main aside";
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 26px; align-items: start;
+  grid-template-areas: "top deco" "toolbar toolbar" "main aside";
 }
-.ws-head { grid-area: head; min-width: 0; }
-.ws-actions { grid-area: actions; align-self: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-.ws-search { grid-area: search; align-self: center; }
-/* 插圖(純裝飾)跟搜尋框同高度並排,不再貼在按鈕下面一路往下延伸 */
-.ws-deco-illust {
-  grid-area: illust; align-self: center; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%;
-}
+.ws-top { grid-area: top; min-width: 0; }
+/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
+   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。
+   display:none 的媒體查詢一定要放在同一個規則的「之後」才會蓋掉這裡的 display:flex ——
+   兩條規則specificity 一樣時是看原始碼順序,寫反了窄螢幕就會蓋不掉,插圖還是跑出來。 */
+.ws-deco { grid-area: deco; position: relative; min-height: 190px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.ws-list-toolbar { grid-area: toolbar; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 14px; }
 .ws-main { grid-area: main; min-width: 0; }
 /* 固定跟著頁面一起捲動(不用 sticky)—— sticky 黏住後跟主欄清單的捲動進度會不同步,
    捲一段之後兩欄的卡片頂端會對不齊(這頁清單通常不長,不需要側欄一直黏在畫面上)。 */
 .ws-aside { grid-area: aside; align-self: start; display: flex; flex-direction: column; gap: 16px; }
 @media (max-width: 1100px) {
-  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "head" "actions" "search" "main" "aside"; gap: 18px 0; }
-  .ws-deco-illust { display: none; }
+  .ws-layout { grid-template-columns: 1fr; grid-template-areas: "top" "toolbar" "main" "aside"; gap: 18px 0; }
+  .ws-deco { display: none; }
 }
 
 .ws-hero-left { min-width: 240px; margin: 14px 0 18px; }
@@ -2284,7 +2282,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-title-icon { font-size: 28px; }
 .ws-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
-.ws-deco-illust .ws-slogan {
+.ws-slogan {
   font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
@@ -2371,26 +2369,23 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 
 /* ================= 相關法規 ================= */
-/* 版面骨架跟相關網站/Q&A知識庫同一套:top/deco 同一列,search 貼在 top 欄位裡;
-   這頁沒有側欄,分類頁籤 + 筆數/檢視切換整列滿版,底下主內容也整列滿版。 */
-/* 版面 4 個角色各自一格:標題(head)/按鈕(actions)同一列,搜尋框(search)/插圖(illust)
-   同一列且同高度並排,再下面才是頁籤跟主內容整列滿版。 */
+/* 版面骨架完全比照 Q&A知識庫(.fq-layout):標題跟插圖同一列(top/deco),搜尋框在標題下方
+   只佔左欄寬度;「管理分類/修改/新增連結」跟 FAQ 一樣收進下面清單的標題列(頁籤那一排)。 */
 .reg-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 10px 26px; align-items: start;
-  grid-template-areas: "head actions" "search illust" "tabs tabs" "main main";
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 26px; align-items: start;
+  grid-template-areas: "top deco" "tabs tabs" "main main";
 }
-.reg-head { grid-area: head; min-width: 0; }
-.reg-actions { grid-area: actions; align-self: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-.reg-search { grid-area: search; align-self: center; }
-/* 插圖(純裝飾)跟搜尋框同高度並排,不再貼在按鈕下面一路往下延伸 */
-.reg-deco-illust {
-  grid-area: illust; align-self: center; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 100%;
-}
+.reg-top { grid-area: top; min-width: 0; }
+/* 標語跟插圖用正常排版由上往下疊(不用絕對定位貼死的座標),間距由瀏覽器依實際文字渲染高度
+   自己算,不管換什麼字型、字有沒有比預期高都不會疊字。
+   display:none 的媒體查詢一定要放在同一個規則的「之後」才會蓋掉這裡的 display:flex ——
+   兩條規則 specificity 一樣時是看原始碼順序,寫反了窄螢幕就會蓋不掉,插圖還是跑出來。 */
+.reg-deco { grid-area: deco; position: relative; min-height: 190px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .reg-tabs-row { grid-area: tabs; }
 .reg-main { grid-area: main; min-width: 0; }
 @media (max-width: 1100px) {
-  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "head" "actions" "search" "tabs" "main"; gap: 0; }
-  .reg-deco-illust { display: none; }
+  .reg-layout { grid-template-columns: 1fr; grid-template-areas: "top" "tabs" "main"; gap: 0; }
+  .reg-deco { display: none; }
 }
 
 .reg-hero-left { min-width: 240px; margin: 14px 0 18px; }
@@ -2398,7 +2393,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-title-icon { font-size: 28px; }
 .reg-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
 
-.reg-deco-illust .reg-slogan {
+.reg-slogan {
   font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive;
   font-size: 18px; line-height: 1.5; color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
 }
@@ -2430,7 +2425,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-tab:hover { border-color: var(--brand); }
 .reg-tab.act { background: var(--brand); border-color: var(--brand); color: #fff; }
 .reg-tab-n { font-size: 12px; opacity: .8; }
-.reg-toolbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.reg-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 0 0 auto; }
 .reg-count { font-size: 13px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
 .reg-view-toggle { display: flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .reg-view-btn { border: none; background: var(--surface); color: var(--text-muted); font-size: 15px; padding: 7px 13px; cursor: pointer; }
