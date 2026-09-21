@@ -97,6 +97,8 @@ function normalizeTitleDeedData(raw) {
     subsection: p.subsection || "",
     parcel_number: p.parcel_number || "",
     area_sqm: p.area_sqm ?? "",
+    announced_value_per_sqm: p.announced_value_per_sqm ?? "",
+    announced_value_period: p.announced_value_period || "",
     owners: (p.owners || []).map(toLandOwnerRow),
     encumbrances: (p.encumbrances || []).map(toEncumbranceRow),
     source_page: p.source_page || null,
@@ -1701,6 +1703,10 @@ function renderParcelDescriptionSubStep(idx) {
         <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(p.parcel_number)}" autocomplete="off"></div>
         <div class="field"><label>土地面積(㎡)</label><input name="area_sqm" type="number" step="0.01" value="${escapeHtml(p.area_sqm)}" autocomplete="off"></div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>當期公告土地現值 年期</label><input name="announced_value_period" value="${escapeHtml(p.announced_value_period)}" placeholder="例: 115年01月" autocomplete="off"></div>
+        <div class="field"><label>當期公告土地現值(元/㎡)</label><input name="announced_value_per_sqm" type="number" step="1" value="${escapeHtml(p.announced_value_per_sqm)}" placeholder="例: 362000" autocomplete="off"></div>
+      </div>
     </form>
     <div class="modal-footer">
       <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
@@ -1721,6 +1727,8 @@ function renderParcelDescriptionSubStep(idx) {
       subsection: (fd.get("subsection") || "").trim(),
       parcel_number: (fd.get("parcel_number") || "").trim(),
       area_sqm: fd.get("area_sqm") || "",
+      announced_value_period: (fd.get("announced_value_period") || "").trim(),
+      announced_value_per_sqm: fd.get("announced_value_per_sqm") || "",
     });
   };
 
@@ -2501,6 +2509,7 @@ async function submitTitleDeedWizardInner() {
         const denominator = owner.ownership_denominator || 1;
         const ownedAreaSqm = ((Number(p.area_sqm) || 0) * numerator) / denominator;
         const declaredValuePerSqm = Number(owner.declared_value_per_sqm) || 0;
+        const announcedPerSqm = Number(p.announced_value_per_sqm) || 0;
         // 跟 ltt_original_value 用同一個「單價 × 持分面積」公式換算成總額,把謄本原始的
         // 每一筆歷史記錄都留著(不是只留最新一筆),供編輯畫面顯示核對用。
         const lttHistory =
@@ -2527,6 +2536,10 @@ async function submitTitleDeedWizardInner() {
             ltt_original_value: declaredValuePerSqm ? Math.round(declaredValuePerSqm * ownedAreaSqm) : null,
             ltt_original_value_period: owner.declared_value_period || null,
             ltt_original_value_history: lttHistory,
+            // 標示部「公告土地現值」單價 × 此人持分面積 = 這筆持分的當期公告土地現值總額,
+            // 跟 ltt_original_value 同一套「單價 × 持分面積」換算(土增稅頁直接拿來當申報現值)。
+            ltt_current_value: announcedPerSqm ? Math.round(announcedPerSqm * ownedAreaSqm) : null,
+            ltt_current_value_period: p.announced_value_period || null,
           },
         });
         if (p._sourceOcrJobId) sourceOcrJobIds.add(p._sourceOcrJobId);

@@ -1274,6 +1274,8 @@ section,第二次(通常較短、常見「一小段」「二小段」「三小�
 比留空(null)更誤導,寧可留 null 讓使用者知道需要人工補值。
    - declared_value_per_sqm:土地標示部或所有權部「當期申報地價:」欄位的金額(元/平方公尺),純數字(例如「67520.0」;【嚴禁填成「前次移轉現值」】)。找不到就填 null,不可以填 0。
    - declared_value_period:「當期申報地價:」欄位旁邊標註的年月(通常是民國年,例如「115年01月」;【嚴禁填成「前次移轉現值」】),依原文格式填寫成文字,找不到清楚的年月就填 null,不要自己推算或臆測。
+   - announced_value_per_sqm:土地標示部印的「公告土地現值」金額(元/平方公尺),純數字,去掉逗號與星號(例如原文「民國115年01月 公告土地現值:**362,000元/平方公尺」就填 362000)。【注意:這跟「公告地價」「當期申報地價」是不同欄位,只有標明「公告土地現值」的那一行才算】。找不到就填 null,不可以填 0。
+   - announced_value_period:上述「公告土地現值」前面標註的年月(民國年,例如「115年01月」),依原文改寫成「N年MM月」格式的文字;找不到就填 null。
    - owners(陣列,**列出這筆地號底下所有登記次序/所有權人,不要只列第一位**):
      - registration_order:登記次序(例如「0157」)
      - owner_name:所有權人姓名
@@ -1442,6 +1444,8 @@ RESPONSE_SCHEMA = {
                     "area_sqm": _n("number"),
                     "declared_value_per_sqm": _n("number"),
                     "declared_value_period": _n("string"),
+                    "announced_value_per_sqm": _n("number"),
+                    "announced_value_period": _n("string"),
                     "owners": {"type": "array", "items": _LAND_OWNER_ITEM_SCHEMA},
                     "encumbrances": {"type": "array", "items": _ENCUMBRANCE_ITEM_SCHEMA},
                 },
@@ -1453,6 +1457,8 @@ RESPONSE_SCHEMA = {
                     "area_sqm",
                     "declared_value_per_sqm",
                     "declared_value_period",
+                    "announced_value_per_sqm",
+                    "announced_value_period",
                     "owners",
                     "encumbrances",
                 ],
@@ -2841,6 +2847,8 @@ def _merge_extractions(chunk_results: list[dict]) -> dict:
             "area_sqm",
             "declared_value_per_sqm",
             "declared_value_period",
+            "announced_value_per_sqm",
+            "announced_value_period",
         ),
         list_fields=("owners", "encumbrances"),
     )

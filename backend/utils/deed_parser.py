@@ -22,6 +22,11 @@ _LOCATION_RE = re.compile(
     r"([一-鿿]{2,4}區)\s*([一-鿿]{2,4}段)\s*([一-鿿]{1,4}小段)?\s*(\d{3,5}-\d{3,5})\s*地號"
 )
 _AREA_RE = re.compile(r"面\s*積\s*[:：]\s*[*\s]*([\d,]+(?:\.\d+)?)\s*平方公尺")
+# 土地標示部的「民國115年01月 公告土地現值：**362,000元／平方公尺」- 當期公告土地現值(土增稅
+# 試算的「本次申報移轉現值」單價),跟「公告地價/當期申報地價」是不同欄位,只認「公告土地現值」。
+_ANNOUNCED_VALUE_RE = re.compile(
+    r"(?:民國\s*)?(\d{2,3})\s*年\s*(\d{1,2})\s*月\s*公告土地現值\s*[:：]\s*[*\s]*([\d,]+(?:\.\d+)?)\s*元"
+)
 _SECTION_OWNER = "土地所有權部"
 _SECTION_ENC = "土地他項權利部"
 
@@ -188,6 +193,14 @@ def _parse_one_deed(block: str) -> dict | None:
     area_m = _AREA_RE.search(block)
     area_sqm = float(area_m.group(1).replace(",", "")) if area_m else None
 
+    # 公告土地現值只會印在標示部(所有權部之前),限縮搜尋範圍避免誤抓後面的欄位。
+    _std_end = block.find(_SECTION_OWNER)
+    av_m = _ANNOUNCED_VALUE_RE.search(block[:_std_end] if _std_end != -1 else block)
+    announced_value_period = (
+        f"{int(av_m.group(1))}年{int(av_m.group(2)):02d}月" if av_m else None
+    )
+    announced_value_per_sqm = float(av_m.group(3).replace(",", "")) if av_m else None
+
     oi = block.find(_SECTION_OWNER)
     ei = block.find(_SECTION_ENC)
     if oi == -1:
@@ -232,6 +245,8 @@ def _parse_one_deed(block: str) -> dict | None:
         "subsection": subsection,
         "parcel_number": parcel_number,
         "area_sqm": area_sqm,
+        "announced_value_period": announced_value_period,
+        "announced_value_per_sqm": announced_value_per_sqm,
         "owners": owners,
         "encumbrances": encumbrances,
     }
