@@ -2197,14 +2197,18 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .iv-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px 22px 24px; box-shadow: var(--shadow); }
 .iv-card-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
 .iv-card-title { margin: 0; font-size: 18px; font-weight: 800; }
-.iv-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.iv-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+/* 檢視切換 + 排序下拉,永遠同一行(標題太長時是 iv-card-head 自己換行,不是這兩個互相擠掉對方) */
+.iv-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex: 0 0 auto; }
+.iv-view-toggle { display: flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .iv-view-btn { border: none; background: var(--surface); color: var(--text-muted); font-size: 15px; padding: 7px 13px; cursor: pointer; }
 .iv-view-btn + .iv-view-btn { border-left: 1px solid var(--border); }
 .iv-view-btn.act { background: var(--brand-light); color: var(--brand-dark, var(--brand)); }
 .iv-sort-select {
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13.5px; font-weight: 600;
-  padding: 8px 12px; border-radius: 10px; cursor: pointer;
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; flex: 0 0 auto; min-width: 0;
+}
+@media (max-width: 420px) {
+  .iv-sort-select { font-size: 12.5px; padding: 8px 8px; }
 }
 
 .iv-empty { text-align: center; padding: 46px 16px 30px; }
