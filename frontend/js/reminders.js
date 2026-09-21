@@ -97,6 +97,9 @@ function initReminders() {
   const btn = document.getElementById("nav-bell-btn");
   const dd = document.getElementById("nav-bell-dropdown");
   if (!btn || !dd) return;
+  // 側欄(.sb)有 backdrop-filter,會變成 fixed 子元素的定位基準並把面板裁在側欄範圍內,
+  // 所以面板搬到 body 底下,才是真正相對整個視窗定位、不會被切掉。
+  document.body.appendChild(dd);
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = !dd.classList.contains("hidden");
