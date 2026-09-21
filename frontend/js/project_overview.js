@@ -22,7 +22,7 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
-    .ov-row.ov-row-r2 { grid-template-columns: 1.8fr 1.1fr 1fr; }
+    .ov-row.ov-row-r2 { grid-template-columns: 2.3fr 1.1fr 1fr; }
     @media (max-width:1100px) { .ov-row.ov-row-r2 { grid-template-columns: 1fr; } }
     .ov-stage-band { margin:22px 0; }
     .ov-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
@@ -115,7 +115,7 @@ function overviewEnsureStyle() {
 
     .ov-metrics-group { display:flex; flex-direction:column; gap:18px; }
     .ov-metrics-group .ov-metrics + .ov-metrics { padding-top:18px; border-top:1px dashed var(--border); }
-    .ov-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
+    .ov-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
     .ov-metric { border-radius:14px; padding:14px 10px; text-align:center; background:var(--surface-2); }
     .ov-metric .ov-metric-icon { font-size:20px; }
     .ov-metric .ov-metric-label { font-size:12.5px; color:var(--text-muted); margin:4px 0; }
@@ -126,8 +126,8 @@ function overviewEnsureStyle() {
     .ov-detail-undecided .ov-metric-pct { color:var(--warning); }
     .ov-detail-noresponse .ov-metric-pct { color:var(--text-muted); }
 
-    .ov-metrics-primary { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; }
-    .ov-metric-primary { padding:20px 16px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow);
+    .ov-metrics-primary { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .ov-metric-primary { padding:16px 8px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow);
       transition:transform .15s, box-shadow .15s; }
     .ov-metric-primary:hover { transform:translateY(-2px); box-shadow:var(--shadow-hover); }
     .ov-metric-icon-badge { width:48px; height:48px; border-radius:50%; margin:0 auto 10px; font-size:22px;
@@ -138,7 +138,7 @@ function overviewEnsureStyle() {
     .ov-metric-tone-danger .ov-metric-icon-badge { background:var(--danger-light); }
     .ov-metric-tone-muted .ov-metric-icon-badge { background:var(--surface-2); }
     .ov-metric-primary .ov-metric-label { font-size:13px; font-weight:700; color:var(--text); }
-    .ov-metric-primary .ov-metric-pct { font-size:30px; font-weight:800; }
+    .ov-metric-primary .ov-metric-pct { font-size:26px; font-weight:800; }
     .ov-metric-tone-brand .ov-metric-pct { color:var(--brand-dark, var(--brand)); }
     .ov-metric-tone-info .ov-metric-pct { color:var(--info); }
     .ov-metric-tone-brown .ov-metric-pct { color:var(--brown); }
