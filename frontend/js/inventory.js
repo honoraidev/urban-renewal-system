@@ -191,7 +191,6 @@ function _ivEmptyHtml() {
         <div class="iv-empty-icon">📦</div>
         <h3 class="iv-empty-title">尚無物品資料</h3>
         <p class="iv-empty-sub">開始建立公司物品清單,方便管理與追蹤。</p>
-        ${isManager() ? `<button type="button" class="btn-primary iv-empty-btn" id="inv-empty-add-btn">+ 新增物品</button>` : ""}
       </div>
       <div class="iv-tips">
         <div class="iv-tip"><div class="iv-tip-icon">📦</div><div class="iv-tip-title">建立物品</div><div class="iv-tip-desc">新增物品資訊<br>包含名稱、型號等</div></div>
@@ -224,7 +223,6 @@ function renderInventoryTable() {
 
   if (!rows.length) {
     wrap.innerHTML = _ivEmptyHtml();
-    wrap.querySelector("#inv-empty-add-btn")?.addEventListener("click", () => openInventoryFormModal("新增物品", null));
     return;
   }
 

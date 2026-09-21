@@ -821,9 +821,7 @@ const REG_CAT_DESC = {
 function _regCatIcon(cat) {
   return REG_CAT_ICON[cat] || "📁";
 }
-// 卡片圖示 / 色調各自獨立挑選(圖示依名稱關鍵字比對內容類型,色調依卡片順序輪替配色),
-// 呈現跟新聞/知識庫頁同樣「每張卡自己一個顏色」的視覺效果,不是每個分類固定一色。
-const REG_TONE_PALETTE = ["#2563eb", "#16a34a", "#7c3aed", "#ea580c", "#db2777", "#0d9488"];
+// 卡片圖示依名稱關鍵字比對內容類型(色調統一用品牌色,見 renderRegulationsList)。
 function _regItemIcon(name) {
   const t = name || "";
   if (/GIS|查詢平台|地圖/.test(t)) return "📍";
@@ -930,8 +928,8 @@ function renderRegulationsList(items, editable) {
   }
 
   const gridCls = regViewMode === "list" ? "reg-cards-list" : "reg-cards-grid";
-  let toneIdx = 0;
-  const nextTone = () => REG_TONE_PALETTE[toneIdx++ % REG_TONE_PALETTE.length];
+  // 統一用單一品牌色,不要每張卡/每個分類各自輪一種顏色(原本每區塊換色看起來太花)。
+  const tone = "var(--brand)";
 
   let sectionsHtml;
   if (regCurCat === "全部") {
@@ -939,7 +937,6 @@ function renderRegulationsList(items, editable) {
     searched.forEach((item) => (byCategory[catOf(item)] = byCategory[catOf(item)] || []).push(item));
     sectionsHtml = Object.entries(byCategory)
       .map(([cat, rows]) => {
-        const tone = nextTone();
         const preview = rows.slice(0, REG_PREVIEW_COUNT);
         return `
         <div class="reg-section">
@@ -957,7 +954,7 @@ function renderRegulationsList(items, editable) {
   } else {
     const rows = searched.filter((i) => catOf(i) === regCurCat);
     sectionsHtml = rows.length
-      ? `<div class="${gridCls}">${rows.map((r) => _regCardHtml(r, nextTone(), editable)).join("")}</div>`
+      ? `<div class="${gridCls}">${rows.map((r) => _regCardHtml(r, tone, editable)).join("")}</div>`
       : `<div class="empty-state">此分類尚無連結</div>`;
   }
   el.innerHTML = sectionsHtml;
