@@ -7,6 +7,9 @@ let inventoryCache = [];
 let inventoryCurDept = "全部";
 let inventorySearchQuery = "";
 let inventoryUserDir = {}; // { 部門名稱: [員工姓名, ...] } — 保管人/領用人選單用
+let inventoryViewMode = "list"; // list | grid
+let inventorySortMode = "created_desc"; // created_desc | created_asc | name_asc
+let inventoryStatusFilter = new Set(); // 空集合 = 不篩選狀態
 
 const INVENTORY_STATUS_OPTIONS = ["正常", "報修", "報廢", "外借"];
 // 部門候選:通用部門清單 + 員工名冊裡的部門 + 目前資料裡出現過的
@@ -33,6 +36,33 @@ const INVENTORY_STATUS_STYLE = {
   外借: "background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd",
 };
 
+// 部門頁籤圖示(線條 SVG)+ 代表色 — 依常見部門關鍵字比對,自訂部門名稱沒對到就用通用圖示 + 依名稱挑一個顏色。
+const _ivSvg = (body) =>
+  `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const IV_ICON_ALL = _ivSvg('<g fill="currentColor" stroke="none"><rect x="4" y="4" width="4" height="4" rx="1"/><rect x="10" y="4" width="4" height="4" rx="1"/><rect x="16" y="4" width="4" height="4" rx="1"/><rect x="4" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="16" y="10" width="4" height="4" rx="1"/><rect x="4" y="16" width="4" height="4" rx="1"/><rect x="10" y="16" width="4" height="4" rx="1"/><rect x="16" y="16" width="4" height="4" rx="1"/></g>');
+const IV_ICON_RULES = [
+  { test: /行政|總務|人資|秘書|董事長|顧問/, icon: _ivSvg('<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 3v2h6V3M9 9h6M9 13h6M9 17h4"/>'), tone: "#0d9488" },
+  { test: /工務|工程|機電|營建|建管/, icon: _ivSvg('<path d="M3 13a9 9 0 0 1 18 0Z"/><path d="M3 13h18v3H3z"/><path d="M12 4v3"/>'), tone: "#ea580c" },
+  { test: /業務|行銷|開發|銷售/, icon: _ivSvg('<circle cx="9" cy="8" r="3.4"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.4 3.4 0 0 1 0 6.4M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>'), tone: "#2563eb" },
+  { test: /財務|會計|採購|成本/, icon: _ivSvg('<circle cx="12" cy="7" r="4.2"/><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M12 5.2v3.6M10.5 8.4h3"/>'), tone: "#ca8a04" },
+  { test: /資訊|數位|IT|AI/i, icon: _ivSvg('<rect x="3" y="4.5" width="18" height="12" rx="1.6"/><path d="M8 20h8M12 16.5V20"/>'), tone: "#7c3aed" },
+  { test: /其他|雜項/, icon: _ivSvg('<circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>'), tone: "#64748b" },
+];
+const IV_ICON_DEFAULT = _ivSvg('<path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/>');
+const IV_TONE_FALLBACK = ["#db2777", "#0891b2", "#16a34a", "#4f46e5", "#c2410c"];
+
+function _ivDeptIcon(dept) {
+  const rule = IV_ICON_RULES.find((r) => r.test.test(dept || ""));
+  return rule ? rule.icon : IV_ICON_DEFAULT;
+}
+function _ivTone(dept) {
+  const rule = IV_ICON_RULES.find((r) => r.test.test(dept || ""));
+  if (rule) return rule.tone;
+  let h = 0;
+  for (const ch of dept || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return IV_TONE_FALLBACK[h % IV_TONE_FALLBACK.length];
+}
+
 const INVENTORY_FIELDS = [
   { key: "custodian_dept", label: "保管人部門", type: "dropdown", opts: _invDeptOptions, section: "保管 / 取得" },
   { key: "custodian", label: "保管人", type: "person", deptField: "custodian_dept" },
@@ -56,6 +86,8 @@ async function goToInventory() {
   setActiveNav("inventory");
   showView("view-inventory");
   inventorySearchQuery = "";
+  inventoryStatusFilter = new Set();
+  document.getElementById("inv-filter-panel")?.classList.add("hidden");
   const searchInput = document.getElementById("inventory-search-input");
   if (searchInput) searchInput.value = "";
   // 新增 / 編輯 / 刪除限 L0~L2(管理層);其餘唯讀
@@ -95,8 +127,13 @@ async function loadInventory() {
   if (bar) {
     bar.innerHTML = ["全部", ...depts, ...(hasUnassigned ? ["未分部門"] : [])]
       .map((d) => {
-        const cnt = d === "全部" ? "" : ` (${inventoryCache.filter((i) => (d === "未分部門" ? !_dep(i) : _dep(i) === d)).length})`;
-        return `<button class="fb ${inventoryCurDept === d ? "act" : ""}" data-inv-dept="${escapeHtml(d)}">${escapeHtml(d)}${cnt}</button>`;
+        const cnt = inventoryCache.filter((i) => (d === "全部" ? true : d === "未分部門" ? !_dep(i) : _dep(i) === d)).length;
+        const icon = d === "全部" ? IV_ICON_ALL : _ivDeptIcon(d);
+        const tone = d === "全部" ? "var(--brand)" : _ivTone(d);
+        return `<button type="button" class="iv-tab ${inventoryCurDept === d ? "act" : ""}" data-inv-dept="${escapeHtml(d)}" style="--tone:${tone}">
+          <span class="iv-tab-ic">${icon}</span>
+          <span class="iv-tab-text"><span class="iv-tab-name">${escapeHtml(d)}</span><span class="iv-tab-n">${cnt}</span></span>
+        </button>`;
       })
       .join("");
     bar.querySelectorAll("[data-inv-dept]").forEach((btn) => {
@@ -119,31 +156,86 @@ async function loadInventory() {
   renderInventoryTable();
 }
 
-function renderInventoryTable() {
-  const wrap = document.getElementById("inventory-table-wrap");
-  if (!wrap) return;
-  const q = (inventorySearchQuery || "").toLowerCase().trim();
-  const showDeptCol = inventoryCurDept === "全部";
+function _ivSortRows(rows) {
+  const sorted = [...rows];
+  if (inventorySortMode === "name_asc") {
+    sorted.sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh-Hant"));
+  } else if (inventorySortMode === "created_asc") {
+    sorted.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+  } else {
+    sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  }
+  return sorted;
+}
 
+function _ivFilteredRows() {
+  const q = (inventorySearchQuery || "").toLowerCase().trim();
   const rows = inventoryCache.filter((i) => {
     const dep = (i.custodian_dept || "").trim();
     if (inventoryCurDept === "未分部門" && dep) return false;
     if (inventoryCurDept !== "全部" && inventoryCurDept !== "未分部門" && dep !== inventoryCurDept) return false;
+    if (inventoryStatusFilter.size && !inventoryStatusFilter.has(i.status || "正常")) return false;
     if (!q) return true;
     return [i.name, i.category, i.location, i.custodian, i.asset_no, i.borrower, i.notes]
       .map((v) => (v || "").toLowerCase())
       .some((v) => v.includes(q));
   });
+  return _ivSortRows(rows);
+}
+
+function _ivEmptyHtml() {
+  const hasAnyData = inventoryCache.length > 0;
+  if (!hasAnyData) {
+    return `
+      <div class="iv-empty">
+        <div class="iv-empty-icon">📦</div>
+        <h3 class="iv-empty-title">尚無物品資料</h3>
+        <p class="iv-empty-sub">開始建立公司物品清單,方便管理與追蹤。</p>
+        ${isManager() ? `<button type="button" class="btn-primary iv-empty-btn" id="inv-empty-add-btn">+ 新增物品</button>` : ""}
+      </div>
+      <div class="iv-tips">
+        <div class="iv-tip"><div class="iv-tip-icon">📦</div><div class="iv-tip-title">建立物品</div><div class="iv-tip-desc">新增物品資訊<br>包含名稱、型號等</div></div>
+        <div class="iv-tip"><div class="iv-tip-icon">👤</div><div class="iv-tip-title">指定保管人</div><div class="iv-tip-desc">分配保管人員<br>明確責任歸屬</div></div>
+        <div class="iv-tip"><div class="iv-tip-icon">🏷️</div><div class="iv-tip-title">設定財產編號</div><div class="iv-tip-desc">建立唯一編號<br>便於追蹤管理</div></div>
+        <div class="iv-tip"><div class="iv-tip-icon">📊</div><div class="iv-tip-title">掌握使用狀況</div><div class="iv-tip-desc">即時查看各部門<br>物品數量與狀態</div></div>
+      </div>`;
+  }
+  return `
+    <div class="iv-empty">
+      <div class="iv-empty-icon">🔍</div>
+      <h3 class="iv-empty-title">尚無符合條件的物品</h3>
+      <p class="iv-empty-sub">試著調整搜尋關鍵字、部門或篩選條件。</p>
+    </div>`;
+}
+
+function renderInventoryTable() {
+  const wrap = document.getElementById("inventory-table-wrap");
+  if (!wrap) return;
+  const showDeptCol = inventoryCurDept === "全部";
+  const rows = _ivFilteredRows();
+
+  const titleEl = document.getElementById("inv-list-title");
+  if (titleEl) titleEl.textContent = `物品列表(${rows.length})`;
+  const badge = document.getElementById("inv-filter-badge");
+  if (badge) {
+    badge.textContent = String(inventoryStatusFilter.size);
+    badge.classList.toggle("hidden", inventoryStatusFilter.size === 0);
+  }
 
   if (!rows.length) {
-    wrap.innerHTML = `<div class="empty-state">${inventoryCache.length ? "尚無符合條件的物品" : "尚無物品，點右上角「+ 新增物品」開始建立"}</div>`;
+    wrap.innerHTML = _ivEmptyHtml();
+    wrap.querySelector("#inv-empty-add-btn")?.addEventListener("click", () => openInventoryFormModal("新增物品", null));
     return;
   }
 
+  wrap.innerHTML = inventoryViewMode === "grid" ? _ivGridHtml(rows) : _ivListHtml(rows, showDeptCol);
+  _ivBindRowActions(wrap);
+}
+
+function _ivListHtml(rows, showDeptCol) {
   const th = (t) => `<th style="white-space:nowrap">${t}</th>`;
   const td = (v) => `<td>${escapeHtml(v == null || v === "" ? "-" : String(v))}</td>`;
-
-  wrap.innerHTML = `
+  return `
     <div class="table-wrap" style="overflow-x:auto">
       <table>
         <thead><tr>
@@ -172,7 +264,31 @@ function renderInventoryTable() {
         </tbody>
       </table>
     </div>`;
+}
 
+function _ivGridHtml(rows) {
+  return `<div class="iv-grid-list">${rows
+    .map((i) => {
+      const stStyle = INVENTORY_STATUS_STYLE[i.status] || INVENTORY_STATUS_STYLE["正常"];
+      return `<div class="iv-item-card">
+        <div class="iv-item-card-head">
+          <div class="iv-item-name">${escapeHtml(i.name || "-")}</div>
+          <span style="display:inline-block;flex:0 0 auto;padding:2px 10px;border-radius:6px;font-size:11.5px;font-weight:700;${stStyle}">${escapeHtml(i.status || "正常")}</span>
+        </div>
+        <div class="iv-item-row"><b>部門</b>${escapeHtml(i.custodian_dept || "-")}</div>
+        <div class="iv-item-row"><b>保管人</b>${escapeHtml(i.custodian || "-")}</div>
+        <div class="iv-item-row"><b>財產編號</b>${escapeHtml(i.asset_no || "-")}</div>
+        <div class="iv-item-row"><b>存放位置</b>${escapeHtml(i.location || "-")}</div>
+        ${isManager() ? `<div class="iv-item-actions">
+          <button class="btn-secondary btn-sm" data-edit-inv="${i.id}">編輯</button>
+          <button class="btn-danger btn-sm" data-del-inv="${i.id}">刪除</button>
+        </div>` : ""}
+      </div>`;
+    })
+    .join("")}</div>`;
+}
+
+function _ivBindRowActions(wrap) {
   wrap.querySelectorAll("[data-edit-inv]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const item = inventoryCache.find((x) => x.id === Number(btn.dataset.editInv));
@@ -190,6 +306,33 @@ function renderInventoryTable() {
       } catch (err) { }
     });
   });
+}
+
+// 匯出目前篩選/排序後的清單為 CSV(Excel 可直接開,加 BOM 避免中文亂碼)。
+function _ivExportCsv() {
+  const rows = _ivFilteredRows();
+  if (!rows.length) {
+    toast("目前沒有可匯出的物品", "error");
+    return;
+  }
+  const cols = [
+    ["custodian_dept", "保管人部門"], ["name", "物品名稱"], ["category", "分類"], ["quantity", "數量"],
+    ["location", "存放位置"], ["status", "狀態"], ["custodian", "保管人"], ["asset_no", "財產編號"],
+    ["borrower", "領用人"], ["issued_date", "領用日期"], ["expected_return_date", "預計歸還"],
+    ["returned_date", "實際歸還"], ["notes", "備註"],
+  ];
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const lines = [cols.map((c) => esc(c[1])).join(",")];
+  rows.forEach((i) => lines.push(cols.map((c) => esc(i[c[0]])).join(",")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `部門物品清單_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function openInventoryFormModal(title, item) {
@@ -210,7 +353,7 @@ function openInventoryFormModal(title, item) {
       const cur = f.key === "custodian_dept" ? val || curDeptDefault : val;
       const all = [...new Set([...(cur ? [cur] : []), ...optList])];
       input = `<select name="${f.key}" ${f.required ? "required" : ""}>
-        ${f.required ? "" : `<option value="" ${cur === "" ? "selected" : ""}>（未指定）</option>`}
+        ${f.required ? "" : `<option value="" ${cur === "" ? "selected" : ""}>(未指定)</option>`}
         ${all.map((o) => `<option value="${escapeHtml(o)}" ${cur === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
         <option value="__new__">＋ 其他…</option>
       </select>`;
@@ -219,7 +362,7 @@ function openInventoryFormModal(title, item) {
       const people = _invPeopleOf(dept);
       const all = [...new Set([...(val ? [val] : []), ...people])];
       input = `<select name="${f.key}" data-person-of="${f.deptField}">
-        <option value="" ${val === "" ? "selected" : ""}>（無指定人）</option>
+        <option value="" ${val === "" ? "selected" : ""}>(無指定人)</option>
         ${all.map((o) => `<option value="${escapeHtml(o)}" ${val === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
         <option value="__new__">＋ 其他…</option>
       </select>`;
@@ -272,7 +415,7 @@ function openInventoryFormModal(title, item) {
 
   openModal(title, body, { width: "680px" });
 
-  // 保管人/領用人:改部門就重建「該部門的人」下拉(保留「（無指定人）」)
+  // 保管人/領用人:改部門就重建「該部門的人」下拉(保留「(無指定人)」)
   document.querySelectorAll('#inventory-form select[data-person-of]').forEach((psel) => {
     const dsel = document.querySelector(`#inventory-form select[name="${psel.dataset.personOf}"]`);
     if (!dsel) return;
@@ -280,7 +423,7 @@ function openInventoryFormModal(title, item) {
       const cur = psel.value;
       const people = _invPeopleOf(dsel.value === "__new__" ? "" : dsel.value);
       psel.innerHTML =
-        `<option value="">（無指定人）</option>` +
+        `<option value="">(無指定人)</option>` +
         people.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("") +
         `<option value="__new__">＋ 其他…</option>`;
       psel.value = people.includes(cur) ? cur : "";
@@ -337,4 +480,58 @@ function initInventory() {
   document.getElementById("new-inventory-btn")?.addEventListener("click", () => {
     openInventoryFormModal("新增物品", null);
   });
+  document.getElementById("inv-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
+  });
+  document.getElementById("inv-export-btn")?.addEventListener("click", _ivExportCsv);
+  document.getElementById("inv-search-btn")?.addEventListener("click", () => {
+    inventorySearchQuery = document.getElementById("inventory-search-input")?.value || "";
+    renderInventoryTable();
+  });
+
+  // 清單 / 卡片檢視切換
+  document.getElementById("inv-view-toggle")?.querySelectorAll("[data-inv-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      inventoryViewMode = btn.dataset.invView;
+      document.querySelectorAll("#inv-view-toggle [data-inv-view]").forEach((b) => b.classList.toggle("act", b === btn));
+      renderInventoryTable();
+    });
+  });
+
+  // 排序
+  document.getElementById("inv-sort-select")?.addEventListener("change", (e) => {
+    inventorySortMode = e.target.value;
+    renderInventoryTable();
+  });
+
+  // 進階篩選(狀態多選)面板
+  const filterBtn = document.getElementById("inv-filter-btn");
+  const filterPanel = document.getElementById("inv-filter-panel");
+  const statusWrap = document.getElementById("inv-filter-status");
+  if (statusWrap) {
+    statusWrap.innerHTML = INVENTORY_STATUS_OPTIONS
+      .map((s) => `<button type="button" class="iv-filter-chip" data-inv-status="${escapeHtml(s)}">${escapeHtml(s)}</button>`)
+      .join("");
+    statusWrap.querySelectorAll("[data-inv-status]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const s = chip.dataset.invStatus;
+        if (inventoryStatusFilter.has(s)) inventoryStatusFilter.delete(s);
+        else inventoryStatusFilter.add(s);
+        chip.classList.toggle("act", inventoryStatusFilter.has(s));
+        renderInventoryTable();
+      });
+    });
+  }
+  filterBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    filterPanel?.classList.toggle("hidden");
+  });
+  filterPanel?.addEventListener("click", (e) => e.stopPropagation());
+  document.getElementById("inv-filter-clear")?.addEventListener("click", () => {
+    inventoryStatusFilter.clear();
+    statusWrap?.querySelectorAll("[data-inv-status]").forEach((c) => c.classList.remove("act"));
+    renderInventoryTable();
+  });
+  document.addEventListener("click", () => filterPanel?.classList.add("hidden"));
 }
