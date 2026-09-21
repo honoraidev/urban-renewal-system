@@ -37,6 +37,16 @@ function _shortDoorAddr(addr) {
   return (dm ? dm[0] : tail).trim();
 }
 
+// 整合清冊「樓層」欄 - 建物登記的 floor 欄位有值就用它,沒值(舊資料/OCR 沒抓到)就從
+// 門牌地址字串裡撈「N樓」「地下N層」;同一位地主名下多戶就去重後用「、」串起來。
+function _floorLabelOf(r) {
+  const f = (r.floor || "").toString().trim();
+  if (f) return f;
+  const a = String(r.address || "").replace(/[０-９]/g, (d) => "０１２３４５６７８９".indexOf(d));
+  const m = a.match(/地下[一二三四五六七八九十\d]+層|\d+\s*樓/);
+  return m ? m[0].replace(/\s+/g, "") : "";
+}
+
 // 「整合清冊」分頁的檢視切換,現在是分頁列上「整合清冊」那顆分頁按鈕本身的下拉
 // (見 index.html #tab-integrated-view-select + dashboard.js 的 change 監聽),這裡
 // 只依目前模式決定標題文字和要渲染哪個子畫面。
@@ -127,7 +137,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>建物門牌</th><th>地號</th><th>姓名</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th>樓層</th><th>地號</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th>聯絡結果</th><th class="row-actions">操作</th>
         </tr></thead>
@@ -142,7 +152,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const visit = c && c.last_contact_date
       ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
       : `<span style="color:var(--text-muted)">尚無</span>`;
-    const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")}`.toLowerCase();
+    const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
     const resultBadge = c && c.last_contact_result
       ? `<span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[c.last_contact_result] || ""}">${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</span>`
@@ -180,6 +190,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
           .join("")}</div>`
         : `<span style="color:var(--text-muted)">-</span>`;
     })()}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(br.map(_floorLabelOf))) || "-"}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
@@ -194,7 +205,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
               <button type="button" class="btn-link btn-sm" data-detail="${o.id}">詳細內容</button>
             </td>
           </tr>
-          ${ownerDetailRowHtml(o, 10)}`;
+          ${ownerDetailRowHtml(o, 11)}`;
   }).join("")}
         </tbody>
       </table>
