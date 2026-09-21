@@ -560,7 +560,7 @@
      固定上限 —— 兩邊都設固定上限時,螢幕越寬、justify-content:space-between 中間
      那段空白只會越留越大(寬螢幕上很明顯)。右欄仍然限制最大 460px 不被撐寬。 */
   .pd-top-grid { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(260px, 460px); gap: 20px; align-items: stretch; margin-bottom: 4px; }
-  #view-project-overview .pd-top-grid { grid-template-columns: minmax(320px, 1fr) minmax(360px, 560px); }
+  #view-project-overview .pd-top-grid { grid-template-columns: 1fr; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
   /* 案件詳情頁(SOP 進度等分頁)右上角的「+」新增待辦事項按鈕 - 絕對定位貼齊頁面右上角 */
