@@ -527,7 +527,11 @@
   .progress-bar-fill { background: linear-gradient(90deg, var(--brand), var(--brand-dark)); height: 100%; border-radius: 100px; transition: width .4s ease; }
   .card-meta-row { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--text-muted); }
   .badge-row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .mini-badge { font-size: 12.5px; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
+  /* white-space + flex-shrink:0 是必要的:badge 放在窄的 flex row 裡(例如他項權利部門牌
+     下拉面板)沒空間時,中文字沒有空白可以斷詞,flexbox 預設的 min-width:auto 會把 badge
+     一路擠到只剩一個字寬,整串字被拆成直的一行一字。加了這兩個屬性,擠不下就讓整列換行
+     或撐出捲軸,而不是把字拆成直排。 */
+  .mini-badge { font-size: 12.5px; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--text-muted); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
   .mini-badge-shared-door { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); font-weight: 500; }
   .mini-badge.alert { background: var(--danger-light); color: var(--danger); font-weight: 700; }
   .mini-badge.gate-ok { background: var(--success-light); color: var(--success); font-weight: 700; }
@@ -1892,7 +1896,7 @@
 .enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 .enc-addr-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .enc-addr-bn { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
-.enc-addr-panel-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.enc-addr-panel-row { display: flex; align-items: center; gap: 4px 8px; padding: 4px 0; flex-wrap: wrap; }
 .enc-addr-panel-row + .enc-addr-panel-row { border-top: 1px dashed var(--border); }
 .enc-addr-panel-row .enc-addr-bn { white-space: nowrap; }
 
