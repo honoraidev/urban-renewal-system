@@ -2333,12 +2333,6 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; color: var(--tone);
   background: color-mix(in srgb, var(--tone) 13%, transparent); white-space: nowrap;
 }
-.ws-card-arrow {
-  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
-  font-size: 17px; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); text-decoration: none;
-}
-.ws-card-arrow:hover { background: var(--tone); color: #fff; }
-
 .ws-side-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 16px 10px; box-shadow: var(--shadow); }
 .ws-side-title { margin: 0 0 10px; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 .ws-side-icon { font-size: 15px; }

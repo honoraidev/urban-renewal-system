@@ -911,7 +911,6 @@ function _wsItemHtml(r, cat, editable) {
       </div>
       <div class="ws-card-foot">
         <span class="ws-card-tags">${tags.map((t) => `<span class="ws-tag">${escapeHtml(t)}</span>`).join("")}</span>
-        <a class="ws-card-arrow" href="${url}" target="_blank" rel="noopener" title="前往網站">›</a>
       </div>
       ${editable
       ? `<div class="news-card-actions" style="padding:0 16px 14px">
