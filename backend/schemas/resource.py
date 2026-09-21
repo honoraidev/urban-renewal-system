@@ -52,6 +52,8 @@ class NewsItemCreate(BaseModel):
     name: str
     url: str
     description: str | None = None
+    image_url: str | None = None
+    summary: str | None = None
 
 
 class NewsItemUpdate(BaseModel):
@@ -59,6 +61,8 @@ class NewsItemUpdate(BaseModel):
     name: str | None = None
     url: str | None = None
     description: str | None = None
+    image_url: str | None = None
+    summary: str | None = None
 
 
 class NewsItemRead(BaseModel):
@@ -67,6 +71,8 @@ class NewsItemRead(BaseModel):
     name: str
     url: str
     description: str | None = None
+    image_url: str | None = None
+    summary: str | None = None
     published_at: datetime | None = None
     created_at: datetime
 

@@ -94,6 +94,8 @@ def _auto_migrate() -> None:
         ("land_records", "ltt_current_value_period", "VARCHAR(50) NULL"),
         ("land_records", "ltt_deductible_cost", "DECIMAL(14,2) NULL"),
         ("news_items", "published_at", "DATETIME NULL"),
+        ("news_items", "image_url", "VARCHAR(1000) NULL"),
+        ("news_items", "summary", "TEXT NULL"),
         ("calendar_events", "is_important", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("calendar_events", "sop_stage", "INT NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),

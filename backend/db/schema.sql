@@ -378,6 +378,8 @@ CREATE TABLE news_items (
     url VARCHAR(1000) NOT NULL,
     description TEXT,
     published_at DATETIME NULL,
+    image_url VARCHAR(1000) NULL,
+    summary TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

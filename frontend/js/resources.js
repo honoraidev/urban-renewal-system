@@ -359,8 +359,9 @@ async function loadNews() {
 // 版面:左邊依分類分成幾張卡片區塊(每塊預設放最新 2 則,「查看更多」= 只看這個分類),
 // 右邊是搜尋框 / 分類篩選(附篇數) / 熱門標籤。所有篩選都在前端對已經抓回來的
 // currentLoadedNews 做,不用重新打 API - 換日期、切分類時反應才會快。
-// 資料庫只存標題/網址/來源/日期,沒有縮圖跟摘要,所以:縮圖用分類色塊 + 來源名稱代替;
-// 標籤是從標題關鍵字比對出來的(見 _newsTagsOf),不是另外存的欄位。
+// 縮圖 image_url / 摘要 summary 是抓新聞時存的(見 backend utils/news_fetch.py);沒有縮圖的
+// (舊資料、抓不到圖的新聞)用分類色塊 + 圖示代替,圖片載入失敗也會退回色塊。
+// 標籤是從標題 + 摘要的關鍵字比對出來的(見 _newsTagsOf),不是另外存的欄位。
 let newsDateFilter = ""; // 右上角日期選擇器(空字串 = 全部)
 let newsCatFilter = ""; // 分類篩選(空字串 = 全部分類)
 let newsTagFilter = ""; // 熱門標籤篩選
@@ -407,7 +408,10 @@ function _newsSourceOf(r) {
   return r.description && r.description.startsWith("來源:") ? r.description.slice(3).trim() : "";
 }
 
+// 摘要:優先用抓新聞時存的 summary(Bing RSS 摘要 / 手動連結的原文網頁描述);沒有才退回
+// 手動填的「說明」(description 是「來源:xxx」的話那是來源標籤,不算摘要)。
 function _newsSummaryOf(r) {
+  if (r.summary) return r.summary;
   return r.description && !r.description.startsWith("來源:") ? r.description : "";
 }
 
@@ -436,6 +440,7 @@ function _newsItemHtml(r, cat, editable) {
     <article class="nw-item" data-id="${r.id}">
       <a class="nw-thumb" href="${url}" target="_blank" rel="noopener" style="--tone:${tone}" tabindex="-1" aria-hidden="true">
         <span class="nw-thumb-icon">${icon}</span>
+        ${r.image_url ? `<img src="${escapeHtml(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
         ${src ? `<span class="nw-thumb-src">${escapeHtml(src)}</span>` : ""}
       </a>
       <div class="nw-item-body">

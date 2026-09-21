@@ -192,7 +192,15 @@ def list_news_items(db: Session = Depends(get_db), current_user: User = Depends(
 def create_news_item(
     payload: NewsItemCreate, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
 ):
-    item = NewsItem(**payload.model_dump())
+    from utils.news_fetch import fetch_page_meta
+
+    data = payload.model_dump()
+    # 手動新增的連結沒填縮圖/摘要時,自動讀原文網頁的 og:image / og:description(失敗就留空)
+    if not data.get("image_url") or not data.get("summary"):
+        meta = fetch_page_meta(data["url"])
+        data["image_url"] = data.get("image_url") or meta.get("image_url")
+        data["summary"] = data.get("summary") or meta.get("summary")
+    item = NewsItem(**data)
     db.add(item)
     db.commit()
     db.refresh(item)
