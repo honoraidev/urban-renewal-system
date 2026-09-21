@@ -2311,7 +2311,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .ws-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 
 .ws-card {
-  position: relative; background: color-mix(in srgb, var(--tone) 7%, var(--surface)); border: 1px solid var(--border);
+  position: relative; background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px; padding: 16px 44px 14px 16px; transition: border-color .15s, box-shadow .15s, transform .15s;
 }
 .ws-card:hover { border-color: color-mix(in srgb, var(--tone) 55%, var(--border)); box-shadow: var(--shadow-hover); transform: translateY(-1px); }
