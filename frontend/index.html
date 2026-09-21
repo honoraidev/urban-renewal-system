@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_22">
+  <link rel="stylesheet" href="style.css?v=20260921_23">
 </head>
 
 <body>
@@ -295,17 +295,46 @@
 
           <!-- 公版文件 -->
           <div id="view-companydocs" class="hidden">
-            <div class="page-header">
-              <div>
-                <h2>公版文件</h2>
+            <div class="cd-top">
+              <nav class="nw-crumbs"><a href="#" id="cd-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>公版文件</span></nav>
+              <div class="cd-top-head">
+                <div class="cd-hero-left">
+                  <h1 class="cd-title"><span class="cd-title-icon">📄</span>公版文件</h1>
+                  <p class="cd-sub">提供各類標準文件範本,方便同仁下載使用,提升工作效率。</p>
+                </div>
+                <div class="cd-actions">
+                  <span class="status-badge status-suspended">🔒 僅主管以上可修改</span>
+                  <button class="btn-secondary btn-sm hidden" id="manage-companydoc-cats-btn">⚙ 管理分類</button>
+                  <button class="btn-primary btn-sm hidden" id="upload-companydoc-btn">↑ 上傳新版本</button>
+                </div>
               </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <span class="status-badge status-suspended">🔒 僅主管以上可修改</span>
-                <button class="btn-secondary hidden" id="manage-companydoc-cats-btn">⚙ 管理分類</button>
-                <button class="btn-primary hidden" id="upload-companydoc-btn">↑ 上傳新版本</button>
+              <div class="cd-search">
+                <span class="cd-search-icon">🔍</span>
+                <input type="search" id="cd-search-input" placeholder="搜尋文件名稱、關鍵字...(例如:委託書、同意書、會議紀錄...)" autocomplete="off">
+                <button type="button" class="cd-search-btn" id="cd-search-btn">搜尋</button>
+              </div>
+              <div class="cd-tabs" id="cd-cat-bar"></div>
+            </div>
+
+            <div class="cd-main">
+              <div class="cd-card">
+                <div class="cd-card-head">
+                  <h2 class="cd-card-title" id="cd-list-title">文件列表(0)</h2>
+                  <div class="cd-toolbar">
+                    <div class="cd-view-toggle" id="cd-view-toggle">
+                      <button type="button" class="cd-view-btn act" data-cd-view="list" title="清單檢視">☰</button>
+                      <button type="button" class="cd-view-btn" data-cd-view="grid" title="卡片檢視">▦</button>
+                    </div>
+                    <select id="cd-sort-select" class="cd-sort-select">
+                      <option value="uploaded_desc">建立時間(新→舊)</option>
+                      <option value="uploaded_asc">建立時間(舊→新)</option>
+                      <option value="name_asc">名稱(A→Z)</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="companydocs-table-wrap"></div>
               </div>
             </div>
-            <div id="companydocs-table-wrap"></div>
           </div>
 
           <!-- 新聞 -->
@@ -956,7 +985,7 @@
   <script src="js/encumbrances.js?v=20260921_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
-  <script src="js/resources.js?v=20260921_6"></script>
+  <script src="js/resources.js?v=20260921_7"></script>
   <script src="js/inventory.js?v=20260921_1"></script>
   <script src="js/buildingview.js?v=20260921_1"></script>
   <script src="js/land_value_tax.js?v=20260921_3"></script>

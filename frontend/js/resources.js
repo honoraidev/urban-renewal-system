@@ -2,9 +2,24 @@
 
 /* ================= 公版文件 ================= */
 
+let currentLoadedCompanyDocs = [];
+let cdQuery = ""; // 搜尋框(已小寫)
+let cdCurCat = "全部";
+let cdViewMode = "list"; // list | grid
+let cdSortMode = "uploaded_desc"; // uploaded_desc | uploaded_asc | name_asc
+
 async function goToCompanyDocs() {
   setActiveNav("companydocs");
   showView("view-companydocs");
+  cdQuery = "";
+  cdCurCat = "全部";
+  cdViewMode = "list";
+  cdSortMode = "uploaded_desc";
+  const searchInput = document.getElementById("cd-search-input");
+  if (searchInput) searchInput.value = "";
+  document.querySelectorAll("#cd-view-toggle [data-cd-view]").forEach((b) => b.classList.toggle("act", b.dataset.cdView === "list"));
+  const sortSelect = document.getElementById("cd-sort-select");
+  if (sortSelect) sortSelect.value = "uploaded_desc";
   const uploadBtn = document.getElementById("upload-companydoc-btn");
   if (uploadBtn) uploadBtn.classList.toggle("hidden", !isManager());
   document.getElementById("manage-companydoc-cats-btn")?.classList.toggle("hidden", !isManager());
@@ -20,45 +35,141 @@ function companyDocIcon(mimeType) {
   return "📎";
 }
 
-let currentLoadedCompanyDocs = [];
+// 分類頁籤圖示:依名稱關鍵字比對,自訂分類沒對到就用通用資料夾圖示。
+const CD_CAT_ICON_RULES = [
+  { test: /會議|簡報|說明會/, icon: "👥" },
+  { test: /契約|合約/, icon: "📃" },
+  { test: /申請|書表/, icon: "📝" },
+  { test: /同意書/, icon: "✅" },
+  { test: /報告/, icon: "📊" },
+  { test: /開發信|意願書/, icon: "✉️" },
+  { test: /簡介|宣傳/, icon: "📢" },
+  { test: /其他/, icon: "🗂️" },
+];
+function _cdCatIcon(cat) {
+  const rule = CD_CAT_ICON_RULES.find((r) => r.test.test(cat || ""));
+  return rule ? rule.icon : "📁";
+}
 
-async function loadCompanyDocs() {
+function _cdMatchesQuery(d, q) {
+  if (!q) return true;
+  return [d.file_name, d.description, d.category, d.uploaded_by_name].some((t) => (t || "").toLowerCase().includes(q));
+}
+
+function _cdSortRows(rows) {
+  const sorted = [...rows];
+  if (cdSortMode === "name_asc") {
+    sorted.sort((a, b) => (a.file_name || "").localeCompare(b.file_name || "", "zh-Hant"));
+  } else if (cdSortMode === "uploaded_asc") {
+    sorted.sort((a, b) => new Date(a.uploaded_at || 0) - new Date(b.uploaded_at || 0));
+  } else {
+    sorted.sort((a, b) => new Date(b.uploaded_at || 0) - new Date(a.uploaded_at || 0));
+  }
+  return sorted;
+}
+
+function _cdFilteredRows() {
+  const q = (cdQuery || "").toLowerCase().trim();
+  const rows = currentLoadedCompanyDocs.filter((d) => {
+    const cat = (d.category || "").trim() || "未分類";
+    if (cdCurCat !== "全部" && cat !== cdCurCat) return false;
+    return _cdMatchesQuery(d, q);
+  });
+  return _cdSortRows(rows);
+}
+
+function _cdMetaLine(d) {
+  return [
+    fmtDate(d.uploaded_at),
+    d.uploaded_by_name ? `by ${escapeHtml(d.uploaded_by_name)}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function _cdEmptyHtml() {
+  if (!currentLoadedCompanyDocs.length) {
+    return `
+      <div class="cd-empty">
+        <div class="cd-empty-icon">📤</div>
+        <h3 class="cd-empty-title">尚無公版文件</h3>
+        <p class="cd-empty-sub">開始上傳常用文件範本,建立團隊的知識資產。</p>
+        ${isManager() ? `<button type="button" class="btn-primary cd-empty-btn" id="cd-empty-upload-btn">↑ 上傳新版本</button>` : ""}
+      </div>
+      <div class="cd-tips">
+        <div class="cd-tip"><div class="cd-tip-icon">📐</div><div class="cd-tip-title">標準化文件</div><div class="cd-tip-desc">建立統一格式<br>提升作業效率</div></div>
+        <div class="cd-tip"><div class="cd-tip-icon">👥</div><div class="cd-tip-title">團隊共享</div><div class="cd-tip-desc">提供同仁下載使用<br>確保文件一致性</div></div>
+        <div class="cd-tip"><div class="cd-tip-icon">✅</div><div class="cd-tip-title">版本控管</div><div class="cd-tip-desc">保留歷史版本<br>隨時可追溯</div></div>
+        <div class="cd-tip"><div class="cd-tip-icon">☁️</div><div class="cd-tip-title">安全可靠</div><div class="cd-tip-desc">權限管理機制<br>保障資料安全</div></div>
+      </div>`;
+  }
+  return `
+    <div class="cd-empty">
+      <div class="cd-empty-icon">🔍</div>
+      <h3 class="cd-empty-title">尚無符合條件的文件</h3>
+      <p class="cd-empty-sub">試著調整搜尋關鍵字或分類。</p>
+    </div>`;
+}
+
+function renderCompanyDocsList() {
   const wrap = document.getElementById("companydocs-table-wrap");
   if (!wrap) return;
-  wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
+  const rows = _cdFilteredRows();
 
-  let docs = [];
-  try {
-    docs = await api("/company-documents");
-  } catch (err) {
-    wrap.innerHTML = `<div class="empty-state">載入失敗，請重新整理頁面或重新登入</div>`;
+  const titleEl = document.getElementById("cd-list-title");
+  if (titleEl) titleEl.textContent = `文件列表(${rows.length})`;
+
+  if (!rows.length) {
+    wrap.innerHTML = _cdEmptyHtml();
+    wrap.querySelector("#cd-empty-upload-btn")?.addEventListener("click", () => document.getElementById("upload-companydoc-btn")?.click());
     return;
   }
-  currentLoadedCompanyDocs = docs || [];
 
-  wrap.innerHTML = docs.length
-    ? `<div class="card">
-        ${docs
-      .map(
-        (d) => `
-          <div class="doc-row">
-            <div class="doc-row-icon">${companyDocIcon(d.mime_type)}</div>
-            <div style="flex:1;min-width:0">
-              <div class="doc-row-name">${escapeHtml(d.file_name)}</div>
-              <div class="helper-text">
-                最後更新:${fmtDate(d.uploaded_at)}${d.uploaded_by_name ? ` by ${escapeHtml(d.uploaded_by_name)}` : ""}${d.category ? ` · ${escapeHtml(d.category)}` : ""}${d.description ? ` · ${escapeHtml(d.description)}` : ""}
-              </div>
+  wrap.innerHTML = cdViewMode === "grid" ? _cdGridHtml(rows) : _cdListHtml(rows);
+  _cdBindRowActions(wrap);
+}
+
+function _cdListHtml(rows) {
+  return `<div class="cd-list">${rows
+    .map(
+      (d) => `
+        <div class="doc-row cd-doc-row">
+          <div class="doc-row-icon">${companyDocIcon(d.mime_type)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="doc-row-name">${escapeHtml(d.file_name)}</div>
+            <div class="helper-text">
+              ${_cdMetaLine(d)}${d.category ? ` · ${escapeHtml(d.category)}` : ""}${d.description ? ` · ${escapeHtml(d.description)}` : ""}
             </div>
-            <div class="actions-cell">
-              <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
-              ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
-            </div>
-          </div>`
-      )
-      .join("")}
+          </div>
+          <div class="actions-cell">
+            <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
+            ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
+          </div>
+        </div>`
+    )
+    .join("")}</div>`;
+}
+
+function _cdGridHtml(rows) {
+  return `<div class="cd-grid-list">${rows
+    .map(
+      (d) => `
+      <div class="cd-item-card">
+        <div class="cd-item-card-head">
+          <span class="cd-item-icon">${companyDocIcon(d.mime_type)}</span>
+          <div class="cd-item-name">${escapeHtml(d.file_name)}</div>
+        </div>
+        ${d.category ? `<div class="cd-item-row"><b>分類</b>${escapeHtml(d.category)}</div>` : ""}
+        <div class="cd-item-row"><b>更新</b>${_cdMetaLine(d)}</div>
+        ${d.description ? `<div class="cd-item-desc">${escapeHtml(d.description)}</div>` : ""}
+        <div class="cd-item-actions">
+          <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
+          ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
+        </div>
       </div>`
-    : `<div class="empty-state">尚無公版文件</div>`;
+    )
+    .join("")}</div>`;
+}
 
+function _cdBindRowActions(wrap) {
   wrap.querySelectorAll("[data-download-companydoc]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       try {
@@ -85,6 +196,45 @@ async function loadCompanyDocs() {
       } catch (err) { }
     });
   });
+}
+
+async function loadCompanyDocs() {
+  const wrap = document.getElementById("companydocs-table-wrap");
+  if (!wrap) return;
+  wrap.innerHTML = `<div class="empty-state">載入中...</div>`;
+
+  let docs = [];
+  try {
+    docs = await api("/company-documents");
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-state">載入失敗，請重新整理頁面或重新登入</div>`;
+    return;
+  }
+  currentLoadedCompanyDocs = docs || [];
+
+  const catOf = (d) => (d.category || "").trim() || "未分類";
+  const cats = [...new Set([...COMPANYDOC_DEFAULT_CATS, ...currentLoadedCompanyDocs.map(catOf)])];
+  const bar = document.getElementById("cd-cat-bar");
+  if (bar) {
+    bar.innerHTML = ["全部", ...cats]
+      .map((c) => {
+        const n = c === "全部" ? currentLoadedCompanyDocs.length : currentLoadedCompanyDocs.filter((d) => catOf(d) === c).length;
+        return `<button type="button" class="cd-tab ${cdCurCat === c ? "act" : ""}" data-cd-cat="${escapeHtml(c)}">
+          <span class="cd-tab-ic">${c === "全部" ? "⚙️" : _cdCatIcon(c)}</span>
+          <span class="cd-tab-text"><span class="cd-tab-name">${escapeHtml(c)}</span><span class="cd-tab-n">${n}</span></span>
+        </button>`;
+      })
+      .join("");
+    bar.querySelectorAll("[data-cd-cat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        cdCurCat = btn.dataset.cdCat;
+        bar.querySelectorAll("[data-cd-cat]").forEach((b) => b.classList.toggle("act", b.dataset.cdCat === cdCurCat));
+        renderCompanyDocsList();
+      });
+    });
+  }
+
+  renderCompanyDocsList();
 }
 
 function initCompanyDocs() {
@@ -164,6 +314,28 @@ function initCompanyDocs() {
       });
     });
   }
+
+  document.getElementById("cd-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
+  });
+  const runCdSearch = () => {
+    cdQuery = document.getElementById("cd-search-input")?.value || "";
+    renderCompanyDocsList();
+  };
+  document.getElementById("cd-search-input")?.addEventListener("input", runCdSearch);
+  document.getElementById("cd-search-btn")?.addEventListener("click", runCdSearch);
+  document.getElementById("cd-view-toggle")?.querySelectorAll("[data-cd-view]").forEach((vbtn) => {
+    vbtn.addEventListener("click", () => {
+      cdViewMode = vbtn.dataset.cdView;
+      document.querySelectorAll("#cd-view-toggle [data-cd-view]").forEach((b) => b.classList.toggle("act", b === vbtn));
+      renderCompanyDocsList();
+    });
+  });
+  document.getElementById("cd-sort-select")?.addEventListener("change", (e) => {
+    cdSortMode = e.target.value;
+    renderCompanyDocsList();
+  });
 }
 
 /* ================= 相關法規 / 相關網站 / 新聞 (共用邏輯) ================= */
