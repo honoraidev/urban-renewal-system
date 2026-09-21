@@ -47,6 +47,33 @@ function _floorLabelOf(r) {
   return m ? m[0].replace(/\s+/g, "") : "";
 }
 
+// 樓層排序用:地下N層 → 負數,N樓/N層 → 正數(支援阿拉伯數字與中文數字,「地下層」視為地下一層)。
+function _floorSortKey(label) {
+  const cn = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const m = String(label).match(/(\d+|[零一二三四五六七八九十]+)/);
+  let n = 1;
+  if (m) {
+    const t = m[1];
+    if (/^\d+$/.test(t)) n = Number(t);
+    else if (t.includes("十")) {
+      const [a, b] = t.split("十");
+      n = (a ? cn[a] : 1) * 10 + (b ? cn[b] : 0);
+    } else n = cn[t] ?? 1;
+  }
+  return /地下/.test(label) ? -n : n;
+}
+
+// 「樓層」欄的儲存格內容:一位地主名下多戶/多層去重、依樓層由低到高排序,每層一顆小徽章、
+// 自動換行(不要一長串「一層、二層、三層…」把整欄撐成全表最寬)。
+function _floorsCellHtml(buildingRecords) {
+  const labels = [...new Set((buildingRecords || []).map(_floorLabelOf).filter(Boolean))].sort(
+    (a, b) => _floorSortKey(a) - _floorSortKey(b)
+  );
+  return labels.length
+    ? `<div class="floor-badges">${labels.map((l) => `<span class="mini-badge">${escapeHtml(l)}</span>`).join("")}</div>`
+    : `<span style="color:var(--text-muted)">-</span>`;
+}
+
 // 「整合清冊」分頁的檢視切換,現在是分頁列上「整合清冊」那顆分頁按鈕本身的下拉
 // (見 index.html #tab-integrated-view-select + dashboard.js 的 change 監聽),這裡
 // 只依目前模式決定標題文字和要渲染哪個子畫面。
@@ -118,7 +145,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster tbody tr:hover { background:color-mix(in srgb, var(--brand) 8%, transparent); }
       #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:52px; }
       #integ-roster .col-nowrap { white-space:nowrap; }
-      #integ-roster .col-name { font-weight:600; }
+      #integ-roster .col-name { font-weight:600; white-space:nowrap; }
       #integ-roster .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
       #integ-roster th.num { text-align:right; }
       #integ-roster .cell-visit { white-space:nowrap; }
@@ -137,7 +164,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>建物門牌</th><th>樓層</th><th>地號</th><th>姓名</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th>聯絡結果</th><th class="row-actions">操作</th>
         </tr></thead>
@@ -190,7 +217,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
           .join("")}</div>`
         : `<span style="color:var(--text-muted)">-</span>`;
     })()}</td>
-            <td class="col-nowrap">${escapeHtml(uniqJoin(br.map(_floorLabelOf))) || "-"}</td>
+            <td class="col-floor">${_floorsCellHtml(br)}</td>
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
@@ -312,7 +339,7 @@ function ownerDetailRowHtml(o, colspan) {
         </div>
         ${o.building_records.length
       ? `<table>
-                <thead><tr><th>建號</th><th>座落地號</th><th>樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+                <thead><tr><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
                 <tbody>
                   ${o.building_records
         .map(

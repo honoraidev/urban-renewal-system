@@ -55,7 +55,7 @@ async function renderContactsTab(el) {
     <div id="contacts-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>地主姓名</th><th>建物門牌</th><th>樓層</th><th>連絡電話</th><th>戶籍地址</th>
+          <th class="col-idx">#</th><th>地主姓名</th><th>建物門牌</th><th class="col-floor">樓層</th><th>連絡電話</th><th>戶籍地址</th>
         </tr></thead>
         <tbody>
           ${rows
@@ -90,7 +90,7 @@ async function renderContactsTab(el) {
                 <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
                 <td class="col-name">${escapeHtml(o.name)}</td>
                 <td>${doorHtml}</td>
-                <td class="col-nowrap">${floorText ? escapeHtml(floorText) : `<span style="color:var(--text-muted)">-</span>`}</td>
+                <td class="col-floor">${_floorsCellHtml(o.building_records)}</td>
                 <td class="cell-phone">${phoneHtml}</td>
                 <td class="cell-addr">${o.address ? escapeHtml(o.address) : `<span style="color:var(--text-muted)">未填寫</span>`}</td>
               </tr>`;

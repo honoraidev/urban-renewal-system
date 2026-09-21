@@ -1887,3 +1887,7 @@
   .manual-toc { position: sticky; top: 16px; margin-bottom: 0; }
   .manual-toc ol { grid-template-columns: 1fr; }
 }
+
+/* 整合清冊/地主聯絡簿/土增稅「樓層」欄:每層一顆小徽章,固定欄寬自動換行 */
+.floor-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+td.col-floor, th.col-floor { width: 150px; max-width: 150px; }

@@ -133,7 +133,7 @@ async function renderLandValueTaxTab(el) {
     <div class="table-wrap">
       <table class="ltt-table">
         <thead><tr>
-          <th>編號</th><th>地主</th><th>建物門牌</th><th>樓層</th><th>計算明細</th><th>本次申報移轉現值(元)</th>
+          <th>編號</th><th>地主</th><th>建物門牌</th><th class="col-floor">樓層</th><th>計算明細</th><th>本次申報移轉現值(元)</th>
           <th>稅額試算(自用／一般／節省)</th>
         </tr></thead>
         <tbody id="ltt-tbody"></tbody>
@@ -206,13 +206,12 @@ function renderLttTbody(el, landOwners, liveValues) {
             )
             .join("")}</div>`
         : `<span class="helper-text">-</span>`;
-      const floors = [...new Set((o.building_records || []).map(_floorLabelOf).filter(Boolean))].join("、");
       const parent = `
         <tr class="ltt-parent" data-owner-parent="${o.id}">
           <td style="white-space:nowrap"><button type="button" class="ltt-toggle" data-owner-toggle="${o.id}" style="border:none;background:none;cursor:pointer;font-size:13px;margin-right:4px;color:var(--text-muted)">▸</button>${seq}</td>
           <td>${escapeHtml(o.name)}</td>
           <td>${doorHtml}</td>
-          <td style="white-space:nowrap">${floors ? escapeHtml(floors) : `<span class="helper-text">-</span>`}</td>
+          <td class="col-floor">${_floorsCellHtml(o.building_records)}</td>
           <td colspan="2" class="helper-text">${recs.length} 筆土地登記${parcels ? ` · 地號 ${escapeHtml(parcels)}` : ""}</td>
           <td class="ltt-result-cell" data-owner-total="${o.id}">${lttOwnerTotalHtml(o, liveValues)}</td>
         </tr>`;
