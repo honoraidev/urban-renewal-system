@@ -2116,20 +2116,21 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 
 /* ================= 部門物品管制表 ================= */
-.iv-crumbs-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.iv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.iv-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .iv-btn-outline {
   border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 14px;
   padding: 9px 16px; border-radius: 10px; cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
 }
 .iv-btn-outline:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); }
 
-.iv-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 20px; }
+/* 匯出/新增按鈕跟著標題那一行,不再貼在麵包屑那一列的最頂端 */
+.iv-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 14px 0 20px; }
 .iv-hero-left { min-width: 240px; }
 .iv-title { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
 .iv-title-icon { font-size: 28px; }
 .iv-sub { margin: 0; color: var(--text-muted); font-size: 14.5px; }
-.iv-hero-right { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; }
+.iv-hero-right { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; flex: 0 0 auto; }
+.iv-hero-deco { display: flex; align-items: center; gap: 18px; }
 .iv-slogan {
   font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", cursive; font-size: 19px; line-height: 1.5;
   color: #1f2a44; transform: rotate(-2deg); text-align: right; white-space: nowrap;
@@ -2137,7 +2138,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 [data-theme="dark"] .iv-slogan { color: #dbe4f0; }
 .iv-slogan-line { display: block; width: 170px; height: 10px; color: var(--brand); margin: 2px 0 0 auto; }
 .iv-shelf { width: 130px; height: auto; flex: 0 0 auto; }
-@media (max-width: 900px) { .iv-hero-right { display: none; } }
+@media (max-width: 900px) { .iv-hero-deco { display: none; } }
 
 .iv-search-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .iv-search {
@@ -2204,11 +2205,11 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .iv-view-btn + .iv-view-btn { border-left: 1px solid var(--border); }
 .iv-view-btn.act { background: var(--brand-light); color: var(--brand-dark, var(--brand)); }
 .iv-sort-select {
-  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13.5px; font-weight: 600;
-  padding: 8px 12px; border-radius: 10px; cursor: pointer; flex: 0 0 auto; min-width: 0;
+  box-sizing: border-box; width: 176px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font-size: 13.5px; font-weight: 600; padding: 8px 10px; border-radius: 10px; cursor: pointer; flex: 0 0 auto;
 }
 @media (max-width: 420px) {
-  .iv-sort-select { font-size: 12.5px; padding: 8px 8px; }
+  .iv-sort-select { width: 146px; font-size: 12px; padding: 8px 6px; }
 }
 
 .iv-empty { text-align: center; padding: 46px 16px 30px; }
