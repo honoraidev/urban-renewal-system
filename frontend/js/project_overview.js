@@ -508,7 +508,7 @@ async function renderProjectOverviewTab(el) {
           ${_ovCardTitle("📋", "案件狀態")}
           ${_ovRiskCard(overview.case_status)}
         </div>
-        <div class="ov-card">${_ovCardTitle("✅", "待辦事項", isEditor() ? `<button type="button" class="ov-todo-add-btn" id="ov-todo-add-btn" title="新增待辦事項">+</button>` : "")}${_ovTodosHtml(todos, pid)}</div>
+        <div class="ov-card">${_ovCardTitle("✅", "待辦事項")}${_ovTodosHtml(todos, pid)}</div>
       </div>
 
       <div class="ov-row ov-row-r3">
@@ -520,9 +520,6 @@ async function renderProjectOverviewTab(el) {
 
   _ovWireBriefCard(pid);
 
-  document.getElementById("ov-todo-add-btn")?.addEventListener("click", () => {
-    openAddReminderModal(pid, [{ id: pid, name: proj.name }], () => renderProjectOverviewTab(el));
-  });
   el.querySelectorAll("[data-ov-todo-delete]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm("確定要刪除這筆待辦事項嗎?")) return;

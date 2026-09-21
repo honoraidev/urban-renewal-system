@@ -109,6 +109,14 @@ function initReminders() {
   });
   dd.addEventListener("click", (e) => e.stopPropagation());
   document.addEventListener("click", closeBellDropdown);
+
+  // 案件詳情頁右上角的「+」(見 index.html #pd-add-todo-btn)- 預帶目前案件。
+  document.getElementById("pd-add-todo-btn")?.addEventListener("click", () => {
+    const pid = state.currentProjectId;
+    if (!pid) return;
+    const name = state.currentProject?.name || `案件 ${pid}`;
+    openAddReminderModal(pid, [{ id: pid, name }]);
+  });
 }
 
 // 登入後立刻抓一次 + 每分鐘輪詢(見 auth.js loadCurrentUser/doLogout)。
