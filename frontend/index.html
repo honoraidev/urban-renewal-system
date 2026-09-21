@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260921_11">
+  <link rel="stylesheet" href="style.css?v=20260921_12">
 </head>
 
 <body>
@@ -374,24 +374,63 @@
 
           <!-- 知識庫 -->
           <div id="view-faq" class="hidden">
-            <div class="page-header"
-              style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-              <div style="display:flex;align-items:center;gap:20px;flex:1;min-width:280px">
-                <h2 style="margin:0;white-space:nowrap">Q&A知識庫</h2>
-                <div class="search-box" style="max-width:360px">
-                  <span class="search-box-icon">🔍</span>
-                  <input type="text" id="faq-search-input" class="search-input-pill" placeholder="搜尋問題或解答內容...">
+            <div class="fq-layout">
+              <div class="fq-top">
+                <nav class="nw-crumbs"><a href="#" id="faq-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>Q&amp;A知識庫</span></nav>
+                <h1 class="fq-title">Q&amp;A知識庫</h1>
+                <p class="fq-sub">彙整都市更新相關問題,快速找到您需要的解答</p>
+                <div class="fq-search">
+                  <span class="fq-search-icon">🔍</span>
+                  <input type="search" id="faq-q-input" placeholder="請輸入關鍵字,例如:房子、分配、稅務..." autocomplete="off">
+                  <button type="button" class="fq-search-btn" id="faq-search-btn">搜尋</button>
+                </div>
+                <div class="fq-tabs" id="faq-cat-bar"></div>
+              </div>
+
+              <div class="fq-deco" aria-hidden="true">
+                <div class="fq-slogan">讓都更更簡單,<br>用知識陪伴每一步<svg viewBox="0 0 220 14" class="fq-slogan-line"><path d="M2 11 C 60 3, 140 3, 218 1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <svg class="fq-city" viewBox="0 0 380 210" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="fqBld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ec"/><stop offset="1" stop-color="#e8f1f6"/></linearGradient>
+                    <pattern id="fqWin" width="14" height="16" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="8" height="8" rx="1" fill="#ffffff" opacity=".75"/></pattern>
+                  </defs>
+                  <rect x="10" y="196" width="360" height="8" rx="4" fill="#dfe8ee"/>
+                  <rect x="30" y="90" width="70" height="106" fill="url(#fqBld)"/><rect x="30" y="90" width="70" height="106" fill="url(#fqWin)"/>
+                  <rect x="112" y="40" width="84" height="156" fill="url(#fqBld)"/><rect x="112" y="40" width="84" height="156" fill="url(#fqWin)"/>
+                  <rect x="208" y="10" width="66" height="186" fill="url(#fqBld)"/><rect x="208" y="10" width="66" height="186" fill="url(#fqWin)"/>
+                  <rect x="286" y="70" width="70" height="126" fill="url(#fqBld)"/><rect x="286" y="70" width="70" height="126" fill="url(#fqWin)"/>
+                  <g fill="#7cc7a4"><circle cx="24" cy="170" r="17"/><circle cx="100" cy="172" r="15"/><circle cx="200" cy="176" r="14"/><circle cx="352" cy="168" r="17"/></g>
+                  <g fill="#4faa86" opacity=".85"><circle cx="30" cy="164" r="11"/><circle cx="106" cy="168" r="10"/><circle cx="346" cy="162" r="11"/></g>
+                  <g stroke="#a98b6b" stroke-width="3" stroke-linecap="round"><path d="M24 186v10M100 186v10M200 190v6M352 184v12"/></g>
+                </svg>
+              </div>
+
+              <div class="fq-main">
+                <div class="fq-card">
+                  <div class="fq-card-head">
+                    <h2 class="fq-card-title"><span class="fq-card-icon">✔</span>常見問題</h2>
+                    <span class="fq-total" id="faq-total"></span>
+                    <div class="fq-actions">
+                      <button class="btn-secondary btn-sm hidden" id="manage-faq-cats-btn">⚙ 管理分類</button>
+                      <button class="btn-secondary btn-sm hidden" id="toggle-faq-edit-btn">✏️ 修改</button>
+                      <button class="btn-primary btn-sm hidden" id="new-faq-btn">+ 新增問答</button>
+                      <button type="button" class="fq-expand-btn" id="faq-expand-all">全部展開</button>
+                    </div>
+                  </div>
+                  <div id="faq-list" class="fq-list"></div>
                 </div>
               </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn-secondary hidden" id="manage-faq-cats-btn">⚙ 管理分類</button>
-                <button class="btn-secondary hidden" id="toggle-faq-edit-btn">✏️ 修改</button>
-                <button class="btn-primary hidden" id="new-faq-btn">+ 新增問答</button>
-              </div>
-            </div>
 
-            <div class="faq-cat-bar" id="faq-cat-bar"></div>
-            <div id="faq-list"></div>
+              <aside class="fq-aside">
+                <div class="fq-res">
+                  <h3 class="fq-res-title"><span class="fq-res-icon">🔗</span>相關資源</h3>
+                  <button type="button" class="fq-res-row" data-faq-go="regulations"><span class="fq-res-ic">📜</span><span>相關法規(都市更新條例等)</span><span class="fq-res-arr">›</span></button>
+                  <button type="button" class="fq-res-row" data-faq-go="websites"><span class="fq-res-ic">🌐</span><span>相關網站(都更專區、查詢工具)</span><span class="fq-res-arr">›</span></button>
+                  <button type="button" class="fq-res-row" data-faq-go="companydocs"><span class="fq-res-ic">📥</span><span>公版文件與表單下載</span><span class="fq-res-arr">›</span></button>
+                  <button type="button" class="fq-res-row" data-faq-go="news"><span class="fq-res-ic">📰</span><span>都更最新新聞</span><span class="fq-res-arr">›</span></button>
+                </div>
+              </aside>
+            </div>
           </div>
 
           <!-- 部門物品管制表 -->
@@ -775,7 +814,7 @@
   <script src="js/encumbrances.js?v=20260921_1"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
   <script src="js/members.js?v=20260916_2"></script>
-  <script src="js/resources.js?v=20260921_2"></script>
+  <script src="js/resources.js?v=20260921_3"></script>
   <script src="js/inventory.js?v=20260909_1"></script>
   <script src="js/buildingview.js?v=20260921_1"></script>
   <script src="js/land_value_tax.js?v=20260921_3"></script>

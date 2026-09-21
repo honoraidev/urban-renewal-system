@@ -684,12 +684,35 @@ let faqItemsCache = [];
 let faqSearchQuery = "";
 const FAQ_CATEGORY_OPTIONS = ["條件分配", "法律問題", "稅務優惠", "說明會相關", "都更流程"];
 
+// 分類頁籤 / 問答標籤的圖示(線條 SVG)與代表色。自訂分類沒有專屬設定就用通用標籤圖示 + 依名稱挑一個顏色。
+const _faqSvg = (body) =>
+  `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const FAQ_ICONS = {
+  全部: _faqSvg('<g fill="currentColor" stroke="none"><rect x="4" y="4" width="4" height="4" rx="1"/><rect x="10" y="4" width="4" height="4" rx="1"/><rect x="16" y="4" width="4" height="4" rx="1"/><rect x="4" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="16" y="10" width="4" height="4" rx="1"/><rect x="4" y="16" width="4" height="4" rx="1"/><rect x="10" y="16" width="4" height="4" rx="1"/><rect x="16" y="16" width="4" height="4" rx="1"/></g>'),
+  條件分配: _faqSvg('<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'),
+  法律問題: _faqSvg('<path d="M12 3v18M7 21h10M4 7h16"/><path d="M4 7l-2.5 7a3.2 3.2 0 0 0 5 0zM20 7l-2.5 7a3.2 3.2 0 0 0 5 0z"/>'),
+  稅務優惠: _faqSvg('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>'),
+  說明會相關: _faqSvg('<circle cx="9" cy="8" r="3.4"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.4 3.4 0 0 1 0 6.4M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>'),
+  都更流程: _faqSvg('<rect x="3.5" y="3.5" width="7" height="6" rx="1.2"/><rect x="13.5" y="14.5" width="7" height="6" rx="1.2"/><path d="M7 9.5V13a2 2 0 0 0 2 2h4.5"/>'),
+};
+const FAQ_CHEVRON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+const FAQ_ICON_DEFAULT = _faqSvg('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1" fill="currentColor"/>');
+const FAQ_TONES = { 全部: "#0d9fb0", 條件分配: "#0d9488", 法律問題: "#2563eb", 稅務優惠: "#ea580c", 說明會相關: "#7c3aed", 都更流程: "#16a34a" };
+const FAQ_TONE_FALLBACK = ["#db2777", "#0891b2", "#ca8a04", "#4f46e5", "#64748b"];
+
+function _faqTone(cat) {
+  if (FAQ_TONES[cat]) return FAQ_TONES[cat];
+  let h = 0;
+  for (const ch of cat || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return FAQ_TONE_FALLBACK[h % FAQ_TONE_FALLBACK.length];
+}
+
 async function goToFaq() {
   setActiveNav("faq");
   showView("view-faq");
   faqEditMode = false;
   faqSearchQuery = "";
-  const searchInput = document.getElementById("faq-search-input");
+  const searchInput = document.getElementById("faq-q-input");
   if (searchInput) searchInput.value = "";
   const toggleBtn = document.getElementById("toggle-faq-edit-btn");
   if (toggleBtn) {
@@ -709,77 +732,83 @@ async function loadFaq() {
   listEl.innerHTML = `<div class="empty-state">載入中...</div>`;
   const items = await api("/faq");
   faqItemsCache = items;
+  renderFaqList(items);
+}
 
-  const usedCats = items.map((i) => i.category || "未分類");
-  const cats = ["全部", ...new Set([...usedCats, ...FAQ_CATEGORY_OPTIONS])];
+function _faqMatchesQuery(i, q) {
+  if (!q) return true;
+  return [i.question, i.answer, i.category].some((t) => (t || "").toLowerCase().includes(q));
+}
+
+function _faqSyncExpandBtn() {
+  const btn = document.getElementById("faq-expand-all");
+  if (!btn) return;
+  const rows = [...document.querySelectorAll("#faq-list .fq-row")];
+  const allOpen = rows.length > 0 && rows.every((r) => r.classList.contains("open"));
+  btn.innerHTML = `<span class="fq-expand-ic ${allOpen ? "up" : ""}">${FAQ_CHEVRON}</span>${allOpen ? "全部收合" : "全部展開"}`;
+  btn.disabled = rows.length === 0;
+}
+
+// 分類頁籤(附題數)+ 問答清單。題數吃搜尋關鍵字、不吃目前選的分類,才看得出換分類會有幾題。
+function renderFaqList(items) {
+  const listEl = document.getElementById("faq-list");
+  if (!listEl) return;
+  const q = (faqSearchQuery || "").toLowerCase().trim();
+  const catOf = (i) => (i.category || "").trim() || "未分類";
+  const searched = items.filter((i) => _faqMatchesQuery(i, q));
+
+  const usedCats = items.map(catOf);
+  const cats = ["全部", ...new Set([...FAQ_CATEGORY_OPTIONS, ...usedCats])];
   const catBar = document.getElementById("faq-cat-bar");
   if (catBar) {
     catBar.innerHTML = cats
-      .map((c) => `<button class="fb ${faqCurCat === c ? "act" : ""}" data-faq-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`)
+      .map((c) => {
+        const n = c === "全部" ? searched.length : searched.filter((i) => catOf(i) === c).length;
+        return `<button type="button" class="fq-tab ${faqCurCat === c ? "act" : ""}" data-faq-cat="${escapeHtml(c)}" style="--tone:${_faqTone(c)}">
+          <span class="fq-tab-ic">${FAQ_ICONS[c] || FAQ_ICON_DEFAULT}</span>
+          <span class="fq-tab-text"><span class="fq-tab-name">${escapeHtml(c)}</span><span class="fq-tab-n">${n}</span></span>
+        </button>`;
+      })
       .join("");
-    document.querySelectorAll("[data-faq-cat]").forEach((btn) => {
+    catBar.querySelectorAll("[data-faq-cat]").forEach((btn) => {
       btn.addEventListener("click", () => {
         faqCurCat = btn.dataset.faqCat;
-        document.querySelectorAll("[data-faq-cat]").forEach((b) => b.classList.toggle("act", b.dataset.faqCat === faqCurCat));
         renderFaqList(items);
       });
     });
   }
 
-  const searchInput = document.getElementById("faq-search-input");
-  if (searchInput) {
-    searchInput.oninput = (e) => {
-      faqSearchQuery = e.target.value;
-      renderFaqList(items);
-    };
-  }
-
-  renderFaqList(items);
-}
-
-function renderFaqList(items) {
-  const listEl = document.getElementById("faq-list");
-  if (!listEl) return;
-  const q = (faqSearchQuery || "").toLowerCase().trim();
-  const filtered = items.filter((i) => {
-    const matchCat = faqCurCat === "全部" || (i.category || "未分類") === faqCurCat;
-    if (!matchCat) return false;
-    if (!q) return true;
-    const qText = (i.question || "").toLowerCase();
-    const aText = (i.answer || "").toLowerCase();
-    const cText = (i.category || "").toLowerCase();
-    return qText.includes(q) || aText.includes(q) || cText.includes(q);
-  });
+  const filtered = searched.filter((i) => faqCurCat === "全部" || catOf(i) === faqCurCat);
+  const totalEl = document.getElementById("faq-total");
+  if (totalEl) totalEl.textContent = `共 ${filtered.length} 個問題`;
 
   listEl.innerHTML = filtered.length
     ? filtered
-      .map(
-        (i) => `
-      <div class="faq-item ${q ? "open" : ""}">
-        <div class="faq-q" data-faq-toggle="${i.id}">
-          <span class="faq-cat-tag">${escapeHtml(i.category) || "未分類"}</span>
-          <span style="flex:1">${escapeHtml(i.question)}</span>
+        .map(
+          (i, idx) => `
+      <div class="fq-row ${q || idx === 0 ? "open" : ""}">
+        <div class="fq-q" data-faq-toggle="${i.id}">
+          <span class="fq-no">${String(idx + 1).padStart(2, "0")}</span>
+          <span class="fq-chip" style="--tone:${_faqTone(catOf(i))}">${escapeHtml(catOf(i))}</span>
+          <span class="fq-qtext">${escapeHtml(i.question)}</span>
           ${isManager() && faqEditMode
             ? `<span class="actions-cell" onclick="event.stopPropagation()">
                   <button class="btn-secondary btn-sm" data-edit-faq="${i.id}">編輯</button>
                   <button class="btn-danger btn-sm" data-delete-faq="${i.id}">刪除</button>
                 </span>`
-            : ""
-          }
-          <span class="faq-arr">▶</span>
+            : ""}
+          <span class="fq-chev"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
-        <div class="faq-a">${escapeHtml(i.answer)}</div>
+        <div class="fq-a">${escapeHtml(i.answer)}</div>
       </div>`
-      )
-      .join("")
+        )
+        .join("")
     : `<div class="empty-state">尚無符合條件的問答</div>`;
 
   listEl.querySelectorAll("[data-faq-toggle]").forEach((hdr) => {
     hdr.addEventListener("click", () => {
-      const item = hdr.closest(".faq-item");
-      const wasOpen = item.classList.contains("open");
-      listEl.querySelectorAll(".faq-item.open").forEach((x) => x.classList.remove("open"));
-      if (!wasOpen) item.classList.add("open");
+      hdr.closest(".fq-row").classList.toggle("open");
+      _faqSyncExpandBtn();
     });
   });
   listEl.querySelectorAll("[data-edit-faq]").forEach((btn) => {
@@ -798,6 +827,7 @@ function renderFaqList(items) {
       } catch (err) { }
     });
   });
+  _faqSyncExpandBtn();
 }
 
 function openFaqFormModal(title, item) {
@@ -1155,6 +1185,30 @@ function initResources() {
   document.getElementById("news-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
     goToDashboard();
+  });
+
+  // 知識庫頁:搜尋(打字即時篩選,按「搜尋」也一樣)、全部展開/收合、麵包屑、相關資源
+  const runFaqSearch = () => {
+    faqSearchQuery = document.getElementById("faq-q-input")?.value || "";
+    renderFaqList(faqItemsCache);
+  };
+  document.getElementById("faq-q-input")?.addEventListener("input", runFaqSearch);
+  document.getElementById("faq-search-btn")?.addEventListener("click", runFaqSearch);
+  document.getElementById("faq-expand-all")?.addEventListener("click", () => {
+    const rows = [...document.querySelectorAll("#faq-list .fq-row")];
+    const allOpen = rows.length > 0 && rows.every((r) => r.classList.contains("open"));
+    rows.forEach((r) => r.classList.toggle("open", !allOpen));
+    _faqSyncExpandBtn();
+  });
+  document.getElementById("faq-crumb-home")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToDashboard();
+  });
+  document.querySelectorAll("[data-faq-go]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const go = { regulations: goToRegulations, websites: goToWebsites, companydocs: goToCompanyDocs, news: goToNews }[btn.dataset.faqGo];
+      if (go) go();
+    });
   });
 
   document.getElementById("manage-regulation-cats-btn")?.addEventListener("click", () => {
