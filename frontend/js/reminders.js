@@ -19,7 +19,7 @@ function remindersEnsureStyle() {
       min-width: 15px; text-align: center; border: 1.5px solid var(--surface);
     }
     .nav-bell-dropdown {
-      position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: 300px; max-height: 360px;
+      position: fixed; z-index: 60; width: min(300px, calc(100vw - 24px)); max-height: 360px;
       overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
       box-shadow: var(--shadow-modal, 0 12px 32px rgba(0,0,0,.18)); padding: 8px;
     }
@@ -104,6 +104,12 @@ function initReminders() {
       dd.classList.add("hidden");
     } else {
       _renderBellDropdown();
+      // 鈴鐺在左側欄最底下(見 .nav-user),面板要往上開、並貼齊側欄左緣 - 用 fixed 定位,
+      // 才不會被側欄的窄寬度或 overflow 切掉一半(原本 right:0 往左長會超出螢幕)。
+      const r = btn.getBoundingClientRect();
+      dd.style.left = "12px";
+      dd.style.bottom = `${Math.max(8, window.innerHeight - r.top + 10)}px`;
+      dd.style.top = "auto";
       dd.classList.remove("hidden");
     }
   });
