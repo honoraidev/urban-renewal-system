@@ -63,15 +63,37 @@ function _floorSortKey(label) {
   return /地下/.test(label) ? -n : n;
 }
 
-// 「樓層」欄的儲存格內容:一位地主名下多戶/多層去重、依樓層由低到高排序,每層一顆小徽章、
-// 自動換行(不要一長串「一層、二層、三層…」把整欄撐成全表最寬)。
+// 「樓層」欄的儲存格內容:一位地主名下多戶/多層去重、依樓層由低到高排序。連續 3 層以上
+// (例如地下層、一~五層)合併成一顆「起~迄」徽章(滑過看得到完整清單),不是每層各自一顆
+// 徽章,不然像整棟都有持分的地主樓層一多,欄位會被撐成好幾行、拉高整列。斷層(中間缺樓層)
+// 不會被誤合併,只有真的連號才合併。
 function _floorsCellHtml(buildingRecords) {
   const labels = [...new Set((buildingRecords || []).map(_floorLabelOf).filter(Boolean))].sort(
     (a, b) => _floorSortKey(a) - _floorSortKey(b)
   );
-  return labels.length
-    ? `<div class="floor-badges">${labels.map((l) => `<span class="mini-badge">${escapeHtml(l)}</span>`).join("")}</div>`
-    : `<span style="color:var(--text-muted)">-</span>`;
+  if (!labels.length) return `<span style="color:var(--text-muted)">-</span>`;
+
+  // 樓層編號沒有「0」(地下一層 -1 直接接一樓 +1),判斷連號時要跳過 0,不然地下層永遠
+  // 併不進緊接在上面的一樓。
+  const nextKey = (k) => (k === -1 ? 1 : k + 1);
+  const groups = [];
+  labels.forEach((l) => {
+    const key = _floorSortKey(l);
+    const last = groups[groups.length - 1];
+    if (last && key === nextKey(last.lastKey)) {
+      last.labels.push(l);
+      last.lastKey = key;
+    } else {
+      groups.push({ labels: [l], lastKey: key });
+    }
+  });
+
+  const badges = groups.map((g) => {
+    const full = g.labels.join("、");
+    const text = g.labels.length >= 3 ? `${g.labels[0]}~${g.labels[g.labels.length - 1]}` : full;
+    return `<span class="mini-badge" title="${escapeHtml(full)}">${escapeHtml(text)}</span>`;
+  });
+  return `<div class="floor-badges">${badges.join("")}</div>`;
 }
 
 // 「整合清冊」分頁的檢視切換,現在是分頁列上「整合清冊」那顆分頁按鈕本身的下拉
