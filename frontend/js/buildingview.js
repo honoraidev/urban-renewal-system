@@ -183,11 +183,11 @@ function buildingViewGroupCardHtml(g) {
   // sliver off the last row's cell borders no matter how that was patched. CSS grid
   // sidesteps all of that: every cell is sized/positioned independently, so there's no
   // table-layout box for a border to get clipped against.
-  // 「16之1」「34之2」這種帶「之」的門牌比純數字寬,圖示改放文字左邊 - 只有真的帶
-  // 「之」字的那幾欄變寬(逐欄各自判斷、grid-template-columns 也逐欄給寬度),不是
-  // 整排欄位只要出現一個「之」字門牌就全部格子跟著被撐寬。
+  // 「16之1」「34之2」這種帶「之」的門牌文字比純數字長,但格子寬度統一跟一般格子
+  // 一樣(不再另外加寬),靠 .bv-cell-wide 把文字字體縮小來塞進同一個寬度,格子看
+  // 起來才會整排一樣大小、不會有些寬有些窄。
   const wideCls = (label) => (String(label).includes("之") ? " bv-cell-wide" : "");
-  const colWidths = cols.map((c) => (wideCls(c.label) ? "var(--bv-cell-w-wide)" : "var(--bv-cell-w)")).join(" ");
+  const colWidths = cols.map(() => "var(--bv-cell-w)").join(" ");
   const headerCellsHtml = cols
     .map((c) => `<div class="bv-col-label${wideCls(c.label)}">${escapeHtml(c.label)}</div>`)
     .join("");
