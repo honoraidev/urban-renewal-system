@@ -2102,16 +2102,18 @@
    5=權利人,6=債權額比例,7=金額,8=操作。 */
 .enc-table { table-layout: fixed; width: 100%; }
 .enc-table th, .enc-table td { vertical-align: middle; word-break: break-word; }
-.enc-table th:nth-child(1), .enc-table td:nth-child(1) { width: 10%; }
-.enc-table th:nth-child(2), .enc-table td:nth-child(2) { width: 12%; }
+.enc-table th:nth-child(1), .enc-table td:nth-child(1) { width: 8%; }
+.enc-table th:nth-child(2), .enc-table td:nth-child(2) { width: 16%; }
 .enc-table th:nth-child(3), .enc-table td:nth-child(3) { width: 18%; }
 .enc-table th:nth-child(4), .enc-table td:nth-child(4) { width: 11%; }
 .enc-table th:nth-child(5), .enc-table td:nth-child(5) { width: 19%; }
-.enc-table th:nth-child(6), .enc-table td:nth-child(6) { width: 9%; }
+.enc-table th:nth-child(6), .enc-table td:nth-child(6) { width: 7%; }
 .enc-table th:nth-child(7), .enc-table td:nth-child(7) { width: 11%; }
 .enc-table td.actions-cell { white-space: nowrap; width: 74px; }
-.enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
-.enc-addr-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-width: 0; }
+/* flex-wrap 改 wrap 當保險:欄位固定寬度後,地號/門牌文字+「共N筆」膠囊萬一還是
+   擠不下(例如地號字串特別長),就在格子內自動換第二行,不會再溢出去疊到隔壁欄。 */
+.enc-addr-line { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; min-width: 0; }
 .enc-addr-bn { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
 .enc-addr-panel-row { display: flex; align-items: center; gap: 4px 8px; padding: 4px 0; flex-wrap: wrap; }
 .enc-addr-panel-row + .enc-addr-panel-row { border-top: 1px dashed var(--border); }
