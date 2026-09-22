@@ -1424,8 +1424,8 @@
 }
 .bv-detail-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
 
-.bv-body { display: flex; flex-wrap: wrap; gap: 20px 26px; align-items: flex-start; }
-/* 格子區:寬度先照內容,放不下旁邊的統計面板就把面板擠到下一行;格子本身太寬就在自己裡面橫向捲動 */
+.bv-body { display: flex; flex-wrap: nowrap; gap: 20px; align-items: flex-start; }
+/* 格子區:自動縮小以容納右邊的統計面板 */
 .bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: visible; overflow-y: visible; padding: 12px 8px 12px 2px; }
 /* CSS grid instead of a <table> - a table's border-collapse/row-height rounding and
    the global `table { width:100%; overflow:hidden }` rule fought every attempt to size
@@ -1514,6 +1514,7 @@
   .bv-head-tools { width: 100%; }
   .bv-search { flex: 1 1 100%; width: 100%; }
   .bv-group { padding: 16px; }
+  .bv-body { flex-wrap: wrap; gap: 20px 26px; }
   .bv-statpanel { flex-basis: 100%; }
   .bv-col-label { font-size: 9px; }
   .bv-row-label { min-width: 40px; padding: 0 5px; font-size: 11px; margin-right: 3px; }
