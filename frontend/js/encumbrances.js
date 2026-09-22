@@ -95,7 +95,9 @@ function encumbranceParcelsCellHtml(enc) {
   // 只有1筆也用膠囊(mini-badge)顯示,跟多筆時的樣式統一,不要單筆是純文字、
   // 多筆才是膠囊的不一致外觀。
   if (tokens.length === 1) return `<span class="mini-badge">${escapeHtml(tokens[0])}</span>`;
-  const panelHtml = tokens.map((t) => `<div class="enc-addr-panel-row">${escapeHtml(t)}</div>`).join("");
+  // 下拉面板裡每一筆也用膠囊包起來,跟門牌地址欄的下拉面板(badgeOnly)同一套版模,
+  // 不要地號欄的面板是純文字、門牌地址欄的面板卻是膠囊樣式,兩邊看起來不一致。
+  const panelHtml = tokens.map((t) => `<div class="enc-addr-panel-row"><span class="mini-badge">${escapeHtml(t)}</span></div>`).join("");
   return `<div class="enc-addr-cell">
       <div class="enc-addr-line">
         <span class="mini-badge">${escapeHtml(tokens[0])}</span>
