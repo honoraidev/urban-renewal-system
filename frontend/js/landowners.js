@@ -191,13 +191,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .col-name { width:8%; font-weight:600; }
       #integ-roster .num { width:8%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
-      /* badge 跟日期一定要各佔一行,不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候
-         "2026-09-21" 這種字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看。 */
-      #integ-roster .cell-visit { width:17%; }
-      #integ-roster .cell-visit-inner { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
-      #integ-roster .visit-date { color:var(--text-muted); font-size:12px; display:flex; flex-direction:column; gap:2px; }
+      #integ-roster .cell-visit { width:9%; }
+      /* 日期一定要自己一行、不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候 "2026-09-21"
+         這種字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看。 */
+      #integ-roster .visit-date { width:9%; color:var(--text-muted); font-size:12px; display:flex; flex-direction:column; gap:2px; }
       #integ-roster .visit-date-text { white-space:nowrap; }
-      #integ-roster .row-actions { width:100px; text-align:right; }
+      #integ-roster .row-actions { width:130px; text-align:right; white-space:nowrap; }
       #integ-roster td { word-break:break-word; }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
@@ -212,6 +211,23 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       }
       #integ-roster .integ-toggle-btn:hover { background:color-mix(in srgb, var(--brand) 10%, transparent); }
       #integ-roster .integ-toggle-btn.expanded { background:var(--brand); color:#fff; border-color:var(--brand); }
+      #integ-roster .integ-more-btn {
+        display:inline-flex; align-items:center; justify-content:center;
+        width:27px; height:27px; margin-left:6px; border:1px solid var(--border); border-radius:6px;
+        background:var(--surface); color:var(--text-muted); cursor:pointer; font-size:14px; line-height:1; vertical-align:middle;
+      }
+      #integ-roster .integ-more-btn:hover { background:var(--surface-2); color:var(--text); }
+      .integ-more-menu {
+        position:absolute; z-index:60; min-width:150px; background:var(--surface); border:1px solid var(--border);
+        border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:6px; display:flex; flex-direction:column; gap:2px;
+      }
+      .integ-more-menu button {
+        display:flex; align-items:center; gap:6px; padding:8px 10px; border:none; background:none; border-radius:6px;
+        text-align:left; font-size:13px; color:var(--text); cursor:pointer;
+      }
+      .integ-more-menu button:hover { background:var(--surface-2); }
+      .integ-more-menu button.danger { color:var(--danger); }
+      .integ-more-menu button.danger:hover { background:color-mix(in srgb, var(--danger) 10%, transparent); }
       /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
          選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
       #integ-roster .integ-detail-card thead th {
@@ -255,12 +271,13 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .integ-side-note-date { display:block; font-size:11px; color:var(--text-muted); margin-top:2px; }
       #integ-roster .integ-icon-btn {
         display:inline-flex; align-items:center; justify-content:center;
-        border:1px solid var(--border); background:var(--surface); border-radius:6px;
+        border:1px solid transparent; border-radius:6px;
         width:27px; height:27px; cursor:pointer; font-size:12px; line-height:1; margin-right:4px;
-        transition:background .12s, border-color .12s;
+        background:color-mix(in srgb, #2563eb 12%, transparent); transition:background .12s, border-color .12s;
       }
-      #integ-roster .integ-icon-btn:hover { background:var(--surface-2); }
-      #integ-roster .integ-icon-btn-danger:hover { background:color-mix(in srgb, var(--danger) 12%, transparent); border-color:var(--danger); }
+      #integ-roster .integ-icon-btn:hover { background:color-mix(in srgb, #2563eb 22%, transparent); }
+      #integ-roster .integ-icon-btn-danger { background:color-mix(in srgb, var(--danger) 12%, transparent); }
+      #integ-roster .integ-icon-btn-danger:hover { background:color-mix(in srgb, var(--danger) 22%, transparent); }
       @media (max-width: 900px) {
         #integ-roster .integ-detail-wrap { flex-direction:column; }
         #integ-roster .integ-side-card { flex:1 1 auto; }
@@ -269,9 +286,9 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號</th><th>姓名</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號<br>(地段)</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
-          <th>聯絡結果</th><th class="row-actions">操作</th>
+          <th>聯絡結果</th><th>最後聯絡</th><th class="row-actions">操作</th>
         </tr></thead>
         <tbody>
         ${rows.map((o, i) => {
@@ -283,7 +300,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const c = contactBy.get(o.id);
     const visit = c && c.last_contact_date
       ? `<span class="visit-date-text">${fmtDate(c.last_contact_date)}</span>${c.is_overdue ? `<span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
-      : `<span style="color:var(--text-muted)">尚無</span>`;
+      : `<span style="color:var(--text-muted)">-</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
     const resultBadge = c && c.last_contact_result
@@ -321,17 +338,16 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
-            <td class="cell-visit">
-              <div class="cell-visit-inner">
-                ${resultBadge}
-                <span class="visit-date">${visit}</span>
-              </div>
-            </td>
+            <td class="cell-visit">${resultBadge || `<span style="color:var(--text-muted)">-</span>`}</td>
+            <td class="visit-date">${visit}</td>
             <td class="row-actions">
-              <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">查看</button>
+              <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">展開</button>
+              <span style="position:relative;display:inline-block">
+                <button type="button" class="integ-more-btn" data-more="${o.id}" title="更多操作">⋮</button>
+              </span>
             </td>
           </tr>
-          ${ownerDetailRowHtml(o, 11, contactBy.get(o.id))}`;
+          ${ownerDetailRowHtml(o, 12, contactBy.get(o.id))}`;
   }).join("")}
         </tbody>
       </table>
@@ -374,7 +390,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
 
   wireOwnerDetailRows(el, owners);
 
-  // 展開/收合:欄位裡的編號(col-idx)跟操作欄的「查看」按鈕都可以觸發,兩處共用
+  // 展開/收合:欄位裡的編號(col-idx)跟操作欄的「展開」按鈕都可以觸發,兩處共用
   // 同一個 data-toggle="ownerId",同一列的兩顆一起切換箭頭方向跟按鈕文字。
   el.querySelectorAll("[data-toggle]").forEach((toggle) => {
     toggle.addEventListener("click", (e) => {
@@ -388,11 +404,42 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       el.querySelectorAll(`[data-toggle="${ownerId}"]`).forEach((t) => {
         t.classList.toggle("expanded", nowExpanded);
         if (t.classList.contains("integ-toggle-btn")) {
-          t.textContent = nowExpanded ? "收合" : "查看";
+          t.textContent = nowExpanded ? "收合" : "展開";
         }
       });
     });
   });
+
+  // 操作欄「⋮」更多選單:編輯 / 刪除地主,點外面自動收起,同時間只開一個。
+  const closeIntegMoreMenu = () => document.getElementById("integ-more-menu")?.remove();
+  el.querySelectorAll("[data-more]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const already = document.getElementById("integ-more-menu");
+      closeIntegMoreMenu();
+      if (already) return; // 再點一次同一顆 = 關閉
+      const ownerId = Number(btn.dataset.more);
+      const rect = btn.getBoundingClientRect();
+      const menu = document.createElement("div");
+      menu.id = "integ-more-menu";
+      menu.className = "integ-more-menu";
+      menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+      menu.style.left = `${rect.right + window.scrollX - 120}px`;
+      menu.innerHTML = `
+        <button type="button" data-menu-edit="${ownerId}">✏️ 編輯地主資料</button>
+        <button type="button" data-menu-delete="${ownerId}" class="danger">🗑 刪除地主</button>`;
+      document.body.appendChild(menu);
+      menu.querySelector("[data-menu-edit]").addEventListener("click", () => {
+        closeIntegMoreMenu();
+        openEditLandownerModal(ownerId);
+      });
+      menu.querySelector("[data-menu-delete]").addEventListener("click", () => {
+        closeIntegMoreMenu();
+        deleteLandowner(ownerId); // 內部自己有 confirm() 二次確認
+      });
+    });
+  });
+  document.addEventListener("click", closeIntegMoreMenu);
 }
 
 // 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊
@@ -430,7 +477,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
       </div>
       ${o.land_records.length
       ? `<table>
-              <thead><tr><th>#</th><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+              <thead><tr><th>#</th><th>地號</th><th>地段</th><th>面積(m²)</th><th>持分</th><th>持有面積(m²)</th><th>持有面積(%)</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${o.land_records
         .map(
@@ -438,9 +485,10 @@ function ownerDetailRowHtml(o, colspan, contact) {
                     <td>${idx + 1}</td>
                     <td>${escapeHtml(lr.parcel_number)}</td>
                     <td>${escapeHtml(lr.section) || "-"}</td>
-                    <td>${fmtArea(lr.total_area_sqm)}m²</td>
+                    <td>${fmtArea(lr.total_area_sqm)}</td>
                     <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
-                    <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
+                    <td>${fmtArea(lr.owned_area_sqm)}</td>
+                    <td>${lr.ownership_share_pct ?? "-"}%</td>
                     ${isEditor()
               ? `<td class="actions-cell">
                           ${iconBtn("edit-land", lr.id, o.id, "編輯")}
@@ -465,7 +513,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
       </div>
       ${o.building_records.length
       ? `<table>
-              <thead><tr><th>#</th><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+              <thead><tr><th>#</th><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積(m²)</th><th>持分</th><th>持有面積(m²)</th><th>持有面積(%)</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${o.building_records
         .map(
@@ -474,8 +522,10 @@ function ownerDetailRowHtml(o, colspan, contact) {
                     <td>${escapeHtml(br.building_number) || "-"}</td>
                     <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
                     <td>${escapeHtml(br.floor) || "-"}</td>
-                    <td>${fmtArea(br.total_area_sqm)}m²</td>
-                    <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
+                    <td>${fmtArea(br.total_area_sqm)}</td>
+                    <td>${br.ownership_numerator}/${br.ownership_denominator}</td>
+                    <td>${fmtArea((Number(br.total_area_sqm) || 0) * (br.ownership_numerator || 1) / (br.ownership_denominator || 1))}</td>
+                    <td>${br.ownership_share_pct ?? "-"}%</td>
                     ${isEditor()
               ? `<td class="actions-cell">
                           ${iconBtn("edit-building", br.id, o.id, "編輯")}
