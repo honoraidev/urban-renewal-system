@@ -192,11 +192,13 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .num { width:8%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
       #integ-roster .cell-visit { width:9%; }
-      /* 日期一定要自己一行、不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候 "2026-09-21"
-         這種字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看。 */
-      #integ-roster .visit-date { width:9%; color:var(--text-muted); font-size:12px; display:flex; flex-direction:column; gap:2px; }
+      /* 日期文字本身不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候 "2026-09-21" 這種
+         字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看;逾期標籤允許另起一行,
+         但不用 display:flex 包住整個 td(那會讓 td 跳出表格版面配置的高度對齊基準,
+         跟同一列其他儲存格的垂直置中對不齊,看起來像多了一條線)。 */
+      #integ-roster .visit-date { width:9%; color:var(--text-muted); font-size:12px; }
       #integ-roster .visit-date-text { white-space:nowrap; }
-      #integ-roster .row-actions { width:130px; text-align:right; white-space:nowrap; }
+      #integ-roster .row-actions { width:90px; text-align:right; white-space:nowrap; }
       #integ-roster td { word-break:break-word; }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
@@ -211,23 +213,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       }
       #integ-roster .integ-toggle-btn:hover { background:color-mix(in srgb, var(--brand) 10%, transparent); }
       #integ-roster .integ-toggle-btn.expanded { background:var(--brand); color:#fff; border-color:var(--brand); }
-      #integ-roster .integ-more-btn {
-        display:inline-flex; align-items:center; justify-content:center;
-        width:27px; height:27px; margin-left:6px; border:1px solid var(--border); border-radius:6px;
-        background:var(--surface); color:var(--text-muted); cursor:pointer; font-size:14px; line-height:1; vertical-align:middle;
-      }
-      #integ-roster .integ-more-btn:hover { background:var(--surface-2); color:var(--text); }
-      .integ-more-menu {
-        position:absolute; z-index:60; min-width:150px; background:var(--surface); border:1px solid var(--border);
-        border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:6px; display:flex; flex-direction:column; gap:2px;
-      }
-      .integ-more-menu button {
-        display:flex; align-items:center; gap:6px; padding:8px 10px; border:none; background:none; border-radius:6px;
-        text-align:left; font-size:13px; color:var(--text); cursor:pointer;
-      }
-      .integ-more-menu button:hover { background:var(--surface-2); }
-      .integ-more-menu button.danger { color:var(--danger); }
-      .integ-more-menu button.danger:hover { background:color-mix(in srgb, var(--danger) 10%, transparent); }
       /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
          選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
       #integ-roster .integ-detail-card thead th {
@@ -342,9 +327,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="visit-date">${visit}</td>
             <td class="row-actions">
               <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">展開</button>
-              <span style="position:relative;display:inline-block">
-                <button type="button" class="integ-more-btn" data-more="${o.id}" title="更多操作">⋮</button>
-              </span>
             </td>
           </tr>
           ${ownerDetailRowHtml(o, 12, contactBy.get(o.id))}`;
@@ -410,36 +392,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     });
   });
 
-  // 操作欄「⋮」更多選單:編輯 / 刪除地主,點外面自動收起,同時間只開一個。
-  const closeIntegMoreMenu = () => document.getElementById("integ-more-menu")?.remove();
-  el.querySelectorAll("[data-more]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const already = document.getElementById("integ-more-menu");
-      closeIntegMoreMenu();
-      if (already) return; // 再點一次同一顆 = 關閉
-      const ownerId = Number(btn.dataset.more);
-      const rect = btn.getBoundingClientRect();
-      const menu = document.createElement("div");
-      menu.id = "integ-more-menu";
-      menu.className = "integ-more-menu";
-      menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
-      menu.style.left = `${rect.right + window.scrollX - 120}px`;
-      menu.innerHTML = `
-        <button type="button" data-menu-edit="${ownerId}">✏️ 編輯地主資料</button>
-        <button type="button" data-menu-delete="${ownerId}" class="danger">🗑 刪除地主</button>`;
-      document.body.appendChild(menu);
-      menu.querySelector("[data-menu-edit]").addEventListener("click", () => {
-        closeIntegMoreMenu();
-        openEditLandownerModal(ownerId);
-      });
-      menu.querySelector("[data-menu-delete]").addEventListener("click", () => {
-        closeIntegMoreMenu();
-        deleteLandowner(ownerId); // 內部自己有 confirm() 二次確認
-      });
-    });
-  });
-  document.addEventListener("click", closeIntegMoreMenu);
 }
 
 // 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊

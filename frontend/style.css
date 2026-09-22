@@ -1423,6 +1423,15 @@
   background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .bv-detail-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+/* 「樓棟詳情」下面疊一顆「收起/顯示統計」次要按鈕 - 收起右側戶別狀態統計側欄,讓格子
+   區能用的寬度變大,戶數多的樓棟比較不用一直靠格子區內部的水平捲軸看剩下的戶別。 */
+.bv-detail-btn-col { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.bv-stats-toggle-btn {
+  height: 28px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+}
+.bv-stats-toggle-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+.bv-statpanel-hidden { display: none; }
 
 .bv-body { display: flex; flex-wrap: nowrap; gap: 20px; align-items: flex-start; }
 /* 格子區:自動縮小以容納右邊的統計面板。overflow-x 一定要是 auto,不能是 visible -

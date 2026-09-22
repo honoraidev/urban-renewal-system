@@ -3,6 +3,9 @@
 // Per-group "flip axes" toggle (doors-as-rows instead of floors-as-rows) - in-memory
 // only, not worth persisting across page loads.
 const buildingViewFlippedGroups = new Set();
+// Per-group「收合戶別狀態統計側欄」開關 - 戶數多的樓棟格子區常常要靠水平捲軸才看得完,
+// 收起右側統計面板讓格子區能用的寬度變大,同樣只存在記憶體,不用跨頁面保留。
+const buildingViewStatsHiddenGroups = new Set();
 
 function buildingViewGroupOrderKey(pid) {
   return `buildingViewGroupOrder:${pid}`;
@@ -180,6 +183,7 @@ function buildingViewDonutHtml(pct) {
 function buildingViewGroupCardHtml(g) {
   // 預設不翻轉(樓層優先):行是樓層、列是戶別。點翻轉按鈕時改為戶別優先(行戶別、列樓層)
   const flipped = buildingViewFlippedGroups.has(g.key);
+  const statsHidden = buildingViewStatsHiddenGroups.has(g.key);
   const st = buildingViewStats([g]);
 
   const rows = flipped ? g.doors.map((d) => ({ key: d, label: String(d) })) : g.floors.map((f) => ({ key: f.sort, label: f.label }));
@@ -246,7 +250,10 @@ function buildingViewGroupCardHtml(g) {
           ${tile("agreed", "已整合", st.agreed)}${tile("other", "待整合", st.other + st.mixed)}${tile("opposed", "反對", st.opposed)}${tile("shared", "多位共有", st.shared)}
         </div>
         ${buildingViewDonutHtml(st.pct)}
-        <button type="button" class="bv-detail-btn" data-bv-detail="${g.key}">樓棟詳情 ${BV_ICON.arrow}</button>
+        <div class="bv-detail-btn-col">
+          <button type="button" class="bv-detail-btn" data-bv-detail="${g.key}">樓棟詳情 ${BV_ICON.arrow}</button>
+          <button type="button" class="bv-stats-toggle-btn" data-bv-toggle-stats="${g.key}">${statsHidden ? "顯示統計" : "收起統計"}</button>
+        </div>
       </div>
       <div class="bv-body">
         <div class="bv-grid-wrap">
@@ -254,7 +261,7 @@ function buildingViewGroupCardHtml(g) {
             <div class="bv-grid-corner"></div>${headerCellsHtml}${bodyHtml}
           </div>
         </div>
-        <aside class="bv-statpanel">
+        <aside class="bv-statpanel${statsHidden ? " bv-statpanel-hidden" : ""}">
           <div class="bv-stat-title">戶別狀態統計</div>
           ${statRow("agreed", "同意 (已整合)", st.agreed)}
           ${statRow("opposed", "反對", st.opposed)}
@@ -526,6 +533,14 @@ async function renderBuildingViewTab(el) {
     }
     const detailBtn = card.querySelector("[data-bv-detail]");
     if (detailBtn) detailBtn.addEventListener("click", () => openBuildingDetailModal(groupsByKey.get(key)));
+    const statsToggleBtn = card.querySelector("[data-bv-toggle-stats]");
+    if (statsToggleBtn) {
+      statsToggleBtn.addEventListener("click", () => {
+        if (buildingViewStatsHiddenGroups.has(key)) buildingViewStatsHiddenGroups.delete(key);
+        else buildingViewStatsHiddenGroups.add(key);
+        rerenderGroup(key);
+      });
+    }
     card.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("text/plain", key);
       card.classList.add("bv-dragging");
