@@ -203,8 +203,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         line-height:1.35; margin-top:2px; word-break:break-word;
       }
       #integ-roster .col-idx { cursor:pointer; }
-      #integ-roster .toggle-arrow { display:inline-block; transition:transform .15s; color:var(--text-muted); font-size:10px; }
-      #integ-roster tr.expanded .toggle-arrow { transform:rotate(90deg); }
       #integ-roster tr.expanded { border-left:3px solid var(--brand); background:color-mix(in srgb, var(--brand) 6%, transparent); }
       #integ-roster tr.expanded td:first-child { padding-left:9px; }
       #integ-roster .integ-toggle-btn { display:inline-flex; align-items:center; gap:5px; }
@@ -279,9 +277,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}">
-            <td class="col-idx" data-toggle="${o.id}" style="cursor:pointer;user-select:none">
-              <span class="toggle-arrow">▶</span> ${String(i + 1).padStart(3, "0")}
-            </td>
+            <td class="col-idx" data-toggle="${o.id}" style="cursor:pointer;user-select:none">${String(i + 1).padStart(3, "0")}</td>
             <td>${(() => {
       const addrMap = new Map();
       br.forEach((r) => {
