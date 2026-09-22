@@ -99,13 +99,6 @@ async function renderContactsTab(el) {
       : ""
     }
       <details class="integ-filter" style="position:relative">
-        <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">聯絡狀態:全部 ▾</summary>
-        <div id="contacts-status-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="contacted" style="width:auto">已聯絡</label>
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="not_contacted" style="width:auto">未聯絡</label>
-        </div>
-      </details>
-      <details class="integ-filter" style="position:relative">
         <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">聯絡方式:全部 ▾</summary>
         <div id="contacts-phone-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
           <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="has" style="width:auto">有電話</label>
@@ -183,7 +176,6 @@ async function renderContactsTab(el) {
   const getFiltered = () => {
     const q = (document.getElementById("contacts-search")?.value || "").trim().toLowerCase();
     const floorChecked = checked("contacts-floor-dd");
-    const statusChecked = checked("contacts-status-dd");
     const phoneChecked = checked("contacts-phone-dd");
     return allRows.filter((o) => {
       const doorEntries = [...new Set((o.building_records || []).map((r) => _shortDoorAddr(r.address)).filter(Boolean))];
@@ -191,9 +183,8 @@ async function renderContactsTab(el) {
       const hay = `${o.name} ${o.phone_landline || ""} ${o.phone_mobile || ""} ${o.phone || ""} ${o.address || ""} ${doorEntries.join(" ")} ${floorText.join(" ")}`.toLowerCase();
       const okSearch = !q || hay.includes(q);
       const okFloor = !floorChecked.length || floorChecked.some((f) => floorText.includes(f));
-      const okStatus = !statusChecked.length || statusChecked.includes(isContacted(o) ? "contacted" : "not_contacted");
       const okPhone = !phoneChecked.length || phoneChecked.includes(hasPhone(o) ? "has" : "none");
-      return okSearch && okFloor && okStatus && okPhone;
+      return okSearch && okFloor && okPhone;
     });
   };
 
@@ -236,7 +227,7 @@ async function renderContactsTab(el) {
     contactsUi.page = 1;
     renderBody();
   });
-  el.querySelectorAll("#contacts-floor-dd input, #contacts-status-dd input, #contacts-phone-dd input").forEach((cb) =>
+  el.querySelectorAll("#contacts-floor-dd input, #contacts-phone-dd input").forEach((cb) =>
     cb.addEventListener("change", () => {
       contactsUi.page = 1;
       renderBody();
@@ -245,7 +236,7 @@ async function renderContactsTab(el) {
   document.getElementById("contacts-clear-btn")?.addEventListener("click", () => {
     const searchInput = document.getElementById("contacts-search");
     if (searchInput) searchInput.value = "";
-    el.querySelectorAll("#contacts-floor-dd input, #contacts-status-dd input, #contacts-phone-dd input").forEach((cb) => (cb.checked = false));
+    el.querySelectorAll("#contacts-floor-dd input, #contacts-phone-dd input").forEach((cb) => (cb.checked = false));
     contactsUi.page = 1;
     renderBody();
   });
