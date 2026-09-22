@@ -490,10 +490,7 @@ async function renderSopSummary() {
   const sop = await api(`/projects/${pid}/sop`);
   state.projectCache[pid].sop = sop;
 
-  const stageKeys = Object.keys(sop.stages).sort((a, b) => Number(a) - Number(b));
-  const maxStage = Math.max(...stageKeys.map(Number));
   const isFinished = sop.final.status !== "pending";
-  const progressNum = isFinished ? maxStage : sop.current_stage;
 
   let finalBanner = "";
   if (sop.final.status === "completed") {
@@ -502,27 +499,15 @@ async function renderSopSummary() {
     finalBanner = `<div class="final-banner warning">案件已由主管強制結案${sop.final.reason ? ":" + escapeHtml(sop.final.reason) : ""}</div>`;
   }
 
-  const currentStageObj = sop.stages[String(sop.current_stage)];
-  const currentLabel = isFinished
-    ? "已結案"
-    : currentStageObj
-      ? `第${sop.current_stage}階段・${sopStageLabel(sop.current_stage, currentStageObj)}`
-      : "";
-
   const headerActions = document.getElementById("pd-header-actions");
   if (headerActions) {
     headerActions.innerHTML =
       isManager() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "";
   }
 
-  el.innerHTML = `
-    ${finalBanner}
-    <div class="sop-progress-bar">
-      <span class="sop-progress-num">進度 ${progressNum}/${maxStage}</span>
-      <div class="progress-bar-track" style="flex:1"><div class="progress-bar-fill" style="width:${((progressNum / maxStage) * 100).toFixed(0)}%"></div></div>
-      <span class="sop-progress-current">${escapeHtml(currentLabel)}</span>
-    </div>
-  `;
+  // 頁籤上方常駐的「進度 X/9」橫幅已移除(使用者反饋不需要) - 階段進度改成只在
+  // 「流程」頁籤裡的 SOP 卡片查看,這裡只留結案通知(finalBanner)。
+  el.innerHTML = finalBanner;
 
   const forceCloseBtn = document.getElementById("force-close-project-btn");
   if (forceCloseBtn) {

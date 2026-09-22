@@ -209,13 +209,13 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
          選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
       #integ-roster .integ-detail-card thead th {
-        position:static; padding:8px 12px; font-size:11px; color:var(--text-muted);
+        position:static; padding:9px 12px; font-size:12.5px; color:var(--text-muted);
         font-weight:600; background:color-mix(in srgb, var(--surface-2) 60%, transparent);
       }
-      #integ-roster .integ-detail-card tbody td { padding:9px 12px; font-size:12.5px; border-bottom:1px solid var(--border); }
+      #integ-roster .integ-detail-card tbody td { padding:10px 12px; font-size:14px; border-bottom:1px solid var(--border); }
       #integ-roster .integ-detail-card tbody tr:last-child td { border-bottom:none; }
       #integ-roster .integ-detail-card tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 35%, transparent); }
-      #integ-roster .integ-detail-card table { font-size:12.5px; width:100%; border-collapse:collapse; }
+      #integ-roster .integ-detail-card table { font-size:14px; width:100%; border-collapse:collapse; }
       #integ-roster .integ-detail-wrap { display:flex; gap:16px; padding:18px 20px; align-items:flex-start; }
       #integ-roster .integ-detail-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; }
       #integ-roster .integ-detail-card {
