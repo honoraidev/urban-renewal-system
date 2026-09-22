@@ -60,14 +60,15 @@ async function renderContactsTab(el) {
     </div>`;
 
   el.innerHTML = `
-    <div class="section-toolbar" style="flex-wrap:wrap;gap:10px">
-      <div style="flex:1 1 auto;min-width:240px">
-        <h3 class="section-hero-title" style="margin-bottom:2px"><span class="hero-ic">👥</span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
-        <div class="helper-text" style="margin:0">管理地主聯絡資訊,支援搜尋、篩選與批次聯絡作業。</div>
+    <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
+      <h3 class="section-hero-title"><span class="hero-ic">👥</span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
+      <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button type="button" class="btn-secondary btn-sm" id="contacts-export-btn">⬆ 匯出 Excel</button>
+        ${isEditor() ? `<button class="btn-primary btn-sm" id="contacts-add-btn">+ 新增地主</button>` : ""}
       </div>
-      <button type="button" class="btn-secondary btn-sm" id="contacts-export-btn">⬆ 匯出 Excel</button>
-      ${isEditor() ? `<button class="btn-primary btn-sm" id="contacts-add-btn">+ 新增地主</button>` : ""}
     </div>
+    <div class="helper-text" style="margin:-4px 0 14px">管理地主聯絡資訊,支援搜尋、篩選與批次聯絡作業。</div>
     <div class="enc-stat-row">
       ${statTile("👥", "land", "地主總數", `${allRows.length} <small>位</small>`)}
       ${statTile(
@@ -88,7 +89,6 @@ async function renderContactsTab(el) {
       ${statTile("🏢", "type", "涵蓋樓層", `<span style="font-size:17px">${floorRangeText}</span>`)}
     </div>
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px;margin-top:4px">
-      <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
       ${floorOptions.length
       ? `<details class="integ-filter" style="position:relative">
               <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">樓層:全部 ▾</summary>

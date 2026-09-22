@@ -230,11 +230,8 @@ async function renderEncumbrancesTab(el) {
     </div>`;
 
   el.innerHTML = `
-    <div class="section-toolbar" style="flex-wrap:wrap;gap:10px">
-      <div style="flex:1 1 auto;min-width:240px">
-        <h3 class="section-hero-title" style="margin-bottom:2px"><span class="hero-ic">📋</span>他項權利部 (${encumbrances.length})</h3>
-        <div class="helper-text" style="margin:0">管理土地與建物之他項權利資料,支援搜尋、篩選與編輯作業。</div>
-      </div>
+    <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
+      <h3 class="section-hero-title"><span class="hero-ic">📋</span>他項權利部 (${encumbrances.length})</h3>
       <div class="hero-search">${BV_ICON.search}<input type="search" id="encumbrance-search" placeholder="搜尋地號/門牌/權利種類/權利人..."></div>
       ${rightTypeCats.length
       ? `<details class="integ-filter" style="position:relative">
@@ -252,9 +249,12 @@ async function renderEncumbrancesTab(el) {
             </details>`
       : ""
     }
-      <button type="button" class="btn-secondary btn-sm" id="enc-export-btn">⬆ 匯出 Excel</button>
-      ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button type="button" class="btn-secondary btn-sm" id="enc-export-btn">⬆ 匯出 Excel</button>
+        ${isEditor() ? `<button class="btn-primary btn-sm" id="add-encumbrance-btn">+ 新增他項權利</button>` : ""}
+      </div>
     </div>
+    <div class="helper-text" style="margin:-4px 0 14px">管理土地與建物之他項權利資料,支援搜尋、篩選與編輯作業。</div>
     <div class="enc-stat-row">
       ${statTile("🌱", "land", "土地他項權利", `${landCount} <small>筆</small>`)}
       ${statTile("🏢", "building", "建物他項權利", `${buildingCount} <small>筆</small>`)}
