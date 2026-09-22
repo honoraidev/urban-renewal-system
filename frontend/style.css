@@ -745,8 +745,12 @@
 
   /* 整合清冊/地主聯絡簿/文件清單/他項權利部/案件人員的標題比照樓棟視圖(.bv-title)
      放大成同一個視覺重量,不直接改 .section-toolbar h3(那個全域選取器還有很多其他
-     不在這波改版範圍內的頁面在用,一改會波及太多地方),另外給一個專屬 class。 */
-  .section-hero-title {
+     不在這波改版範圍內的頁面在用,一改會波及太多地方),另外給一個專屬 class。
+     選擇器故意寫成 .section-toolbar h3.section-hero-title(不是單純 .section-hero-title)-
+     這些標題元素人在 .section-toolbar 容器裡,同時符合上面 .section-toolbar h3 那條
+     16.5px 的全域規則,單一 class 選擇器優先權比「class+標籤」低,字體大小會被蓋掉、
+     怎麼調都沒用,要用同等或更高優先權的選擇器才蓋得過去。 */
+  .section-toolbar h3.section-hero-title {
     margin: 0; font-size: 26px; font-weight: 800; line-height: 1.2; letter-spacing: .01em;
     display: inline-flex; align-items: center; gap: 16px; white-space: nowrap; flex-shrink: 0;
   }
