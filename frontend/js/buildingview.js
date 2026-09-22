@@ -178,8 +178,8 @@ function buildingViewDonutHtml(pct) {
 }
 
 function buildingViewGroupCardHtml(g) {
-  // 預設翻轉(戶別優先):行是戶別、列是樓層。點翻轉按鈕時改為樓層優先(行樓層、列戶別)
-  const flipped = !buildingViewFlippedGroups.has(g.key);
+  // 預設不翻轉(樓層優先):行是樓層、列是戶別。點翻轉按鈕時改為戶別優先(行戶別、列樓層)
+  const flipped = buildingViewFlippedGroups.has(g.key);
   const st = buildingViewStats([g]);
 
   const rows = flipped ? g.doors.map((d) => ({ key: d, label: String(d) })) : g.floors.map((f) => ({ key: f.sort, label: f.label }));
