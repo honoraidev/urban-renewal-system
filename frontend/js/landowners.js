@@ -253,8 +253,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .integ-side-label .integ-card-icon { width:18px; height:18px; font-size:10px; border-radius:5px; }
       #integ-roster .integ-side-val { font-size:13px; word-break:break-word; padding-left:24px; }
       #integ-roster .integ-side-note-date { display:block; font-size:11px; color:var(--text-muted); margin-top:2px; }
-      #integ-roster .integ-side-actions { display:flex; flex-direction:column; gap:8px; padding:2px 16px 16px; margin-top:auto; }
-      #integ-roster .btn-block { width:100%; text-align:center; }
       #integ-roster .integ-icon-btn {
         display:inline-flex; align-items:center; justify-content:center;
         border:1px solid var(--border); background:var(--surface); border-radius:6px;
@@ -395,24 +393,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       });
     });
   });
-
-  // 「查看詳細內容」「聯絡紀錄」都開同一個地主編輯視窗 - 後者額外把拜訪紀錄
-  // 那個 <details> 展開並捲動過去,方便直接看到聯絡歷程不用自己再點開。
-  el.querySelectorAll("[data-view-detail]").forEach((btn) => {
-    btn.addEventListener("click", () => openEditLandownerModal(Number(btn.dataset.viewDetail)));
-  });
-  el.querySelectorAll("[data-view-contacts]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      await openEditLandownerModal(Number(btn.dataset.viewContacts));
-      const section = [...document.querySelectorAll(".lo-edit-section")].find((d) =>
-        d.querySelector("summary")?.textContent.includes("拜訪紀錄")
-      );
-      if (section) {
-        section.open = true;
-        section.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    });
-  });
 }
 
 // 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊
@@ -532,10 +512,6 @@ function ownerDetailRowHtml(o, colspan, contact) {
         ${sideRow("📞", "聯絡電話", phone ? escapeHtml(phone) : '<span style="color:var(--text-muted)">未填寫</span>')}
         ${sideRow("🏠", "戶籍地址", o.address ? escapeHtml(o.address) : '<span style="color:var(--text-muted)">未填寫</span>')}
         ${sideRow("📝", "備註", noteHtml)}
-      </div>
-      <div class="integ-side-actions">
-        <button type="button" class="btn-primary btn-block" data-view-detail="${o.id}">📄 查看詳細內容</button>
-        <button type="button" class="btn-secondary btn-block" data-view-contacts="${o.id}">💬 聯絡紀錄</button>
       </div>
     </div>`;
 
