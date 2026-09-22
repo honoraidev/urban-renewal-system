@@ -1996,11 +1996,47 @@
 .manual-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
 .manual-table tbody tr:hover { background: var(--brand-light); }
 
+/* 他項權利部頂部 4 張統計卡片(土地/建物筆數、權利種類、擔保債權總金額) */
+.enc-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 14px 0; }
+.enc-stat-tile {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 14px;
+  background: var(--stat-accent-light, var(--surface-2)); border: 1px solid transparent;
+}
+.enc-stat-icon {
+  width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; flex-shrink: 0; background: var(--surface);
+}
+.enc-stat-lbl { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.enc-stat-val { font-size: 22px; font-weight: 800; line-height: 1.25; letter-spacing: -.01em; }
+.enc-stat-val small { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.enc-stat-sub { font-size: 11.5px; font-weight: 500; color: var(--text-muted); margin-top: 1px; }
+.enc-stat-land { --stat-accent-light: var(--success-light); }
+.enc-stat-building { --stat-accent-light: var(--info-light); }
+.enc-stat-type { --stat-accent-light: var(--surface-2); }
+.enc-stat-amount { --stat-accent-light: color-mix(in srgb, orange 14%, var(--surface)); }
+
 /* 他項權利部「土地/建物」切換 - 獨立的兩顆藥丸按鈕,跟上面案件分頁列的底線分頁
    樣式區分開,不會看起來像同一排分頁。 */
 .enc-kind-toggle { display: inline-flex; background: var(--surface-2); border-radius: 100px; padding: 3px; gap: 2px; margin-bottom: 14px; }
 .enc-kind-btn { border: none; background: transparent; padding: 7px 18px; border-radius: 100px; font-size: 13px; font-weight: 700; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
 .enc-kind-btn.active { background: var(--surface); color: var(--brand-dark, var(--brand)); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+
+/* 權利種類 badge - 最高限額抵押權(紅)/抵押權(藍)/其他(黃),一眼分辨種類 */
+.enc-type-badge { white-space: nowrap; }
+.enc-type-opposed { background: var(--danger-light); color: var(--danger); }
+.enc-type-info { background: var(--info-light); color: var(--info); }
+.enc-type-other { background: color-mix(in srgb, orange 16%, var(--surface)); color: color-mix(in srgb, orange 55%, black); }
+
+/* 通用的淡色底圖示按鈕(編輯藍/刪除紅) - 他項權利部、整合清冊展開卡片共用同一組視覺 */
+.tinted-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 6px; width: 27px; height: 27px; cursor: pointer;
+  font-size: 12px; line-height: 1; margin-right: 4px;
+  background: color-mix(in srgb, #2563eb 12%, transparent); transition: background .12s;
+}
+.tinted-icon-btn:hover { background: color-mix(in srgb, #2563eb 22%, transparent); }
+.tinted-icon-btn-danger { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.tinted-icon-btn-danger:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 
 /* 他項權利部「義務人」欄多位共有人時,收合成「共N位 ▾」按鈕,點下拉才看到完整名單 */
 .enc-obligor-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; position: relative; }
@@ -2035,13 +2071,16 @@
 
 /* 他項權利部表格:登記次序/地號/權利種類/債權額比例不換行(原本「0058-000」被折成兩行),
    門牌地址與權利人給足最小寬度,整列高度一致、垂直置中。 */
+/* nth-child 都 +1 讓給最前面新增的「#」序號欄:1=#,2=登記次序,3=地號,4=門牌,
+   5=權利種類,6=權利人,7=債權額比例,8=金額。 */
 .enc-table th, .enc-table td { vertical-align: middle; }
-.enc-table th:nth-child(1), .enc-table td:nth-child(1),
+.enc-table .col-idx { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 56px; }
 .enc-table th:nth-child(2), .enc-table td:nth-child(2),
-.enc-table th:nth-child(4), .enc-table td:nth-child(4),
-.enc-table th:nth-child(6), .enc-table td:nth-child(6) { white-space: nowrap; }
-.enc-table th:nth-child(3), .enc-table td:nth-child(3) { min-width: 200px; }
-.enc-table th:nth-child(5), .enc-table td:nth-child(5) { min-width: 240px; }
+.enc-table th:nth-child(3), .enc-table td:nth-child(3),
+.enc-table th:nth-child(5), .enc-table td:nth-child(5),
+.enc-table th:nth-child(7), .enc-table td:nth-child(7) { white-space: nowrap; }
+.enc-table th:nth-child(4), .enc-table td:nth-child(4) { min-width: 200px; }
+.enc-table th:nth-child(6), .enc-table td:nth-child(6) { min-width: 240px; }
 .enc-table td.actions-cell { white-space: nowrap; }
 .enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 .enc-addr-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
