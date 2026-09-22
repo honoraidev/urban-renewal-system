@@ -191,7 +191,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
-      <h3 class="section-hero-title"><span class="hero-ic">📊</span>${titleText} (<span id="integ-count">${allRows.length}</span>)</h3>
+      <h3 class="section-hero-title"><span class="hero-ic">📊</span><span>${titleText} (<span id="integ-count">${allRows.length}</span>)</span></h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <div class="hero-search">${BV_ICON.search}<input type="text" id="integrated-search" placeholder="搜尋姓名 / 地號 / 門牌..."></div>
         ${ddHtml("integ-visit-dd", "聯絡結果", [

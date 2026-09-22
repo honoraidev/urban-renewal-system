@@ -31,7 +31,7 @@ async function renderContactsTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
-      <h3 class="section-hero-title"><span class="hero-ic">👥</span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
+      <h3 class="section-hero-title"><span class="hero-ic">👥</span><span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</span></h3>
       <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
       ${floorOptions.length
       ? `<details class="integ-filter" style="position:relative">
