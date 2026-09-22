@@ -319,35 +319,68 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
 
   // 新的右側邊欄詳情顯示
   const detailPanel = el.querySelector("#integ-detail-panel");
+
+  const renderDetailPanel = (owner) => {
+    const c = contactBy.get(owner.id);
+    const lr = owner.land_records || [];
+    const br = owner.building_records || [];
+
+    return `
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">${escapeHtml(owner.name)}</div>
+      <div style="color:var(--text-muted);font-size:12px;margin-bottom:12px">身分證: ${owner.id_number ? escapeHtml(owner.id_number) : "尚未提供"}</div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px">📞 聯絡資訊</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
+          ${owner.phone_mobile ? `<div>行動: ${escapeHtml(owner.phone_mobile)}</div>` : '<div style="opacity:.5">行動: 尚未提供</div>'}
+          ${owner.phone_landline ? `<div>電話: ${escapeHtml(owner.phone_landline)}</div>` : '<div style="opacity:.5">電話: 尚未提供</div>'}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🏠 地址</div>
+        <div style="font-size:12px;color:var(--text-muted);word-break:break-word">
+          ${owner.address ? escapeHtml(owner.address) : "尚未提供"}
+        </div>
+      </div>
+
+      ${c ? `<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px">📅 聯繫紀錄</div>
+        <div style="font-size:12px;color:var(--text-muted)">
+          最後聯繫: ${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}
+          ${c.last_contact_result ? `<div style="margin-top:4px"><span class="mini-badge">${CONTACT_RESULT_LABEL[c.last_contact_result]}</span></div>` : ""}
+        </div>
+      </div>` : ""}
+
+      ${lr.length ? `<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🗺️ 土地資料 (${lr.length}筆)</div>
+        <div style="font-size:11px">
+          ${lr.map((r) => `<div style="padding:4px 0;color:var(--text-muted);border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent)">
+            <div style="font-weight:500">${escapeHtml(r.parcel_number)}</div>
+            <div>面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
+          </div>`).join("")}
+        </div>
+      </div>` : ""}
+
+      ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🏢 建物資料 (${br.length}筆)</div>
+        <div style="font-size:11px">
+          ${br.map((r) => `<div style="padding:4px 0;color:var(--text-muted);border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent)">
+            <div style="font-weight:500">${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
+            <div>面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
+          </div>`).join("")}
+        </div>
+      </div>` : ""}
+    `;
+  };
+
   el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
     tr.style.cursor = "pointer";
     tr.addEventListener("click", () => {
       const ownerName = tr.querySelector(".col-name")?.textContent || "";
-      const ownerId = [...el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)")].indexOf(tr) + 1;
       const owner = owners.find((o) => o.name === ownerName);
       if (owner) {
-        const c = contactBy.get(owner.id);
-        const contact = c ? `${c.last_contact_result ? CONTACT_RESULT_LABEL[c.last_contact_result] : ""}` : "";
-        detailPanel.innerHTML = `
-          <div style="margin-bottom:20px">
-            <div style="font-weight:700;font-size:16px;margin-bottom:8px">${escapeHtml(owner.name)}</div>
-            <div style="color:var(--text-muted);font-size:13px">ID: ${owner.id}</div>
-          </div>
-          <div style="border-top:1px solid var(--border);padding-top:12px">
-            <div style="font-weight:600;font-size:13px;margin-bottom:8px">聯絡資訊</div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
-              ${owner.phone_mobile ? `<div>📱 ${escapeHtml(owner.phone_mobile)}</div>` : ""}
-              ${owner.phone_landline ? `<div>☎ ${escapeHtml(owner.phone_landline)}</div>` : ""}
-              ${owner.address ? `<div>🏠 ${escapeHtml(owner.address)}</div>` : ""}
-              ${owner.id_number ? `<div>🪪 ${escapeHtml(owner.id_number)}</div>` : ""}
-            </div>
-          </div>
-          ${c ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
-            <div style="font-weight:600;font-size:13px;margin-bottom:8px">最後聯繫</div>
-            <div style="font-size:13px;color:var(--text-muted)">${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}</div>
-            ${contact ? `<div style="margin-top:4px"><span class="mini-badge">${contact}</span></div>` : ""}
-          </div>` : ""}
-        `;
+        detailPanel.innerHTML = renderDetailPanel(owner);
       }
     });
   });
