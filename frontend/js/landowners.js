@@ -204,7 +204,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       }
       #integ-roster .col-idx { cursor:pointer; }
       #integ-roster .toggle-arrow { display:inline-block; transition:transform .15s; color:var(--text-muted); font-size:10px; }
-      #integ-roster tr.expanded .toggle-arrow, #integ-roster .integ-toggle-btn.expanded .toggle-arrow { transform:rotate(90deg); }
+      #integ-roster tr.expanded .toggle-arrow { transform:rotate(90deg); }
       #integ-roster tr.expanded { border-left:3px solid var(--brand); background:color-mix(in srgb, var(--brand) 6%, transparent); }
       #integ-roster tr.expanded td:first-child { padding-left:9px; }
       #integ-roster .integ-toggle-btn { display:inline-flex; align-items:center; gap:5px; }
@@ -315,9 +315,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
               </div>
             </td>
             <td class="row-actions">
-              <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">
-                <span class="toggle-arrow">▶</span> 查看
-              </button>
+              <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">查看</button>
             </td>
           </tr>
           ${ownerDetailRowHtml(o, 11, contactBy.get(o.id))}`;
@@ -377,9 +375,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       el.querySelectorAll(`[data-toggle="${ownerId}"]`).forEach((t) => {
         t.classList.toggle("expanded", nowExpanded);
         if (t.classList.contains("integ-toggle-btn")) {
-          t.innerHTML = nowExpanded
-            ? `<span class="toggle-arrow">▶</span> 收合`
-            : `<span class="toggle-arrow">▶</span> 查看`;
+          t.textContent = nowExpanded ? "收合" : "查看";
         }
       });
     });
