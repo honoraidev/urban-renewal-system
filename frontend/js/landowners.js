@@ -185,19 +185,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
          像留白留很大一塊;給每欄一個合理寬度,讓姓名/建物門牌這種內容較長的欄位
          吃到大部分空間,數字欄跟樓層欄維持剛好夠用的寬度就好。 */
       #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:60px; }
-      #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:11%; }
-      #integ-roster .col-floor { width:7%; }
-      #integ-roster .col-nowrap { width:12%; }
-      #integ-roster .col-name { width:8%; font-weight:600; }
-      #integ-roster .num { width:8%; text-align:right; font-variant-numeric:tabular-nums; }
+      #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:14%; }
+      #integ-roster .col-floor { width:8%; }
+      #integ-roster .col-nowrap { width:16%; }
+      #integ-roster .col-name { width:12%; font-weight:600; }
+      #integ-roster .num { width:9%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
-      #integ-roster .cell-visit { width:9%; }
-      /* 日期文字本身不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候 "2026-09-21" 這種
-         字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看;逾期標籤允許另起一行,
-         但不用 display:flex 包住整個 td(那會讓 td 跳出表格版面配置的高度對齊基準,
-         跟同一列其他儲存格的垂直置中對不齊,看起來像多了一條線)。 */
-      #integ-roster .visit-date { width:9%; color:var(--text-muted); font-size:12px; }
-      #integ-roster .visit-date-text { white-space:nowrap; }
       #integ-roster .row-actions { width:90px; text-align:right; white-space:nowrap; }
       #integ-roster td { word-break:break-word; }
       #integ-roster .cell-sub {
@@ -273,7 +266,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         <thead><tr>
           <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號<br>(地段)</th><th>姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
-          <th>聯絡結果</th><th>最後聯絡</th><th class="row-actions">操作</th>
+          <th class="row-actions">操作</th>
         </tr></thead>
         <tbody>
         ${rows.map((o, i) => {
@@ -282,15 +275,8 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const landSqm = lr.reduce((s, r) => s + (Number(r.owned_area_sqm) ||
       (Number(r.total_area_sqm || 0) * (r.ownership_numerator || 1)) / (r.ownership_denominator || 1)), 0);
     const bldSqm = br.reduce((s, r) => s + (Number(r.total_area_sqm || 0) * (r.ownership_numerator || 1)) / (r.ownership_denominator || 1), 0);
-    const c = contactBy.get(o.id);
-    const visit = c && c.last_contact_date
-      ? `<span class="visit-date-text">${fmtDate(c.last_contact_date)}</span>${c.is_overdue ? `<span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
-      : `<span style="color:var(--text-muted)">-</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
-    const resultBadge = c && c.last_contact_result
-      ? `<span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[c.last_contact_result] || ""}">${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</span>`
-      : "";
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
     const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
@@ -323,13 +309,11 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
-            <td class="cell-visit">${resultBadge || `<span style="color:var(--text-muted)">-</span>`}</td>
-            <td class="visit-date">${visit}</td>
             <td class="row-actions">
               <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">展開</button>
             </td>
           </tr>
-          ${ownerDetailRowHtml(o, 12, contactBy.get(o.id))}`;
+          ${ownerDetailRowHtml(o, 10, contactBy.get(o.id))}`;
   }).join("")}
         </tbody>
       </table>

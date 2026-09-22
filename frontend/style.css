@@ -1451,13 +1451,20 @@
   align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 40px; padding: 0 6px; margin-right: 4px;
   background: var(--surface-2); border-radius: 10px; font-size: 12.5px; font-weight: 800; color: var(--text); white-space: nowrap;
 }
+/* 固定寬度(不是 min-width)- 格子寬度統一由 --bv-cell-w 這個 CSS 變數決定,
+   buildingview.js 的 grid-template-columns 也讀同一個變數,兩邊才會對得齊;
+   門牌文字太長就用 ellipsis 截斷,不再讓內容反過來撐開格子跟捲軸,一整排格子
+   看起來才會整齊劃一。響應式斷點只要覆寫這個變數,格子跟 grid 欄寬會一起變小。 */
+.bv-grid { --bv-cell-w: 44px; }
+.bv-grid.bv-inline { --bv-cell-w: 64px; }
 .bv-cell {
-  position: relative; min-width: 52px; height: 40px; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  position: relative; width: var(--bv-cell-w); height: 36px; padding: 0 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
-  font-size: 11px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  font-size: 10.5px; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
+.bv-cell-label { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 /* 「16之1」這種帶「之」的門牌比純數字寬 - 整組改成圖示在左、文字在右,格子也放寬 */
-.bv-inline .bv-cell { flex-direction: row; gap: 3px; min-width: 76px; height: 36px; }
+.bv-inline .bv-cell { height: 34px; flex-direction: row; gap: 3px; }
 .bv-cell-ic { display: inline-flex; }
 .bv-cell-ic:empty { display: none; }
 .bv-cell:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(15, 35, 38, .35); z-index: 2; }
@@ -1516,10 +1523,11 @@
 
 @media (max-width: 950px) {
   .bv-col-label { font-size: 10px; }
-  .bv-row-label { min-width: 40px; padding: 0 5px; font-size: 11.5px; }
-  .bv-cell { min-width: 46px; height: 38px; font-size: 10.5px; padding: 0 3px; }
-  .bv-inline .bv-cell { min-width: 72px; height: 36px; gap: 3px; }
-  .bv-grid { gap: 4px; }
+  .bv-row-label { min-width: 36px; padding: 0 5px; font-size: 11.5px; }
+  .bv-grid { --bv-cell-w: 40px; gap: 4px; }
+  .bv-grid.bv-inline { --bv-cell-w: 58px; }
+  .bv-cell { height: 34px; font-size: 10px; padding: 0 2px; }
+  .bv-inline .bv-cell { height: 32px; gap: 2px; }
 }
 
 @media (max-width: 900px) {
@@ -1529,10 +1537,11 @@
   .bv-body { flex-wrap: wrap; gap: 20px 26px; }
   .bv-statpanel { flex-basis: 100%; }
   .bv-col-label { font-size: 9px; }
-  .bv-row-label { min-width: 36px; padding: 0 4px; font-size: 11px; margin-right: 3px; }
-  .bv-cell { min-width: 42px; height: 36px; font-size: 10px; padding: 0 2px; }
-  .bv-inline .bv-cell { min-width: 68px; height: 34px; gap: 2px; }
-  .bv-grid { gap: 3px; }
+  .bv-row-label { min-width: 32px; padding: 0 4px; font-size: 11px; margin-right: 3px; }
+  .bv-grid { --bv-cell-w: 36px; gap: 3px; }
+  .bv-grid.bv-inline { --bv-cell-w: 54px; }
+  .bv-cell { height: 32px; font-size: 9.5px; padding: 0 2px; }
+  .bv-inline .bv-cell { height: 30px; gap: 2px; }
 }
 .bv-flip-btn { white-space: nowrap; }
 
