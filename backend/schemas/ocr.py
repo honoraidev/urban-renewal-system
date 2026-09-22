@@ -73,7 +73,7 @@ class LandParcelExtraction(BaseModel):
     parcel_number: str | None = None
     area_sqm: float | None = None
     # 土地標示部「民國115年01月 公告土地現值:362,000元/平方公尺」- 當期公告土地現值單價,
-    # 匯入時乘上各所有權人持分面積寫進 land_records.ltt_current_value(見 ocr_wizard.js)。
+    # 匯入時原樣寫進 land_records.ltt_current_value(單價,不乘持分面積,見 ocr_wizard.js)。
     announced_value_per_sqm: float | None = None
     announced_value_period: str | None = None
     owners: list[LandOwnershipEntry] = []

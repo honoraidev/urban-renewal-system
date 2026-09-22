@@ -1570,11 +1570,14 @@
 .ltt-detail-block { display: flex; flex-direction: column; gap: 3px; min-width: 260px; }
 .ltt-detail-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 13px; color: var(--text-muted); }
 .ltt-detail-label { white-space: nowrap; }
-.ltt-detail-value { font-weight: 600; color: var(--text); white-space: nowrap; }
+.ltt-detail-value { font-weight: 600; color: var(--text); white-space: nowrap; text-align: right; }
 .ltt-detail-row.is-muted { font-size: 12.5px; }
 .ltt-detail-row.is-strong { font-size: 14.5px; margin: 2px 0; padding-top: 4px; border-top: 1px dashed var(--border); }
 .ltt-detail-row.is-strong .ltt-detail-label { color: var(--text); font-weight: 700; }
 .ltt-detail-row.is-strong .ltt-detail-value { color: var(--brand-dark, var(--brand)); font-size: 15px; font-weight: 800; }
+/* 金額旁邊附上謄本原始單價,方便核對系統換算的總額對不對 - 換行、縮小、變灰,
+   不會搶走主要金額數字的視覺重量。 */
+.ltt-detail-value span, .ltt-current-amount span { display: block; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
 
 /* 本次申報移轉現值欄 */
 .ltt-current-cell { text-align: center; }

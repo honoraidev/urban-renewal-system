@@ -34,19 +34,24 @@ class LandRecord(Base):
     owned_area_sqm: Mapped[float] = mapped_column(Numeric(14, 4), nullable=True)
     ownership_share_pct: Mapped[float] = mapped_column(Numeric(12, 6), nullable=True)
     # Inputs for the 土增稅(land value increment tax) general-rate estimate - both are
-    # total NT$ amounts (not per-sqm unit prices), matching how they're written on an
-    # official tax notice, so staff can copy them in directly without doing their own
-    # area math first. See utils/land_value_tax.py for the calculation itself.
+    # per-sqm unit prices in NT$ (元/平方公尺), exactly as printed on the deed - NOT
+    # multiplied by this owner's held area. Keeping these as a faithful copy of the deed
+    # means they stay correct even if ownership_numerator/denominator or total_area_sqm
+    # is edited later; the total-NT$ amount a tax notice would show is derived on demand
+    # (unit price × owned_area_sqm) wherever it's needed - see landValueTaxRowResult() in
+    # frontend/js/land_value_tax.js, which does that multiplication for the estimate.
     ltt_original_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     # Free text as printed on the deed (usually Minguo calendar, e.g. "113年01月") -
     # not parsed into a real date, since OCR only ever has the printed string to go on
     # and a wrong calendar-conversion guess would be worse than just keeping the text.
     ltt_original_value_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 謄本上「前次移轉現值或原規定地價」原始的全部歷史記錄(同一筆地,每次移轉都會多一筆),
-    # 例如 [{"period": "090年05月", "value_per_sqm": 113000, "value": 24567800}, ...]。
-    # ltt_original_value/_period 只存系統挑出的最新一筆(供土增稅試算用);這個欄位純粹是
-    # 給編輯畫面顯示參考、供人工核對系統挑的是不是真的最新一筆,不參與稅額計算。
+    # 例如 [{"period": "090年05月", "value_per_sqm": 113000}, ...],跟 ltt_original_value
+    # 一樣是純單價(元/平方公尺),不換算持分金額。ltt_original_value/_period 只存系統挑出的
+    # 最新一筆(供土增稅試算用);這個欄位純粹是給編輯畫面顯示參考、供人工核對系統挑的是不是
+    # 真的最新一筆,不參與稅額計算。
     ltt_original_value_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # 單價(元/平方公尺),跟 ltt_original_value 同一套「照謄本原樣、不預先乘持分面積」的規則。
     ltt_current_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     # 當期公告土地現值的年期標籤(如「115年」),純顯示用,跟 ltt_original_value_period
     # 是同樣的自由文字慣例 - 填了 ltt_current_value 之後,「土增稅」頁的「本月申報移轉

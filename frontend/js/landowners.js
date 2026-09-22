@@ -1525,20 +1525,21 @@ function landRecordFormFields(record) {
       <div class="field"><label>持分面積(坪)</label><input class="lr-owned-ping" type="number" readonly style="background:var(--bg-subtle)" tabindex="-1"></div>
     </div>
     <div class="field">
-      <label>前次移轉現值或原規定地價</label>
+      <label>前次移轉現值或原規定地價(元/m²)</label>
       <div style="display:flex;gap:8px">
         <input name="ltt_original_value_period" value="${escapeHtml(r.ltt_original_value_period) || ""}" placeholder="年月 (例: 95年12月)" style="flex:1" autocomplete="off">
-        <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="金額 (例: 123000)" style="flex:1" autocomplete="off">
+        <input name="ltt_original_value" type="number" step="1" value="${r.ltt_original_value ?? ""}" placeholder="單價 (例: 86900)" style="flex:1" autocomplete="off">
       </div>
+      <div class="helper-text" style="margin-top:4px">照謄本上印的單價(元/平方公尺)填,不用自己乘面積;土增稅試算會自動換算成這筆持分的總額。</div>
       ${landRecordLttHistoryHtml(r)}
     </div>
     <div class="field">
-      <label>當期公告土地現值</label>
+      <label>當期公告土地現值(元/m²)</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input name="ltt_current_value_period" value="${escapeHtml(r.ltt_current_value_period) || ""}" placeholder="年期 (例: 115年)" style="flex:1;min-width:100px" autocomplete="off">
-        <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="金額 (例: 456000)" style="flex:1;min-width:100px" autocomplete="off">
+        <input name="ltt_current_value" type="number" step="1" value="${r.ltt_current_value ?? ""}" placeholder="單價 (例: 237000)" style="flex:1;min-width:100px" autocomplete="off">
       </div>
-      <div class="helper-text" style="margin-top:4px">供「土增稅」頁自動計算「本月申報移轉現值」用;臺北市案件「土增稅」頁會自動查詢帶入,這裡填的值只在查無資料時當備援。</div>
+      <div class="helper-text" style="margin-top:4px">照謄本土地標示部「公告土地現值」印的單價(元/平方公尺)填,供「土增稅」頁自動計算「本月申報移轉現值」用;臺北市案件「土增稅」頁會自動查詢帶入,這裡填的值只在查無資料時當備援。</div>
     </div>`;
 }
 
@@ -1548,7 +1549,7 @@ function landRecordLttHistoryHtml(r) {
   const history = Array.isArray(r.ltt_original_value_history) ? r.ltt_original_value_history : [];
   if (history.length <= 1) return "";
   const items = history
-    .map((h) => `${escapeHtml(h.period || "")} ${h.value != null ? Number(h.value).toLocaleString() : "-"}元`)
+    .map((h) => `${escapeHtml(h.period || "")} ${h.value_per_sqm != null ? Number(h.value_per_sqm).toLocaleString() : "-"}元/m²`)
     .join("、");
   return `<div class="helper-text" style="margin-top:4px">謄本原始記錄共 ${history.length} 筆:${items}(上方欄位僅顯示系統挑選的最新一筆)</div>`;
 }

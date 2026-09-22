@@ -85,13 +85,17 @@ const LTT_GENERAL_SPLIT = { owner: 0.4, developer: 0.6 };
 function landValueTaxRowResult(lr, liveValues) {
   if (!lr.ltt_original_value) return null;
   const live = liveValues && liveValues[lr.id];
+  const ownedAreaSqm = Number(lr.owned_area_sqm) || 0;
   const hasLiveCurrentValue = live && live.current_value != null;
-  const currentValue = hasLiveCurrentValue ? live.current_value : Number(lr.ltt_current_value) || 0;
+  // ltt_original_value / ltt_current_value 存的是謄本上的單價(元/㎡),不是總額 - 稅額試算
+  // 需要的是這筆持分的總金額,在這裡現算(單價 × owned_area_sqm),不要求存進資料庫的欄位
+  // 就已經是總額,避免持分面積事後被改動時,舊的換算結果沒有跟著更新。
+  const currentValue = hasLiveCurrentValue ? live.current_value : (Number(lr.ltt_current_value) || 0) * ownedAreaSqm;
   const currentPeriod = hasLiveCurrentValue ? live.period_label : lr.ltt_current_value_period;
   const holdingYears = lr.ltt_holding_years ?? calcHoldingYears(lr.ltt_original_value_period, currentPeriod);
   const cpiAuto = !lr.ltt_cpi_index && !!(live && live.cpi_index);
   const params = {
-    originalValue: Number(lr.ltt_original_value) || 0,
+    originalValue: (Number(lr.ltt_original_value) || 0) * ownedAreaSqm,
     currentValue,
     cpiIndex: Number(lr.ltt_cpi_index) || (live && live.cpi_index) || null,
     deductibleCost: Number(lr.ltt_deductible_cost) || 0,
@@ -168,13 +172,15 @@ function lttBuildSummaries(landOwners, liveValues) {
     const parcels = (o.land_records || []).map((lr) => {
       const result = landValueTaxRowResult(lr, liveValues);
       const live = liveValues[lr.id];
+      const area = Number(lr.owned_area_sqm) || 0;
       const currentValue = result
         ? result.currentValue
         : live && live.current_value != null
           ? live.current_value
-          : Number(lr.ltt_current_value) || 0;
-      const area = Number(lr.owned_area_sqm) || 0;
-      const unitPrice = live && live.unit_price_per_sqm != null ? live.unit_price_per_sqm : area > 0 && currentValue ? currentValue / area : null;
+          : (Number(lr.ltt_current_value) || 0) * area;
+      // ltt_current_value 本身已經是單價(元/㎡),不用再拿 currentValue ÷ area 反推 -
+      // 直接讀比較準,不受換算成總額後四捨五入的誤差影響。
+      const unitPrice = live && live.unit_price_per_sqm != null ? live.unit_price_per_sqm : Number(lr.ltt_current_value) || null;
       const selfTax = result ? result.selfUse.totalTax : 0;
       const generalTax = result ? result.general.totalTax : 0;
       return { record: lr, result, currentValue, area, unitPrice, selfTax, generalTax, savings: Math.max(0, generalTax - selfTax) };
@@ -749,7 +755,7 @@ function openLttDetailModal(ownerId, recordId) {
       const currentCell =
         lv && lv.current_value != null
           ? `<div class="ltt-current-period">${escapeHtml(lv.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(lv.current_value).toLocaleString()} 元</div>`
-          : `${lr.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(lr.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${lr.ltt_current_value ? `${Number(lr.ltt_current_value).toLocaleString()} 元` : "-"}</div>`;
+          : `${lr.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(lr.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${lr.ltt_current_value ? `${Math.round(Number(lr.ltt_current_value) * p.area).toLocaleString()} 元<span>單價 ${Number(lr.ltt_current_value).toLocaleString()} 元/m²</span>` : "-"}</div>`;
       return `
         <div class="lv-dt-parcel">
           <div class="lv-dt-parcel-title">地號 ${escapeHtml(lr.parcel_number) || "-"}${lr.registration_order ? `<span>次序 ${escapeHtml(lr.registration_order)}</span>` : ""}</div>
@@ -787,8 +793,14 @@ function lttDetailCellHtml(record, result) {
   const fmt = (n) => Math.round(n).toLocaleString();
   const g = result.general;
   const rows = [];
+  // record.ltt_original_value 是謄本單價(元/㎡),這裡顯示的是這筆持分的總額(單價 × owned_area_sqm),
+  // 跟 landValueTaxRowResult 算 g.adjustedOriginal 用的是同一份換算後總額,兩者對得起來。
+  const originalTotal = (Number(record.ltt_original_value) || 0) * (Number(record.owned_area_sqm) || 0);
   rows.push(
-    lttDetailRow(record.ltt_original_value_period ? escapeHtml(record.ltt_original_value_period) : "前次移轉現值", `${fmt(record.ltt_original_value)} 元`)
+    lttDetailRow(
+      record.ltt_original_value_period ? escapeHtml(record.ltt_original_value_period) : "前次移轉現值",
+      `${fmt(originalTotal)} 元<span>單價 ${Number(record.ltt_original_value).toLocaleString()} 元/m²</span>`
+    )
   );
   if (g.cpiIndex !== 100) {
     rows.push(lttDetailRow(`物價指數調整${result.cpiAuto ? "(自動查詢)" : ""}`, `${g.cpiIndex}%`, { muted: true }));

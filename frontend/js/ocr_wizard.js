@@ -2499,25 +2499,19 @@ async function submitTitleDeedWizardInner() {
       for (const owner of p.owners) {
         if (!owner.owner_name) continue;
         const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, pid);
-        // 前次移轉現值或原規定地價 is per-owner (see declared_value_per_sqm on the owner,
-        // not the parcel - co-owners of the same parcel often acquired their share at
-        // different times/prices). Multiply by this owner's own owned area (same
-        // total_area_sqm × numerator/denominator formula the DB itself uses for
-        // owned_area_sqm) to get their own original-value total for the 土增稅 estimate
-        // (see land_value_tax.js).
+        // ltt_original_value / ltt_current_value 直接存謄本上印的單價(元/㎡),不在匯入
+        // 這一步就乘上持分面積換算成總額 - 這兩個欄位是「照謄本資料」的忠實副本,土增稅
+        // 試算需要的總額由「土增稅」頁自己拿單價 × owned_area_sqm 現算(見 land_value_tax.js
+        // 的 landValueTaxRowResult),兩件事分開,基礎資料欄位才不會跟著稅務邏輯的假設綁死。
         const numerator = owner.ownership_numerator || 1;
         const denominator = owner.ownership_denominator || 1;
-        const ownedAreaSqm = ((Number(p.area_sqm) || 0) * numerator) / denominator;
         const declaredValuePerSqm = Number(owner.declared_value_per_sqm) || 0;
         const announcedPerSqm = Number(p.announced_value_per_sqm) || 0;
-        // 跟 ltt_original_value 用同一個「單價 × 持分面積」公式換算成總額,把謄本原始的
-        // 每一筆歷史記錄都留著(不是只留最新一筆),供編輯畫面顯示核對用。
         const lttHistory =
           Array.isArray(owner.transfer_history) && owner.transfer_history.length
             ? owner.transfer_history.map((h) => ({
                 period: h.period || null,
                 value_per_sqm: h.value != null ? Number(h.value) : null,
-                value: h.value != null ? Math.round(Number(h.value) * ownedAreaSqm) : null,
               }))
             : null;
         const created = await api(`/projects/${pid}/landowners/${landownerId}/land-records`, {
@@ -2533,12 +2527,10 @@ async function submitTitleDeedWizardInner() {
             ownership_numerator: numerator,
             ownership_denominator: denominator,
             source_ocr_job_id: p._sourceOcrJobId || null,
-            ltt_original_value: declaredValuePerSqm ? Math.round(declaredValuePerSqm * ownedAreaSqm) : null,
+            ltt_original_value: declaredValuePerSqm || null,
             ltt_original_value_period: owner.declared_value_period || null,
             ltt_original_value_history: lttHistory,
-            // 標示部「公告土地現值」單價 × 此人持分面積 = 這筆持分的當期公告土地現值總額,
-            // 跟 ltt_original_value 同一套「單價 × 持分面積」換算(土增稅頁直接拿來當申報現值)。
-            ltt_current_value: announcedPerSqm ? Math.round(announcedPerSqm * ownedAreaSqm) : null,
+            ltt_current_value: announcedPerSqm || null,
             ltt_current_value_period: p.announced_value_period || null,
           },
         });
