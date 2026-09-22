@@ -98,6 +98,7 @@ def _auto_migrate() -> None:
         ("news_items", "summary", "TEXT NULL"),
         ("calendar_events", "is_important", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("calendar_events", "sop_stage", "INT NULL"),
+        ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
     ):
         try:
@@ -727,6 +728,7 @@ app.include_router(resources.router)
 app.include_router(building_view.router)
 app.include_router(project_notes.router)
 app.include_router(project_notes.feed_router)
+app.include_router(project_notes.calendar_today_router)
 app.include_router(project_overview.router)
 
 

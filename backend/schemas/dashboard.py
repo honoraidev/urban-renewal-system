@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, Field
 
@@ -12,23 +12,26 @@ class TodayFollowUpItem(BaseModel):
 
 
 class TodayActivityItem(BaseModel):
-    # "auto" = activity_logs 系統自動記錄;"note" = project_notes 手動補充的公告/跟進
-    # 事項 —— 跟案件頁「公告/進度通知」卡片同一套資料,合併在同一份時間軸裡。
-    kind: str = "auto"
+    # kind 固定 "calendar" —— 「公告/進度通知」卡片改成只顯示今天的行事曆待辦
+    # (calendar_events),不再是 activity_logs/project_notes 的合併時間軸。
+    kind: str = "calendar"
     id: int
     action: str
+    event_time: time | None = None
+    is_important: bool = False
     method: str | None = None
     path: str | None = None
     project_id: int | None = None
     project_name: str | None = None
     created_at: datetime
-    user_name: str | None = None  # 只在 scope=team 時填,personal 不需要顯示是誰做的
-    can_delete: bool = False  # 只有 kind="note" 且使用者對該案件有編輯權時才 true
+    user_name: str | None = None
+    can_delete: bool = False
 
 
 class CalendarEventItem(BaseModel):
     id: int
     event_date: date
+    event_time: time | None = None
     content: str
     is_important: bool = False
     project_id: int | None = None
@@ -55,6 +58,7 @@ class MyWorkResponse(BaseModel):
 
 class CalendarEventCreate(BaseModel):
     event_date: date
+    event_time: time | None = None
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
     is_important: bool = False
@@ -65,6 +69,10 @@ class CalendarEventUpdate(BaseModel):
     content: str | None = Field(default=None, min_length=1, max_length=2000)
     event_date: date | None = None
     is_important: bool | None = None
+    event_time: time | None = None
+    # event_time 要能「清空」(選填欄位,使用者填了又想清掉),用 exclude_unset 分辨
+    # 「沒傳這個欄位」跟「傳了 null 要清空」——沒傳就不動,傳了 null 就真的清成 NULL。
+    clear_event_time: bool = False
 
 
 class TodayImportantItem(BaseModel):

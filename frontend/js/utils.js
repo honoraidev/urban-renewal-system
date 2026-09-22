@@ -69,6 +69,14 @@ function fmtPct(n) {
   return n === null || n === undefined || n === "" ? "-" : Number(n).toFixed(2);
 }
 
+// 行事曆待辦的選填時間 - 後端(pydantic time)回傳 "HH:MM:SS",畫面上只需要 "HH:MM"。
+// 沒填時間回傳空字串,呼叫端自己決定要不要顯示。
+function fmtEventTime(t) {
+  if (!t) return "";
+  const m = String(t).match(/^(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2, "0")}:${m[2]}` : "";
+}
+
 function formatMonthToMinguo(val) {
   if (!val) return "";
   const s = String(val).trim();

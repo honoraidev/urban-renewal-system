@@ -5,13 +5,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import EDIT_ROLES, MANAGE_ROLES, LANDOWNER_ROLE, get_current_user
-from models.activity_log import ActivityLog
+from deps import MANAGE_ROLES, LANDOWNER_ROLE, get_current_user
 from models.calendar_event import CalendarEvent
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project, ProjectMember
-from models.project_note import ProjectNote
 from models.user import User
 from routers.project_overview import urgent_sop_bell_items
 from utils.todo_priority import DUE_URGENT_DAYS, todo_priority
@@ -109,58 +107,41 @@ def get_my_work(
             )
         )
 
-    # --- 操作紀錄(不再限「今天」,跟案件頁「公告/進度通知」卡片一樣看得到過去的) ---
-    # 系統自動記錄(activity_logs)+ 手動補充的公告(project_notes)合併成同一條時間軸。
-    # team 模式只看跟案件有關的動作/公告(project_id 不為空),帳號設定這類非案件操作
-    # 不算「團隊」的事;personal 維持原本(自己做的/自己寫的,不限案件)。
-    activity_query = select(ActivityLog)
+    # --- 今日提醒公告(改成只看「今天」的行事曆備註,不再是活動紀錄+手動公告的
+    # 合併時間軸)---
+    # 原本這裡合併 activity_logs(系統自動記錄)+ project_notes(手動公告),不限
+    # 日期、越滾越長。改成直接呈現今天的行事曆待辦(calendar_events),例如行事曆
+    # 填了「9/22 須聯絡林屋主 14:00」,今天(9/22)這裡就顯示「聯絡林屋主 14:00」。
+    # team 模式看所有看得到案件今天的提醒;personal 只看自己建立的(含個人專屬 +
+    # 自己在案件上建的)。
+    today_date = now.date()
+    calendar_today_query = select(CalendarEvent).where(CalendarEvent.event_date == today_date)
     if is_team:
-        activity_query = activity_query.where(ActivityLog.project_id.in_(project_ids))
+        calendar_today_query = calendar_today_query.where(CalendarEvent.project_id.in_(project_ids))
     else:
-        activity_query = activity_query.where(ActivityLog.user_id == current_user.id)
-    activity_rows = db.scalars(activity_query.order_by(ActivityLog.created_at.desc()).limit(200)).all()
+        calendar_today_query = calendar_today_query.where(CalendarEvent.created_by == current_user.id)
+    today_events = db.scalars(calendar_today_query).all()
+    today_events = sorted(today_events, key=lambda e: (e.event_time is None, e.event_time or time.min, e.id))
 
-    notes_query = select(ProjectNote)
-    if is_team:
-        notes_query = notes_query.where(ProjectNote.project_id.in_(project_ids))
-    else:
-        notes_query = notes_query.where(ProjectNote.author_id == current_user.id)
-    note_rows = db.scalars(notes_query.order_by(ProjectNote.occurred_at.desc()).limit(200)).all()
-
-    feed_user_ids = {a.user_id for a in activity_rows if a.user_id} | {n.author_id for n in note_rows if n.author_id}
+    feed_user_ids = {e.created_by for e in today_events if e.created_by}
     feed_user_names = dict(
         db.execute(select(User.id, User.display_name).where(User.id.in_(feed_user_ids))).all()
     ) if feed_user_ids else {}
-    can_delete_notes = current_user.role in EDIT_ROLES
 
-    feed_items = [
+    today_activities = [
         TodayActivityItem(
-            kind="auto",
-            id=a.id,
-            action=a.action,
-            method=a.method,
-            path=a.path,
-            project_id=a.project_id,
-            project_name=project_name_by_id.get(a.project_id) if a.project_id else None,
-            created_at=a.created_at,
-            user_name=feed_user_names.get(a.user_id) if is_team else None,
+            kind="calendar",
+            id=e.id,
+            action=e.content,
+            event_time=e.event_time,
+            is_important=e.is_important,
+            project_id=e.project_id,
+            project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
+            created_at=datetime.combine(e.event_date, e.event_time or time.min),
+            user_name=feed_user_names.get(e.created_by),
         )
-        for a in activity_rows
-    ] + [
-        TodayActivityItem(
-            kind="note",
-            id=n.id,
-            action=n.content,
-            project_id=n.project_id,
-            project_name=project_name_by_id.get(n.project_id),
-            created_at=n.occurred_at,
-            user_name=feed_user_names.get(n.author_id) if is_team else None,
-            can_delete=can_delete_notes,
-        )
-        for n in note_rows
+        for e in today_events
     ]
-    feed_items.sort(key=lambda item: item.created_at, reverse=True)
-    today_activities = feed_items[:200]
 
     # --- 行事曆 (this month) ---
     norm_month, first_day, next_month = _month_bounds(month)
@@ -188,6 +169,7 @@ def get_my_work(
         CalendarEventItem(
             id=e.id,
             event_date=e.event_date,
+            event_time=e.event_time,
             content=e.content,
             is_important=e.is_important,
             project_id=e.project_id,
@@ -305,6 +287,7 @@ def create_calendar_event(
         created_by=current_user.id,
         project_id=payload.project_id,
         event_date=payload.event_date,
+        event_time=payload.event_time,
         content=payload.content.strip(),
         is_important=payload.is_important,
         sop_stage=payload.sop_stage if payload.project_id is not None else None,
@@ -319,6 +302,7 @@ def create_calendar_event(
     return CalendarEventItem(
         id=ev.id,
         event_date=ev.event_date,
+        event_time=ev.event_time,
         content=ev.content,
         is_important=ev.is_important,
         project_id=ev.project_id,
@@ -345,6 +329,10 @@ def update_calendar_event(
         ev.event_date = payload.event_date
     if payload.is_important is not None:
         ev.is_important = payload.is_important
+    if payload.clear_event_time:
+        ev.event_time = None
+    elif payload.event_time is not None:
+        ev.event_time = payload.event_time
     db.commit()
     db.refresh(ev)
     project_name = None
@@ -355,6 +343,7 @@ def update_calendar_event(
     return CalendarEventItem(
         id=ev.id,
         event_date=ev.event_date,
+        event_time=ev.event_time,
         content=ev.content,
         is_important=ev.is_important,
         project_id=ev.project_id,

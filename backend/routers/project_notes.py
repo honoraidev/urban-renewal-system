@@ -1,19 +1,22 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_project_editor, require_project_staff_viewer
+from deps import MANAGE_ROLES, get_current_user, require_project_editor, require_project_staff_viewer
 from models.activity_log import ActivityLog
+from models.calendar_event import CalendarEvent
 from models.project import Project
 from models.project_note import ProjectNote
 from models.user import User
+from schemas.dashboard import CalendarEventItem
 from schemas.project_note import ActivityFeedItem, ProjectNoteCreate, ProjectNoteRead
 
 router = APIRouter(prefix="/projects/{project_id}/notes", tags=["project-notes"])
 feed_router = APIRouter(prefix="/projects/{project_id}/activity-feed", tags=["project-notes"])
+calendar_today_router = APIRouter(prefix="/projects/{project_id}/calendar-today", tags=["project-notes"])
 
 
 def _with_author_names(db: Session, notes: list[ProjectNote]) -> list[ProjectNoteRead]:
@@ -111,4 +114,47 @@ def list_activity_feed(
             created_at=l.created_at,
         )
         for l in logs
+    ]
+
+
+@calendar_today_router.get("", response_model=list[CalendarEventItem])
+def list_calendar_today(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    """案件頁「公告/進度通知」卡片用 —— 不再合併活動紀錄/手動公告的時間軸,改成只顯示
+    今天、屬於這個案件的行事曆提醒(跟工作看板行事曆同一份 calendar_events 資料,
+    project_id 篩成這個案件、event_date 篩成今天)。有填時間的排前面依時間排序,
+    沒填時間的排最後。"""
+    today = date.today()
+    events = list(
+        db.scalars(
+            select(CalendarEvent).where(
+                CalendarEvent.project_id == project.id, CalendarEvent.event_date == today
+            )
+        ).all()
+    )
+    events.sort(key=lambda e: (e.event_time is None, e.event_time or time.min, e.id))
+    creator_ids = {e.created_by for e in events if e.created_by}
+    names = (
+        {u.id: u.display_name for u in db.scalars(select(User).where(User.id.in_(creator_ids)))}
+        if creator_ids
+        else {}
+    )
+    is_manager = current_user.role in MANAGE_ROLES
+    return [
+        CalendarEventItem(
+            id=e.id,
+            event_date=e.event_date,
+            event_time=e.event_time,
+            content=e.content,
+            is_important=e.is_important,
+            project_id=e.project_id,
+            project_name=project.name,
+            created_by=e.created_by,
+            created_by_name=names.get(e.created_by),
+            can_edit=is_manager or e.created_by == current_user.id,
+        )
+        for e in events
     ]

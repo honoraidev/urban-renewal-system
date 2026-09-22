@@ -43,9 +43,8 @@ function myWorkEnsureStyle() {
     .mw-tile .num { font-size:30px; font-weight:800; color:var(--brand,#0d9488); line-height:1; }
     .mw-act { font-size:13px; padding:7px 0; border-bottom:1px solid var(--border,#f1f5f9); display:flex; gap:8px; align-items:flex-start; }
     .mw-act:last-child { border-bottom:none; }
-    .mw-act-tag { flex:0 0 auto; font-size:11px; font-weight:700; padding:2px 7px; border-radius:10px; white-space:nowrap; }
-    .mw-act-tag.tag-note { background:rgba(13,148,136,.12); color:#0d9488; }
-    .mw-act-tag.tag-auto { background:var(--surface-2,#f1f5f9); color:var(--text-muted,#6b7280); }
+    .mw-act-time { flex:0 0 auto; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:10px; white-space:nowrap;
+      background:rgba(13,148,136,.12); color:#0d9488; }
     .mw-act-text { flex:1; min-width:0; word-break:break-word; }
     .mw-act-meta { flex:0 0 auto; text-align:right; font-size:12px; color:var(--text-muted,#6b7280); white-space:nowrap; }
     .mw-board-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; }
@@ -56,6 +55,7 @@ function myWorkEnsureStyle() {
       white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
     .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
     .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
+    .mw-ev-time { font-size:11.5px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--surface-2,#f1f5f9); color:var(--text-muted,#6b7280); }
   `;
   document.head.appendChild(s);
 }
@@ -149,26 +149,24 @@ function renderMyWork() {
     }</span></div>`)
     .join("") || `<div class="helper-text">${isTeam ? "今天團隊還沒有聯絡紀錄" : "今天還沒有聯絡紀錄"}</div>`;
 
-  // 系統自動紀錄(kind="auto")+ 手動補充的公告(kind="note"),跟案件頁「公告/進度
-  // 通知」卡片同一套資料合併時間軸,不再只限「今天」— 捲動可以往下看到更早之前的。
+  // 「公告/進度通知」改成只顯示今天的行事曆待辦(不再是 activity_logs/project_notes
+  // 合併的操作紀錄時間軸)- 例如行事曆填了「9/22 須聯絡林屋主 14:00」,今天這裡就
+  // 顯示「14:00 聯絡林屋主」。要新增/編輯提醒一律到左邊行事曆點當天,這裡純顯示。
   const _acts = d.today_activities || [];
   const _actRow = (a) => {
-    const isNote = a.kind === "note";
-    const icon = isNote ? "📝" : typeof _activityIcon === "function" ? _activityIcon(a.action) : "🔄";
+    const timeText = fmtEventTime(a.event_time);
     return `<div class="mw-act">
-      <span class="mw-act-tag ${isNote ? "tag-note" : "tag-auto"}">${icon}</span>
-      <span class="mw-act-text">${a.user_name ? `<strong>${escapeHtml(a.user_name)}</strong> ` : ""}${escapeHtml(a.action)}${
+      ${timeText ? `<span class="mw-act-time">${timeText}</span>` : ""}
+      <span class="mw-act-text">${a.is_important ? "⭐ " : ""}${escapeHtml(a.action)}${
       a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
     }</span>
-      <span class="mw-act-meta">${fmtDateTime(a.created_at)}${
-      isNote && a.can_delete ? ` <button type="button" class="btn-link btn-sm" data-mw-del-note="${a.project_id}:${a.id}">刪除</button>` : ""
-    }</span>
+      <span class="mw-act-meta">${a.user_name ? escapeHtml(a.user_name) : ""}</span>
     </div>`;
   };
   // 卷軸式:全部列出來、用捲動看更多,不用「展開全部」按鈕 — 捲動區下方用
   // #mw-act-more 顯示「目前捲動位置以下還有幾則」,會隨捲動即時更新。
   const actList = !_acts.length
-    ? `<div class="helper-text">尚無操作紀錄或公告</div>`
+    ? `<div class="helper-text">今天沒有排定的提醒 —— 點左邊行事曆任一天新增</div>`
     : `<div class="mw-act-scroll" id="mw-act-scroll">${_acts.map(_actRow).join("")}</div>
        <div class="mw-act-more" id="mw-act-more"></div>`;
 
@@ -208,7 +206,7 @@ function renderMyWork() {
         <div class="mw-card mw-board">
           <div class="mw-board-head">
             <h3>📋 公告 / 進度通知</h3>
-            ${isEditor() ? `<button type="button" class="btn-primary btn-sm" id="mw-add-note-btn" style="background:#0d9488;border-color:#0d9488">＋ 新增</button>` : ""}
+            <span class="helper-text">今日提醒</span>
           </div>
           <div class="mw-board-body">${actList}</div>
         </div>
@@ -252,65 +250,6 @@ function renderMyWork() {
     updateActMore();
   }
 
-  document.getElementById("mw-add-note-btn")?.addEventListener("click", () => openMyWorkAddNoteModal(d.project_options || []));
-  body.querySelectorAll("[data-mw-del-note]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("確定要刪除這筆公告嗎?")) return;
-      const [pid, noteId] = btn.dataset.mwDelNote.split(":");
-      try {
-        await api(`/projects/${pid}/notes/${noteId}`, { method: "DELETE" });
-        await loadMyWork();
-      } catch (err) { }
-    });
-  });
-}
-
-// 工作看板的「公告/進度通知」新增 —— 跟案件頁那顆同名按鈕做的事一樣(POST
-// /projects/{id}/notes),差別是這裡不在特定案件頁面裡,要先讓使用者選是哪個案件。
-function openMyWorkAddNoteModal(projectOptions) {
-  if (!projectOptions.length) {
-    toast("目前沒有你能新增公告的案件", "error");
-    return;
-  }
-  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  openModal(
-    "新增公告",
-    `
-    <form id="mw-note-form">
-      <div class="field">
-        <label>案件</label>
-        <select name="project_id" required>
-          <option value="">— 請選擇案件 —</option>
-          ${projectOptions.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
-        </select>
-      </div>
-      <div class="field"><label>時間</label><input type="datetime-local" name="occurred_at" value="${nowLocal}" required></div>
-      <div class="field"><label>內容</label><textarea name="content" rows="3" placeholder="例:已致電陳先生確認同意書進度" required></textarea></div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary" style="background:#0d9488;border-color:#0d9488">新增</button>
-      </div>
-    </form>`,
-    { width: "440px" }
-  );
-  document.getElementById("mw-note-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const pid = fd.get("project_id");
-    const occurred = fd.get("occurred_at");
-    try {
-      await api(`/projects/${pid}/notes`, {
-        method: "POST",
-        body: {
-          content: fd.get("content"),
-          occurred_at: occurred ? new Date(occurred).toISOString() : null,
-        },
-      });
-      closeModal();
-      toast("已新增", "success");
-      await loadMyWork();
-    } catch (err) { }
-  });
 }
 
 function openMyWorkDay(dateIso, events) {
@@ -325,7 +264,7 @@ function openMyWorkDay(dateIso, events) {
     .map(
       (e) => `
     <div class="mw-daydetail-ev" data-ev-id="${e.id}">
-      <div class="mw-ev-content" style="white-space:pre-wrap">${e.is_important ? "⭐ " : ""}${escapeHtml(e.content)}</div>
+      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}</span> ` : ""}${e.is_important ? "⭐ " : ""}${escapeHtml(e.content)}</div>
       <div class="meta">
         <span>${e.project_name ? "🟢 " + escapeHtml(e.project_name) : "🔵 個人"}</span>
         ${e.created_by_name ? `<span>· ${escapeHtml(e.created_by_name)}</span>` : ""}
@@ -348,6 +287,7 @@ function openMyWorkDay(dateIso, events) {
       <div class="field">
         <label>新增待辦</label>
         ${projectSelect}
+        <input type="time" id="mw-ev-time" style="margin-bottom:8px" title="時間(選填)">
         <textarea id="mw-ev-text" rows="3" placeholder="這天要做什麼..."></textarea>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;font-size:13px">
           <input type="checkbox" id="mw-ev-important" style="width:auto">
@@ -366,10 +306,17 @@ function openMyWorkDay(dateIso, events) {
     if (!content) return;
     const pidRaw = document.getElementById("mw-ev-project").value;
     const isImportant = document.getElementById("mw-ev-important").checked;
+    const eventTime = document.getElementById("mw-ev-time").value || null;
     try {
       await api("/dashboard/calendar", {
         method: "POST",
-        body: { event_date: dateIso, content, project_id: pidRaw ? Number(pidRaw) : null, is_important: isImportant },
+        body: {
+          event_date: dateIso,
+          event_time: eventTime,
+          content,
+          project_id: pidRaw ? Number(pidRaw) : null,
+          is_important: isImportant,
+        },
       });
       toast("已新增", "success");
       closeModal();
@@ -398,15 +345,20 @@ function openMyWorkDay(dateIso, events) {
       const wrap = a.closest(".mw-daydetail-ev");
       const cur = events.find((x) => String(x.id) === a.dataset.mwEdit);
       const box = wrap.querySelector(".mw-ev-content");
-      box.innerHTML = `<textarea rows="3" style="width:100%">${escapeHtml(cur.content)}</textarea>
+      box.innerHTML = `<input type="time" class="mw-ev-edit-time" style="margin-bottom:6px" value="${fmtEventTime(cur.event_time)}" title="時間(選填)">
+        <textarea rows="3" style="width:100%">${escapeHtml(cur.content)}</textarea>
         <div style="margin-top:6px;display:flex;gap:8px">
           <button type="button" class="btn-primary btn-sm" data-mw-save="${cur.id}">儲存</button>
         </div>`;
       box.querySelector("[data-mw-save]").addEventListener("click", async () => {
         const val = box.querySelector("textarea").value.trim();
         if (!val) return;
+        const timeVal = box.querySelector(".mw-ev-edit-time").value;
         try {
-          await api(`/dashboard/calendar/${cur.id}`, { method: "PATCH", body: { content: val } });
+          await api(`/dashboard/calendar/${cur.id}`, {
+            method: "PATCH",
+            body: timeVal ? { content: val, event_time: timeVal } : { content: val, clear_event_time: true },
+          });
           toast("已更新", "success");
           closeModal();
           await loadMyWork();
