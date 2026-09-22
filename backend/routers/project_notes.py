@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from deps import MANAGE_ROLES, get_current_user, require_project_editor, require_project_staff_viewer
 from models.activity_log import ActivityLog
-from models.calendar_event import CalendarEvent
+from models.calendar_event import CalendarEvent, normalize_event_time
 from models.project import Project
 from models.project_note import ProjectNote
 from models.user import User
@@ -135,7 +135,8 @@ def list_calendar_today(
             )
         ).all()
     )
-    events.sort(key=lambda e: (e.event_time is None, e.event_time or time.min, e.id))
+    normalized_times = {e.id: normalize_event_time(e.event_time) for e in events}
+    events.sort(key=lambda e: (normalized_times[e.id] is None, normalized_times[e.id] or time.min, e.id))
     creator_ids = {e.created_by for e in events if e.created_by}
     names = (
         {u.id: u.display_name for u in db.scalars(select(User).where(User.id.in_(creator_ids)))}
@@ -147,7 +148,7 @@ def list_calendar_today(
         CalendarEventItem(
             id=e.id,
             event_date=e.event_date,
-            event_time=e.event_time,
+            event_time=normalized_times[e.id],
             content=e.content,
             is_important=e.is_important,
             project_id=e.project_id,

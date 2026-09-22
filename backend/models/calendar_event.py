@@ -1,9 +1,25 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Text, Time, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
+
+
+def normalize_event_time(value: time | timedelta | None) -> time | None:
+    """PyMySQL 對 MySQL TIME 欄位的 DBAPI 值回傳 datetime.timedelta,不是
+    datetime.time(MySQL TIME 型別語意上可以表示>24小時的區間,pymysql 因此用
+    timedelta 表示這個值)。讀出來的 CalendarEvent.event_time 拿去跟 datetime.combine()
+    一起用、或塞進 Pydantic 的 time 欄位序列化前,要先轉成 time,不然整支 API 會
+    直接壞掉(TypeError / pydantic ValidationError)。"""
+    if value is None or isinstance(value, time):
+        return value
+    if isinstance(value, timedelta):
+        total_seconds = int(value.total_seconds())
+        h, rem = divmod(total_seconds, 3600)
+        m, s = divmod(rem, 60)
+        return time(hour=h % 24, minute=m, second=s)
+    return value
 
 
 class CalendarEvent(Base):

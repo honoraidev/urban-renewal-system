@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from deps import MANAGE_ROLES, LANDOWNER_ROLE, get_current_user
-from models.calendar_event import CalendarEvent
+from models.calendar_event import CalendarEvent, normalize_event_time
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project, ProjectMember
@@ -120,10 +120,10 @@ def get_my_work(
         calendar_today_query = calendar_today_query.where(CalendarEvent.project_id.in_(project_ids))
     else:
         calendar_today_query = calendar_today_query.where(CalendarEvent.created_by == current_user.id)
-    today_events = db.scalars(calendar_today_query).all()
-    today_events = sorted(today_events, key=lambda e: (e.event_time is None, e.event_time or time.min, e.id))
+    today_events = [(e, normalize_event_time(e.event_time)) for e in db.scalars(calendar_today_query).all()]
+    today_events.sort(key=lambda pair: (pair[1] is None, pair[1] or time.min, pair[0].id))
 
-    feed_user_ids = {e.created_by for e in today_events if e.created_by}
+    feed_user_ids = {e.created_by for e, _ in today_events if e.created_by}
     feed_user_names = dict(
         db.execute(select(User.id, User.display_name).where(User.id.in_(feed_user_ids))).all()
     ) if feed_user_ids else {}
@@ -133,14 +133,14 @@ def get_my_work(
             kind="calendar",
             id=e.id,
             action=e.content,
-            event_time=e.event_time,
+            event_time=et,
             is_important=e.is_important,
             project_id=e.project_id,
             project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
-            created_at=datetime.combine(e.event_date, e.event_time or time.min),
+            created_at=datetime.combine(e.event_date, et or time.min),
             user_name=feed_user_names.get(e.created_by),
         )
-        for e in today_events
+        for e, et in today_events
     ]
 
     # --- 行事曆 (this month) ---
@@ -169,7 +169,7 @@ def get_my_work(
         CalendarEventItem(
             id=e.id,
             event_date=e.event_date,
-            event_time=e.event_time,
+            event_time=normalize_event_time(e.event_time),
             content=e.content,
             is_important=e.is_important,
             project_id=e.project_id,
@@ -302,7 +302,7 @@ def create_calendar_event(
     return CalendarEventItem(
         id=ev.id,
         event_date=ev.event_date,
-        event_time=ev.event_time,
+        event_time=normalize_event_time(ev.event_time),
         content=ev.content,
         is_important=ev.is_important,
         project_id=ev.project_id,
@@ -343,7 +343,7 @@ def update_calendar_event(
     return CalendarEventItem(
         id=ev.id,
         event_date=ev.event_date,
-        event_time=ev.event_time,
+        event_time=normalize_event_time(ev.event_time),
         content=ev.content,
         is_important=ev.is_important,
         project_id=ev.project_id,
