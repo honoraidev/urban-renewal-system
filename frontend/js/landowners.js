@@ -275,8 +275,13 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       </table>
     </div></div>
       </div>
-      <div id="integ-detail-panel" style="flex:0 0 320px;max-height:800px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface)">
-        <div style="text-align:center;color:var(--text-muted);padding:32px 16px">點擊表格行查看詳情</div>
+      <div id="integ-detail-panel" style="flex:0 0 300px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">
+        <div style="padding:20px;text-align:center;color:var(--text-muted);flex:1;display:flex;align-items:center;justify-content:center">
+          <div>
+            <div style="font-size:32px;margin-bottom:8px">👆</div>
+            <div style="font-size:13px">點擊表格行查看詳情</div>
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -328,51 +333,55 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const br = owner.building_records || [];
 
     return `
-      <div style="font-weight:700;font-size:16px;margin-bottom:4px">${escapeHtml(owner.name)}</div>
-      <div style="color:var(--text-muted);font-size:12px;margin-bottom:12px">身分證: ${owner.id_number ? escapeHtml(owner.id_number) : "尚未提供"}</div>
+      <div style="display:flex;flex-direction:column;height:100%">
+        <div style="padding:16px;border-bottom:1px solid var(--border)">
+          <div style="font-weight:700;font-size:15px">${escapeHtml(owner.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">ID: ${owner.id}</div>
+        </div>
+        <div style="padding:16px;overflow-y:auto;flex:1">
+          <div style="margin-bottom:14px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">身分證字號</div>
+            <div style="font-size:12px">${owner.id_number ? escapeHtml(owner.id_number) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
+          </div>
 
-      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px">📞 聯絡資訊</div>
-        <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
-          ${owner.phone_mobile ? `<div>行動: ${escapeHtml(owner.phone_mobile)}</div>` : '<div style="opacity:.5">行動: 尚未提供</div>'}
-          ${owner.phone_landline ? `<div>電話: ${escapeHtml(owner.phone_landline)}</div>` : '<div style="opacity:.5">電話: 尚未提供</div>'}
+          <div style="margin-bottom:14px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">行動電話</div>
+            <div style="font-size:12px">${owner.phone_mobile ? escapeHtml(owner.phone_mobile) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">市話</div>
+            <div style="font-size:12px">${owner.phone_landline ? escapeHtml(owner.phone_landline) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">戶籍地址</div>
+            <div style="font-size:12px;line-height:1.5;word-break:break-word">${owner.address ? escapeHtml(owner.address) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
+          </div>
+
+          ${c ? `<div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">最後聯繫</div>
+            <div style="font-size:12px;color:var(--text-muted)">${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}</div>
+            ${c.last_contact_result ? `<div style="margin-top:6px"><span class="mini-badge">${CONTACT_RESULT_LABEL[c.last_contact_result]}</span></div>` : ""}
+          </div>` : ""}
+
+          ${lr.length ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">土地 (${lr.length}筆)</div>
+            ${lr.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:11px">
+              <div style="font-weight:500;margin-bottom:2px">${escapeHtml(r.parcel_number)}</div>
+              <div style="color:var(--text-muted)">面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
+            </div>`).join("")}
+          </div>` : ""}
+
+          ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">建物 (${br.length}筆)</div>
+            ${br.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:11px">
+              <div style="font-weight:500;margin-bottom:2px">${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
+              <div style="color:var(--text-muted)">面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
+            </div>`).join("")}
+          </div>` : ""}
         </div>
       </div>
-
-      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🏠 地址</div>
-        <div style="font-size:12px;color:var(--text-muted);word-break:break-word">
-          ${owner.address ? escapeHtml(owner.address) : "尚未提供"}
-        </div>
-      </div>
-
-      ${c ? `<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px">📅 聯繫紀錄</div>
-        <div style="font-size:12px;color:var(--text-muted)">
-          最後聯繫: ${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}
-          ${c.last_contact_result ? `<div style="margin-top:4px"><span class="mini-badge">${CONTACT_RESULT_LABEL[c.last_contact_result]}</span></div>` : ""}
-        </div>
-      </div>` : ""}
-
-      ${lr.length ? `<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:12px">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🗺️ 土地資料 (${lr.length}筆)</div>
-        <div style="font-size:11px">
-          ${lr.map((r) => `<div style="padding:4px 0;color:var(--text-muted);border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent)">
-            <div style="font-weight:500">${escapeHtml(r.parcel_number)}</div>
-            <div>面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
-          </div>`).join("")}
-        </div>
-      </div>` : ""}
-
-      ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px">🏢 建物資料 (${br.length}筆)</div>
-        <div style="font-size:11px">
-          ${br.map((r) => `<div style="padding:4px 0;color:var(--text-muted);border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent)">
-            <div style="font-weight:500">${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
-            <div>面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
-          </div>`).join("")}
-        </div>
-      </div>` : ""}
     `;
   };
 
