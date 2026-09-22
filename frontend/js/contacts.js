@@ -63,6 +63,23 @@ async function renderContactsTab(el) {
     <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
       <h3 class="section-hero-title"><span class="hero-ic">👥</span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
       <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
+      ${floorOptions.length
+      ? `<details class="integ-filter" style="position:relative">
+              <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">樓層:全部 ▾</summary>
+              <div id="contacts-floor-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px;max-height:260px;overflow:auto">
+                ${floorOptions.map((f) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${escapeHtml(f)}" style="width:auto">${escapeHtml(f)}</label>`).join("")}
+              </div>
+            </details>`
+      : ""
+    }
+      <details class="integ-filter" style="position:relative">
+        <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">聯絡方式:全部 ▾</summary>
+        <div id="contacts-phone-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="has" style="width:auto">有電話</label>
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="none" style="width:auto">無電話</label>
+        </div>
+      </details>
+      <button type="button" class="btn-secondary btn-sm" id="contacts-clear-btn" title="清除篩選">↺ 清除篩選</button>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button type="button" class="btn-secondary btn-sm" id="contacts-export-btn">⬆ 匯出 Excel</button>
         ${isEditor() ? `<button class="btn-primary btn-sm" id="contacts-add-btn">+ 新增地主</button>` : ""}
@@ -87,25 +104,6 @@ async function renderContactsTab(el) {
       )}
       ${statTile("🏠", "amount", "建物門牌數", `${doorSet.size} <small>筆</small>`)}
       ${statTile("🏢", "type", "涵蓋樓層", `<span style="font-size:17px">${floorRangeText}</span>`)}
-    </div>
-    <div class="section-toolbar" style="flex-wrap:wrap;gap:8px;margin-top:4px">
-      ${floorOptions.length
-      ? `<details class="integ-filter" style="position:relative">
-              <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">樓層:全部 ▾</summary>
-              <div id="contacts-floor-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px;max-height:260px;overflow:auto">
-                ${floorOptions.map((f) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${escapeHtml(f)}" style="width:auto">${escapeHtml(f)}</label>`).join("")}
-              </div>
-            </details>`
-      : ""
-    }
-      <details class="integ-filter" style="position:relative">
-        <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">聯絡方式:全部 ▾</summary>
-        <div id="contacts-phone-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="has" style="width:auto">有電話</label>
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="none" style="width:auto">無電話</label>
-        </div>
-      </details>
-      <button type="button" class="btn-secondary btn-sm" id="contacts-clear-btn" title="清除篩選">↺ 清除篩選</button>
     </div>
     <style>
       #contacts-roster { margin-top:16px; }
