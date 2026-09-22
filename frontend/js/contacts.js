@@ -24,40 +24,10 @@ async function renderContactsTab(el) {
   const hasPhone = (o) => !!(o.phone_landline || o.phone_mobile || o.phone);
   const isContacted = (o) => !!o.contact_status && o.contact_status !== "not_contacted";
 
-  // 統計卡片用的資料:建物門牌數(去重後的簡化門牌)、涵蓋樓層範圍。
-  const doorSet = new Set();
-  const floorKeys = [];
-  allRows.forEach((o) => {
-    (o.building_records || []).forEach((r) => {
-      const label = _shortDoorAddr(r.address);
-      if (label) doorSet.add(label);
-      const floorLabel = _floorLabelOf(r);
-      if (floorLabel) floorKeys.push(_floorSortKey(floorLabel));
-    });
-  });
-  const contactedCount = allRows.filter(isContacted).length;
-  const notContactedCount = allRows.length - contactedCount;
-  const contactedPct = allRows.length ? Math.round((contactedCount / allRows.length) * 1000) / 10 : 0;
-  const notContactedPct = allRows.length ? Math.round((notContactedCount / allRows.length) * 1000) / 10 : 0;
-  const floorRangeText = floorKeys.length
-    ? (() => {
-        const min = Math.min(...floorKeys);
-        const max = Math.max(...floorKeys);
-        const fmt = (k) => (k < 0 ? `地下${Math.abs(k)}` : String(k));
-        return min === max ? `${fmt(min)}層` : `${fmt(min)} ~ ${fmt(max)}層`;
-      })()
-    : "-";
-
   // 樓層篩選下拉選項:所有出現過的樓層,依樓層排序由低到高。
   const floorOptions = [...new Set(allRows.flatMap((o) => (o.building_records || []).map(_floorLabelOf).filter(Boolean)))].sort(
     (a, b) => _floorSortKey(a) - _floorSortKey(b)
   );
-
-  const statTile = (icon, tone, label, valueHtml, subHtml) => `
-    <div class="enc-stat-tile enc-stat-${tone}">
-      <div class="enc-stat-icon">${icon}</div>
-      <div style="flex:1;min-width:0"><div class="enc-stat-lbl">${label}</div><div class="enc-stat-val">${valueHtml}</div>${subHtml || ""}</div>
-    </div>`;
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
@@ -86,25 +56,6 @@ async function renderContactsTab(el) {
       </div>
     </div>
     <div class="helper-text" style="margin:-4px 0 14px">管理地主聯絡資訊,支援搜尋、篩選與批次聯絡作業。</div>
-    <div class="enc-stat-row">
-      ${statTile("👥", "land", "地主總數", `${allRows.length} <small>位</small>`)}
-      ${statTile(
-        "📞",
-        "building",
-        "已聯絡",
-        `${contactedCount} <small>位</small><span class="contacts-stat-pct">${contactedPct}%</span>`,
-        `<div class="progress-bar-track" style="margin-top:6px"><div class="progress-bar-fill" style="width:${contactedPct}%"></div></div>`
-      )}
-      ${statTile(
-        "🕐",
-        "type",
-        "未聯絡",
-        `${notContactedCount} <small>位</small><span class="contacts-stat-pct">${notContactedPct}%</span>`,
-        `<div class="progress-bar-track" style="margin-top:6px"><div class="progress-bar-fill" style="width:${notContactedPct}%;background:var(--border)"></div></div>`
-      )}
-      ${statTile("🏠", "amount", "建物門牌數", `${doorSet.size} <small>筆</small>`)}
-      ${statTile("🏢", "type", "涵蓋樓層", `<span style="font-size:17px">${floorRangeText}</span>`)}
-    </div>
     <style>
       #contacts-roster { margin-top:16px; }
       #contacts-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }

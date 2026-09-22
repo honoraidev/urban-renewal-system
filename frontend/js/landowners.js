@@ -158,6 +158,37 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       </div>
     </details>`;
 
+  // 統計卡片(從「地主聯絡簿」搬過來,同一份 allRows,口徑保持一致):地主總數、
+  // 已/未聯絡人數+佔比、建物門牌數(去重後的簡化門牌)、涵蓋樓層範圍。
+  const isContacted = (o) => !!o.contact_status && o.contact_status !== "not_contacted";
+  const doorSet = new Set();
+  const floorKeys = [];
+  allRows.forEach((o) => {
+    (o.building_records || []).forEach((r) => {
+      const label = _shortDoorAddr(r.address);
+      if (label) doorSet.add(label);
+      const floorLabel = _floorLabelOf(r);
+      if (floorLabel) floorKeys.push(_floorSortKey(floorLabel));
+    });
+  });
+  const contactedCount = allRows.filter(isContacted).length;
+  const notContactedCount = allRows.length - contactedCount;
+  const contactedPct = allRows.length ? Math.round((contactedCount / allRows.length) * 1000) / 10 : 0;
+  const notContactedPct = allRows.length ? Math.round((notContactedCount / allRows.length) * 1000) / 10 : 0;
+  const floorRangeText = floorKeys.length
+    ? (() => {
+        const min = Math.min(...floorKeys);
+        const max = Math.max(...floorKeys);
+        const fmt = (k) => (k < 0 ? `地下${Math.abs(k)}` : String(k));
+        return min === max ? `${fmt(min)}層` : `${fmt(min)} ~ ${fmt(max)}層`;
+      })()
+    : "-";
+  const statTile = (icon, tone, label, valueHtml, subHtml) => `
+    <div class="enc-stat-tile enc-stat-${tone}">
+      <div class="enc-stat-icon">${icon}</div>
+      <div style="flex:1;min-width:0"><div class="enc-stat-lbl">${label}</div><div class="enc-stat-val">${valueHtml}</div>${subHtml || ""}</div>
+    </div>`;
+
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
       <h3 class="section-hero-title"><span class="hero-ic">📊</span>${titleText} (<span id="integ-count">${allRows.length}</span>)</h3>
@@ -167,6 +198,25 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
       </div>
+    </div>
+    <div class="enc-stat-row">
+      ${statTile("👥", "land", "地主總數", `${allRows.length} <small>位</small>`)}
+      ${statTile(
+        "📞",
+        "building",
+        "已聯絡",
+        `${contactedCount} <small>位</small><span class="contacts-stat-pct">${contactedPct}%</span>`,
+        `<div class="progress-bar-track" style="margin-top:6px"><div class="progress-bar-fill" style="width:${contactedPct}%"></div></div>`
+      )}
+      ${statTile(
+        "🕐",
+        "type",
+        "未聯絡",
+        `${notContactedCount} <small>位</small><span class="contacts-stat-pct">${notContactedPct}%</span>`,
+        `<div class="progress-bar-track" style="margin-top:6px"><div class="progress-bar-fill" style="width:${notContactedPct}%;background:var(--border)"></div></div>`
+      )}
+      ${statTile("🏠", "amount", "建物門牌數", `${doorSet.size} <small>筆</small>`)}
+      ${statTile("🏢", "type", "涵蓋樓層", `<span style="font-size:17px">${floorRangeText}</span>`)}
     </div>
     <style>
       #integ-roster { margin-top:16px; }
