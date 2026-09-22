@@ -272,9 +272,6 @@ function renderSidebarProjects(projects) {
     sidebarCitiesInitialized = true;
   }
 
-  // 每個案件的檔案圖示顏色循環4色(teal/pink/blue/purple),純視覺區分、跟資料無關 -
-  // 跟版模一樣,不同案件的圖示底色不一樣才不會整排看起來都一個樣子。
-  const CASE_ICON_TONES = ["teal", "pink", "blue", "purple"];
   wrap.innerHTML = Object.entries(byCity)
     .map(([city, cases]) => {
       const open = expandedSidebarCities.has(city);
@@ -289,9 +286,8 @@ function renderSidebarProjects(projects) {
           <div class="sb-cg-items ${open ? "open" : ""}">
             ${cases
               .map(
-                (p, idx) => `
+                (p) => `
                 <div class="sb-case-item" data-project-id="${p.id}">
-                  <span class="sb-ic sb-ic-sm sb-ic-${CASE_ICON_TONES[idx % CASE_ICON_TONES.length]}">📄</span>
                   <span class="sb-case-name">${escapeHtml(p.name)}</span>
                   <span class="sb-case-stage">第${p.current_stage}階段</span>
                   <span class="sb-chev">›</span>

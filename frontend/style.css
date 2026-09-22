@@ -351,18 +351,13 @@
 
   /* 每個 nav-link/案件項目最左邊的色塊圖示 + 最右邊的「›」小箭頭(純裝飾,呼應
      版型截圖每列都有的進入感,不是真的可再往下鑽的層級)。 */
+  /* 圖示不要色塊底 - 純圖示本體,跟旁邊文字一樣「平」,不要每顆圖示都各自
+     頂著一塊有色圓角背景。 */
   .sb-ic {
-    flex-shrink: 0; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center;
-    justify-content: center; font-size: 15px; line-height: 1;
+    flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center;
+    justify-content: center; font-size: 17px; line-height: 1; background: none;
   }
-  .sb-ic-sm { width: 26px; height: 26px; font-size: 13px; border-radius: 8px; }
-  .sb-ic-orange { background: var(--warning-light); }
-  .sb-ic-green { background: var(--success-light); }
-  .sb-ic-blue { background: var(--info-light); }
-  .sb-ic-gray { background: var(--surface-2); }
-  .sb-ic-teal { background: var(--brand-light); }
-  .sb-ic-purple { background: color-mix(in srgb, #8b5cf6 16%, transparent); }
-  .sb-ic-pink { background: color-mix(in srgb, #ec4899 16%, transparent); }
+  .sb-ic-sm { width: 26px; height: 26px; font-size: 15px; }
   .sb-chev { margin-left: auto; flex-shrink: 0; font-size: 15px; color: var(--text-muted); opacity: .55; }
 
   /* Not flex:1 - that used to stretch this to fill the sidebar's entire remaining
