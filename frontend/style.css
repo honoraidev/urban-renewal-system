@@ -2890,7 +2890,6 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .lv-row:hover { background: var(--surface-2); }
 .lv-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .lv-c-seq { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
-.lv-chev { display: inline-flex; color: var(--text-muted); }
 .lv-c-name { font-weight: 800; font-size: 17px; }
 .lv-c-count { display: flex; align-items: center; gap: 10px; }
 .lv-count-pill {

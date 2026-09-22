@@ -531,7 +531,7 @@ function lttRowHtml(s) {
   return `
     <div class="lv-row-wrap${open ? " open" : ""}" data-lv-owner="${s.owner.id}">
       <div class="lv-cols lv-row" data-lv-toggle="1" role="button" tabindex="0" aria-expanded="${open}">
-        <div class="lv-c-seq"><span class="lv-chev">${LTT_ICON.chevDown}</span>${s.seq}</div>
+        <div class="lv-c-seq">${s.seq}</div>
         <div class="lv-c-name">${escapeHtml(s.owner.name)}</div>
         <div class="lv-c-count"><span class="lv-count-pill">${s.parcels.length} 筆土地</span><span class="lv-chev-up">${LTT_ICON.chevDown}</span></div>
         <div class="lv-right lv-c-value">${s.currentValue ? _lttFmt(s.currentValue) : `<span class="lv-muted">-</span>`}</div>
