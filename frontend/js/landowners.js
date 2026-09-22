@@ -535,7 +535,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
                     <td>${fmtArea(lr.total_area_sqm)}</td>
                     <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
                     <td>${fmtArea(lr.owned_area_sqm)}</td>
-                    <td>${lr.ownership_share_pct ?? "-"}%</td>
+                    <td>${lr.ownership_share_pct == null ? "-" : `${fmtPct(lr.ownership_share_pct)}%`}</td>
                     ${isEditor()
               ? `<td class="actions-cell">
                           ${iconBtn("edit-land", lr.id, o.id, "編輯")}
@@ -572,7 +572,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
                     <td>${fmtArea(br.total_area_sqm)}</td>
                     <td>${br.ownership_numerator}/${br.ownership_denominator}</td>
                     <td>${fmtArea((Number(br.total_area_sqm) || 0) * (br.ownership_numerator || 1) / (br.ownership_denominator || 1))}</td>
-                    <td>${br.ownership_share_pct ?? "-"}%</td>
+                    <td>${br.ownership_share_pct == null ? "-" : `${fmtPct(br.ownership_share_pct)}%`}</td>
                     ${isEditor()
               ? `<td class="actions-cell">
                           ${iconBtn("edit-building", br.id, o.id, "編輯")}

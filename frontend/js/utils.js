@@ -63,6 +63,12 @@ function fmtArea(n) {
   return n === null || n === undefined || n === "" ? "-" : Number(n).toFixed(2);
 }
 
+// 持分百分比(1/3 = 33.333333...%)後端沒有先四捨五入,原樣印出來小數點一長串,
+// 欄位會被撐成兩行。跟 fmtArea 同一套慣例,固定取小數點後2位。
+function fmtPct(n) {
+  return n === null || n === undefined || n === "" ? "-" : Number(n).toFixed(2);
+}
+
 function formatMonthToMinguo(val) {
   if (!val) return "";
   const s = String(val).trim();
