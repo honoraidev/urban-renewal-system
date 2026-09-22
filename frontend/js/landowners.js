@@ -165,6 +165,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       </div>
     </div>
     <style>
+      #integ-roster { margin-top:16px; }
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
       /* table-layout:fixed 只套外層主表格(靠 > 限定直接子代 table)- 展開列裡巢狀的
          土地/建物卡片表格欄位數、內容長度都不一樣,套同一組固定寬度只會把它們擠壞。 */
@@ -173,10 +174,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       }
       #integ-roster thead th {
         position:sticky; top:0; z-index:2; background:var(--surface-2);
-        padding:10px 12px; text-align:left; font-weight:700; color:var(--text-muted);
+        padding:12px 14px; text-align:left; font-weight:700; color:var(--text-muted);
         white-space:nowrap; border-bottom:1px solid var(--border);
       }
-      #integ-roster tbody td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+      #integ-roster tbody td { padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
       #integ-roster tbody tr:last-child td { border-bottom:none; }
       #integ-roster tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 45%, transparent); }
       #integ-roster tbody tr:hover { background:color-mix(in srgb, var(--brand) 8%, transparent); }
@@ -205,42 +206,60 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .col-idx { cursor:pointer; }
       #integ-roster tr.expanded { border-left:3px solid var(--brand); background:color-mix(in srgb, var(--brand) 6%, transparent); }
       #integ-roster tr.expanded td:first-child { padding-left:9px; }
-      #integ-roster .integ-toggle-btn { display:inline-flex; align-items:center; gap:5px; }
+      #integ-roster .integ-toggle-btn {
+        display:inline-flex; align-items:center; gap:5px; min-width:64px; justify-content:center;
+        border-color:color-mix(in srgb, var(--brand) 45%, var(--border)); color:var(--brand); font-weight:600;
+      }
+      #integ-roster .integ-toggle-btn:hover { background:color-mix(in srgb, var(--brand) 10%, transparent); }
       #integ-roster .integ-toggle-btn.expanded { background:var(--brand); color:#fff; border-color:var(--brand); }
       /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
          選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
       #integ-roster .integ-detail-card thead th {
-        position:static; padding:7px 10px; font-size:11px; color:var(--text-muted);
+        position:static; padding:8px 12px; font-size:11px; color:var(--text-muted);
         font-weight:600; background:color-mix(in srgb, var(--surface-2) 60%, transparent);
       }
-      #integ-roster .integ-detail-card tbody td { padding:7px 10px; font-size:12px; border-bottom:1px solid var(--border); }
+      #integ-roster .integ-detail-card tbody td { padding:9px 12px; font-size:12.5px; border-bottom:1px solid var(--border); }
       #integ-roster .integ-detail-card tbody tr:last-child td { border-bottom:none; }
       #integ-roster .integ-detail-card tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 35%, transparent); }
-      #integ-roster .integ-detail-card table { font-size:12px; width:100%; border-collapse:collapse; }
-      #integ-roster .integ-detail-wrap { display:flex; gap:14px; padding:16px; align-items:flex-start; }
-      #integ-roster .integ-detail-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+      #integ-roster .integ-detail-card table { font-size:12.5px; width:100%; border-collapse:collapse; }
+      #integ-roster .integ-detail-wrap { display:flex; gap:16px; padding:18px 20px; align-items:flex-start; }
+      #integ-roster .integ-detail-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; }
       #integ-roster .integ-detail-card {
-        border:1px solid var(--border); border-radius:10px; overflow:hidden;
-        background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.03);
+        border:1px solid var(--border); border-radius:12px; overflow:hidden;
+        background:var(--surface); box-shadow:0 1px 3px rgba(0,0,0,.04);
       }
       #integ-roster .integ-detail-card-head {
         display:flex; align-items:center; justify-content:space-between;
-        padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);
+        padding:11px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);
       }
-      #integ-roster .integ-detail-card-title { font-weight:600; font-size:13px; display:flex; align-items:center; gap:6px; }
+      #integ-roster .integ-detail-card-title { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:8px; }
       #integ-roster .integ-detail-card-title .count { font-weight:400; color:var(--text-muted); font-size:11.5px; }
-      #integ-roster .integ-side-card { flex:0 0 280px; display:flex; flex-direction:column; }
-      #integ-roster .integ-side-body { padding:14px; display:flex; flex-direction:column; gap:12px; }
-      #integ-roster .integ-side-row { display:flex; flex-direction:column; gap:3px; }
-      #integ-roster .integ-side-label { font-size:11px; color:var(--text-muted); }
-      #integ-roster .integ-side-val { font-size:13px; word-break:break-word; }
+      /* 卡片標題圖示統一用色塊底 + emoji,土地/建物/其他資訊各自一個色調,
+         比裸 emoji 直接接文字看起來更像一個設計系統,而不是隨手放的表情符號。 */
+      #integ-roster .integ-card-icon {
+        display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+        width:24px; height:24px; border-radius:7px; font-size:12.5px;
+      }
+      #integ-roster .integ-card-icon-land { background:color-mix(in srgb, #16a34a 16%, transparent); }
+      #integ-roster .integ-card-icon-building { background:color-mix(in srgb, #2563eb 14%, transparent); }
+      #integ-roster .integ-card-icon-info { background:color-mix(in srgb, #7c3aed 14%, transparent); }
+      #integ-roster .integ-side-card { flex:0 0 290px; display:flex; flex-direction:column; }
+      #integ-roster .integ-side-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
+      #integ-roster .integ-side-row { display:flex; flex-direction:column; gap:4px; }
+      #integ-roster .integ-side-label {
+        font-size:11.5px; color:var(--text-muted); font-weight:600;
+        display:flex; align-items:center; gap:6px;
+      }
+      #integ-roster .integ-side-label .integ-card-icon { width:18px; height:18px; font-size:10px; border-radius:5px; }
+      #integ-roster .integ-side-val { font-size:13px; word-break:break-word; padding-left:24px; }
       #integ-roster .integ-side-note-date { display:block; font-size:11px; color:var(--text-muted); margin-top:2px; }
-      #integ-roster .integ-side-actions { display:flex; flex-direction:column; gap:8px; padding:0 14px 14px; margin-top:auto; }
+      #integ-roster .integ-side-actions { display:flex; flex-direction:column; gap:8px; padding:2px 16px 16px; margin-top:auto; }
       #integ-roster .btn-block { width:100%; text-align:center; }
       #integ-roster .integ-icon-btn {
         display:inline-flex; align-items:center; justify-content:center;
         border:1px solid var(--border); background:var(--surface); border-radius:6px;
-        width:26px; height:26px; cursor:pointer; font-size:12px; line-height:1; margin-right:4px;
+        width:27px; height:27px; cursor:pointer; font-size:12px; line-height:1; margin-right:4px;
+        transition:background .12s, border-color .12s;
       }
       #integ-roster .integ-icon-btn:hover { background:var(--surface-2); }
       #integ-roster .integ-icon-btn-danger:hover { background:color-mix(in srgb, var(--danger) 12%, transparent); border-color:var(--danger); }
@@ -421,11 +440,12 @@ async function downloadRosterExcel(pid) {
 function ownerDetailRowHtml(o, colspan, contact) {
   const iconBtn = (action, id, ownerId, title, danger) =>
     `<button type="button" class="integ-icon-btn ${danger ? "integ-icon-btn-danger" : ""}" data-${action}="${id}" data-owner="${ownerId}" title="${title}">${danger ? "🗑" : "✏️"}</button>`;
+  const cardIcon = (emoji, tone) => `<span class="integ-card-icon integ-card-icon-${tone}">${emoji}</span>`;
 
   const landCard = `
     <div class="integ-detail-card">
       <div class="integ-detail-card-head">
-        <span class="integ-detail-card-title">🌱 土地資料 <span class="count">(${o.land_records.length}筆)</span></span>
+        <span class="integ-detail-card-title">${cardIcon("🌱", "land")} 土地資料 <span class="count">(${o.land_records.length}筆)</span></span>
         ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
       </div>
       ${o.land_records.length
@@ -460,7 +480,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
   const buildingCard = `
     <div class="integ-detail-card">
       <div class="integ-detail-card-head">
-        <span class="integ-detail-card-title">🏠 建物資料 <span class="count">(${o.building_records.length}筆)</span></span>
+        <span class="integ-detail-card-title">${cardIcon("🏠", "building")} 建物資料 <span class="count">(${o.building_records.length}筆)</span></span>
         ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
       </div>
       ${o.building_records.length
@@ -497,16 +517,21 @@ function ownerDetailRowHtml(o, colspan, contact) {
     ? `<span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[contact.last_contact_result] || ""}">${CONTACT_RESULT_LABEL[contact.last_contact_result] || contact.last_contact_result}</span>
        ${contact.last_contact_date ? `<span class="integ-side-note-date">最後聯絡<br>${fmtDate(contact.last_contact_date)}</span>` : ""}`
     : `<span style="color:var(--text-muted)">尚無</span>`;
+  const sideRow = (emoji, label, valueHtml) => `
+    <div class="integ-side-row">
+      <div class="integ-side-label">${cardIcon(emoji, "info")} ${label}</div>
+      <div class="integ-side-val">${valueHtml}</div>
+    </div>`;
   const sideCard = `
     <div class="integ-detail-card integ-side-card">
       <div class="integ-detail-card-head">
-        <span class="integ-detail-card-title">ℹ️ 其他資訊</span>
+        <span class="integ-detail-card-title">${cardIcon("ℹ️", "info")} 其他資訊</span>
       </div>
       <div class="integ-side-body">
-        <div class="integ-side-row"><span class="integ-side-label">👤 所有權人</span><span class="integ-side-val">${escapeHtml(o.name)}</span></div>
-        <div class="integ-side-row"><span class="integ-side-label">📞 聯絡電話</span><span class="integ-side-val">${phone ? escapeHtml(phone) : '<span style="color:var(--text-muted)">未填寫</span>'}</span></div>
-        <div class="integ-side-row"><span class="integ-side-label">🏠 戶籍地址</span><span class="integ-side-val">${o.address ? escapeHtml(o.address) : '<span style="color:var(--text-muted)">未填寫</span>'}</span></div>
-        <div class="integ-side-row"><span class="integ-side-label">📝 備註</span><span class="integ-side-val">${noteHtml}</span></div>
+        ${sideRow("👤", "所有權人", escapeHtml(o.name))}
+        ${sideRow("📞", "聯絡電話", phone ? escapeHtml(phone) : '<span style="color:var(--text-muted)">未填寫</span>')}
+        ${sideRow("🏠", "戶籍地址", o.address ? escapeHtml(o.address) : '<span style="color:var(--text-muted)">未填寫</span>')}
+        ${sideRow("📝", "備註", noteHtml)}
       </div>
       <div class="integ-side-actions">
         <button type="button" class="btn-primary btn-block" data-view-detail="${o.id}">📄 查看詳細內容</button>
