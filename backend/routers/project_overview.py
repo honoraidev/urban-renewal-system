@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 from deps import require_project_staff_viewer
 from models.building_record import BuildingRecord
-from models.calendar_event import CalendarEvent
 from models.document import Document
 from models.land_record import LandRecord
 from models.landowner import Landowner
@@ -24,7 +23,7 @@ from routers.sop import (
     get_or_create_sop,
 )
 from utils.consent_ratio import calculate_consent_ratio
-from utils.todo_priority import DEADLINE_URGENT_DAYS, sop_task_priority, todo_priority
+from utils.todo_priority import DEADLINE_URGENT_DAYS, sop_task_priority
 
 router = APIRouter(prefix="/projects/{project_id}/overview", tags=["project-overview"])
 
@@ -55,8 +54,8 @@ _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
     ],
     "briefing_2": [
         {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
-        {"kind": "doc", "doc_type": "consent_form_template", "label": "上傳同意書範本"},
-        {"kind": "doc", "doc_type": "contract_template", "label": "上傳合約範本"},
+        {"kind": "doc", "doc_type": "consent_form_template", "label": "上傳同意書"},
+        {"kind": "doc", "doc_type": "contract_template", "label": "上傳合約"},
         {"kind": "manual", "key": "briefing_reviewed_6", "label": "主管審核通過"},
     ],
     "briefing_3": [
@@ -207,44 +206,6 @@ def urgent_sop_bell_items(db: Session, projects: list[Project]) -> list[dict]:
             }
         )
     return items
-
-
-@router.get("/todos")
-def get_project_todos(
-    project_id: int,
-    db: Session = Depends(get_db),
-    project: Project = Depends(require_project_staff_viewer),
-):
-    """案件總覽頁「待辦事項」卡片用 - 這個案件底下的行事曆備註(跟工作看板行事曆
-    同一份 calendar_events 資料,只是這裡篩成單一案件),依日期由近到遠排序,今天
-    以前的過期項目排最後面(還是要看得到,只是優先權比較低)。sop_stage 是這筆待辦
-    歸在哪一關(沒指定 = null,前端歸在「這階段」)。"""
-    today = date.today()
-    events = db.scalars(
-        select(CalendarEvent)
-        .where(CalendarEvent.project_id == project_id)
-        .order_by(CalendarEvent.event_date)
-    ).all()
-    upcoming = sorted((e for e in events if e.event_date >= today), key=lambda e: e.event_date)
-    overdue = sorted((e for e in events if e.event_date < today), key=lambda e: e.event_date, reverse=True)
-    ordered = upcoming + overdue
-    result = []
-    for e in ordered:
-        urgent, important = todo_priority(e.event_date, e.content, e.is_important, today)
-        result.append(
-            {
-                "id": e.id,
-                "event_date": e.event_date,
-                "content": e.content,
-                "is_important": e.is_important,
-                "sop_stage": e.sop_stage,
-                "is_overdue": e.event_date < today,
-                # 自動判斷的緊急/重要原因(空 = 不符合),規則見 utils/todo_priority.py
-                "urgent_reasons": urgent,
-                "important_reasons": important,
-            }
-        )
-    return result
 
 
 def _headcount_detail(db: Session, project_id: int, before: datetime | None = None) -> dict:

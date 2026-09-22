@@ -10,8 +10,10 @@ from models.calendar_event import CalendarEvent, normalize_event_time
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project, ProjectMember
+from models.sop import SopStage
 from models.user import User
-from routers.project_overview import urgent_sop_bell_items
+from routers.project_overview import _stage_task_block, urgent_sop_bell_items
+from routers.sop import _resolved_stages
 from utils.todo_priority import DUE_URGENT_DAYS, todo_priority
 from schemas.dashboard import (
     CalendarEventCreate,
@@ -142,6 +144,52 @@ def get_my_work(
         )
         for e, et in today_events
     ]
+
+    # --- 各案件「這階段」待辦事項(SOP 檢核清單還沒完成的項目)---
+    # 一個案件彙整成一則「第N階段『XX』還有 K 項未完成」,不像案件總覽頁待辦事項
+    # 卡片那樣逐筆列出 —— 工作看板是跨案件總覽,展開到每個案件每一筆待辦會太長。
+    # 跟 urgent_sop_bell_items(全站鈴鐺用)是同一套邏輯,但不做「延遲/快到期」篩選,
+    # 這裡要看的是「現在進度到哪」而不是「快出事了」。
+    # personal:只看自己是建立人/成員的案件;team:看得到的所有案件(跟上面
+    # project_ids、今日提醒公告同一套範圍)。
+    if is_team:
+        sop_project_ids = project_ids
+    elif project_ids:
+        sop_project_ids = list(
+            db.scalars(
+                select(Project.id)
+                .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+                .where(
+                    Project.id.in_(project_ids),
+                    or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id),
+                )
+                .distinct()
+            )
+        )
+    else:
+        sop_project_ids = []
+    if sop_project_ids:
+        for p in db.scalars(select(Project).where(Project.id.in_(sop_project_ids))):
+            sop = db.scalar(select(SopStage).where(SopStage.project_id == p.id))
+            if sop is None or sop.stage_data["final"]["status"] != "pending":
+                continue
+            stages = _resolved_stages(sop)
+            block = _stage_task_block(db, p.id, stages, sop.current_stage, True, p)
+            if not block:
+                continue
+            pending = [t for t in block["tasks"] if not t["done"]]
+            if not pending:
+                continue
+            today_activities.append(
+                TodayActivityItem(
+                    kind="sop",
+                    id=-p.id,  # 負數 = 不是行事曆備註(SOP 彙整項),避免跟 calendar_events.id 撞
+                    action=f"第{block['index']}階段「{block['name']}」還有 {len(pending)} 項未完成",
+                    project_id=p.id,
+                    project_name=p.name,
+                    created_at=now,
+                )
+            )
 
     # --- 行事曆 (this month) ---
     norm_month, first_day, next_month = _month_bounds(month)

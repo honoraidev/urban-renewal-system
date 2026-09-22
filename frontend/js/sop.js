@@ -54,8 +54,8 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   briefing_2: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
-    { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
-    { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
+    { key: "consent_form_template", label: "上傳同意書", docType: "consent_form_template" },
+    { key: "contract_template", label: "上傳合約", docType: "contract_template" },
     { key: "briefing_reviewed_6", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_3: [

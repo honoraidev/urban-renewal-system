@@ -480,7 +480,7 @@ function initInventory() {
   });
   document.getElementById("inv-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
   document.getElementById("inv-export-btn")?.addEventListener("click", _ivExportCsv);
   document.getElementById("inv-search-btn")?.addEventListener("click", () => {

@@ -315,7 +315,7 @@ function initCompanyDocs() {
 
   document.getElementById("cd-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
   const runCdSearch = () => {
     cdQuery = document.getElementById("cd-search-input")?.value || "";
@@ -1692,7 +1692,7 @@ function initResources() {
   });
   document.getElementById("news-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
 
   // 知識庫頁:搜尋(打字即時篩選,按「搜尋」也一樣)、全部展開/收合、麵包屑、相關資源
@@ -1710,7 +1710,7 @@ function initResources() {
   });
   document.getElementById("faq-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
   document.querySelectorAll("[data-faq-go]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1750,7 +1750,7 @@ function initResources() {
   });
   document.getElementById("reg-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
   const runRegSearch = () => {
     regQuery = document.getElementById("reg-search-input")?.value || "";
@@ -1777,7 +1777,7 @@ function initResources() {
   });
   document.getElementById("ws-crumb-home")?.addEventListener("click", (e) => {
     e.preventDefault();
-    goToDashboard();
+    goToMyWork();
   });
   const runWsSearch = () => {
     wsQuery = document.getElementById("ws-search-input")?.value || "";

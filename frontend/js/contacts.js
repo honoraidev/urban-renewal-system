@@ -34,19 +34,19 @@ async function renderContactsTab(el) {
       <h3 class="section-hero-title"><span class="hero-ic">👥</span><span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</span></h3>
       <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
       ${floorOptions.length
-      ? `<details class="integ-filter" style="position:relative">
-              <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">樓層:全部 ▾</summary>
-              <div id="contacts-floor-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px;max-height:260px;overflow:auto">
-                ${floorOptions.map((f) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${escapeHtml(f)}" style="width:auto">${escapeHtml(f)}</label>`).join("")}
+      ? `<details class="integ-filter">
+              <summary>樓層<span class="integ-filter-badge" id="contacts-floor-dd-badge"></span></summary>
+              <div id="contacts-floor-dd" class="integ-filter-panel">
+                ${floorOptions.map((f) => `<label><input type="checkbox" value="${escapeHtml(f)}">${escapeHtml(f)}</label>`).join("")}
               </div>
             </details>`
       : ""
     }
-      <details class="integ-filter" style="position:relative">
-        <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">聯絡方式:全部 ▾</summary>
-        <div id="contacts-phone-dd" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="has" style="width:auto">有電話</label>
-          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="none" style="width:auto">無電話</label>
+      <details class="integ-filter">
+        <summary>聯絡方式<span class="integ-filter-badge" id="contacts-phone-dd-badge"></span></summary>
+        <div id="contacts-phone-dd" class="integ-filter-panel">
+          <label><input type="checkbox" value="has">有電話</label>
+          <label><input type="checkbox" value="none">無電話</label>
         </div>
       </details>
       <button type="button" class="btn-secondary btn-sm" id="contacts-clear-btn" title="清除篩選">↺ 清除篩選</button>
@@ -178,6 +178,7 @@ async function renderContactsTab(el) {
   });
   el.querySelectorAll("#contacts-floor-dd input, #contacts-phone-dd input").forEach((cb) =>
     cb.addEventListener("change", () => {
+      updateFilterBadge(cb.closest(".integ-filter-panel").id);
       contactsUi.page = 1;
       renderBody();
     })
@@ -186,20 +187,13 @@ async function renderContactsTab(el) {
     const searchInput = document.getElementById("contacts-search");
     if (searchInput) searchInput.value = "";
     el.querySelectorAll("#contacts-floor-dd input, #contacts-phone-dd input").forEach((cb) => (cb.checked = false));
+    updateFilterBadge("contacts-floor-dd");
+    updateFilterBadge("contacts-phone-dd");
     contactsUi.page = 1;
     renderBody();
   });
 
-  // 一次只開一個篩選面板
-  const contactsDetails = [...el.querySelectorAll("details.integ-filter")];
-  contactsDetails.forEach((d) => {
-    d.addEventListener("toggle", () => {
-      if (d.open) contactsDetails.forEach((o) => { if (o !== d) o.open = false; });
-    });
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".integ-filter")) contactsDetails.forEach((d) => (d.open = false));
-  });
+  wireFilterPillMutex(el);
 
   document.getElementById("contacts-foot").addEventListener("click", (e) => {
     const pg = e.target.closest("[data-contacts-page]");

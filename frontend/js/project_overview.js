@@ -19,7 +19,7 @@ function overviewEnsureStyle() {
   s.textContent = `
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
-    .ov-row.ov-row-r2 { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); }
+    .ov-row.ov-row-r2 { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); }
     .ov-row.ov-row-r3 { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); }
     @media (max-width:1100px) { .ov-row.ov-row-r2, .ov-row.ov-row-r3 { grid-template-columns: 1fr; } }
 
@@ -58,16 +58,10 @@ function overviewEnsureStyle() {
     .ov-card-icon { width:28px; height:28px; border-radius:9px; background:var(--brand-light); color:var(--brand-dark);
       display:inline-flex; align-items:center; justify-content:center; font-size:14.5px; flex:0 0 auto; margin-right:2px; }
     .ov-card h3 > span:first-child { display:inline-flex; align-items:center; gap:10px; }
-    .ov-todo-add-btn { width:26px; height:26px; border-radius:50%; border:none; background:var(--brand-light);
-      color:var(--brand-dark); font-size:16px; font-weight:800; line-height:1; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; transition:all .15s; }
-    .ov-todo-add-btn:hover { background:var(--brand); color:#fff; transform:scale(1.08); }
     .ov-todo-list { display:flex; flex-direction:column; }
     .ov-todo-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); }
     .ov-todo-row:last-child { border-bottom:none; }
     .ov-todo-text { font-size:13px; color:var(--text); line-height:1.5; }
-    .ov-todo-date { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
-    .ov-todo-overdue .ov-todo-date { color:var(--danger); }
 
     .ov-meta-row { display:flex; flex-wrap:wrap; gap:9px 20px; margin-top:10px; }
     .ov-meta-item { font-size:13.5px; color:var(--text-muted); white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
@@ -120,11 +114,25 @@ function overviewEnsureStyle() {
     .ov-metric-clickable:hover, .ov-metric-clickable:focus-visible { background:var(--surface-2); outline:none; }
     .ov-metric-primary.ov-metric-clickable:hover, .ov-metric-primary.ov-metric-clickable:focus-visible { background:var(--surface); border-color:var(--brand); }
 
-    .ov-metric-detail-list { display:flex; flex-direction:column; gap:2px; max-height:60vh; overflow-y:auto; }
-    .ov-metric-detail-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:1px solid var(--border); }
-    .ov-metric-detail-row:last-child { border-bottom:none; }
+    .ov-metric-detail-list { display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; padding:2px; }
+    .ov-metric-detail-row {
+      display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:var(--radius-sm,10px);
+      background:var(--surface-2); border:1px solid transparent; transition:border-color .15s ease, background .15s ease;
+    }
+    .ov-metric-detail-row:hover { border-color:var(--border); background:var(--surface); }
+    .ov-metric-detail-avatar {
+      flex:0 0 auto; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      font-size:14px; font-weight:800; color:#fff; background:var(--text-muted);
+    }
+    .ov-metric-detail-row.tone-agreed .ov-metric-detail-avatar { background:var(--success); }
+    .ov-metric-detail-row.tone-opposed .ov-metric-detail-avatar { background:var(--danger); }
+    .ov-metric-detail-row.tone-undecided .ov-metric-detail-avatar { background:var(--warning); }
+    .ov-metric-detail-main { flex:1; min-width:0; }
     .ov-metric-detail-name { font-weight:700; font-size:14px; }
-    .ov-metric-detail-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .ov-metric-detail-meta { font-size:12px; color:var(--text-muted); margin-top:3px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+    .ov-metric-detail-meta .sep { opacity:.5; }
+    .ov-metric-detail-phone { color:var(--brand-dark); text-decoration:none; font-weight:600; }
+    .ov-metric-detail-phone:hover { text-decoration:underline; }
 
     .ov-member-row { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13.5px; }
     .ov-member-avatar { width:32px; height:32px; border-radius:50%; background:var(--brand-light); color:var(--brand-dark);
@@ -261,12 +269,18 @@ async function _ovOpenMetricDetail(pid, kind) {
   bodyEl.innerHTML = `<div class="ov-metric-detail-list">${matched
     .map((o) => {
       const s = resultBy.get(o.id);
+      const cls = _ovClassifyContactResult(s?.last_contact_result);
       const phone = o.phone_mobile || o.phone_landline || o.phone || "";
       const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "尚無拜訪紀錄";
-      return `<div class="ov-metric-detail-row">
-        <div>
+      const initial = (o.name || "").trim().charAt(0) || "?";
+      return `<div class="ov-metric-detail-row tone-${cls}">
+        <div class="ov-metric-detail-avatar">${escapeHtml(initial)}</div>
+        <div class="ov-metric-detail-main">
           <div class="ov-metric-detail-name">${escapeHtml(o.name)}</div>
-          <div class="ov-metric-detail-meta">${phone ? escapeHtml(phone) + " · " : ""}最近聯絡:${escapeHtml(lastDate)}</div>
+          <div class="ov-metric-detail-meta">
+            ${phone ? `<a class="ov-metric-detail-phone" href="tel:${escapeHtml(phone)}">📞 ${escapeHtml(phone)}</a><span class="sep">·</span>` : ""}
+            <span>🕓 最近聯絡：${escapeHtml(lastDate)}</span>
+          </div>
         </div>
       </div>`;
     })
@@ -300,19 +314,6 @@ function _ovPriorityCls(r) {
   return r.urgent.length ? "pri-urgent" : r.important.length ? "pri-important" : "";
 }
 
-function _ovTodoRowHtml(t, r) {
-  return `<div class="ov-todo-row${t.is_overdue ? " ov-todo-overdue" : ""}">
-    <div class="ov-todo-lead">
-      <span class="ov-todo-mark ${_ovPriorityCls(r)}"></span>
-      <div class="ov-todo-body">
-        <div class="ov-todo-text">${escapeHtml(t.content)}${_ovPriorityChipsHtml(r)}</div>
-        <div class="ov-todo-date">${fmtDate(t.event_date)}${t.is_overdue ? "・已過期" : ""}</div>
-      </div>
-    </div>
-    ${isEditor() ? `<button type="button" class="btn-link btn-sm" data-ov-todo-delete="${t.id}">刪除</button>` : ""}
-  </div>`;
-}
-
 function _ovSopTaskRowHtml(task, r) {
   return `<div class="ov-todo-row">
     <div class="ov-todo-lead">
@@ -323,23 +324,18 @@ function _ovSopTaskRowHtml(task, r) {
 }
 
 // 一個區塊(這階段 / 下階段):SOP 這關還沒完成的項目(自動帶入,不能刪) + 歸在這關的
-// 自訂待辦(行事曆備註)。block 是 overview.stage_tasks.current/next,null = 沒有這一關。
-function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
+// block 是 overview.stage_tasks.current/next,null = 沒有這一關。這張卡片只顯示 SOP
+// 檢核清單本身還沒完成的項目 - 行事曆備註(自訂待辦)改成只在工作看板顯示,不混進
+// 這裡,兩邊資料來源分開,不會讓使用者搞不清楚「這張卡片管的到底是 SOP 進度還是
+// 我隨手記的提醒」。
+function _ovTodoZoneHtml(tagCls, tagText, block, emptyText) {
   const pending = block ? block.tasks.filter((t) => !t.done) : [];
   const stageText = block ? `第${block.index}階段 ${escapeHtml(block.name || "")}` : "";
   const countText = block && block.tasks.length ? `${block.tasks.length - pending.length}/${block.tasks.length} 已完成` : "";
-  // 兩種項目混在一起,依自動判斷的優先度排(緊急+重要 > 緊急 > 重要 > 一般),同級維持原順序
-  // (SOP 項目在前、自訂待辦依日期)。
-  const items = [
-    ...pending.map((task) => {
-      const r = _ovPriorityOf(task);
-      return { r, html: _ovSopTaskRowHtml(task, r) };
-    }),
-    ...customTodos.map((t) => {
-      const r = _ovPriorityOf(t);
-      return { r, html: _ovTodoRowHtml(t, r) };
-    }),
-  ];
+  const items = pending.map((task) => {
+    const r = _ovPriorityOf(task);
+    return { r, html: _ovSopTaskRowHtml(task, r) };
+  });
   items.sort((a, b) => _ovPriorityScore(b.r) - _ovPriorityScore(a.r));
   const rows = items.map((it) => it.html).join("");
   return `
@@ -353,21 +349,15 @@ function _ovTodoZoneHtml(tagCls, tagText, block, customTodos, emptyText) {
     </div>`;
 }
 
-function _ovTodosHtml(todos, stageTasks) {
+function _ovTodosHtml(stageTasks) {
   const cur = stageTasks ? stageTasks.current : null;
   const next = stageTasks ? stageTasks.next : null;
-  // 歸「下階段」的:指定關卡編號比目前這關大的自訂待辦;沒指定(舊資料)或已經輪到的都歸這階段。
-  const isNext = (t) => cur && t.sop_stage != null && t.sop_stage > cur.index;
-  const nowTodos = (todos || []).filter((t) => !isNext(t));
-  const nextTodos = (todos || []).filter(isNext);
   const nowHtml = _ovTodoZoneHtml(
-    "now", "這階段", cur, nowTodos,
+    "now", "這階段", cur,
     cur ? "✓ 這階段的項目都完成了" : stageTasks ? "✓ 所有階段都已完成" : "尚無待辦事項"
   );
   // 沒有下一關(已經是最後一關 / 舊後端沒回 stage_tasks)就不畫下階段區塊。
-  const nextHtml = next
-    ? _ovTodoZoneHtml("next", "下階段", next, nextTodos, "下階段沒有需要準備的項目")
-    : "";
+  const nextHtml = next ? _ovTodoZoneHtml("next", "下階段", next, "下階段沒有需要準備的項目") : "";
   return nowHtml + nextHtml;
 }
 
@@ -380,14 +370,13 @@ async function renderProjectOverviewTab(el) {
   const pid = state.currentProjectId;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
 
-  let overview, members, notes, feed, todos;
+  let overview, members, notes, feed;
   try {
-    [overview, members, notes, feed, todos] = await Promise.all([
+    [overview, members, notes, feed] = await Promise.all([
       api(`/projects/${pid}/overview`),
       api(`/projects/${pid}/members`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/notes`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/activity-feed`, { silent: true }).catch(() => []),
-      api(`/projects/${pid}/overview/todos`, { silent: true }).catch(() => []),
     ]);
   } catch (err) {
     el.innerHTML = `<div class="empty-state">載入失敗</div>`;
@@ -469,11 +458,6 @@ async function renderProjectOverviewTab(el) {
   const weekHint = prev && km.last_week_date ? `<span class="helper-text">本週 vs 上週(至 ${fmtDate(km.last_week_date)})</span>` : "";
 
   const stageTasks = overview.stage_tasks || null;
-  const stageChoices = stageTasks && stageTasks.current
-    ? { current: stageTasks.current, next: stageTasks.next }
-    : null;
-  const todoAddBtn = `<button type="button" class="ov-todo-add-btn" data-ov-todo-add title="新增待辦事項">+</button>`;
-
   el.innerHTML = `
     <div class="ov-grid">
       <div class="ov-row ov-row-r2">
@@ -491,8 +475,8 @@ async function renderProjectOverviewTab(el) {
           </div>
         </div>
         <div class="ov-card">
-          ${_ovCardTitle("✅", "待辦事項", todoAddBtn)}
-          ${_ovTodosHtml(todos, stageTasks)}
+          ${_ovCardTitle("✅", "待辦事項")}
+          ${_ovTodosHtml(stageTasks)}
         </div>
       </div>
 
@@ -501,10 +485,6 @@ async function renderProjectOverviewTab(el) {
         <div class="ov-card">${_ovCardTitle("👥", "相關人員")}${membersHtml}</div>
       </div>
     </div>`;
-
-  el.querySelector("[data-ov-todo-add]")?.addEventListener("click", () => {
-    openAddReminderModal(pid, [{ id: pid, name: proj.name || `案件 ${pid}` }], () => renderProjectOverviewTab(el), stageChoices);
-  });
 
   el.querySelectorAll("[data-ov-metric]").forEach((tile) => {
     const open = () => _ovOpenMetricDetail(pid, tile.dataset.ovMetric);
@@ -517,14 +497,4 @@ async function renderProjectOverviewTab(el) {
     });
   });
 
-  el.querySelectorAll("[data-ov-todo-delete]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("確定要刪除這筆待辦事項嗎?")) return;
-      try {
-        await api(`/dashboard/calendar/${btn.dataset.ovTodoDelete}`, { method: "DELETE" });
-        toast("已刪除", "success");
-        renderProjectOverviewTab(el);
-      } catch (err) { }
-    });
-  });
 }

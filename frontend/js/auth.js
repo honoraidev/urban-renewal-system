@@ -123,7 +123,18 @@ function renderNavUser() {
 
 function closeAvatarDropdown() {
   const dropdown = document.getElementById("avatar-dropdown");
-  if (dropdown) dropdown.classList.add("hidden");
+  if (dropdown) {
+    dropdown.classList.add("hidden");
+    // 開啟時被搬到 document.body 了(見 initAuth 的 avatarBtn 點擊處理)- 關閉時搬回
+    // .avatar-menu 原本的位置,不要留在 body 上占位置。
+    const home = document.querySelector(".avatar-menu");
+    if (dropdown.classList.contains("flyout-detached") && home) {
+      dropdown.classList.remove("flyout-detached");
+      dropdown.style.removeProperty("top");
+      dropdown.style.removeProperty("left");
+      home.appendChild(dropdown);
+    }
+  }
   const avatarBtn = document.getElementById("avatar-btn");
   if (avatarBtn) avatarBtn.setAttribute("aria-expanded", "false");
 }
@@ -143,8 +154,22 @@ function initAuth() {
       e.stopPropagation();
       const dropdown = document.getElementById("avatar-dropdown");
       const isOpen = !dropdown.classList.contains("hidden");
-      dropdown.classList.toggle("hidden", isOpen);
-      avatarBtn.setAttribute("aria-expanded", String(!isOpen));
+      if (isOpen) {
+        closeAvatarDropdown();
+        return;
+      }
+      // 搬到 document.body 下面、改用 position:fixed 貼齊按鈕 - 理由跟
+      // main.js openCardFlyout() 一樣,見 style.css .avatar-dropdown.flyout-detached
+      // 的註解:.sb 的 overflow-x:hidden 會把留在原地的下拉選單裁到看不見文字。
+      document.body.appendChild(dropdown);
+      dropdown.classList.add("flyout-detached");
+      dropdown.classList.remove("hidden");
+      const r = avatarBtn.getBoundingClientRect();
+      dropdown.style.left = `${r.left}px`;
+      dropdown.style.top = `${r.top - dropdown.offsetHeight - 10}px`;
+      const overflowRight = dropdown.getBoundingClientRect().right - window.innerWidth;
+      if (overflowRight > 0) dropdown.style.left = `${r.left - overflowRight - 8}px`;
+      avatarBtn.setAttribute("aria-expanded", "true");
     });
   }
 

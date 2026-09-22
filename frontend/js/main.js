@@ -48,12 +48,72 @@ function bootstrapApp() {
   } catch (e) { }
   applySidebarCollapsed(savedSidebarCollapsed === "1");
 
+  // 整個側邊欄收合成圖示列時,案件管理／工具與資源／系統指南底下的子項目本來就被
+  // 強制隱藏(見 style.css `.sb.collapsed .sb-card-body`)。點圖示不展開整條側邊欄,
+  // 而是在圖示旁邊彈出一個浮窗顯示子項目(不佔用主畫面寬度,點別處/Esc/選了項目
+  // 就關掉),跟頭像選單那類浮動選單同樣模式。
+  //
+  // .sb-card-body 不能直接在原地用 position:fixed 定位 —— .sb 本身有
+  // backdrop-filter(見 .sb 規則),CSS 規範裡 filter/backdrop-filter 的祖先會幫底下
+  // position:fixed 的子孫另建一個「包含區塊」,子孫的 fixed 定位會被限制在那個祖先
+  // 的方框裡、被它的 overflow 裁切掉 —— 踩過這個坑:硬套 !important position:fixed
+  // 還是被收合後只剩 56px 寬、overflow-x:hidden 的 .sb 裁到只剩一條看不到的縫。
+  // 真正的解法是把這個節點直接「搬」到 document.body 下面(不是複製一份 - 複製會把
+  // 案件清單/子選單原本綁好的 click 監聽器弄丟),徹底脫離 .sb 這個包含區塊;關閉時
+  // 再搬回原本的 .sb-card 裡面,版面照舊。
+  let openCardFlyoutCard = null;
+  let openCardFlyoutBody = null;
+  const closeCardFlyout = () => {
+    if (!openCardFlyoutBody) return;
+    openCardFlyoutBody.classList.remove("sb-flyout-panel");
+    openCardFlyoutBody.style.removeProperty("top");
+    openCardFlyoutBody.style.removeProperty("left");
+    openCardFlyoutCard?.appendChild(openCardFlyoutBody);
+    openCardFlyoutCard = null;
+    openCardFlyoutBody = null;
+  };
+  document.addEventListener("click", (e) => {
+    if (openCardFlyoutBody && !e.target.closest(".sb-flyout-panel") && !e.target.closest("[data-sb-card-toggle]")) {
+      closeCardFlyout();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && openCardFlyoutBody) closeCardFlyout();
+  });
+  window.addEventListener("scroll", () => { if (openCardFlyoutBody) closeCardFlyout(); }, true);
+
   // 側欄「案件管理／工具與資源／系統指南」卡片各自可收合(點標題列),不記憶狀態 -
   // 每次重新整理都是展開的,跟畫面上一開始看到的樣子一致。
   document.querySelectorAll("[data-sb-card-toggle]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btn.closest(".sb-card")?.classList.toggle("sb-card-collapsed");
+    btn.addEventListener("click", (e) => {
+      const card = btn.closest(".sb-card");
+      if (sb?.classList.contains("collapsed")) {
+        e.stopPropagation();
+        const wasOpenForThis = openCardFlyoutCard === card;
+        closeCardFlyout();
+        if (wasOpenForThis) return; // 再點一次同一顆 = 關閉
+        const body = card?.querySelector(".sb-card-body");
+        if (!body || !card) return;
+        document.body.appendChild(body);
+        body.classList.add("sb-flyout-panel");
+        const r = btn.getBoundingClientRect();
+        body.style.left = `${r.right + 8}px`;
+        body.style.top = `${r.top}px`;
+        // offsetHeight 要等上面那行套用完 position:fixed 才量得準 - 讀取本身會
+        // 強制瀏覽器立即reflow,不用另外等下一輪事件循環。
+        body.style.top = `${Math.min(r.top, window.innerHeight - body.offsetHeight - 12)}px`;
+        openCardFlyoutCard = card;
+        openCardFlyoutBody = body;
+        return;
+      }
+      card?.classList.toggle("sb-card-collapsed");
     });
+  });
+  // 浮窗裡點了任一項目(案件/工具與資源子項目)就收起浮窗
+  document.addEventListener("click", (e) => {
+    if (openCardFlyoutBody && e.target.closest(".sb-flyout-panel .nav-link, .sb-flyout-panel .sb-case-item")) {
+      closeCardFlyout();
+    }
   });
 
   document.querySelectorAll(".nav-link").forEach((btn) => {

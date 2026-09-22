@@ -150,11 +150,40 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     return t;
   };
 
+  // 「持分類型」:只有土地 / 只有建物 / 土地+建物都有
+  const shareTypeTokens = (o) => {
+    const hasLand = (o.land_records || []).length > 0;
+    const hasBld = (o.building_records || []).length > 0;
+    if (hasLand && hasBld) return ["both"];
+    if (hasLand) return ["land_only"];
+    if (hasBld) return ["building_only"];
+    return [];
+  };
+
+  // 「地號段別」:一筆土地的段+小段(如「中正段一小段」);一位地主可能橫跨多筆,
+  // 篩選時只要其中一筆符合勾選的段別就算命中。
+  const sectionOf = (r) => `${r.section || ""}${r.subsection || ""}`;
+  const sectionTokens = (o) => [...new Set((o.land_records || []).map(sectionOf).filter(Boolean))];
+
+  // 「樓層範圍」:一位地主名下建物涵蓋到的樓層(沿用「樓層」欄同一套 _floorLabelOf)。
+  const floorTokens = (o) => [...new Set((o.building_records || []).map(_floorLabelOf).filter(Boolean))];
+
+  // 篩選下拉的選項清單依目前這份清冊實際出現過的段別/樓層動態產生,而不是寫死 -
+  // 不同案件、甚至同案件不同時間點涵蓋的地號段別、樓層範圍都不一樣。
+  const sectionOptionSet = new Set();
+  const floorOptionSet = new Set();
+  allRows.forEach((o) => {
+    sectionTokens(o).forEach((s) => sectionOptionSet.add(s));
+    floorTokens(o).forEach((f) => floorOptionSet.add(f));
+  });
+  const sectionOptions = [...sectionOptionSet].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const floorOptions = [...floorOptionSet].sort((a, b) => _floorSortKey(b) - _floorSortKey(a));
+
   const ddHtml = (id, label, opts) => `
-    <details class="integ-filter" style="position:relative">
-      <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">${label} ▾</summary>
-      <div id="${id}" style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px">
-        ${opts.map((o) => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="checkbox" value="${o.v}" style="width:auto">${o.t}</label>`).join("")}
+    <details class="integ-filter">
+      <summary>${label}<span class="integ-filter-badge" id="${id}-badge"></span></summary>
+      <div id="${id}" class="integ-filter-panel">
+        ${opts.map((o) => `<label><input type="checkbox" value="${o.v}">${o.t}</label>`).join("")}
       </div>
     </details>`;
 
@@ -197,6 +226,11 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         ${ddHtml("integ-visit-dd", "聯絡結果", [
           { v: "linked", t: "已連繫" }, { v: "pending", t: "待聯繫" },
         ])}
+        ${ddHtml("integ-share-dd", "持分類型", [
+          { v: "land_only", t: "只有土地" }, { v: "building_only", t: "只有建物" }, { v: "both", t: "土地+建物" },
+        ])}
+        ${sectionOptions.length ? ddHtml("integ-section-dd", "地號段別", sectionOptions.map((s) => ({ v: s, t: s }))) : ""}
+        ${floorOptions.length ? ddHtml("integ-floor-dd", "樓層範圍", floorOptions.map((f) => ({ v: f, t: f }))) : ""}
       </div>
     </div>
     <div class="enc-stat-row">
@@ -380,15 +414,24 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   const getFiltered = () => {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
     const vt = checked("integ-visit-dd");
+    const st = checked("integ-share-dd");
+    const sec = checked("integ-section-dd");
+    const fl = checked("integ-floor-dd");
     return allRows.filter((o) => {
-      if (!q && !vt.length) return true;
+      if (!q && !vt.length && !st.length && !sec.length && !fl.length) return true;
       const lr = o.land_records || [];
       const br = o.building_records || [];
       const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
       const okSearch = !q || hay.includes(q);
       const rowVt = contactTokens(o);
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
-      return okSearch && okVt;
+      const rowSt = shareTypeTokens(o);
+      const okSt = !st.length || st.some((x) => rowSt.includes(x));
+      const rowSec = sectionTokens(o);
+      const okSec = !sec.length || sec.some((x) => rowSec.includes(x));
+      const rowFl = floorTokens(o);
+      const okFl = !fl.length || fl.some((x) => rowFl.includes(x));
+      return okSearch && okVt && okSt && okSec && okFl;
     });
   };
 
@@ -458,20 +501,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   });
   el.querySelectorAll(".integ-filter input").forEach((cb) =>
     cb.addEventListener("change", () => {
+      updateFilterBadge(cb.closest(".integ-filter-panel").id);
       integUi.page = 1;
       renderBody();
     })
   );
-  // 一次只開一個篩選面板,避免兩個面板重疊
-  const integDetails = [...el.querySelectorAll("details.integ-filter")];
-  integDetails.forEach((d) => {
-    d.addEventListener("toggle", () => {
-      if (d.open) integDetails.forEach((o) => { if (o !== d) o.open = false; });
-    });
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
-  });
+  wireFilterPillMutex(el);
 
   el.querySelector("#integ-foot").addEventListener("click", (e) => {
     const pg = e.target.closest("[data-integ-page]");

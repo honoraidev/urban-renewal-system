@@ -42,8 +42,22 @@ function encDropdownHtml(triggerHtml, panelInnerHtml) {
       <button type="button" class="enc-addr-toggle" data-enc-dd-toggle="${id}">${triggerHtml}</button>
     </span><template id="${id}-tpl">${panelInnerHtml}</template>`;
 }
+// 目前開著的面板所屬的觸發按鈕 - 捲動時要靠它重新算 rect,見 _repositionEncDd()。
+let _encDdOpenBtn = null;
 function _closeEncDd() {
   document.getElementById("enc-dd-panel")?.remove();
+  _encDdOpenBtn = null;
+}
+// 把面板貼到觸發按鈕正下方(螢幕座標,position:fixed) - 開啟當下呼叫一次定位,
+// 捲動時(見下面 scroll 監聽)重新呼叫一次讓面板跟著按鈕移動,而不是貼死在原本的
+// 螢幕座標不動、被捲走的按鈕拋在後面。
+function _repositionEncDd(panel, btn) {
+  const rect = btn.getBoundingClientRect();
+  panel.style.left = `${rect.left}px`;
+  panel.style.top = `${rect.bottom + 6}px`;
+  // 面板可能超出視窗右邊,往左移到剛好貼齊視窗邊緣。
+  const overflowRight = panel.getBoundingClientRect().right - window.innerWidth;
+  if (overflowRight > 0) panel.style.left = `${rect.left - overflowRight - 8}px`;
 }
 function wireEncDropdowns(container) {
   container.querySelectorAll("[data-enc-dd-toggle]").forEach((btn) => {
@@ -56,26 +70,40 @@ function wireEncDropdowns(container) {
       if (wasOpenForThis) return; // 再點一次同一顆 = 關閉
       const tpl = document.getElementById(`${id}-tpl`);
       if (!tpl) return;
-      const rect = btn.getBoundingClientRect();
       const panel = document.createElement("div");
       panel.id = "enc-dd-panel";
       panel.className = "enc-addr-dd-panel";
       panel.dataset.forId = id;
-      panel.style.top = `${rect.bottom + 6}px`;
-      panel.style.left = `${rect.left}px`;
       panel.innerHTML = tpl.innerHTML;
       document.body.appendChild(panel);
-      // 面板可能超出視窗右邊,往左移到剛好貼齊視窗邊緣。
-      const overflowRight = panel.getBoundingClientRect().right - window.innerWidth;
-      if (overflowRight > 0) panel.style.left = `${rect.left - overflowRight - 8}px`;
+      _encDdOpenBtn = btn;
+      _repositionEncDd(panel, btn);
     });
   });
 }
-// 這個全域點擊監聽只需要掛一次(不是每次 renderBody 都掛),放在 module 層級靠
+// 這兩個全域監聽只需要掛一次(不是每次 renderBody 都掛),放在 module 層級靠
 // IIFE 執行一次即可,重複掛一堆同樣的監聽器沒有意義還浪費效能。
 document.addEventListener("click", (e) => {
   if (!e.target.closest("[data-enc-dd-toggle]") && !e.target.closest("#enc-dd-panel")) _closeEncDd();
 });
+// 面板是 position:fixed 貼在螢幕座標,不會跟著頁面捲動自動移動 - 捲動時重新算一次
+// 觸發按鈕目前的螢幕座標,讓面板跟著按鈕(連同整列)一起移動,而不是留在原地飄走。
+// 按鈕如果被捲到不在畫面上了(closest 表格容器捲出可視範圍)就直接關掉,沒有按鈕
+// 可以貼、留著也沒意義。scroll 事件不會冒泡,用 capture 才抓得到表格內層
+// (.table-wrap overflow-x:auto)那種巢狀捲動容器的捲動。
+window.addEventListener(
+  "scroll",
+  () => {
+    const panel = document.getElementById("enc-dd-panel");
+    if (!panel || !_encDdOpenBtn) return;
+    if (!_encDdOpenBtn.isConnected || !_encDdOpenBtn.offsetParent) {
+      _closeEncDd();
+      return;
+    }
+    _repositionEncDd(panel, _encDdOpenBtn);
+  },
+  true
+);
 
 // 純地址字串裡抓「幾樓/地下幾層」- 跟 landowners.js 的 _floorLabelOf 邏輯一樣,但
 // 那個吃的是完整 building_record 物件(優先讀 .floor 欄位),這裡手上只有從
@@ -306,17 +334,17 @@ async function renderEncumbrancesTab(el) {
       <h3 class="section-hero-title"><span class="hero-ic">📋</span>他項權利部 (${encumbrances.length})</h3>
       <div class="hero-search">${BV_ICON.search}<input type="search" id="encumbrance-search" placeholder="搜尋地號/門牌/權利種類/權利人..."></div>
       ${rightTypeCats.length
-      ? `<details class="integ-filter" style="position:relative">
-              <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">🔽 更多篩選 ▾</summary>
-              <div style="position:absolute;z-index:20;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;right:0">
-                <div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px">權利種類</div>
+      ? `<details class="integ-filter">
+              <summary>更多篩選<span class="integ-filter-badge${encUi.rightType ? " show" : ""}" id="enc-filter-badge">${encUi.rightType ? "1" : ""}</span></summary>
+              <div class="integ-filter-panel" style="right:0">
+                <div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;padding:0 8px">權利種類</div>
                 ${rightTypeCats
         .map(
           (t) =>
-            `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap"><input type="radio" name="enc-right-type" value="${escapeHtml(t)}" style="width:auto"${encUi.rightType === t ? " checked" : ""}>${escapeHtml(t)}</label>`
+            `<label><input type="radio" name="enc-right-type" value="${escapeHtml(t)}"${encUi.rightType === t ? " checked" : ""}>${escapeHtml(t)}</label>`
         )
         .join("")}
-                <label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;white-space:nowrap;border-top:1px solid var(--border);margin-top:4px;padding-top:6px"><input type="radio" name="enc-right-type" value="" style="width:auto"${encUi.rightType ? "" : " checked"}>全部</label>
+                <label style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px"><input type="radio" name="enc-right-type" value=""${encUi.rightType ? "" : " checked"}>全部</label>
               </div>
             </details>`
       : ""
@@ -423,20 +451,19 @@ async function renderEncumbrancesTab(el) {
   el.querySelectorAll('input[name="enc-right-type"]').forEach((r) => {
     r.addEventListener("change", () => {
       encUi.rightType = r.value;
+      // 單選(非複選),徽章只需要「有沒有選特定種類」而不是計數 - 選「全部」(空值)
+      // 就藏起來,跟 updateFilterBadge() 那套「算 checked 幾個」的複選語意不一樣,
+      // 這裡自己切。
+      const badge = document.getElementById("enc-filter-badge");
+      if (badge) {
+        badge.textContent = r.value ? "1" : "";
+        badge.classList.toggle("show", !!r.value);
+      }
       encUi.page = 1;
       renderBody();
     });
   });
-  // 一次只開一個篩選面板
-  const encDetails = [...el.querySelectorAll("details.integ-filter")];
-  encDetails.forEach((d) => {
-    d.addEventListener("toggle", () => {
-      if (d.open) encDetails.forEach((o) => { if (o !== d) o.open = false; });
-    });
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".integ-filter")) encDetails.forEach((d) => (d.open = false));
-  });
+  wireFilterPillMutex(el);
 
   document.getElementById("encumbrance-foot").addEventListener("click", (e) => {
     const pg = e.target.closest("[data-enc-page]");

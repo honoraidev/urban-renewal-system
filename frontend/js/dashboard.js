@@ -161,7 +161,14 @@ async function restoreLastView() {
     await loadDashboard();
   } catch (e) { /* 個別畫面自己會處理載入失敗,這裡失敗不影響後面的畫面復原 */ }
 
-  if (!saved || !saved.view || saved.view === "view-dashboard") {
+  // 完全沒有存過快照(第一次登入、或剛登出清過 sessionStorage)才走這條預設路徑,
+  // 落地在工作看板;saved.view 明確是 view-dashboard 的話,代表使用者上次就是停在
+  // 案件一覽重新整理,維持原樣退回那頁,不要被這裡的登入預設值蓋過去。
+  if (!saved || !saved.view) {
+    await goToMyWork();
+    return;
+  }
+  if (saved.view === "view-dashboard") {
     setActiveNav("dashboard");
     showView("view-dashboard");
     return;
@@ -300,6 +307,11 @@ function renderSidebarProjects(projects) {
 
   wrap.querySelectorAll(".sb-cg-head").forEach((el) => {
     el.addEventListener("click", () => {
+      // 側邊欄收合成圖示列時,案件清單是搬到浮窗裡顯示的(見 main.js
+      // openCardFlyout())- 城市分組沒必要在那個小浮窗裡還能收合/展開,固定全部
+      // 展開、標題列也不用做成看起來可以點的樣子(見 style.css
+      // .sb.collapsed #sb-cases .sb-cg-head)。
+      if (document.querySelector(".sb")?.classList.contains("collapsed")) return;
       const city = el.dataset.city;
       if (expandedSidebarCities.has(city)) expandedSidebarCities.delete(city);
       else expandedSidebarCities.add(city);
@@ -889,10 +901,13 @@ async function goToProjectOverviewPage(id) {
     state.currentProject = project;
     const nameEl = document.getElementById("pov-name");
     const badgeEl = document.getElementById("pov-status-badge");
+    const crumbNameEl = document.getElementById("pov-crumb-name");
     if (nameEl) {
       nameEl.textContent = project.name;
       nameEl.title = `${project.name} (${project.project_code})`;
     }
+    if (crumbNameEl) crumbNameEl.textContent = project.name;
+    _setCrumbCity("pov", project.city);
     if (badgeEl) {
       badgeEl.innerHTML =
         `<span class="status-badge status-${project.status}">${PROJECT_STATUS_LABEL[project.status] || project.status}</span>` +
@@ -942,10 +957,23 @@ async function openProject(id, defaultTab = "sop") {
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
 }
 
+// 麵包屑的「城市」那一段 - 跟側欄「案件管理」清單同一套依城市分組的邏輯,city 沒填
+// (舊資料/測試案件)就整段連分隔線一起藏起來,不留一個空的「›」。
+function _setCrumbCity(prefix, city) {
+  const cityEl = document.getElementById(`${prefix}-crumb-city`);
+  const sepEl = document.getElementById(`${prefix}-crumb-city-sep`);
+  if (!cityEl) return;
+  const hasCity = !!city;
+  cityEl.textContent = city || "";
+  cityEl.classList.toggle("hidden", !hasCity);
+  sepEl?.classList.toggle("hidden", !hasCity);
+}
+
 function renderProjectHeader(p) {
   const nameEl = document.getElementById("pd-name");
   const subEl = document.getElementById("pd-sub");
   const badgeEl = document.getElementById("pd-status-badge");
+  const crumbNameEl = document.getElementById("pd-crumb-name");
 
   if (nameEl) {
     const fullName = `${p.name} (${p.project_code})${p.description ? ` · ${p.description}` : ""}`;
@@ -954,6 +982,9 @@ function renderProjectHeader(p) {
     // - 補個 title 屬性,滑鼠移上去還是看得到完整名稱。
     nameEl.title = fullName;
   }
+  // 麵包屑第三段只放案件名稱(不含案號/備註),太長的完整版留給 h2 標題那行顯示就好。
+  if (crumbNameEl) crumbNameEl.textContent = p.name;
+  _setCrumbCity("pd", p.city);
   if (subEl) subEl.textContent = [p.district, p.address].filter(Boolean).join(" · ") || "—";
   if (badgeEl) {
     badgeEl.innerHTML =
@@ -1037,15 +1068,24 @@ function initDashboard() {
   // 建立都更案 is now a modal (see goToNewProject) - its city/district/submit
   // handlers are wired when the modal opens, not here.
 
-  const backToDashboardDetailBtn = document.getElementById("back-to-dashboard");
-  if (backToDashboardDetailBtn) {
-    backToDashboardDetailBtn.addEventListener("click", goToDashboard);
-  }
-
-  const backToDashboardOverviewBtn = document.getElementById("back-to-dashboard-from-overview");
-  if (backToDashboardOverviewBtn) {
-    backToDashboardOverviewBtn.addEventListener("click", goToDashboard);
-  }
+  // 麵包屑「首頁」連結(案件管理分頁頁/功能區/使用手冊) - 統一跳去工作看板,跟其他
+  // 資源頁(公版文件/新聞/FAQ...)那排 crumb-home 同一套模式跟目的地。
+  ["pdet-crumb-home", "pov-crumb-home", "tools-crumb-home", "manual-crumb-home"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToMyWork();
+    });
+  });
+  // 麵包屑中間那段(案件管理分頁頁顯示「案件管理」,跟側欄卡片同名;案件總覽頁顯示
+  // 「都更案件進度總覽」,跟側欄 nav-link 同名 - 兩邊文字不同,對應各自的入口,但都
+  // 是同一份「案件一覽」清單,連結目的地一樣) - 跳去 dashboard 首頁 view-dashboard
+  // (原本 goToDashboard() 的落地頁)。
+  ["pdet-crumb-cases", "pov-crumb-cases"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToDashboard();
+    });
+  });
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchProjectTab(btn.dataset.tab));

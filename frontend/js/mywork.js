@@ -53,9 +53,26 @@ function myWorkEnsureStyle() {
     .mw-act-scroll { max-height:172px; overflow-y:auto; }
     .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px;
       white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
-    .mw-daydetail-ev { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
-    .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:4px; display:flex; gap:8px; }
+    .mw-daydetail-ev { background:var(--surface-2); border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-sm,8px); padding:10px 12px; margin-bottom:8px; transition:border-color .15s ease; }
+    .mw-daydetail-ev:hover { border-color:var(--brand,#0d9488); }
+    .mw-ev-content { font-size:14.5px; font-weight:600; color:var(--text); line-height:1.5; }
+    .mw-daydetail-ev .meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .mw-ev-tag-group { display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
+    .mw-ev-tag { flex:0 0 auto; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; background:#e0f2fe; color:#075985; white-space:nowrap; }
+    .mw-ev-tag.proj { background:#dcfce7; color:#15803d; }
+    .mw-ev-creator { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mw-ev-actions { flex:0 0 auto; display:flex; gap:2px; }
+    .mw-ev-actions .btn-link { padding:2px 6px; font-size:12.5px; text-decoration:none; }
+    .mw-ev-actions .btn-link:hover { text-decoration:underline; }
+    .mw-ev-actions .mw-ev-del { color:var(--danger,#dc2626); }
     .mw-ev-time { font-size:11.5px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--surface-2,#f1f5f9); color:var(--text-muted,#6b7280); }
+    .mw-add-row { display:flex; gap:8px; }
+    .mw-add-row select { flex:1.5; margin-bottom:8px; }
+    .mw-add-row input[type=time] { flex:1; margin-bottom:8px; }
+    @media (max-width:480px) { .mw-add-row { flex-direction:column; gap:0; } }
+    .mw-ev-important-row { display:flex; align-items:flex-start; gap:8px; cursor:pointer; margin-top:8px; font-size:13px; font-weight:600; color:var(--text); text-transform:none; letter-spacing:normal; }
+    .mw-ev-important-row input[type=checkbox] { width:auto; margin-top:2px; accent-color:var(--brand,#0d9488); }
+    .mw-ev-important-row .helper-text { font-weight:400; }
   `;
   document.head.appendChild(s);
 }
@@ -205,7 +222,7 @@ function renderMyWork() {
         </div>
         <div class="mw-card mw-board">
           <div class="mw-board-head">
-            <h3>📋 公告 / 進度通知</h3>
+            <h3>📋 提醒事項</h3>
             <span class="helper-text">今日提醒</span>
           </div>
           <div class="mw-board-body">${actList}</div>
@@ -255,7 +272,7 @@ function renderMyWork() {
 function openMyWorkDay(dateIso, events) {
   const opts = myWorkState.data.project_options || [];
   const projectSelect = `
-    <select id="mw-ev-project" style="margin-bottom:8px">
+    <select id="mw-ev-project">
       <option value="">個人（只有自己看得到）</option>
       ${opts.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}（案件成員共用）</option>`).join("")}
     </select>`;
@@ -266,11 +283,13 @@ function openMyWorkDay(dateIso, events) {
     <div class="mw-daydetail-ev" data-ev-id="${e.id}">
       <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}</span> ` : ""}${e.is_important ? "⭐ " : ""}${escapeHtml(e.content)}</div>
       <div class="meta">
-        <span>${e.project_name ? "🟢 " + escapeHtml(e.project_name) : "🔵 個人"}</span>
-        ${e.created_by_name ? `<span>· ${escapeHtml(e.created_by_name)}</span>` : ""}
+        <div class="mw-ev-tag-group">
+          <span class="mw-ev-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
+          ${e.created_by_name ? `<span class="mw-ev-creator">${escapeHtml(e.created_by_name)}</span>` : ""}
+        </div>
         ${
           e.can_edit
-            ? `<a href="#" data-mw-edit="${e.id}">編輯</a><a href="#" data-mw-del="${e.id}" style="color:var(--danger,#dc2626)">刪除</a>`
+            ? `<div class="mw-ev-actions"><a href="#" class="btn-link" data-mw-edit="${e.id}">編輯</a><a href="#" class="btn-link mw-ev-del" data-mw-del="${e.id}">刪除</a></div>`
             : ""
         }
       </div>
@@ -286,12 +305,14 @@ function openMyWorkDay(dateIso, events) {
       <hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:12px 0">
       <div class="field">
         <label>新增待辦</label>
-        ${projectSelect}
-        <input type="time" id="mw-ev-time" style="margin-bottom:8px" title="時間(選填)">
+        <div class="mw-add-row">
+          ${projectSelect}
+          <input type="time" id="mw-ev-time" title="時間(選填)">
+        </div>
         <textarea id="mw-ev-text" rows="3" placeholder="這天要做什麼..."></textarea>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;font-size:13px">
-          <input type="checkbox" id="mw-ev-important" style="width:auto">
-          <span>標記為重要(會出現在今日重要待辦鈴鐺提醒)</span>
+        <label class="mw-ev-important-row">
+          <input type="checkbox" id="mw-ev-important">
+          <span>標記為重要 <span class="helper-text">(會出現在今日重要待辦鈴鐺提醒)</span></span>
         </label>
       </div>
       <div class="modal-footer">

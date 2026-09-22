@@ -285,7 +285,6 @@
     .sb.collapsed .brand-icon-logo { display: block; height: 26px; width: auto; }
     .sb.collapsed .brand-text,
     .sb.collapsed .sb-sec,
-    .sb.collapsed #sb-cases,
     .sb.collapsed .nav-link-label,
     .sb.collapsed .sb-card-title,
     .sb.collapsed .sb-card-chev,
@@ -300,8 +299,38 @@
        有邊框的卡片會很擠。 */
     .sb.collapsed .sb-card { margin: 0; border: none; box-shadow: none; background: none; }
     .sb.collapsed .sb-card-head { padding: 8px 0; justify-content: center; }
-    .sb.collapsed .sb-card-body { padding: 0 8px; }
+    /* 卡片底下的子項目(公版文件/新聞...等)沒有各自的圖示,收合後標籤跟箭頭都被隱藏,
+       會變成一排看不出內容、疊在一起的空白按鈕,整組隱藏,收合狀態下只留卡片本身的
+       圖示;點圖示改成彈出浮窗(見下面 .sb-flyout-open)顯示子項目,不用整條展開。 */
+    .sb.collapsed .sb-card-body { display: none; }
+    /* #sb-cases 自己有一條 `#sb-cases { display:flex }`(下面),ID 選擇器優先級比
+       上面兩個 class 疊加的 `.sb.collapsed .sb-card-body` 高,單靠那條蓋不掉,案件
+       清單收合時還是會冒出來,要多這條「class+ID」(優先級比單獨 #sb-cases 高)才蓋得掉。 */
+    .sb.collapsed #sb-cases { display: none; }
+
   }
+  /* 收合狀態下點卡片圖示彈出的浮窗(main.js openCardFlyout())。.sb 本身有
+     backdrop-filter(見上面 .sb 規則),CSS 規範裡 filter/backdrop-filter 的祖先元素
+     會幫底下 position:fixed 的子孫另外建一個「包含區塊」,子孫的 fixed 定位會被限制
+     在那個祖先的方框裡、被它的 overflow 裁切 —— 一開始就是栽在這:.sb-card-body 還
+     留在 .sb 底下用 !important 硬套 position:fixed,結果整個浮窗被收合後只剩 56px寬
+     又 overflow-x:hidden 的 .sb 裁到只剩一條看不太到的縫。真正的解法是讓 JS 直接把
+     .sb-card-body 這個節點「搬」到 document.body 下面(不是複製一份 - 複製會把
+     案件清單/子選單原本綁好的 click 監聽器全部弄丟),徹底脫離 .sb 這個包含區塊,
+     這裡才用得上乾淨的 position:fixed,不用再跟 !important、被裁切的問題打架。
+     關閉浮窗時 main.js 會把節點搬回 .sb-card 裡面,版面照舊。 */
+  .sb-flyout-panel {
+    display: flex; flex-direction: column; position: fixed; z-index: 60;
+    width: 240px; max-height: 70vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius, 12px);
+    box-shadow: var(--shadow-modal); padding: 8px; margin: 0;
+    animation: modal-in .16s cubic-bezier(.22,1,.36,1);
+  }
+  /* 浮窗裡的項目要恢復成正常「圖示+文字」清單樣式,不是收合列那種置中純圖示 -
+     搬出 .sb 之後不再吃得到 .sb.collapsed .nav-link 那組置中規則,但保險起見還是
+     明講一次,不依賴「反正離開 .sb 就沒事」這種隱含假設。 */
+  .sb-flyout-panel .nav-link { text-align: left; padding: 8px 10px; justify-content: flex-start; }
+  .sb-flyout-panel .nav-link-label, .sb-flyout-panel .sb-chev { display: inline-flex; }
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
   .navbar .brand .brand-text {
@@ -379,6 +408,12 @@
   }
   .sb-cg-arrow { font-size: 12px; color: var(--text-muted); transition: transform .2s; }
   .sb-cg-arrow.open { transform: rotate(180deg); }
+  /* 側邊欄收合成圖示列、案件清單搬到浮窗裡顯示時(見 main.js openCardFlyout(),
+     dashboard.js renderSidebarProjects 的點擊防呆),城市分組不能再收合/展開,標題
+     列也不做成看起來可以點的樣子 - 藏箭頭、拿掉手指游標跟 hover 反白。 */
+  .sb-flyout-panel .sb-cg-head { cursor: default; }
+  .sb-flyout-panel .sb-cg-head:hover { background: none; }
+  .sb-flyout-panel .sb-cg-arrow { display: none; }
   .sb-cg-items { overflow: hidden; max-height: 0; transition: max-height .25s ease; }
   .sb-cg-items.open { max-height: 800px; }
   .sb-case-item {
@@ -419,6 +454,13 @@
     box-shadow: var(--shadow-modal); padding: 6px; display: flex; flex-direction: column; gap: 2px;
     animation: modal-in .16s cubic-bezier(.22,1,.36,1);
   }
+  /* 側邊欄收合成 56px 圖示列時 .sb 有 overflow-x:hidden(見 .sb.collapsed),原本
+     position:absolute 貼著 .avatar-menu 的下拉選單會被裁到看不見文字內容,跟
+     .sb-flyout-panel(main.js openCardFlyout)踩到的是同一類問題,同樣的解法:開啟時
+     把 #avatar-dropdown 這個節點搬到 document.body 下面,套這個 modifier class 改用
+     position:fixed + JS 算好的 top/left(見 auth.js),徹底脫離 .sb 的裁切範圍;關閉時
+     搬回 .avatar-menu 原位,不留在 body 上占位。 */
+  .avatar-dropdown.flyout-detached { position: fixed; bottom: auto; }
   .avatar-dropdown-header { padding: 10px 10px 8px; }
   .avatar-dropdown-name { font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 6px; }
   .avatar-dropdown-divider { border-top: 1px solid var(--border); margin: 4px 2px; }
@@ -612,10 +654,9 @@
   #view-project-overview .pd-top-grid { grid-template-columns: 1fr; }
   @media (max-width: 900px) { .pd-top-grid { grid-template-columns: 1fr; } }
   .pd-top-left { display: flex; flex-direction: column; }
-  /* 返回鈕維持貼齊最上面,標題+meta 這組當成一體垂直置中在剩餘高度中間,不要貼
-     在最上面、下面留一大片空白(右欄的案件簡介卡片通常比這欄內容高很多)。 */
-  #view-project-overview .pd-top-left { position: relative; justify-content: center; padding-top: 30px; }
-  #view-project-overview .pd-top-left .back-link { position: absolute; top: 0; left: 0; }
+  /* 標題+meta 這組當成一體垂直置中在剩餘高度中間,不要貼在最上面、下面留一大片
+     空白(右欄的案件簡介卡片通常比這欄內容高很多)。 */
+  #view-project-overview .pd-top-left { justify-content: center; }
   /* 階段進度橫幅放在 meta 列(地點/編號/日期/主管)正下方、左欄內 - 空間比整頁寬窄,
      圓環與字級縮小一點,10 個關卡才排得進一行(排不下時橫向捲動)。 */
   #view-project-overview .pd-top-left .ov-stage-band { margin: 16px 0 0; padding: 6px 0; border-radius: 0; background: transparent; border-color: transparent; box-shadow: none; }
@@ -631,9 +672,8 @@
   /* 整體進度縮小成右下角浮動的小圓環,疊在案件簡介卡片上,不用另外佔一整欄 */
   .pd-top-donut { position: absolute; right: 14px; bottom: 14px; z-index: 1; }
   .pd-top-line1 { display: flex; align-items: center; gap: 12px; }
-  .pd-top-left .back-link { margin-bottom: 0; }
-  /* 標題區在返回列下面撐滿剩餘高度、垂直置中 - 讓案名/區域文字落在返回列與下方
-     SOP 進度列的正中間,不會因為右邊公告卡片較高而整塊貼在最上面。 */
+  /* 標題區撐滿剩餘高度、垂直置中 - 讓案名/區域文字落在狀態列與下方 SOP 進度列的
+     正中間,不會因為右邊公告卡片較高而整塊貼在最上面。 */
   .pd-top-left .project-header { flex: 1; align-items: center; margin-bottom: 0; }
   .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; min-width: 0; }
   .project-header > div { min-width: 0; max-width: 100%; }
@@ -680,6 +720,42 @@
     background: color-mix(in srgb, var(--brand) 12%, transparent);
     color: var(--brand-dark, var(--brand)); font-weight: 700;
   }
+
+  /* 複選篩選下拉(整合清冊/地主聯絡簿/他項權利部共用)- 原本是每個頁面各自複製一份
+     inline style 的小膠囊按鈕(細邊框、13px 字),跟土增稅頁 .lv-select 那組圓角+陰影+
+     自訂箭頭的下拉選單風格不一致。統一改成同一套 details/summary 視覺,尺寸對齊同一
+     排的 .hero-search(46px 高、12px 圓角),選了幾項會在按鈕上冒出品牌色數字徽章
+     (.integ-filter-badge,同一排選單開合互斥的邏輯不變,各頁 JS 沒有變動)。 */
+  .integ-filter { position: relative; }
+  .integ-filter > summary {
+    list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    height: 46px; padding: 0 16px; border-radius: 12px; font-size: 14.5px; font-weight: 600;
+    color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+    white-space: nowrap; transition: border-color .15s ease;
+  }
+  .integ-filter > summary::-webkit-details-marker { display: none; }
+  .integ-filter > summary:hover { border-color: var(--brand); }
+  .integ-filter[open] > summary { border-color: var(--brand); }
+  .integ-filter > summary::after {
+    content: "▾"; font-size: 11px; color: var(--text-muted); transition: transform .15s ease;
+  }
+  .integ-filter[open] > summary::after { transform: rotate(180deg); }
+  .integ-filter-badge {
+    display: none; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 999px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; line-height: 1;
+  }
+  .integ-filter-badge.show { display: inline-flex; }
+  .integ-filter-panel {
+    position: absolute; z-index: 20; margin-top: 6px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px; box-shadow: var(--shadow-modal, 0 8px 24px rgba(0,0,0,.14));
+    min-width: 168px; max-height: 280px; overflow-y: auto;
+  }
+  .integ-filter-panel label {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+    font-size: 13.5px; white-space: nowrap; cursor: pointer;
+  }
+  .integ-filter-panel label:hover { background: var(--surface-2); }
+  .integ-filter-panel input { width: auto; accent-color: var(--brand); }
 
   table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
   thead th {
@@ -2931,7 +3007,15 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
   font-size: 15.5px; font-weight: 600; cursor: pointer; color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371838a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center / 16px;
 }
+/* 全站共用的 select:focus 規則(見上面 input:focus,select:focus,textarea:focus)只
+   設 background:var(--surface),element+偽類的特異度(0,0,1,1)比單一 class 的
+   .lv-select(0,0,1,0)高,會蓋掉這裡的 background 短寫、連帶把箭頭圖示一起蓋掉 -
+   一展開(觸發 focus)箭頭就消失,收起來(失焦)才又冒出來。這裡用同一張圖再蓋回去。 */
+.lv-select:focus {
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371838a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center / 16px;
+}
 .lv-select-sm { height: 40px; min-width: 0; padding: 0 36px 0 14px; font-size: 14.5px; border-radius: 10px; background-position: right 12px center; }
+.lv-select-sm:focus { background-position: right 12px center; }
 .lv-toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .lv-viewtoggle { display: inline-flex; padding: 4px; gap: 2px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
 .lv-viewtoggle button { width: 46px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-muted); border-radius: 10px; }
@@ -3037,7 +3121,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .lv-card-act { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* 分頁列 */
-.lv-foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 0 4px 12px; }
+.lv-foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 16px 4px 12px; }
 .lv-foot-info { color: var(--text-muted); font-size: 14.5px; }
 .lv-pager { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
 .lv-pg { min-width: 40px; height: 40px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: transparent; color: var(--text); font-size: 15.5px; font-weight: 600; }

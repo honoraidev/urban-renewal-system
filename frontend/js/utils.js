@@ -77,6 +77,33 @@ function fmtEventTime(t) {
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : "";
 }
 
+// 複選篩選下拉(整合清冊/地主聯絡簿/他項權利部共用,見 style.css .integ-filter)- 選了
+// 幾項就在按鈕上冒出品牌色數字徽章,呼叫端只要在每個 details 的 change 事件裡呼叫這個
+// 就好,不用各自重寫「數有幾個 checked、切 badge 顯示」這段。panelId 是面板本體(裝
+// checkbox 那個 div)的 id,徽章 id 照 landowners.js ddHtml() 的慣例是 `${panelId}-badge`。
+function updateFilterBadge(panelId) {
+  const panel = document.getElementById(panelId);
+  const badge = document.getElementById(`${panelId}-badge`);
+  if (!panel || !badge) return;
+  const n = panel.querySelectorAll("input:checked").length;
+  badge.textContent = n || "";
+  badge.classList.toggle("show", n > 0);
+}
+
+// 一次只開一個 .integ-filter 篩選面板,避免兩個面板重疊;點面板以外的地方全部收起。
+// 三個頁面(整合清冊/地主聯絡簿/他項權利部)各自呼叫一次,container 是該頁的根節點。
+function wireFilterPillMutex(container) {
+  const details = [...container.querySelectorAll("details.integ-filter")];
+  details.forEach((d) => {
+    d.addEventListener("toggle", () => {
+      if (d.open) details.forEach((o) => { if (o !== d) o.open = false; });
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".integ-filter")) details.forEach((d) => (d.open = false));
+  });
+}
+
 function formatMonthToMinguo(val) {
   if (!val) return "";
   const s = String(val).trim();
