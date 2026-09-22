@@ -1426,26 +1426,26 @@
 
 .bv-body { display: flex; flex-wrap: wrap; gap: 20px 26px; align-items: flex-start; }
 /* 格子區:寬度先照內容,放不下旁邊的統計面板就把面板擠到下一行;格子本身太寬就在自己裡面橫向捲動 */
-.bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: visible; padding: 12px 8px 12px 2px; }
+.bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: visible; overflow-y: visible; padding: 12px 8px 12px 2px; }
 /* CSS grid instead of a <table> - a table's border-collapse/row-height rounding and
    the global `table { width:100%; overflow:hidden }` rule fought every attempt to size
    and border these cells correctly (the width rule stretched columns to fill the card;
-   the overflow rule then clipped a sliver off the last row's borders). Grid cells are
+   the overflow rule then clipped a slivers off the last row's borders). Grid cells are
    sized and positioned independently, so neither problem can happen here. */
-.bv-grid { display: grid; gap: 8px; width: max-content; align-items: center; }
+.bv-grid { display: grid; gap: 8px; width: 100%; align-items: center; }
 .bv-grid-corner { width: 1px; }
-.bv-col-label { font-size: 14px; color: var(--text-muted); font-weight: 700; padding-bottom: 2px; text-align: center; white-space: nowrap; }
+.bv-col-label { font-size: 12px; color: var(--text-muted); font-weight: 700; padding-bottom: 2px; text-align: center; white-space: nowrap; }
 .bv-row-label {
-  align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 62px; padding: 0 14px; margin-right: 6px;
-  background: var(--surface-2); border-radius: 12px; font-size: 18px; font-weight: 800; color: var(--text); white-space: nowrap;
+  align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 52px; padding: 0 10px; margin-right: 6px;
+  background: var(--surface-2); border-radius: 12px; font-size: 15px; font-weight: 800; color: var(--text); white-space: nowrap;
 }
 .bv-cell {
-  position: relative; min-width: 88px; height: 60px; padding: 0 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
-  font-size: 16px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  position: relative; min-width: 72px; height: 50px; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
 /* 「16之1」這種帶「之」的門牌比純數字寬 - 整組改成圖示在左、文字在右,格子也放寬 */
-.bv-inline .bv-cell { flex-direction: row; gap: 8px; min-width: 124px; height: 52px; }
+.bv-inline .bv-cell { flex-direction: row; gap: 6px; min-width: 100px; height: 44px; }
 .bv-cell-ic { display: inline-flex; }
 .bv-cell-ic:empty { display: none; }
 .bv-cell:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(15, 35, 38, .35); z-index: 2; }
