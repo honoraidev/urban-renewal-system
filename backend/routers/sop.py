@@ -397,25 +397,45 @@ def set_stage_flow(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_manager),
 ):
-    """自訂這個案件的關卡流程(新增/刪除/改名/重新排序)- 只有案件還沒開始跑(第0關
-    仍是 pending,沒有任何一關動過)才准改,避免已經在跑的案件因為關卡被搬動/刪掉
-    而讓進度/門檻資料對不起來。權限比照建案:L0/L1/L2(require_project_manager)。"""
+    """自訂這個案件的關卡流程(新增/刪除/改名/重新排序)。案件完全還沒開始跑(第0關
+    仍是 pending,沒有任何一關動過)時,整個流程都能重編,重編後照舊會重置回第0關。
+
+    已經開始跑之後,只能調整「還沒跑到」的未來關卡(current_stage 之後那幾關)——
+    已完成/進行中那些關卡(index 0..current_stage)的打勾、上傳文件、同意書進度都
+    是照關卡編號存的,搬動/刪掉前面的關卡會讓這些資料對不起來,所以鎖住不能動:
+    payload 裡對應那幾關的 key 必須原封不動送回來(前端「自訂關卡流程」編輯器
+    本來就會把它們鎖起來不能改,這裡後端再驗一次,防止繞過前端直接打 API),
+    名稱/需求設定不檢查(反正不會被拿來用,一律沿用資料庫現有的值)。
+    已經結案(force_closed 或 final 已通過)的案件沒有「未來」可調,直接擋掉。
+    權限比照建案:L0/L1/L2(require_project_manager)。"""
     sop = get_or_create_sop(db, project.id)
-    stages_now = (sop.stage_data or {}).get("stages") or {}
+    if (sop.stage_data.get("final") or {}).get("status", "pending") != "pending":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="案件已結案,無法再調整關卡流程")
+
+    stages_now = _resolved_stages(sop)
     started = sop.current_stage != 0 or any(
         (entry.get("status") or "pending") != "pending" for entry in stages_now.values()
     )
-    if started:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="案件已經開始跑關,無法再調整關卡流程",
-        )
+    locked_count = sop.current_stage + 1 if started else 0
+
     if not payload.stages:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少要保留一關")
+    if len(payload.stages) < locked_count:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能刪除已經開始/完成的關卡")
 
     seen_keys: set[str] = set()
+    for i in range(locked_count):
+        existing_key = stages_now.get(str(i), {}).get("key")
+        if (payload.stages[i].key or None) != (existing_key or None):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"第{i}關已經開始/完成,不能調整",
+            )
+        if existing_key:
+            seen_keys.add(existing_key)
+
     defs: list[dict] = []
-    for s in payload.stages:
+    for s in payload.stages[locked_count:]:
         name = (s.name or "").strip()
         if not name:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="關卡名稱不可空白")
@@ -430,9 +450,18 @@ def set_stage_flow(
         requirements = s.requirements.model_dump() if s.requirements is not None else None
         defs.append({"key": s.key, "name": name, "extra": extra, "requirements": requirements})
 
-    sop.stage_data = build_initial_stage_data(defs)
-    sop.current_stage = 0
-    project.current_stage = 0
+    new_future_stages = build_initial_stage_data(defs)["stages"]
+    stages_raw = (sop.stage_data or {}).get("stages") or {}
+    merged_stages = {str(i): stages_raw[str(i)] for i in range(locked_count)}
+    for offset, entry in enumerate(new_future_stages.values()):
+        merged_stages[str(locked_count + offset)] = entry
+
+    stage_data = dict(sop.stage_data)
+    stage_data["stages"] = merged_stages
+    sop.stage_data = stage_data
+    if not started:
+        sop.current_stage = 0
+        project.current_stage = 0
 
     db.commit()
     db.refresh(sop)

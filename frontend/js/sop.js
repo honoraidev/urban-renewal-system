@@ -112,9 +112,20 @@ function sopFlowRowAdvancedHtml(row, i) {
 
 function sopFlowEditorRowsHtml() {
   const stages = sopFlowEditorState.stages;
+  const lockedCount = sopFlowEditorState.lockedCount || 0;
   const usedKeys = new Set(stages.map((s) => s.key).filter(Boolean));
   return stages
     .map((row, i) => {
+      // 案件已經開始跑之後,「已經開始/完成」的關卡(index < lockedCount)鎖住不能改
+      // (改名/換門檻/搬動/刪除都不行),只能調整還沒跑到的未來關卡 —— 已確認的打勾、
+      // 上傳的文件、同意書進度都是照關卡編號存的,動了前面的關卡這些資料就對不起來了。
+      if (i < lockedCount) {
+        return `
+      <div class="sop-flow-row sop-flow-row-locked">
+        <span class="sop-flow-row-num">${i + 1}</span>
+        <span class="sop-flow-row-locked-name" title="已經開始/完成的關卡,不能調整">🔒 ${escapeHtml(row.name || "")}</span>
+      </div>`;
+      }
       const keyOptions = SOP_DEFAULT_STAGE_DEFS.filter((d) => row.key === d.key || !usedKeys.has(d.key))
         .map((d) => `<option value="${d.key}" ${row.key === d.key ? "selected" : ""}>${escapeHtml(d.name)}(內建自動門檻)</option>`)
         .join("");
@@ -130,9 +141,9 @@ function sopFlowEditorRowsHtml() {
         <input type="text" class="sop-flow-row-name" data-flow-name="${i}" value="${escapeHtml(row.name || "")}" placeholder="關卡名稱">
         <div class="sop-flow-row-actions">
           <button type="button" class="btn-secondary btn-sm" data-flow-advanced-toggle="${i}" title="進階需求設定">⚙${hasCustomReq ? " •" : ""}</button>
-          <button type="button" class="btn-secondary btn-sm" data-flow-up="${i}" ${i === 0 ? "disabled" : ""} title="上移">↑</button>
+          <button type="button" class="btn-secondary btn-sm" data-flow-up="${i}" ${i <= lockedCount ? "disabled" : ""} title="上移">↑</button>
           <button type="button" class="btn-secondary btn-sm" data-flow-down="${i}" ${i === stages.length - 1 ? "disabled" : ""} title="下移">↓</button>
-          <button type="button" class="btn-danger btn-sm" data-flow-remove="${i}" ${stages.length <= 1 ? "disabled" : ""} title="刪除">✕</button>
+          <button type="button" class="btn-danger btn-sm" data-flow-remove="${i}" ${stages.length <= Math.max(1, lockedCount) ? "disabled" : ""} title="刪除">✕</button>
         </div>
       </div>
       ${advancedOpen ? sopFlowRowAdvancedHtml(row, i) : ""}`;
@@ -141,13 +152,16 @@ function sopFlowEditorRowsHtml() {
 }
 
 function renderSopFlowEditorBody() {
+  const lockedCount = sopFlowEditorState.lockedCount || 0;
   return `
     <div class="sop-flow-editor">
-      <p class="helper-text">自訂這個案件要跑的關卡流程:可新增、刪除、改名、排序。選「內建關卡」會沿用該關卡原本的自動門檻;點每一列的「⚙」可以自己勾選這一關要的需求(上傳文件/聯絡率/同意度雙門檻/人工確認,可複選),設定過的話一律以這裡為準,不再看內建門檻。</p>
+      <p class="helper-text">自訂這個案件要跑的關卡流程:可新增、刪除、改名、排序。選「內建關卡」會沿用該關卡原本的自動門檻;點每一列的「⚙」可以自己勾選這一關要的需求(上傳文件/聯絡率/同意度雙門檻/人工確認,可複選),設定過的話一律以這裡為準,不再看內建門檻。${
+        lockedCount ? `<br>🔒 前 ${lockedCount} 關已經開始/完成,鎖住不能調整,只能新增/調整後面還沒跑到的關卡。` : ""
+      }</p>
       <div class="sop-flow-rows" id="sop-flow-rows">${sopFlowEditorRowsHtml()}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button type="button" class="btn-secondary btn-sm" id="sop-flow-add-btn">+ 新增關卡</button>
-        <button type="button" class="btn-secondary btn-sm" id="sop-flow-reset-btn">還原成預設流程</button>
+        <button type="button" class="btn-secondary btn-sm" id="sop-flow-reset-btn" ${lockedCount ? `disabled title="已經開始跑的案件不能整個還原成預設流程"` : ""}>還原成預設流程</button>
       </div>
       <div class="modal-footer" style="margin-top:20px">
         <button type="button" class="btn-primary" id="sop-flow-save-btn">儲存</button>
@@ -286,7 +300,7 @@ function wireSopFlowEditorRows() {
   });
 }
 
-function openSopStageFlowEditor(initialStages, onSave) {
+function openSopStageFlowEditor(initialStages, onSave, lockedCount = 0) {
   sopFlowAdvancedOpen = new Set();
   sopFlowEditorState = {
     stages: (initialStages && initialStages.length ? initialStages : SOP_DEFAULT_STAGE_DEFS).map((s) => ({
@@ -294,6 +308,7 @@ function openSopStageFlowEditor(initialStages, onSave) {
       name: s.name,
       requirements: s.requirements || null,
     })),
+    lockedCount,
     onSave,
   };
   openModal("自訂關卡流程", renderSopFlowEditorBody(), { width: "680px" });
@@ -743,10 +758,12 @@ async function renderSopTab(el) {
         .join("")
     : `<div class="ov-todo-empty">${checklistTotalCount ? "本階段任務都已完成 🎉" : "這一關沒有設定需求"}</div>`;
 
-  const canEditFlow =
-    isManager() &&
-    sop.current_stage === 0 &&
-    stageKeys.every((k) => (sop.stages[k].status || "pending") === "pending");
+  // 已經開始跑之後也能用「自訂關卡流程」,但只能調整還沒跑到的未來關卡(見後端
+  // PUT /sop/stages 的鎖定驗證) —— 已結案就沒有「未來」可調了,不給按。
+  const flowStarted =
+    sop.current_stage !== 0 || stageKeys.some((k) => (sop.stages[k].status || "pending") !== "pending");
+  const flowLockedCount = flowStarted ? sop.current_stage + 1 : 0;
+  const canEditFlow = isManager() && !isFinished;
 
   const stagePct = checklistTotalCount
     ? Math.round((checklistDoneCount / checklistTotalCount) * 100)
@@ -826,13 +843,17 @@ async function renderSopTab(el) {
   if (editFlowBtn) {
     editFlowBtn.addEventListener("click", () => {
       const currentStages = stageKeys.map((k) => ({ key: sop.stages[k].key || null, name: sop.stages[k].name }));
-      openSopStageFlowEditor(currentStages, async (stages) => {
-        await api(`/projects/${pid}/sop/stages`, { method: "PUT", body: { stages } });
-        toast("關卡流程已更新", "success");
-        closeModal();
-        state.sopSelectedStage = null;
-        renderSopTab(el);
-      });
+      openSopStageFlowEditor(
+        currentStages,
+        async (stages) => {
+          await api(`/projects/${pid}/sop/stages`, { method: "PUT", body: { stages } });
+          toast("關卡流程已更新", "success");
+          closeModal();
+          state.sopSelectedStage = null;
+          renderSopTab(el);
+        },
+        flowLockedCount
+      );
     });
   }
 
@@ -966,7 +987,13 @@ async function renderConsentPanel(el, stage) {
       <div class="helper-text">需人數與面積同意率皆 ≥ 80% 才能通過雙門檻${ratio.dual_gate_passed ? " · <strong style='color:var(--success)'>已達標</strong>" : ""}</div>
     </div>
     ${isEditor()
-      ? `<div class="table-wrap">
+      ? `<p class="helper-text" style="margin:10px 0 6px">
+            ⓘ 下面這張「本輪同意狀態」是這一輪單獨的追蹤紀錄,跟上面「人數/面積同意率」
+            是兩套獨立資料——同意率是看地主聯絡簿「電訪同意」+「已簽約」狀態算出來的,
+            按這裡的同意/反對不會改變上面的比例;正式算進雙門檻請到地主聯絡簿更新
+            拜訪結果與簽約狀態。
+          </p>
+         <div class="table-wrap">
             <table>
               <thead><tr><th>地主</th><th>本輪同意狀態</th><th>操作</th></tr></thead>
               <tbody>
