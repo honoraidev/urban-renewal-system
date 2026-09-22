@@ -592,6 +592,9 @@ async function renderSopTab(el) {
   let checklistAllDone = true;
   let checklistDoneCount = 0;
   let checklistTotalCount = 0;
+  // 「階段任務清單」裡還沒完成的項目,收集起來給下面「待辦提醒」直接顯示 - 不用
+  // 使用者自己在完整清單裡找還剩什麼沒做。
+  const pendingItems = [];
   const checklistConfig = stageRequirements
     ? buildGenericChecklistConfig(stageRequirements)
     : (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
@@ -661,7 +664,10 @@ async function renderSopTab(el) {
         }
         checklistTotalCount++;
         if (done) checklistDoneCount++;
-        else checklistAllDone = false;
+        else {
+          checklistAllDone = false;
+          pendingItems.push({ label: item.label, sub });
+        }
         const confirmBtn =
           item.manual && isEditor()
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
@@ -708,23 +714,23 @@ async function renderSopTab(el) {
     checklistHtml = `<div class="sop-checklist">${itemsHtml}</div>`;
   }
 
-  // 自訂待辦事項(存在 stage.data.custom_todos)—— 跟上面系統認得的任務清單是分開的,
-  // 使用者自己隨手記、打勾,不計進「完成本階段」的門檻,不會卡住關卡推進。
-  const customTodos = (selectedStage.data && selectedStage.data.custom_todos) || [];
-  const customTodosDone = customTodos.filter((t) => t.done).length;
-  const customTodosHtml = customTodos.length
-    ? customTodos
+  // 「待辦提醒」—— 不再是使用者自己手動輸入的自由筆記,改成直接把上面「階段任務
+  // 清單」裡還沒完成的項目抓過來唯讀顯示,一眼看到這關還剩什麼要辦,不用在完整
+  // 清單裡逐條找哪些還沒打勾。這裡列出的項目跟上面是同一份資料,不是另一份獨立
+  // 清單,不會有兜不起來的問題。
+  const pendingTodosHtml = pendingItems.length
+    ? pendingItems
         .map(
-          (t) => `<div class="sop-checklist-item ${t.done ? "done" : ""}">
-            <button type="button" class="sop-checklist-icon sop-todo-check" data-sop-todo-toggle="${t.id}" data-sop-todo-done="${t.done}" ${isEditor() ? "" : "disabled"} title="${t.done ? "取消勾選" : "標記完成"}">${t.done ? "✓" : ""}</button>
+          (t) => `<div class="sop-checklist-item">
+            <div class="sop-checklist-icon"></div>
             <div style="flex:1">
-              <div class="sop-checklist-label${t.done ? " sop-todo-label-done" : ""}">${escapeHtml(t.content)}</div>
+              <div class="sop-checklist-label">${escapeHtml(t.label)}</div>
+              ${t.sub ? `<div class="sop-checklist-sub">${escapeHtml(t.sub)}</div>` : ""}
             </div>
-            ${isEditor() ? `<button type="button" class="btn-link btn-sm" data-sop-todo-delete="${t.id}">刪除</button>` : ""}
           </div>`
         )
         .join("")
-    : `<div class="empty-state">尚無自訂待辦事項</div>`;
+    : `<div class="empty-state">${checklistTotalCount ? "本階段任務都已完成 🎉" : "這一關沒有設定需求"}</div>`;
 
   const canEditFlow =
     isManager() &&
@@ -772,16 +778,10 @@ async function renderSopTab(el) {
 
         <div class="card sop-subcard">
           <div class="sop-subcard-header">
-            <h4>📌 自訂待辦事項</h4>
-            ${customTodos.length ? `<span class="helper-text">${customTodosDone}/${customTodos.length} 已完成</span>` : ""}
+            <h4>📌 待辦提醒</h4>
+            ${pendingItems.length ? `<span class="helper-text">還剩 ${pendingItems.length} 項</span>` : ""}
           </div>
-          <div class="sop-checklist">${customTodosHtml}</div>
-          ${isEditor()
-            ? `<form id="sop-todo-add-form" class="sop-todo-add-row">
-                 <input type="text" id="sop-todo-add-input" placeholder="輸入待辦事項內容,按 Enter 或點新增..." autocomplete="off" maxlength="200">
-                 <button type="submit" class="btn-secondary btn-sm">+ 新增</button>
-               </form>`
-            : ""}
+          <div class="sop-checklist">${pendingTodosHtml}</div>
         </div>
 
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
@@ -867,41 +867,6 @@ async function renderSopTab(el) {
       const stageEntry = sop.stages[String(selected)] || {};
       const existing = ((stageEntry.data || {}).forms || {})[docType] || null;
       openStageFormModal(pid, Number(selected), docType, existing, () => renderSopTab(el));
-    });
-  });
-
-  // ---- 自訂待辦事項:新增 / 打勾 / 刪除 ----
-  document.getElementById("sop-todo-add-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const input = document.getElementById("sop-todo-add-input");
-    const content = (input?.value || "").trim();
-    if (!content) return;
-    try {
-      await api(`/projects/${pid}/sop/${selected}/todos`, { method: "POST", body: { content } });
-      renderSopTab(el);
-    } catch (err) { }
-  });
-
-  el.querySelectorAll("[data-sop-todo-toggle]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const currentlyDone = btn.dataset.sopTodoDone === "true";
-      try {
-        await api(`/projects/${pid}/sop/${selected}/todos/${btn.dataset.sopTodoToggle}`, {
-          method: "PATCH",
-          body: { done: !currentlyDone },
-        });
-        renderSopTab(el);
-      } catch (err) { }
-    });
-  });
-
-  el.querySelectorAll("[data-sop-todo-delete]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("確定要刪除這筆待辦事項嗎?")) return;
-      try {
-        await api(`/projects/${pid}/sop/${selected}/todos/${btn.dataset.sopTodoDelete}`, { method: "DELETE" });
-        renderSopTab(el);
-      } catch (err) { }
     });
   });
 
