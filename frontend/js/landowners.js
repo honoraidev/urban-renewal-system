@@ -124,6 +124,10 @@ async function renderIntegratedRosterTab(el) {
   }
 }
 
+// 分頁狀態跨次渲染保留(不放在 renderIntegratedCombinedView 內部的區域變數) - 不然
+// 每次切分頁籤或重整這個分頁都會被重設回第 1 頁,使用者翻到一半的頁碼就白翻了。
+let integUi = { page: 1, pageSize: 10 };
+
 async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   const pid = state.currentProjectId;
   const [owners, alerts, contactSummary] = await Promise.all([
@@ -132,7 +136,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => []),
   ]);
   const contactBy = new Map(contactSummary.map((c) => [c.landowner_id, c]));
-  const rows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
+  const allRows = owners.filter((o) => (o.land_records || []).length || (o.building_records || []).length);
 
   const fmt2 = fmtArea;
   const uniqJoin = (arr) => [...new Set(arr.filter(Boolean))].join("、");
@@ -156,7 +160,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
-      <h3>${titleText} (<span id="integ-count">${rows.length}</span>)</h3>
+      <h3>${titleText} (<span id="integ-count">${allRows.length}</span>)</h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <input type="text" id="integrated-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋姓名 / 地號 / 門牌...">
         ${ddHtml("integ-visit-dd", "聯絡結果", [
@@ -268,8 +272,14 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th class="row-actions">操作</th>
         </tr></thead>
-        <tbody>
-        ${rows.map((o, i) => {
+        <tbody id="integ-tbody"></tbody>
+      </table>
+    </div></div>
+    <div class="lv-foot" id="integ-foot"></div>`;
+
+  // 一列的 HTML(摘要列 + 展開列)。seq 是這筆在「篩選後全部結果」裡的序號(不是頁內
+  // 序號),換頁後編號才會接續 011、012...,不會每頁都從 001 重新算。
+  const rowHtml = (o, seq) => {
     const lr = o.land_records || [];
     const br = o.building_records || [];
     const landSqm = lr.reduce((s, r) => s + (Number(r.owned_area_sqm) ||
@@ -282,7 +292,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}">
-            <td class="col-idx" data-toggle="${o.id}" style="cursor:pointer;user-select:none">${String(i + 1).padStart(3, "0")}</td>
+            <td class="col-idx" data-toggle="${o.id}" style="cursor:pointer;user-select:none">${String(seq).padStart(3, "0")}</td>
             <td>${(() => {
       const addrMap = new Map();
       br.forEach((r) => {
@@ -314,35 +324,94 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             </td>
           </tr>
           ${ownerDetailRowHtml(o, 10, contactBy.get(o.id))}`;
-  }).join("")}
-        </tbody>
-      </table>
-    </div></div>`;
+  };
 
   const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
-  const applyIntegratedFilter = () => {
+  const getFiltered = () => {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
     const vt = checked("integ-visit-dd");
-    let shown = 0;
-    // detail-row(展開內容)沒有 data-hay,跳過不篩,只跟著上面那筆摘要列一起隱藏 -
-    // 不然搜尋一重跑,展開狀態會被誤判成「沒比對到關鍵字」而強制關掉。
-    el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
-      const okSearch = !q || (tr.dataset.hay || "").includes(q);
-      const rowVt = (tr.dataset.visitTok || "").split(" ");
+    return allRows.filter((o) => {
+      if (!q && !vt.length) return true;
+      const lr = o.land_records || [];
+      const br = o.building_records || [];
+      const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
+      const okSearch = !q || hay.includes(q);
+      const rowVt = contactTokens(o);
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
-      const show = okSearch && okVt;
-      tr.classList.toggle("hidden", !show);
-      if (!show) {
-        const detailRow = tr.nextElementSibling;
-        if (detailRow?.classList.contains("detail-row")) detailRow.classList.add("hidden");
-      }
-      if (show) shown++;
+      return okSearch && okVt;
     });
-    const cnt = document.getElementById("integ-count");
-    if (cnt) cnt.textContent = shown;
   };
-  document.getElementById("integrated-search")?.addEventListener("input", applyIntegratedFilter);
-  el.querySelectorAll(".integ-filter input").forEach((cb) => cb.addEventListener("change", applyIntegratedFilter));
+
+  // 每次分頁/搜尋/篩選變動都整批重畫 tbody(不是像以前那樣渲染全部 53 筆再靠 CSS
+  // hidden 切換)- 這樣每頁 DOM 節點數固定,不會因為案件地主一多就整頁卡頓,而且
+  // 「顯示 X-Y 筆,共 Z 筆」這種分頁資訊本來就得知道篩選後的總數才能算,靠隱藏
+  // 沒辦法簡單支援換頁。
+  const renderBody = () => {
+    const filtered = getFiltered();
+    const total = filtered.length;
+    const pages = Math.max(1, Math.ceil(total / integUi.pageSize));
+    if (integUi.page > pages) integUi.page = pages;
+    const start = (integUi.page - 1) * integUi.pageSize;
+    const slice = filtered.slice(start, start + integUi.pageSize);
+
+    const tbody = el.querySelector("#integ-tbody");
+    tbody.innerHTML = slice.length
+      ? slice.map((o, i) => rowHtml(o, start + i + 1)).join("")
+      : `<tr><td colspan="10"><div class="empty-state">沒有符合條件的地主</div></td></tr>`;
+
+    const cnt = document.getElementById("integ-count");
+    if (cnt) cnt.textContent = total;
+
+    const pageBtn = (label, n, opts = {}) =>
+      `<button type="button" class="lv-pg${opts.active ? " active" : ""}${opts.arrow ? " lv-pg-arrow" : ""}" data-integ-page="${n}"${opts.disabled ? " disabled" : ""}${opts.aria ? ` aria-label="${opts.aria}"` : ""}>${label}</button>`;
+    const items = lttPageItems(integUi.page, pages)
+      .map((n) => (n === "…" ? `<span class="lv-pg-gap">…</span>` : pageBtn(n, n, { active: n === integUi.page })))
+      .join("");
+    el.querySelector("#integ-foot").innerHTML = `
+      <div class="lv-foot-info">${total ? `顯示 ${start + 1} - ${start + slice.length} 筆,共 ${total} 筆` : "共 0 筆"}</div>
+      <div class="lv-pager">
+        ${pageBtn(LTT_ICON.chevLeft, integUi.page - 1, { arrow: true, disabled: integUi.page <= 1, aria: "上一頁" })}
+        ${items}
+        ${pageBtn(LTT_ICON.chevRight, integUi.page + 1, { arrow: true, disabled: integUi.page >= pages, aria: "下一頁" })}
+      </div>
+      <div class="lv-foot-size"><span>每頁顯示</span>
+        <select class="lv-select lv-select-sm" id="integ-page-size">${[10, 20, 50, 100].map((n) => `<option value="${n}"${n === integUi.pageSize ? " selected" : ""}>${n}</option>`).join("")}</select>
+      </div>`;
+
+    wireOwnerDetailRows(el, owners);
+    // 展開/收合:欄位裡的編號(col-idx)跟操作欄的「展開」按鈕都可以觸發,兩處共用
+    // 同一個 data-toggle="ownerId",同一列的兩顆一起切換箭頭方向跟按鈕文字。
+    tbody.querySelectorAll("[data-toggle]").forEach((toggle) => {
+      toggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const ownerId = toggle.dataset.toggle;
+        const detailRow = document.getElementById(`detail-row-${ownerId}`);
+        if (!detailRow) return;
+        const nowExpanded = detailRow.classList.toggle("hidden") === false;
+        const summaryRow = detailRow.previousElementSibling;
+        summaryRow?.classList.toggle("expanded", nowExpanded);
+        tbody.querySelectorAll(`[data-toggle="${ownerId}"]`).forEach((t) => {
+          t.classList.toggle("expanded", nowExpanded);
+          if (t.classList.contains("integ-toggle-btn")) {
+            t.textContent = nowExpanded ? "收合" : "展開";
+          }
+        });
+      });
+    });
+  };
+
+  renderBody();
+
+  document.getElementById("integrated-search")?.addEventListener("input", () => {
+    integUi.page = 1;
+    renderBody();
+  });
+  el.querySelectorAll(".integ-filter input").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      integUi.page = 1;
+      renderBody();
+    })
+  );
   // 一次只開一個篩選面板,避免兩個面板重疊
   const integDetails = [...el.querySelectorAll("details.integ-filter")];
   integDetails.forEach((d) => {
@@ -354,28 +423,20 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
 
-  wireOwnerDetailRows(el, owners);
-
-  // 展開/收合:欄位裡的編號(col-idx)跟操作欄的「展開」按鈕都可以觸發,兩處共用
-  // 同一個 data-toggle="ownerId",同一列的兩顆一起切換箭頭方向跟按鈕文字。
-  el.querySelectorAll("[data-toggle]").forEach((toggle) => {
-    toggle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const ownerId = toggle.dataset.toggle;
-      const detailRow = document.getElementById(`detail-row-${ownerId}`);
-      if (!detailRow) return;
-      const nowExpanded = detailRow.classList.toggle("hidden") === false;
-      const summaryRow = detailRow.previousElementSibling;
-      summaryRow?.classList.toggle("expanded", nowExpanded);
-      el.querySelectorAll(`[data-toggle="${ownerId}"]`).forEach((t) => {
-        t.classList.toggle("expanded", nowExpanded);
-        if (t.classList.contains("integ-toggle-btn")) {
-          t.textContent = nowExpanded ? "收合" : "展開";
-        }
-      });
-    });
+  el.querySelector("#integ-foot").addEventListener("click", (e) => {
+    const pg = e.target.closest("[data-integ-page]");
+    if (pg && !pg.disabled) {
+      integUi.page = Number(pg.dataset.integPage);
+      renderBody();
+    }
   });
-
+  el.querySelector("#integ-foot").addEventListener("change", (e) => {
+    if (e.target.id === "integ-page-size") {
+      integUi.pageSize = Number(e.target.value);
+      integUi.page = 1;
+      renderBody();
+    }
+  });
 }
 
 // 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊
