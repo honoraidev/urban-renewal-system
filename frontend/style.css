@@ -1447,15 +1447,20 @@
 .bv-grid { display: grid; gap: 6px; width: 100%; align-items: center; }
 .bv-grid-corner { width: 1px; }
 .bv-col-label { font-size: 11px; color: var(--text-muted); font-weight: 700; padding-bottom: 1px; text-align: center; white-space: nowrap; }
+/* 固定寬度(不是 min-width 也不是 grid-template-columns 的 auto)- 樓層標籤欄以前是
+   auto,格子改固定寬度後,容器多出來的空間全部被這個唯一的 auto 欄吃掉,樓層標籤
+   被撐得比「1F」文字需要的寬度大上好幾倍。跟格子一樣改讀 --bv-row-label-w 這個
+   CSS 變數,buildingview.js 的 grid-template-columns 也讀同一個,兩邊才會對得齊。 */
 .bv-row-label {
-  align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 40px; padding: 0 6px; margin-right: 4px;
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+  width: var(--bv-row-label-w); padding: 0 6px; margin-right: 4px; overflow: hidden; text-overflow: ellipsis;
   background: var(--surface-2); border-radius: 10px; font-size: 12.5px; font-weight: 800; color: var(--text); white-space: nowrap;
 }
 /* 固定寬度(不是 min-width)- 格子寬度統一由 --bv-cell-w 這個 CSS 變數決定,
    buildingview.js 的 grid-template-columns 也讀同一個變數,兩邊才會對得齊;
    門牌文字太長就用 ellipsis 截斷,不再讓內容反過來撐開格子跟捲軸,一整排格子
    看起來才會整齊劃一。響應式斷點只要覆寫這個變數,格子跟 grid 欄寬會一起變小。 */
-.bv-grid { --bv-cell-w: 44px; }
+.bv-grid { --bv-cell-w: 44px; --bv-row-label-w: 64px; }
 .bv-grid.bv-inline { --bv-cell-w: 64px; }
 .bv-cell {
   position: relative; width: var(--bv-cell-w); height: 36px; padding: 0 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
@@ -1526,8 +1531,8 @@
 
 @media (max-width: 950px) {
   .bv-col-label { font-size: 10px; }
-  .bv-row-label { min-width: 36px; padding: 0 5px; font-size: 11.5px; }
-  .bv-grid { --bv-cell-w: 40px; gap: 4px; }
+  .bv-row-label { padding: 0 5px; font-size: 11.5px; }
+  .bv-grid { --bv-cell-w: 40px; --bv-row-label-w: 56px; gap: 4px; }
   .bv-grid.bv-inline { --bv-cell-w: 58px; }
   .bv-cell { height: 34px; font-size: 10px; padding: 0 2px; }
   .bv-inline .bv-cell { height: 32px; gap: 2px; }
@@ -1540,8 +1545,8 @@
   .bv-body { flex-wrap: wrap; gap: 20px 26px; }
   .bv-statpanel { flex-basis: 100%; }
   .bv-col-label { font-size: 9px; }
-  .bv-row-label { min-width: 32px; padding: 0 4px; font-size: 11px; margin-right: 3px; }
-  .bv-grid { --bv-cell-w: 36px; gap: 3px; }
+  .bv-row-label { padding: 0 4px; font-size: 11px; margin-right: 3px; }
+  .bv-grid { --bv-cell-w: 36px; --bv-row-label-w: 48px; gap: 3px; }
   .bv-grid.bv-inline { --bv-cell-w: 54px; }
   .bv-cell { height: 32px; font-size: 9.5px; padding: 0 2px; }
   .bv-inline .bv-cell { height: 30px; gap: 2px; }
@@ -2071,17 +2076,21 @@
 
 /* 他項權利部表格:登記次序/地號/權利種類/債權額比例不換行(原本「0058-000」被折成兩行),
    門牌地址與權利人給足最小寬度,整列高度一致、垂直置中。 */
-/* nth-child 都 +1 讓給最前面新增的「#」序號欄:1=#,2=登記次序,3=地號,4=門牌,
-   5=權利種類,6=權利人,7=債權額比例,8=金額。 */
-.enc-table th, .enc-table td { vertical-align: middle; }
-.enc-table .col-idx { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 56px; }
-.enc-table th:nth-child(2), .enc-table td:nth-child(2),
-.enc-table th:nth-child(3), .enc-table td:nth-child(3),
-.enc-table th:nth-child(5), .enc-table td:nth-child(5),
-.enc-table th:nth-child(7), .enc-table td:nth-child(7) { white-space: nowrap; }
-.enc-table th:nth-child(4), .enc-table td:nth-child(4) { min-width: 200px; }
-.enc-table th:nth-child(6), .enc-table td:nth-child(6) { min-width: 240px; }
-.enc-table td.actions-cell { white-space: nowrap; }
+/* table-layout:fixed + 各欄固定寬度比例,讓整張表塞進容器寬度、不再需要 .table-wrap
+   的水平捲軸 - 原本靠 min-width(200px/240px) + white-space:nowrap 讓內容決定寬度,
+   欄一多、公司全名或雙地號疊在一起就會把表撐爆。nth-child 都 +1 讓給最前面新增的
+   「#」序號欄:1=#,2=登記次序,3=地號,4=門牌,5=權利種類,6=權利人,7=債權額比例,8=金額,9=操作。 */
+.enc-table { table-layout: fixed; width: 100%; }
+.enc-table th, .enc-table td { vertical-align: middle; word-break: break-word; }
+.enc-table .col-idx { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 44px; }
+.enc-table th:nth-child(2), .enc-table td:nth-child(2) { width: 9%; }
+.enc-table th:nth-child(3), .enc-table td:nth-child(3) { width: 11%; }
+.enc-table th:nth-child(4), .enc-table td:nth-child(4) { width: 17%; }
+.enc-table th:nth-child(5), .enc-table td:nth-child(5) { width: 10%; }
+.enc-table th:nth-child(6), .enc-table td:nth-child(6) { width: 18%; }
+.enc-table th:nth-child(7), .enc-table td:nth-child(7) { width: 8%; }
+.enc-table th:nth-child(8), .enc-table td:nth-child(8) { width: 11%; }
+.enc-table td.actions-cell { white-space: nowrap; width: 74px; }
 .enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 .enc-addr-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .enc-addr-bn { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }

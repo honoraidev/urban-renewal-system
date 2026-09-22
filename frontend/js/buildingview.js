@@ -257,7 +257,7 @@ function buildingViewGroupCardHtml(g) {
       </div>
       <div class="bv-body">
         <div class="bv-grid-wrap">
-          <div class="bv-grid${inline ? " bv-inline" : ""}" style="grid-template-columns:auto repeat(${cols.length}, var(--bv-cell-w))">
+          <div class="bv-grid${inline ? " bv-inline" : ""}" style="grid-template-columns:var(--bv-row-label-w) repeat(${cols.length}, var(--bv-cell-w))">
             <div class="bv-grid-corner"></div>${headerCellsHtml}${bodyHtml}
           </div>
         </div>
