@@ -83,14 +83,30 @@ function buildingViewCategory(cell, floorSort) {
 const BV_CATEGORY_LABEL = { agreed: "已整合", opposed: "反對", other: "待整合", mixed: "意見不一", shared: "多位共有" };
 const BV_CELL_ICON = { agreed: BV_ICON.check, opposed: BV_ICON.alert, mixed: BV_ICON.pie, shared: BV_ICON.users };
 
+// 以「人」為單位統計(不是戶數)- 同一戶好幾位共有人時,同意的人算進 agreed、反對的
+// 算進 opposed,不會因為戶內意見不一致就整戶(連同意的那幾位)一起被晾在「反對:0」
+// 統計不到的地方。每格的 agreed_ratio/opposed_ratio 後端已經算好(見 routers/
+// building_view.py 的 _cell_status),對所有狀態的格子都準確,不只 mixed 才有值。
+// 地下層多位共有(依持分比例登記的地下室/車位)的人數獨立算進 shared,不重複計入
+// agreed/opposed/other,跟原本「這種格子優先歸類、不進其他分類」的精神一致。
 function buildingViewStats(groups) {
-  const s = { agreed: 0, opposed: 0, other: 0, mixed: 0, shared: 0, total: 0 };
+  const s = { agreed: 0, opposed: 0, other: 0, shared: 0, total: 0 };
   groups.forEach((g) =>
     Object.entries(g.cells).forEach(([k, cell]) => {
-      const cat = buildingViewCategory(cell, Number(k.split("|")[0]));
-      if (cat === "empty") return;
-      s[cat] += 1;
-      s.total += 1;
+      if (!cell || !cell.owners.length) return;
+      const floorSort = Number(k.split("|")[0]);
+      const n = cell.owners.length;
+      if (n > 1 && floorSort < 0) {
+        s.shared += n;
+        s.total += n;
+        return;
+      }
+      const agreedN = Math.round((cell.agreed_ratio || 0) * n);
+      const opposedN = Math.round((cell.opposed_ratio || 0) * n);
+      s.agreed += agreedN;
+      s.opposed += opposedN;
+      s.other += Math.max(0, n - agreedN - opposedN);
+      s.total += n;
     })
   );
   s.pct = s.total ? Math.round((s.agreed / s.total) * 100) : 0;
@@ -119,7 +135,8 @@ function buildingViewCellFillStyle(cell) {
   return ` style="--bv-agreed-end:${agreedEnd}%;--bv-opposed-end:${opposedEnd}%"`;
 }
 
-// 頁首下方的總覽列:兼圖例(每個圖示對應格子上的顏色)+ 全案各類戶數。
+// 頁首下方的總覽列:兼圖例(每個圖示對應格子上的顏色)+ 全案各類「人數」統計
+// (不是戶數 - 同一戶意見不一時,同意/反對的人分別計入各自類別)。
 function buildingViewSummaryHtml(stats) {
   const chip = (tone, icon, label, n, tip) =>
     `<div class="bv-chip bv-chip-${tone}"${tip ? ` title="${escapeHtml(tip)}"` : ""}><span class="bv-chip-ic">${icon}</span><span class="bv-chip-label">${label}</span><span class="bv-chip-n">${n}</span></div>`;
@@ -129,10 +146,9 @@ function buildingViewSummaryHtml(stats) {
         ${chip("agreed", BV_ICON.check, "同意 (已整合)", stats.agreed)}
         ${chip("opposed", BV_ICON.alert, "反對", stats.opposed)}
         ${chip("other", BV_ICON.dots, "其他 (未決定/需回電/未接聽/未聯絡)", stats.other)}
-        ${chip("mixed", BV_ICON.pie, "<small>共有人意見不一(比例漸層)</small>", stats.mixed, "同一戶有多位共有人,同意/反對/其他都有,格子底色依人數比例畫漸層")}
-        ${chip("shared", BV_ICON.users, "多位共有", stats.shared, "多位共同持分的地下層戶(常見於依持分比例登記的地下室/車位建號),紫色格子")}
+        ${chip("shared", BV_ICON.users, "多位共有", stats.shared, "多位共同持分的地下層戶(常見於依持分比例登記的地下室/車位建號),紫色格子,人數獨立統計不併入同意/反對/其他")}
       </div>
-      <div class="bv-tip">💡點格子開地主編輯視窗</div>
+      <div class="bv-tip">💡點格子開地主編輯視窗 · 統計以「人」為單位,同一戶意見不一時同意/反對的人分別計算</div>
     </div>`;
 }
 
@@ -140,7 +156,7 @@ function buildingViewDonutHtml(pct) {
   const r = 32;
   const c = 2 * Math.PI * r;
   return `
-    <div class="bv-donut" title="同意(已整合)戶數 ÷ 總戶數">
+    <div class="bv-donut" title="同意(已整合)人數 ÷ 總人數">
       <div class="bv-donut-ring">
         <svg viewBox="0 0 80 80" width="84" height="84" aria-hidden="true">
           <circle cx="40" cy="40" r="${r}" fill="none" class="bv-donut-track" stroke-width="9"/>
@@ -216,11 +232,11 @@ function buildingViewGroupCardHtml(g) {
       <div class="bv-group-head">
         <div class="bv-group-titlebox">
           <span class="bv-group-title">🏢 ${escapeHtml(g.title)}</span>
-          <span class="bv-group-meta">${st.total} 戶</span>
+          <span class="bv-group-meta">${st.total} 人</span>
           <button type="button" class="bv-flip-btn" data-bv-flip="${g.key}" title="行列互換">${BV_ICON.flip}${flipped ? "樓層→" : "號碼→"}</button>
         </div>
         <div class="bv-tiles">
-          ${tile("agreed", "已整合", st.agreed)}${tile("other", "待整合", st.other + st.mixed)}${tile("opposed", "反對", st.opposed)}${tile("shared", "多位共有", st.shared)}
+          ${tile("agreed", "已整合", st.agreed)}${tile("other", "待整合", st.other)}${tile("opposed", "反對", st.opposed)}${tile("shared", "多位共有", st.shared)}
         </div>
         ${buildingViewDonutHtml(st.pct)}
         <div class="bv-detail-btn-col">
@@ -235,13 +251,12 @@ function buildingViewGroupCardHtml(g) {
           </div>
         </div>
         <aside class="bv-statpanel${statsHidden ? " bv-statpanel-hidden" : ""}">
-          <div class="bv-stat-title">戶別狀態統計</div>
+          <div class="bv-stat-title">人員狀態統計</div>
           ${statRow("agreed", "同意 (已整合)", st.agreed)}
           ${statRow("opposed", "反對", st.opposed)}
           ${statRow("other", "其他 (未決定/需回電/未接聽/未聯絡)", st.other)}
-          ${statRow("mixed", "共有人意見不一(比例漸層)", st.mixed)}
-          ${statRow("shared", "多位共有", st.shared)}
-          <div class="bv-stat-total"><span>總戶數</span><b>${st.total}</b></div>
+          ${statRow("shared", "多位共有(地下層,獨立統計)", st.shared)}
+          <div class="bv-stat-total"><span>總人數</span><b>${st.total}</b></div>
         </aside>
       </div>
     </div>`;
@@ -383,7 +398,7 @@ function openBuildingDetailModal(g) {
   const st = buildingViewStats([g]);
   openModal(
     `🏢 ${escapeHtml(g.title)} · 樓棟詳情`,
-    `<div class="helper-text" style="margin-bottom:10px">共 ${st.total} 戶 · 已整合 ${st.agreed} · 待整合 ${st.other + st.mixed} · 反對 ${st.opposed} · 多位共有 ${st.shared}(整合率 ${st.pct}%)。點任一列開地主編輯視窗。</div>${buildingViewListTableHtml(rows, { showGroup: false })}`,
+    `<div class="helper-text" style="margin-bottom:10px">共 ${st.total} 人 · 已整合 ${st.agreed} · 待整合 ${st.other} · 反對 ${st.opposed} · 多位共有 ${st.shared}(整合率 ${st.pct}%)。點任一列開地主編輯視窗。</div>${buildingViewListTableHtml(rows, { showGroup: false })}`,
     { width: "860px" }
   );
   document.querySelectorAll("#modal-root .bv-list-row").forEach((tr) => {
@@ -439,7 +454,6 @@ async function renderBuildingViewTab(el) {
           <div class="bv-viewtoggle" role="group" aria-label="檢視方式">
             <button type="button" data-bv-mode="grid">${BV_ICON.grid}樓棟視圖</button>
             <button type="button" data-bv-mode="list">${BV_ICON.list}列表檢視</button>
-            <button type="button" disabled title="尚未提供地圖檢視">${BV_ICON.map}地圖檢視</button>
           </div>
         </div>
       </div>
