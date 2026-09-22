@@ -184,11 +184,53 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .cell-visit { white-space:nowrap; }
       #integ-roster .cell-visit .mini-badge { margin-right:6px; }
       #integ-roster .row-actions { white-space:nowrap; text-align:right; }
-      #integ-roster .row-actions .btn-link { padding:3px 10px; }
       #integ-roster .visit-date { color:var(--text-muted); }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
         line-height:1.35; margin-top:2px; word-break:break-word;
+      }
+      #integ-roster .col-idx { cursor:pointer; }
+      #integ-roster .toggle-arrow { display:inline-block; transition:transform .15s; color:var(--text-muted); font-size:10px; }
+      #integ-roster tr.expanded .toggle-arrow, #integ-roster .integ-toggle-btn.expanded .toggle-arrow { transform:rotate(90deg); }
+      #integ-roster tr.expanded { border-left:3px solid var(--brand); background:color-mix(in srgb, var(--brand) 6%, transparent); }
+      #integ-roster tr.expanded td:first-child { padding-left:9px; }
+      #integ-roster .integ-toggle-btn { display:inline-flex; align-items:center; gap:5px; }
+      #integ-roster .integ-toggle-btn.expanded { background:var(--brand); color:#fff; border-color:var(--brand); }
+      /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
+         選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
+      #integ-roster .integ-detail-card thead th { position:static; padding:6px 10px; font-size:11.5px; }
+      #integ-roster .integ-detail-card tbody td { padding:6px 10px; font-size:12px; }
+      #integ-roster .integ-detail-card table { font-size:12px; }
+      #integ-roster .integ-detail-wrap { display:flex; gap:14px; padding:16px; align-items:flex-start; }
+      #integ-roster .integ-detail-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+      #integ-roster .integ-detail-card {
+        border:1px solid var(--border); border-radius:10px; overflow:hidden;
+        background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.03);
+      }
+      #integ-roster .integ-detail-card-head {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);
+      }
+      #integ-roster .integ-detail-card-title { font-weight:600; font-size:13px; display:flex; align-items:center; gap:6px; }
+      #integ-roster .integ-detail-card-title .count { font-weight:400; color:var(--text-muted); font-size:11.5px; }
+      #integ-roster .integ-side-card { flex:0 0 280px; display:flex; flex-direction:column; }
+      #integ-roster .integ-side-body { padding:14px; display:flex; flex-direction:column; gap:12px; }
+      #integ-roster .integ-side-row { display:flex; flex-direction:column; gap:3px; }
+      #integ-roster .integ-side-label { font-size:11px; color:var(--text-muted); }
+      #integ-roster .integ-side-val { font-size:13px; word-break:break-word; }
+      #integ-roster .integ-side-note-date { display:block; font-size:11px; color:var(--text-muted); margin-top:2px; }
+      #integ-roster .integ-side-actions { display:flex; flex-direction:column; gap:8px; padding:0 14px 14px; margin-top:auto; }
+      #integ-roster .btn-block { width:100%; text-align:center; }
+      #integ-roster .integ-icon-btn {
+        display:inline-flex; align-items:center; justify-content:center;
+        border:1px solid var(--border); background:var(--surface); border-radius:6px;
+        width:26px; height:26px; cursor:pointer; font-size:12px; line-height:1; margin-right:4px;
+      }
+      #integ-roster .integ-icon-btn:hover { background:var(--surface-2); }
+      #integ-roster .integ-icon-btn-danger:hover { background:color-mix(in srgb, var(--danger) 12%, transparent); border-color:var(--danger); }
+      @media (max-width: 900px) {
+        #integ-roster .integ-detail-wrap { flex-direction:column; }
+        #integ-roster .integ-side-card { flex:1 1 auto; }
       }
     </style>
     <div id="integ-roster"><div class="table-wrap">
@@ -219,7 +261,9 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}">
-            <td class="col-idx">${i + 1}</td>
+            <td class="col-idx" data-toggle="${o.id}" style="cursor:pointer;user-select:none">
+              <span class="toggle-arrow">▶</span> ${String(i + 1).padStart(3, "0")}
+            </td>
             <td>${(() => {
       const addrMap = new Map();
       br.forEach((r) => {
@@ -251,9 +295,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
               <span class="visit-date">${visit}</span>
             </td>
             <td class="row-actions">
-              <button type="button" class="btn-link" data-detail="${o.id}" style="color:var(--brand);cursor:pointer;text-decoration:none;font-size:13px">詳細</button>
+              <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">
+                <span class="toggle-arrow">▶</span> 查看
+              </button>
             </td>
-          </tr>`;
+          </tr>
+          ${ownerDetailRowHtml(o, 11, contactBy.get(o.id))}`;
   }).join("")}
         </tbody>
       </table>
@@ -264,12 +311,18 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
     const vt = checked("integ-visit-dd");
     let shown = 0;
-    el.querySelectorAll("#integ-roster tbody tr").forEach((tr) => {
+    // detail-row(展開內容)沒有 data-hay,跳過不篩,只跟著上面那筆摘要列一起隱藏 -
+    // 不然搜尋一重跑,展開狀態會被誤判成「沒比對到關鍵字」而強制關掉。
+    el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
       const okSearch = !q || (tr.dataset.hay || "").includes(q);
       const rowVt = (tr.dataset.visitTok || "").split(" ");
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
       const show = okSearch && okVt;
       tr.classList.toggle("hidden", !show);
+      if (!show) {
+        const detailRow = tr.nextElementSibling;
+        if (detailRow?.classList.contains("detail-row")) detailRow.classList.add("hidden");
+      }
       if (show) shown++;
     });
     const cnt = document.getElementById("integ-count");
@@ -288,61 +341,44 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
 
-  // 詳細按鈕點擊處理
-  const renderDetailModal = (owner) => {
-    const lr = owner.land_records || [];
-    const br = owner.building_records || [];
-    const c = contactBy.get(owner.id);
+  wireOwnerDetailRows(el, owners);
 
-    return `
-      <div style="max-height:600px;overflow-y:auto">
-        <div style="margin-bottom:16px">
-          <div style="font-weight:700;font-size:16px">${escapeHtml(owner.name)}</div>
-          <div style="font-size:13px;color:var(--text-muted);margin-top:4px">身分證: ${owner.id_number ? escapeHtml(owner.id_number) : '-'}</div>
-        </div>
+  // 展開/收合:欄位裡的編號(col-idx)跟操作欄的「查看」按鈕都可以觸發,兩處共用
+  // 同一個 data-toggle="ownerId",同一列的兩顆一起切換箭頭方向跟按鈕文字。
+  el.querySelectorAll("[data-toggle]").forEach((toggle) => {
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const ownerId = toggle.dataset.toggle;
+      const detailRow = document.getElementById(`detail-row-${ownerId}`);
+      if (!detailRow) return;
+      const nowExpanded = detailRow.classList.toggle("hidden") === false;
+      const summaryRow = detailRow.previousElementSibling;
+      summaryRow?.classList.toggle("expanded", nowExpanded);
+      el.querySelectorAll(`[data-toggle="${ownerId}"]`).forEach((t) => {
+        t.classList.toggle("expanded", nowExpanded);
+        if (t.classList.contains("integ-toggle-btn")) {
+          t.innerHTML = nowExpanded
+            ? `<span class="toggle-arrow">▶</span> 收合`
+            : `<span class="toggle-arrow">▶</span> 查看`;
+        }
+      });
+    });
+  });
 
-        <div style="margin-bottom:16px">
-          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:6px">其他資訊</div>
-          <div style="font-size:13px">
-            <div>行動: ${owner.phone_mobile ? escapeHtml(owner.phone_mobile) : '<span style="color:var(--text-muted)">-</span>'}</div>
-            <div>市話: ${owner.phone_landline ? escapeHtml(owner.phone_landline) : '<span style="color:var(--text-muted)">-</span>'}</div>
-            <div style="margin-top:6px">地址: ${owner.address ? escapeHtml(owner.address) : '<span style="color:var(--text-muted)">-</span>'}</div>
-          </div>
-        </div>
-
-        ${c ? `<div style="margin-bottom:16px;border-top:1px solid var(--border);padding-top:12px">
-          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:6px">聯絡記錄</div>
-          <div style="font-size:13px">
-            <div>最後聯繫: ${c.last_contact_date ? fmtDate(c.last_contact_date) : '-'}</div>
-            ${c.last_contact_result ? `<div>結果: ${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</div>` : ""}
-          </div>
-        </div>` : ""}
-
-        ${lr.length ? `<div style="margin-bottom:16px;border-top:1px solid var(--border);padding-top:12px">
-          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:8px">土地 (${lr.length}筆)</div>
-          ${lr.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:12px">
-            <div>${escapeHtml(r.parcel_number)}</div>
-            <div style="color:var(--text-muted);font-size:11px">面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
-          </div>`).join("")}
-        </div>` : ""}
-
-        ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:12px">
-          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:8px">建物 (${br.length}筆)</div>
-          ${br.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:12px">
-            <div>${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
-            <div style="color:var(--text-muted);font-size:11px">面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
-          </div>`).join("")}
-        </div>` : ""}
-      </div>
-    `;
-  };
-
-  el.querySelectorAll("button[data-detail]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const ownerId = parseInt(btn.dataset.detail);
-      const owner = owners.find((o) => o.id === ownerId);
-      if (owner) {
-        openModal(`${owner.name} 詳細資訊`, renderDetailModal(owner), { width: "500px" });
+  // 「查看詳細內容」「聯絡紀錄」都開同一個地主編輯視窗 - 後者額外把拜訪紀錄
+  // 那個 <details> 展開並捲動過去,方便直接看到聯絡歷程不用自己再點開。
+  el.querySelectorAll("[data-view-detail]").forEach((btn) => {
+    btn.addEventListener("click", () => openEditLandownerModal(Number(btn.dataset.viewDetail)));
+  });
+  el.querySelectorAll("[data-view-contacts]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await openEditLandownerModal(Number(btn.dataset.viewContacts));
+      const section = [...document.querySelectorAll(".lo-edit-section")].find((d) =>
+        d.querySelector("summary")?.textContent.includes("拜訪紀錄")
+      );
+      if (section) {
+        section.open = true;
+        section.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
   });
@@ -367,82 +403,115 @@ async function downloadRosterExcel(pid) {
   } catch (err) { }
 }
 
-// 一位地主的「查看明細」展開列:土地/建物逐筆列表 + 各自的新增/編輯/刪除。
+// 一位地主的「查看明細」展開列:左邊土地/建物卡片(逐筆列表 + 各自的新增/編輯/刪除),
+// 右邊「其他資訊」卡片(基本資料摘要 + 查看詳細內容/聯絡紀錄捷徑)。
 // 「整合清冊」跟「土地登記清冊/建物登記清冊」共用同一份,操作欄行為一致。
-function ownerDetailRowHtml(o, colspan) {
+function ownerDetailRowHtml(o, colspan, contact) {
+  const iconBtn = (action, id, ownerId, title, danger) =>
+    `<button type="button" class="integ-icon-btn ${danger ? "integ-icon-btn-danger" : ""}" data-${action}="${id}" data-owner="${ownerId}" title="${title}">${danger ? "🗑" : "✏️"}</button>`;
+
+  const landCard = `
+    <div class="integ-detail-card">
+      <div class="integ-detail-card-head">
+        <span class="integ-detail-card-title">🌱 土地資料 <span class="count">(${o.land_records.length}筆)</span></span>
+        ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
+      </div>
+      ${o.land_records.length
+      ? `<table>
+              <thead><tr><th>#</th><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+              <tbody>
+                ${o.land_records
+        .map(
+          (lr, idx) => `<tr>
+                    <td>${idx + 1}</td>
+                    <td>${escapeHtml(lr.parcel_number)}</td>
+                    <td>${escapeHtml(lr.section) || "-"}</td>
+                    <td>${fmtArea(lr.total_area_sqm)}m²</td>
+                    <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
+                    <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
+                    ${isEditor()
+              ? `<td class="actions-cell">
+                          ${iconBtn("edit-land", lr.id, o.id, "編輯")}
+                          ${iconBtn("delete-land", lr.id, o.id, "刪除", true)}
+                        </td>`
+              : ""
+            }
+                  </tr>`
+        )
+        .join("")}
+              </tbody>
+            </table>`
+      : `<div class="helper-text" style="padding:12px 14px">尚無土地資料</div>`
+    }
+    </div>`;
+
+  const buildingCard = `
+    <div class="integ-detail-card">
+      <div class="integ-detail-card-head">
+        <span class="integ-detail-card-title">🏠 建物資料 <span class="count">(${o.building_records.length}筆)</span></span>
+        ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
+      </div>
+      ${o.building_records.length
+      ? `<table>
+              <thead><tr><th>#</th><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+              <tbody>
+                ${o.building_records
+        .map(
+          (br, idx) => `<tr>
+                    <td>${idx + 1}</td>
+                    <td>${escapeHtml(br.building_number) || "-"}</td>
+                    <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
+                    <td>${escapeHtml(br.floor) || "-"}</td>
+                    <td>${fmtArea(br.total_area_sqm)}m²</td>
+                    <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
+                    ${isEditor()
+              ? `<td class="actions-cell">
+                          ${iconBtn("edit-building", br.id, o.id, "編輯")}
+                          ${iconBtn("delete-building", br.id, o.id, "刪除", true)}
+                        </td>`
+              : ""
+            }
+                  </tr>`
+        )
+        .join("")}
+              </tbody>
+            </table>`
+      : `<div class="helper-text" style="padding:12px 14px">尚無建物資料</div>`
+    }
+    </div>`;
+
+  const phone = o.phone_mobile || o.phone_landline || "";
+  const noteHtml = contact && contact.last_contact_result
+    ? `<span class="mini-badge ${CONTACT_RESULT_BADGE_CLASS[contact.last_contact_result] || ""}">${CONTACT_RESULT_LABEL[contact.last_contact_result] || contact.last_contact_result}</span>
+       ${contact.last_contact_date ? `<span class="integ-side-note-date">最後聯絡<br>${fmtDate(contact.last_contact_date)}</span>` : ""}`
+    : `<span style="color:var(--text-muted)">尚無</span>`;
+  const sideCard = `
+    <div class="integ-detail-card integ-side-card">
+      <div class="integ-detail-card-head">
+        <span class="integ-detail-card-title">ℹ️ 其他資訊</span>
+      </div>
+      <div class="integ-side-body">
+        <div class="integ-side-row"><span class="integ-side-label">👤 所有權人</span><span class="integ-side-val">${escapeHtml(o.name)}</span></div>
+        <div class="integ-side-row"><span class="integ-side-label">📞 聯絡電話</span><span class="integ-side-val">${phone ? escapeHtml(phone) : '<span style="color:var(--text-muted)">未填寫</span>'}</span></div>
+        <div class="integ-side-row"><span class="integ-side-label">🏠 戶籍地址</span><span class="integ-side-val">${o.address ? escapeHtml(o.address) : '<span style="color:var(--text-muted)">未填寫</span>'}</span></div>
+        <div class="integ-side-row"><span class="integ-side-label">📝 備註</span><span class="integ-side-val">${noteHtml}</span></div>
+      </div>
+      <div class="integ-side-actions">
+        <button type="button" class="btn-secondary btn-block" data-view-detail="${o.id}">📄 查看詳細內容</button>
+        <button type="button" class="btn-secondary btn-block" data-view-contacts="${o.id}">💬 聯絡紀錄</button>
+      </div>
+    </div>`;
+
   return `
     <tr class="detail-row hidden" id="detail-row-${o.id}"><td colspan="${colspan}">
-      <div class="sub-detail">
-        <div class="section-toolbar" style="margin-bottom:8px">
-          <strong>土地資料</strong>
-          ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
-        </div>
-        ${o.land_records.length
-      ? `<table>
-                <thead><tr><th>地號</th><th>地段</th><th>面積</th><th>持分</th><th>持有面積</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
-                <tbody>
-                  ${o.land_records
-        .map(
-          (lr) => `<tr>
-                      <td>${escapeHtml(lr.parcel_number)}</td>
-                      <td>${escapeHtml(lr.section) || "-"}</td>
-                      <td>${fmtArea(lr.total_area_sqm)}m²</td>
-                      <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
-                      <td>${fmtArea(lr.owned_area_sqm)}m² (${lr.ownership_share_pct ?? "-"}%)</td>
-                      ${isEditor()
-              ? `<td class="actions-cell">
-                            <button class="btn-secondary btn-sm" data-edit-land="${lr.id}" data-owner="${o.id}">編輯</button>
-                            <button class="btn-danger btn-sm" data-delete-land="${lr.id}" data-owner="${o.id}">刪除</button>
-                          </td>`
-              : ""
-            }
-                    </tr>`
-        )
-        .join("")}
-                </tbody>
-              </table>`
-      : `<div class="helper-text">尚無土地資料</div>`
-    }
-        <div class="section-toolbar" style="margin:16px 0 8px">
-          <strong>建物資料</strong>
-          ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
-        </div>
-        ${o.building_records.length
-      ? `<table>
-                <thead><tr><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積</th><th>持分</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
-                <tbody>
-                  ${o.building_records
-        .map(
-          (br) => `<tr>
-                      <td>${escapeHtml(br.building_number) || "-"}</td>
-                      <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
-                      <td>${escapeHtml(br.floor) || "-"}</td>
-                      <td>${fmtArea(br.total_area_sqm)}m²</td>
-                      <td>${br.ownership_numerator}/${br.ownership_denominator} (${br.ownership_share_pct}%)</td>
-                      ${isEditor()
-              ? `<td class="actions-cell">
-                            <button class="btn-secondary btn-sm" data-edit-building="${br.id}" data-owner="${o.id}">編輯</button>
-                            <button class="btn-danger btn-sm" data-delete-building="${br.id}" data-owner="${o.id}">刪除</button>
-                          </td>`
-              : ""
-            }
-                    </tr>`
-        )
-        .join("")}
-                </tbody>
-              </table>`
-      : `<div class="helper-text">尚無建物資料</div>`
-    }
+      <div class="integ-detail-wrap">
+        <div class="integ-detail-main">${landCard}${buildingCard}</div>
+        ${sideCard}
       </div>
     </td></tr>`;
 }
 
 function wireOwnerDetailRows(el, landowners) {
-  el.querySelectorAll("[data-detail]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.getElementById(`detail-row-${btn.dataset.detail}`).classList.toggle("hidden");
-    });
-  });
   el.querySelectorAll("[data-add-land]").forEach((btn) => {
     btn.addEventListener("click", () => openAddLandRecordModal(Number(btn.dataset.addLand)));
   });
