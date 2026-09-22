@@ -272,23 +272,29 @@ function renderSidebarProjects(projects) {
     sidebarCitiesInitialized = true;
   }
 
+  // 每個案件的檔案圖示顏色循環4色(teal/pink/blue/purple),純視覺區分、跟資料無關 -
+  // 跟版模一樣,不同案件的圖示底色不一樣才不會整排看起來都一個樣子。
+  const CASE_ICON_TONES = ["teal", "pink", "blue", "purple"];
   wrap.innerHTML = Object.entries(byCity)
     .map(([city, cases]) => {
       const open = expandedSidebarCities.has(city);
       return `
         <div class="sb-cg">
           <div class="sb-cg-head" data-city="${escapeHtml(city)}">
+            <span class="sb-ic sb-ic-blue sb-ic-sm">📍</span>
             <span class="sb-cg-name">${escapeHtml(city)}</span>
             <span class="sb-cg-count">${cases.length}</span>
-            <span class="sb-cg-arrow ${open ? "open" : ""}">▶</span>
+            <span class="sb-cg-arrow ${open ? "open" : ""}">⌄</span>
           </div>
           <div class="sb-cg-items ${open ? "open" : ""}">
             ${cases
               .map(
-                (p) => `
+                (p, idx) => `
                 <div class="sb-case-item" data-project-id="${p.id}">
-                  <span class="sb-case-name"><span style="margin-right:6px">📋</span>${escapeHtml(p.name)}</span>
+                  <span class="sb-ic sb-ic-sm sb-ic-${CASE_ICON_TONES[idx % CASE_ICON_TONES.length]}">📄</span>
+                  <span class="sb-case-name">${escapeHtml(p.name)}</span>
                   <span class="sb-case-stage">第${p.current_stage}階段</span>
+                  <span class="sb-chev">›</span>
                 </div>`
               )
               .join("")}

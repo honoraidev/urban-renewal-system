@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260922_19">
+  <link rel="stylesheet" href="style.css?v=20260922_20">
 </head>
 
 <body>
@@ -92,24 +92,40 @@
         </div>
         <div class="sb-sec">總覽</div>
         <div class="nav-links">
-          <button class="nav-link" data-nav="mywork" title="工作看板"><span style="margin-right:6px">🗂️</span><span class="nav-link-label">工作看板</span></button>
-          <button class="nav-link" data-nav="dashboard" title="都更案件進度總覽"><span style="margin-right:6px">📊</span><span class="nav-link-label">都更案件進度總覽</span></button>
+          <button class="nav-link" data-nav="mywork" title="工作看板"><span class="sb-ic sb-ic-orange">📁</span><span class="nav-link-label">工作看板</span><span class="sb-chev">›</span></button>
+          <button class="nav-link" data-nav="dashboard" title="都更案件進度總覽"><span class="sb-ic sb-ic-green">📊</span><span class="nav-link-label">都更案件進度總覽</span><span class="sb-chev">›</span></button>
         </div>
-        <div class="sb-sec">案件管理</div>
-        <div id="sb-cases"></div>
-        <div class="sb-sec">工具與資源</div>
-        <div class="nav-links">
-          <button class="nav-link" data-nav="companydocs" title="公版文件"><span style="margin-right:6px">📄</span><span class="nav-link-label">公版文件</span></button>
-          <button class="nav-link" data-nav="news" title="新聞"><span style="margin-right:6px">📰</span><span class="nav-link-label">新聞</span></button>
-          <button class="nav-link" data-nav="regulations" title="相關法規"><span style="margin-right:6px">⚖️</span><span class="nav-link-label">相關法規</span></button>
-          <button class="nav-link" data-nav="websites" title="相關網站"><span style="margin-right:6px">🌐</span><span class="nav-link-label">相關網站</span></button>
-          <button class="nav-link" data-nav="faq" title="Q&A知識庫"><span style="margin-right:6px">💬</span><span class="nav-link-label">Q&A知識庫</span></button>
-          <button class="nav-link" data-nav="inventory" title="部門物品管制表"><span style="margin-right:6px">📦</span><span class="nav-link-label">部門物品管制表</span></button>
+        <div class="sb-card" data-sb-card="cases">
+          <button class="sb-card-head" type="button" data-sb-card-toggle title="收合/展開">
+            <span class="sb-ic sb-ic-blue">🗃️</span><span class="sb-card-title">案件管理</span><span class="sb-card-chev">⌃</span>
+          </button>
+          <div class="sb-card-body" id="sb-cases"></div>
         </div>
-        <div class="sb-sec">系統指南</div>
-        <div class="nav-links">
-          <button class="nav-link" data-nav="manual" title="使用手冊"><span style="margin-right:6px">📖</span><span class="nav-link-label">使用手冊</span></button>
-          <button class="nav-link" data-nav="tools" title="功能區"><span style="margin-right:6px">🔧</span><span class="nav-link-label">功能區</span></button>
+        <div class="sb-card" data-sb-card="tools">
+          <button class="sb-card-head" type="button" data-sb-card-toggle title="收合/展開">
+            <span class="sb-ic sb-ic-blue">💼</span><span class="sb-card-title">工具與資源</span><span class="sb-card-chev">⌃</span>
+          </button>
+          <div class="sb-card-body">
+            <div class="nav-links">
+              <button class="nav-link" data-nav="companydocs" title="公版文件"><span class="sb-ic sb-ic-purple">📄</span><span class="nav-link-label">公版文件</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="news" title="新聞"><span class="sb-ic sb-ic-green">📰</span><span class="nav-link-label">新聞</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="regulations" title="相關法規"><span class="sb-ic sb-ic-orange">⚖️</span><span class="nav-link-label">相關法規</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="websites" title="相關網站"><span class="sb-ic sb-ic-blue">🌐</span><span class="nav-link-label">相關網站</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="faq" title="Q&A知識庫"><span class="sb-ic sb-ic-pink">💬</span><span class="nav-link-label">Q&A知識庫</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="inventory" title="部門物品管制表"><span class="sb-ic sb-ic-orange">📦</span><span class="nav-link-label">部門物品管制表</span><span class="sb-chev">›</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="sb-card" data-sb-card="guide">
+          <button class="sb-card-head" type="button" data-sb-card-toggle title="收合/展開">
+            <span class="sb-ic sb-ic-gray">⚙️</span><span class="sb-card-title">系統指南</span><span class="sb-card-chev">⌃</span>
+          </button>
+          <div class="sb-card-body">
+            <div class="nav-links">
+              <button class="nav-link" data-nav="manual" title="使用手冊"><span class="sb-ic sb-ic-blue">📘</span><span class="nav-link-label">使用手冊</span><span class="sb-chev">›</span></button>
+              <button class="nav-link" data-nav="tools" title="功能區"><span class="sb-ic sb-ic-gray">🔧</span><span class="nav-link-label">功能區</span><span class="sb-chev">›</span></button>
+            </div>
+          </div>
         </div>
         <div class="nav-user">
           <div class="avatar-menu">
@@ -956,7 +972,7 @@
   <script src="js/api.js?v=20260914_1"></script>
   <script src="js/modals.js?v=20260916_2"></script>
   <script src="js/auth.js?v=20260918_1"></script>
-  <script src="js/dashboard.js?v=20260922_1"></script>
+  <script src="js/dashboard.js?v=20260922_2"></script>
   <script src="js/mywork.js?v=20260918_1"></script>
   <script src="js/sop.js?v=20260922_3"></script>
   <script src="js/development.js?v=20260918_1"></script>
@@ -974,7 +990,7 @@
   <script src="js/buildingview.js?v=20260922_9"></script>
   <script src="js/land_value_tax.js?v=20260922_3"></script>
   <script src="js/reminders.js?v=20260921_8"></script>
-  <script src="js/main.js?v=20260918_2"></script>
+  <script src="js/main.js?v=20260922_1"></script>
 </body>
 
 </html>

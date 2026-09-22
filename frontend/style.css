@@ -287,12 +287,20 @@
     .sb.collapsed .sb-sec,
     .sb.collapsed #sb-cases,
     .sb.collapsed .nav-link-label,
+    .sb.collapsed .sb-card-title,
+    .sb.collapsed .sb-card-chev,
+    .sb.collapsed .sb-chev,
     .sb.collapsed .nav-user-name { display: none; }
     .sb.collapsed .sb-collapse-btn { margin-left: 0; }
     .sb.collapsed .nav-links { padding: 0 8px; }
-    .sb.collapsed .nav-link { text-align: center; padding: 8px 0; }
+    .sb.collapsed .nav-link { text-align: center; padding: 8px 0; justify-content: center; }
     .sb.collapsed .nav-user { flex-direction: column; padding: 14px 8px; }
     .sb.collapsed .avatar-menu { flex: 0 0 auto; }
+    /* 收合成圖示小標時卡片外框拿掉,跟其他項目一樣是純圖示直排,不然56px寬裝一張
+       有邊框的卡片會很擠。 */
+    .sb.collapsed .sb-card { margin: 0; border: none; box-shadow: none; background: none; }
+    .sb.collapsed .sb-card-head { padding: 8px 0; justify-content: center; }
+    .sb.collapsed .sb-card-body { padding: 0 8px; }
   }
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
@@ -309,40 +317,76 @@
   .navbar .brand-dot img:not(.brand-icon-logo) { height: 40px; width: auto; display: block; }
   .nav-links { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; flex-shrink: 0; }
   .nav-link {
-    background: none; color: var(--text-muted); font-weight: 600; padding: 8px 14px; border-radius: var(--radius-sm);
-    text-align: left; width: 100%;
+    background: none; color: var(--text); font-weight: 700; padding: 7px 10px; border-radius: var(--radius-sm);
+    text-align: left; width: 100%; display: flex; align-items: center; gap: 10px; font-size: 14px;
   }
-  .nav-link:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
+  .nav-link:hover { background: var(--surface-2); opacity: 1; }
   .nav-link.active { background: var(--brand-light); color: var(--brand-dark); }
   .nav-link.active:hover { background: var(--brand-light); }
   .sb-sec { padding: 18px 20px 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); flex-shrink: 0; }
+
+  /* ---------- 側欄卡片:案件管理/工具與資源/系統指南各自包成一張卡片,標題列
+     有色塊圖示+可點收合(參考版型截圖)。.sb-sec(總覽)維持原本無卡片的樣子。 ---------- */
+  .sb-card {
+    margin: 8px 12px 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); overflow: hidden; flex-shrink: 0;
+  }
+  .sb-card-head {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
+    background: none; text-align: left; font-weight: 800; font-size: 14.5px; color: var(--text); cursor: pointer;
+  }
+  .sb-card-head:hover { background: var(--surface-2); opacity: 1; }
+  .sb-card-title { flex: 1; }
+  .sb-card-chev { font-size: 13px; color: var(--text-muted); transition: transform .2s; flex-shrink: 0; }
+  .sb-card-body { padding: 2px 10px 10px; }
+  .sb-card.sb-card-collapsed .sb-card-body { display: none; }
+  .sb-card.sb-card-collapsed .sb-card-chev { transform: rotate(180deg); }
+  .sb-card .nav-links { padding: 0; }
+
+  /* 每個 nav-link/案件項目最左邊的色塊圖示 + 最右邊的「›」小箭頭(純裝飾,呼應
+     版型截圖每列都有的進入感,不是真的可再往下鑽的層級)。 */
+  .sb-ic {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center;
+    justify-content: center; font-size: 15px; line-height: 1;
+  }
+  .sb-ic-sm { width: 26px; height: 26px; font-size: 13px; border-radius: 8px; }
+  .sb-ic-orange { background: var(--warning-light); }
+  .sb-ic-green { background: var(--success-light); }
+  .sb-ic-blue { background: var(--info-light); }
+  .sb-ic-gray { background: var(--surface-2); }
+  .sb-ic-teal { background: var(--brand-light); }
+  .sb-ic-purple { background: color-mix(in srgb, #8b5cf6 16%, transparent); }
+  .sb-ic-pink { background: color-mix(in srgb, #ec4899 16%, transparent); }
+  .sb-chev { margin-left: auto; flex-shrink: 0; font-size: 15px; color: var(--text-muted); opacity: .55; }
+
   /* Not flex:1 - that used to stretch this to fill the sidebar's entire remaining
      height whenever there were few cases, leaving a large empty gap above 資源區
      instead of the case list and resource section sitting naturally next to each
      other. Sized to its own content instead, capped so a long case list still
      scrolls internally rather than pushing 資源區/使用者選單 off the bottom. */
-  #sb-cases { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; max-height: 46vh; overflow-y: auto; flex-shrink: 0; }
+  #sb-cases { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; flex-shrink: 0; }
   .sb-cg { margin-bottom: 1px; }
   .sb-cg-head {
-    display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--radius-sm);
-    cursor: pointer; color: var(--text-muted); font-size: 12.5px; font-weight: 700; user-select: none;
+    display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: var(--radius-sm);
+    cursor: pointer; color: var(--text); font-size: 13.5px; font-weight: 700; user-select: none;
   }
-  .sb-cg-head:hover { background: var(--surface-2); color: var(--text); }
+  .sb-cg-head:hover { background: var(--surface-2); }
   .sb-cg-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sb-cg-count {
-    font-size: 11px; padding: 1px 6px; border-radius: 5px;
-    background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 100px;
+    background: var(--surface-2); color: var(--text-muted);
   }
-  .sb-cg-arrow { font-size: 10px; color: var(--text-muted); transition: transform .2s; }
-  .sb-cg-arrow.open { transform: rotate(90deg); }
+  .sb-cg-arrow { font-size: 12px; color: var(--text-muted); transition: transform .2s; }
+  .sb-cg-arrow.open { transform: rotate(180deg); }
   .sb-cg-items { overflow: hidden; max-height: 0; transition: max-height .25s ease; }
   .sb-cg-items.open { max-height: 800px; }
   .sb-case-item {
-    display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 22px; border-radius: var(--radius-sm);
-    color: var(--text-muted); font-weight: 600; font-size: 13.5px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: 1px 0 1px 8px; border-radius: var(--radius-sm);
+    color: var(--text); font-weight: 600; font-size: 13.5px; cursor: pointer;
+    border-left: 3px solid transparent;
   }
-  .sb-case-item:hover { background: var(--surface-2); color: var(--text); }
-  .sb-case-item.active { background: var(--brand-light); color: var(--brand-dark); }
+  .sb-case-item:hover { background: var(--surface-2); }
+  .sb-case-item.active { background: var(--brand-light); color: var(--brand-dark); border-left-color: var(--brand); }
   .sb-case-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sb-case-stage {
     flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 100px;

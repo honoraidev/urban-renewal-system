@@ -48,6 +48,14 @@ function bootstrapApp() {
   } catch (e) { }
   applySidebarCollapsed(savedSidebarCollapsed === "1");
 
+  // 側欄「案件管理／工具與資源／系統指南」卡片各自可收合(點標題列),不記憶狀態 -
+  // 每次重新整理都是展開的,跟畫面上一開始看到的樣子一致。
+  document.querySelectorAll("[data-sb-card-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.closest(".sb-card")?.classList.toggle("sb-card-collapsed");
+    });
+  });
+
   document.querySelectorAll(".nav-link").forEach((btn) => {
     btn.addEventListener("click", () => {
       closeAvatarDropdown();
