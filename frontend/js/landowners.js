@@ -164,6 +164,8 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         ])}
       </div>
     </div>
+    <div style="display:flex;gap:16px;margin-top:16px">
+      <div style="flex:1;min-width:0">
     <style>
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
       #integ-roster table { border-collapse:separate; border-spacing:0; width:100%; font-size:13px; }
@@ -269,7 +271,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   }).join("")}
         </tbody>
       </table>
-    </div></div>`;
+    </div></div>
+      </div>
+      <div id="integ-detail-panel" style="flex:0 0 320px;max-height:800px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface)">
+        <div style="text-align:center;color:var(--text-muted);padding:32px 16px">點擊表格行查看詳情</div>
+      </div>
+    </div>`;
 
   const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
   const applyIntegratedFilter = () => {
@@ -309,6 +316,41 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
   wireOwnerDetailRows(el, owners);
+
+  // 新的右側邊欄詳情顯示
+  const detailPanel = el.querySelector("#integ-detail-panel");
+  el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => {
+      const ownerName = tr.querySelector(".col-name")?.textContent || "";
+      const ownerId = [...el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)")].indexOf(tr) + 1;
+      const owner = owners.find((o) => o.name === ownerName);
+      if (owner) {
+        const c = contactBy.get(owner.id);
+        const contact = c ? `${c.last_contact_result ? CONTACT_RESULT_LABEL[c.last_contact_result] : ""}` : "";
+        detailPanel.innerHTML = `
+          <div style="margin-bottom:20px">
+            <div style="font-weight:700;font-size:16px;margin-bottom:8px">${escapeHtml(owner.name)}</div>
+            <div style="color:var(--text-muted);font-size:13px">ID: ${owner.id}</div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px">
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px">聯絡資訊</div>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+              ${owner.phone_mobile ? `<div>📱 ${escapeHtml(owner.phone_mobile)}</div>` : ""}
+              ${owner.phone_landline ? `<div>☎ ${escapeHtml(owner.phone_landline)}</div>` : ""}
+              ${owner.address ? `<div>🏠 ${escapeHtml(owner.address)}</div>` : ""}
+              ${owner.id_number ? `<div>🪪 ${escapeHtml(owner.id_number)}</div>` : ""}
+            </div>
+          </div>
+          ${c ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px">最後聯繫</div>
+            <div style="font-size:13px;color:var(--text-muted)">${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}</div>
+            ${contact ? `<div style="margin-top:4px"><span class="mini-badge">${contact}</span></div>` : ""}
+          </div>` : ""}
+        `;
+      }
+    });
+  });
 }
 
 // 「產生地主清冊 Excel」的下載動作 - 整合清冊工具列的按鈕、SOP 第1關「確認地主清冊
