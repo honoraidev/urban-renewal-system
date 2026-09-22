@@ -2612,7 +2612,9 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 }
 .reg-search-btn:hover { filter: brightness(1.06); }
 
-.reg-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+/* 工具列(管理分類/修改/新增連結/檢視切換)排在分類膠囊列表上面、靠右對齊 -
+   使用者反饋原本兩者並排同一行時,分類一多、工具列容易被擠到看不清楚。 */
+.reg-tabs-row { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
 .reg-tabs { display: flex; flex-wrap: wrap; gap: 10px; }
 .reg-tab {
   display: flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -2621,7 +2623,7 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .reg-tab:hover { border-color: var(--brand); }
 .reg-tab.act { background: var(--brand); border-color: var(--brand); color: #fff; }
 .reg-tab-n { font-size: 12px; opacity: .8; }
-.reg-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 0 0 auto; }
+.reg-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .reg-count { font-size: 13px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
 .reg-view-toggle { display: flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .reg-view-btn { border: none; background: var(--surface); color: var(--text-muted); font-size: 15px; padding: 7px 13px; cursor: pointer; }
