@@ -112,9 +112,8 @@ function encumbranceObligorsCellHtml(enc) {
     </div>`;
 }
 
-function encumbranceRowHtml(enc, seq) {
+function encumbranceRowHtml(enc) {
   return `<tr>
-    <td class="col-idx">${String(seq).padStart(3, "0")}</td>
     <td>${escapeHtml(enc.registration_order) || "-"}</td>
     <td>${encumbranceParcelsCellHtml(enc)}</td>
     <td>${encumbrancePropertyAddressCellHtml(enc)}</td>
@@ -269,7 +268,7 @@ async function renderEncumbrancesTab(el) {
     <div class="table-wrap">
       <table class="enc-table">
         <thead><tr>
-          <th class="col-idx">#</th><th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>債權額比例</th><th style="text-align:right">擔保債權總金額</th>
+          <th>登記次序</th><th>${encActiveKind === "building" ? "建號" : "地號"}</th><th>門牌地址</th><th>權利種類</th><th>他項權利人</th><th>債權額比例</th><th style="text-align:right">擔保債權總金額</th>
           ${isEditor() ? "<th>操作</th>" : ""}
         </tr></thead>
         <tbody id="encumbrance-tbody"></tbody>
@@ -288,8 +287,8 @@ async function renderEncumbrancesTab(el) {
 
     const tbody = document.getElementById("encumbrance-tbody");
     tbody.innerHTML = slice.length
-      ? slice.map((enc, i) => encumbranceRowHtml(enc, start + i + 1)).join("")
-      : `<tr><td colspan="${isEditor() ? 9 : 8}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無土地他項權利資料" : "尚無建物他項權利資料"}</td></tr>`;
+      ? slice.map(encumbranceRowHtml).join("")
+      : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無土地他項權利資料" : "尚無建物他項權利資料"}</td></tr>`;
     wireRowButtons();
 
     const pageBtn = (label, n, opts = {}) =>

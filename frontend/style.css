@@ -1460,19 +1460,19 @@
    buildingview.js 的 grid-template-columns 也讀同一個變數,兩邊才會對得齊;
    門牌文字太長就用 ellipsis 截斷,不再讓內容反過來撐開格子跟捲軸,一整排格子
    看起來才會整齊劃一。響應式斷點只要覆寫這個變數,格子跟 grid 欄寬會一起變小。 */
-.bv-grid { --bv-cell-w: 44px; --bv-row-label-w: 64px; }
-.bv-grid.bv-inline { --bv-cell-w: 64px; }
+.bv-grid { --bv-cell-w: 56px; --bv-row-label-w: 64px; }
+.bv-grid.bv-inline { --bv-cell-w: 76px; }
 .bv-cell {
-  position: relative; width: var(--bv-cell-w); height: 36px; padding: 0 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  position: relative; width: var(--bv-cell-w); height: 46px; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
-  font-size: 10.5px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
 /* 文字截斷只套在門牌文字本身(.bv-cell-label),不能放在 .bv-cell 上 - 右上角
    「×N 共有人數」的角標(.bv-cell-badge)是用 position:absolute + 負的 top 刻意
    突出格子邊界顯示的,.bv-cell 若有 overflow:hidden 會連這個角標一起裁掉一半。 */
 .bv-cell-label { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 /* 「16之1」這種帶「之」的門牌比純數字寬 - 整組改成圖示在左、文字在右,格子也放寬 */
-.bv-inline .bv-cell { height: 34px; flex-direction: row; gap: 3px; }
+.bv-inline .bv-cell { height: 44px; flex-direction: row; gap: 4px; }
 .bv-cell-ic { display: inline-flex; }
 .bv-cell-ic:empty { display: none; }
 .bv-cell:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(15, 35, 38, .35); z-index: 2; }
@@ -1530,12 +1530,12 @@
 .bv-status-shared { background: var(--purple-light); color: var(--purple); }
 
 @media (max-width: 950px) {
-  .bv-col-label { font-size: 10px; }
-  .bv-row-label { padding: 0 5px; font-size: 11.5px; }
-  .bv-grid { --bv-cell-w: 40px; --bv-row-label-w: 56px; gap: 4px; }
-  .bv-grid.bv-inline { --bv-cell-w: 58px; }
-  .bv-cell { height: 34px; font-size: 10px; padding: 0 2px; }
-  .bv-inline .bv-cell { height: 32px; gap: 2px; }
+  .bv-col-label { font-size: 10.5px; }
+  .bv-row-label { padding: 0 5px; font-size: 12px; }
+  .bv-grid { --bv-cell-w: 50px; --bv-row-label-w: 58px; gap: 5px; }
+  .bv-grid.bv-inline { --bv-cell-w: 68px; }
+  .bv-cell { height: 42px; font-size: 11px; padding: 0 3px; }
+  .bv-inline .bv-cell { height: 40px; gap: 3px; }
 }
 
 @media (max-width: 900px) {
@@ -1544,12 +1544,12 @@
   .bv-group { padding: 16px; }
   .bv-body { flex-wrap: wrap; gap: 20px 26px; }
   .bv-statpanel { flex-basis: 100%; }
-  .bv-col-label { font-size: 9px; }
-  .bv-row-label { padding: 0 4px; font-size: 11px; margin-right: 3px; }
-  .bv-grid { --bv-cell-w: 36px; --bv-row-label-w: 48px; gap: 3px; }
-  .bv-grid.bv-inline { --bv-cell-w: 54px; }
-  .bv-cell { height: 32px; font-size: 9.5px; padding: 0 2px; }
-  .bv-inline .bv-cell { height: 30px; gap: 2px; }
+  .bv-col-label { font-size: 9.5px; }
+  .bv-row-label { padding: 0 4px; font-size: 11.5px; margin-right: 3px; }
+  .bv-grid { --bv-cell-w: 44px; --bv-row-label-w: 52px; gap: 4px; }
+  .bv-grid.bv-inline { --bv-cell-w: 62px; }
+  .bv-cell { height: 38px; font-size: 10.5px; padding: 0 2px; }
+  .bv-inline .bv-cell { height: 36px; gap: 2px; }
 }
 .bv-flip-btn { white-space: nowrap; }
 
@@ -2074,22 +2074,19 @@
   min-width: 260px; max-width: 420px; max-height: 280px; overflow: auto;
 }
 
-/* 他項權利部表格:登記次序/地號/權利種類/債權額比例不換行(原本「0058-000」被折成兩行),
-   門牌地址與權利人給足最小寬度,整列高度一致、垂直置中。 */
 /* table-layout:fixed + 各欄固定寬度比例,讓整張表塞進容器寬度、不再需要 .table-wrap
    的水平捲軸 - 原本靠 min-width(200px/240px) + white-space:nowrap 讓內容決定寬度,
-   欄一多、公司全名或雙地號疊在一起就會把表撐爆。nth-child 都 +1 讓給最前面新增的
-   「#」序號欄:1=#,2=登記次序,3=地號,4=門牌,5=權利種類,6=權利人,7=債權額比例,8=金額,9=操作。 */
+   公司全名或雙地號疊在一起就會把表撐爆。1=登記次序,2=地號,3=門牌,4=權利種類,
+   5=權利人,6=債權額比例,7=金額,8=操作。 */
 .enc-table { table-layout: fixed; width: 100%; }
 .enc-table th, .enc-table td { vertical-align: middle; word-break: break-word; }
-.enc-table .col-idx { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 44px; }
-.enc-table th:nth-child(2), .enc-table td:nth-child(2) { width: 9%; }
-.enc-table th:nth-child(3), .enc-table td:nth-child(3) { width: 11%; }
-.enc-table th:nth-child(4), .enc-table td:nth-child(4) { width: 17%; }
-.enc-table th:nth-child(5), .enc-table td:nth-child(5) { width: 10%; }
-.enc-table th:nth-child(6), .enc-table td:nth-child(6) { width: 18%; }
-.enc-table th:nth-child(7), .enc-table td:nth-child(7) { width: 8%; }
-.enc-table th:nth-child(8), .enc-table td:nth-child(8) { width: 11%; }
+.enc-table th:nth-child(1), .enc-table td:nth-child(1) { width: 10%; }
+.enc-table th:nth-child(2), .enc-table td:nth-child(2) { width: 12%; }
+.enc-table th:nth-child(3), .enc-table td:nth-child(3) { width: 18%; }
+.enc-table th:nth-child(4), .enc-table td:nth-child(4) { width: 11%; }
+.enc-table th:nth-child(5), .enc-table td:nth-child(5) { width: 19%; }
+.enc-table th:nth-child(6), .enc-table td:nth-child(6) { width: 9%; }
+.enc-table th:nth-child(7), .enc-table td:nth-child(7) { width: 11%; }
 .enc-table td.actions-cell { white-space: nowrap; width: 74px; }
 .enc-addr-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 .enc-addr-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
