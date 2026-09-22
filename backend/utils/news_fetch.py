@@ -285,19 +285,26 @@ def _match_bing(item_name: str) -> dict | None:
 
 
 def _enrich_one(item_id: int, name: str, url: str) -> tuple[int, dict]:
-    found = _match_bing(name)
-    if found and (found["summary"] or found["image_url"]):
-        return item_id, {"summary": found["summary"], "image_url": found["image_url"]}
-    return item_id, fetch_page_meta(url)
+    """兩個來源各自可能只補到一半(例如 Bing 比對到同篇但那次搜尋結果沒附縮圖) -
+    缺哪一項就分別試著補,不要一有其中一項命中就直接放棄另一項。"""
+    found = _match_bing(name) or {}
+    summary, image_url = found.get("summary"), found.get("image_url")
+    if not summary or not image_url:
+        page = fetch_page_meta(url)
+        summary = summary or page.get("summary")
+        image_url = image_url or page.get("image_url")
+    return item_id, {"summary": summary, "image_url": image_url}
 
 
 def enrich_news_items(db: Session, limit: int = 150) -> int:
-    """幫還沒有縮圖/摘要的舊項目補資料,回傳實際補到資料的筆數。試過但什麼都沒找到的項目
-    把 summary 存成空字串當「已試過」記號,以後不再重試(不然每次抓新聞都會對同一批
-    找不到的舊項目重跑一輪搜尋)。"""
+    """幫還沒有縮圖/摘要的舊項目補資料,回傳實際補到資料的筆數。summary/image_url 分開判斷
+    「已試過」- 用 OR 不用 AND,不然像「Bing 有摘要但那次沒附縮圖」這種只缺一半的項目,
+    會因為 summary 已經不是 NULL 而被擋在篩選條件外,永遠沒機會補另一半。試過還是補不到的
+    那一半存成空字串當記號,以後不再重試(不然每次抓新聞都會對同一批找不到的舊項目重跑一輪
+    搜尋);已經補到的那一半維持原值,不會被這次的結果覆蓋掉。"""
     todo = (
         db.query(NewsItem)
-        .filter(NewsItem.summary.is_(None), NewsItem.image_url.is_(None))
+        .filter((NewsItem.summary.is_(None)) | (NewsItem.image_url.is_(None)))
         .order_by(NewsItem.created_at.desc())
         .limit(limit)
         .all()
@@ -310,9 +317,13 @@ def enrich_news_items(db: Session, limit: int = 150) -> int:
     enriched = 0
     for item_id, data in results:
         n = by_id[item_id]
-        n.summary = data.get("summary") or ""
-        n.image_url = data.get("image_url") or None
-        if n.summary or n.image_url:
+        got_summary = bool(data.get("summary"))
+        got_image = bool(data.get("image_url"))
+        if n.summary is None:
+            n.summary = data.get("summary") or ""
+        if n.image_url is None:
+            n.image_url = data.get("image_url") or ""
+        if got_summary or got_image:
             enriched += 1
     db.commit()
     return enriched
