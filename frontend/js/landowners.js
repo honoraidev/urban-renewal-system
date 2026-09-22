@@ -226,8 +226,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     // 一人名下好幾筆土地/建物、持分分子分母又長時,擠成一行會把儲存格撐爆、逼名字
     // 斷行,獨立成行、允許正常換行,版面才不會跑掉。
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
-    return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}">
-            <td class="col-idx">${String(i + 1).padStart(3, "0")}</td>
+    return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}" style="border-bottom:2px solid var(--border)">
+            <td class="col-idx" style="cursor:pointer;user-select:none">
+              <span data-toggle="${o.id}" style="font-weight:600">▶</span>
+            </td>
             <td>${(() => {
       // 「房屋地下N層」的地下室/車位建號常是依持分比例登記給幾十位共有人(不是
       // 這位地主自己專屬的一戶),_shortDoorAddr 會把「22號房屋地下二層」也簡化成
@@ -375,7 +377,20 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   };
 
   el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
-    tr.style.cursor = "pointer";
+    const toggle = tr.querySelector("[data-toggle]");
+    const ownerId = tr.dataset.ownerId;
+    const detailRow = document.getElementById(`detail-row-${ownerId}`);
+
+    // 點擊箭頭展開/收起
+    toggle?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (detailRow) {
+        detailRow.classList.toggle("hidden");
+        toggle.textContent = detailRow.classList.contains("hidden") ? "▶" : "▼";
+      }
+    });
+
+    // 點擊行顯示右側邊欄
     tr.addEventListener("click", () => {
       const ownerName = tr.querySelector(".col-name")?.textContent || "";
       const owner = owners.find((o) => o.name === ownerName);
