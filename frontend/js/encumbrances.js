@@ -92,7 +92,9 @@ function _floorFromAddrString(addr) {
 function encumbranceParcelsCellHtml(enc) {
   const tokens = (enc.applies_to_parcels || "").split(/\s+/).filter(Boolean);
   if (!tokens.length) return "-";
-  if (tokens.length === 1) return escapeHtml(tokens[0]);
+  // 只有1筆也用膠囊(mini-badge)顯示,跟多筆時的樣式統一,不要單筆是純文字、
+  // 多筆才是膠囊的不一致外觀。
+  if (tokens.length === 1) return `<span class="mini-badge">${escapeHtml(tokens[0])}</span>`;
   const panelHtml = tokens.map((t) => `<div class="enc-addr-panel-row">${escapeHtml(t)}</div>`).join("");
   return `<div class="enc-addr-cell">
       <div class="enc-addr-line">
