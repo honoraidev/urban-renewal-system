@@ -86,12 +86,13 @@ function landValueTaxRowResult(lr, liveValues) {
   if (!lr.ltt_original_value) return null;
   const live = liveValues && liveValues[lr.id];
   const ownedAreaSqm = Number(lr.owned_area_sqm) || 0;
-  const hasLiveCurrentValue = live && live.current_value != null;
   // ltt_original_value / ltt_current_value 存的是謄本上的單價(元/㎡),不是總額 - 稅額試算
   // 需要的是這筆持分的總金額,在這裡現算(單價 × owned_area_sqm),不要求存進資料庫的欄位
-  // 就已經是總額,避免持分面積事後被改動時,舊的換算結果沒有跟著更新。
-  const currentValue = hasLiveCurrentValue ? live.current_value : (Number(lr.ltt_current_value) || 0) * ownedAreaSqm;
-  const currentPeriod = hasLiveCurrentValue ? live.period_label : lr.ltt_current_value_period;
+  // 就已經是總額,避免持分面積事後被改動時,舊的換算結果沒有跟著更新。一律以謄本存的
+  // 單價為準,不用臺北市開放資料即時查詢覆蓋 - 即時查詢的年度/資料版本跟謄本記載的
+  // 那次可能對不起來,使用者要能穩定核對「這個數字是不是我謄本上看到的那個」。
+  const currentValue = (Number(lr.ltt_current_value) || 0) * ownedAreaSqm;
+  const currentPeriod = lr.ltt_current_value_period;
   const holdingYears = lr.ltt_holding_years ?? calcHoldingYears(lr.ltt_original_value_period, currentPeriod);
   const cpiAuto = !lr.ltt_cpi_index && !!(live && live.cpi_index);
   const params = {
@@ -171,16 +172,9 @@ function lttBuildSummaries(landOwners, liveValues) {
   return landOwners.map((o, i) => {
     const parcels = (o.land_records || []).map((lr) => {
       const result = landValueTaxRowResult(lr, liveValues);
-      const live = liveValues[lr.id];
       const area = Number(lr.owned_area_sqm) || 0;
-      const currentValue = result
-        ? result.currentValue
-        : live && live.current_value != null
-          ? live.current_value
-          : (Number(lr.ltt_current_value) || 0) * area;
-      // ltt_current_value 本身已經是單價(元/㎡),不用再拿 currentValue ÷ area 反推 -
-      // 直接讀比較準,不受換算成總額後四捨五入的誤差影響。
-      const unitPrice = live && live.unit_price_per_sqm != null ? live.unit_price_per_sqm : Number(lr.ltt_current_value) || null;
+      const currentValue = result ? result.currentValue : (Number(lr.ltt_current_value) || 0) * area;
+      const unitPrice = Number(lr.ltt_current_value) || null;
       const selfTax = result ? result.selfUse.totalTax : 0;
       const generalTax = result ? result.general.totalTax : 0;
       return { record: lr, result, currentValue, area, unitPrice, selfTax, generalTax, savings: Math.max(0, generalTax - selfTax) };
@@ -301,23 +295,11 @@ async function renderLandValueTaxTab(el) {
   lttSyncControls(el);
   lttRenderList();
 
+  // 本次申報移轉現值一律採用「土地登記」頁存的謄本單價(不再呼叫臺北市開放資料即時
+  // 查詢覆蓋)- 即時查詢的年度/資料版本可能跟使用者謄本記載的那次對不上,直接照謄本
+  // 存的值算,使用者才能穩定核對「這個數字是不是我謄本上看到的那個」。
   let liveValues = {};
-  let note = "本月申報移轉現值請至「土地登記」頁的「當期公告土地現值」填寫。";
-  try {
-    const lookup = await api(`/projects/${pid}/landowners/ltt-current-value-lookup-all`, { silent: true });
-    if (lookup.supported && !lookup.error) {
-      liveValues = lookup.records || {};
-      note = lookup.period_label
-        ? `本月申報移轉現值已自動帶入臺北市政府開放資料 ${escapeHtml(lookup.period_label)} 公告土地現值(即時查詢,僅供試算參考);查無資料的地號請至「土地登記」頁手動輸入。`
-        : "查無符合的公告土地現值資料,請至「土地登記」頁手動輸入本月申報移轉現值。";
-    } else if (lookup.supported && lookup.error) {
-      note = "自動查詢公告土地現值失敗,暫時沿用「土地登記」頁已存的本月申報移轉現值。";
-    } else {
-      note = "目前僅臺北市案件支援自動查詢公告土地現值,其他縣市請至「土地登記」頁手動輸入本月申報移轉現值。";
-    }
-  } catch (err) {
-    note = "自動查詢公告土地現值失敗,暫時沿用「土地登記」頁已存的本月申報移轉現值。";
-  }
+  const note = "本次申報移轉現值採用「土地登記」頁存的謄本單價計算;請確認該欄位已依謄本填妥。";
 
   let cpiNote = "";
   try {
@@ -747,15 +729,12 @@ function openLttDetailModal(ownerId, recordId) {
         )
         .join("")
     : "";
-  const live = lttCtx.liveValues;
   const parcelHtml = parcels
     .map((p) => {
       const lr = p.record;
-      const lv = live[lr.id];
-      const currentCell =
-        lv && lv.current_value != null
-          ? `<div class="ltt-current-period">${escapeHtml(lv.period_label)}<span>即時查詢</span></div><div class="ltt-current-amount">${Number(lv.current_value).toLocaleString()} 元</div>`
-          : `${lr.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(lr.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${lr.ltt_current_value ? `${Math.round(Number(lr.ltt_current_value) * p.area).toLocaleString()} 元<span>單價 ${Number(lr.ltt_current_value).toLocaleString()} 元/m²</span>` : "-"}</div>`;
+      // 一律照謄本存的單價換算(不再用臺北市開放資料即時查詢覆蓋),跟 landValueTaxRowResult
+      // 算稅額用的是同一份數字,這裡看到的總額才會跟稅額試算的依據對得起來。
+      const currentCell = `${lr.ltt_current_value_period ? `<div class="ltt-current-period">${escapeHtml(lr.ltt_current_value_period)}</div>` : ""}<div class="ltt-current-amount">${lr.ltt_current_value ? `${Math.round(Number(lr.ltt_current_value) * p.area).toLocaleString()} 元<span>單價 ${Number(lr.ltt_current_value).toLocaleString()} 元/m²</span>` : "-"}</div>`;
       return `
         <div class="lv-dt-parcel">
           <div class="lv-dt-parcel-title">地號 ${escapeHtml(lr.parcel_number) || "-"}${lr.registration_order ? `<span>次序 ${escapeHtml(lr.registration_order)}</span>` : ""}</div>
