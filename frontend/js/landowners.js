@@ -164,8 +164,6 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         ])}
       </div>
     </div>
-    <div style="display:flex;gap:16px;margin-top:16px">
-      <div style="flex:1;min-width:0">
     <style>
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
       #integ-roster table { border-collapse:separate; border-spacing:0; width:100%; font-size:13px; }
@@ -186,15 +184,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .cell-visit { white-space:nowrap; }
       #integ-roster .cell-visit .mini-badge { margin-right:6px; }
       #integ-roster .row-actions { white-space:nowrap; text-align:right; }
-      #integ-roster .row-actions .btn-sm { padding:3px 10px; }
+      #integ-roster .row-actions .btn-link { padding:3px 10px; }
       #integ-roster .visit-date { color:var(--text-muted); }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
         line-height:1.35; margin-top:2px; word-break:break-word;
       }
-      /* 「查看明細」展開列裡的土地/建物子表格也是巢狀在 #integ-roster 底下,上面
-         thead th 的 sticky 選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
-      #integ-roster .sub-detail thead th { position:static; }
     </style>
     <div id="integ-roster"><div class="table-wrap">
       <table>
@@ -222,20 +217,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
     const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
-    // 附加資訊(段小段/持分)獨立一行放在主要內容下面,不要跟主要內容擠在同一行 -
-    // 一人名下好幾筆土地/建物、持分分子分母又長時,擠成一行會把儲存格撐爆、逼名字
-    // 斷行,獨立成行、允許正常換行,版面才不會跑掉。
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
-    return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}" style="border-bottom:2px solid var(--border)">
-            <td class="col-idx" style="cursor:pointer;user-select:none">
-              <span data-toggle="${o.id}" style="font-weight:600">▶</span>
-            </td>
+    return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}">
+            <td class="col-idx">${i + 1}</td>
             <td>${(() => {
-      // 「房屋地下N層」的地下室/車位建號常是依持分比例登記給幾十位共有人(不是
-      // 這位地主自己專屬的一戶),_shortDoorAddr 會把「22號房屋地下二層」也簡化成
-      // 「22號」,跟他自己真正的住家門牌長得一模一樣、容易誤會成他名下有好幾戶
-      // 房子。這裡標成灰色虛線「(地下持分)」跟真正的住家門牌區分開,不整個藏起來
-      // (藏起來會讓持分筆數對不上)。
       const addrMap = new Map();
       br.forEach((r) => {
         const label = _shortDoorAddr(r.address);
@@ -255,56 +240,36 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         : `<span style="color:var(--text-muted)">-</span>`;
     })()}</td>
             <td class="col-floor">${_floorsCellHtml(br)}</td>
-            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
-            <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
+            <td class="num">${fmt2(landSqm * 0.3025)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
-            <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
+            <td class="num">${fmt2(bldSqm * 0.3025)}</td>
             <td class="cell-visit">
               ${resultBadge}
               <span class="visit-date">${visit}</span>
             </td>
             <td class="row-actions">
-              <button type="button" class="btn-link btn-sm" data-detail="${o.id}">詳細內容</button>
+              <button type="button" class="btn-link" data-detail="${o.id}" style="color:var(--brand);cursor:pointer;text-decoration:none;font-size:13px">詳細</button>
             </td>
-          </tr>
-          ${ownerDetailRowHtml(o, 11)}`;
+          </tr>`;
   }).join("")}
         </tbody>
       </table>
-    </div></div>
-      </div>
-      <div id="integ-detail-panel" style="flex:0 0 300px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">
-        <div style="padding:20px;text-align:center;color:var(--text-muted);flex:1;display:flex;align-items:center;justify-content:center">
-          <div>
-            <div style="font-size:32px;margin-bottom:8px">👆</div>
-            <div style="font-size:13px">點擊表格行查看詳情</div>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    </div></div>`;
 
   const checked = (id) => [...el.querySelectorAll(`#${id} input:checked`)].map((c) => c.value);
   const applyIntegratedFilter = () => {
     const q = (document.getElementById("integrated-search")?.value || "").trim().toLowerCase();
     const vt = checked("integ-visit-dd");
     let shown = 0;
-    // 明細展開列不是本體(沒有 data-hay/data-visit-tok),跳過不篩,只跟著上面那筆
-    // 摘要列一起關 - 不然搜尋/篩選一重跑,展開狀態就會被強制打開或關不掉。這裡一定
-    // 要用 > 限定成外層 tbody 的「直接」子列,不然展開列裡土地/建物子表格自己的
-    // <tr>(巢狀在同一個 el 底下的另一個 <tbody>)也會被選到、一起被當成沒比對到
-    // 關鍵字而隱藏,結果變成搜尋到人卻看不到底下的土地/建物資料。
-    el.querySelectorAll("#integ-roster > .table-wrap > table > tbody > tr:not(.detail-row)").forEach((tr) => {
+    el.querySelectorAll("#integ-roster tbody tr").forEach((tr) => {
       const okSearch = !q || (tr.dataset.hay || "").includes(q);
       const rowVt = (tr.dataset.visitTok || "").split(" ");
       const okVt = !vt.length || vt.some((x) => rowVt.includes(x));
       const show = okSearch && okVt;
       tr.classList.toggle("hidden", !show);
-      if (!show) {
-        const detailRow = tr.nextElementSibling;
-        if (detailRow && detailRow.classList.contains("detail-row")) detailRow.classList.add("hidden");
-      }
       if (show) shown++;
     });
     const cnt = document.getElementById("integ-count");
@@ -322,89 +287,62 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".integ-filter")) integDetails.forEach((d) => (d.open = false));
   });
-  wireOwnerDetailRows(el, owners);
 
-  // 新的右側邊欄詳情顯示
-  const detailPanel = el.querySelector("#integ-detail-panel");
-
-  const renderDetailPanel = (owner) => {
-    const c = contactBy.get(owner.id);
+  // 詳細按鈕點擊處理
+  const renderDetailModal = (owner) => {
     const lr = owner.land_records || [];
     const br = owner.building_records || [];
+    const c = contactBy.get(owner.id);
 
     return `
-      <div style="display:flex;flex-direction:column;height:100%">
-        <div style="padding:16px;border-bottom:1px solid var(--border)">
-          <div style="font-weight:700;font-size:15px">${escapeHtml(owner.name)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">ID: ${owner.id}</div>
+      <div style="max-height:600px;overflow-y:auto">
+        <div style="margin-bottom:16px">
+          <div style="font-weight:700;font-size:16px">${escapeHtml(owner.name)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:4px">身分證: ${owner.id_number ? escapeHtml(owner.id_number) : '-'}</div>
         </div>
-        <div style="padding:16px;overflow-y:auto;flex:1">
-          <div style="margin-bottom:14px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">身分證字號</div>
-            <div style="font-size:12px">${owner.id_number ? escapeHtml(owner.id_number) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
+
+        <div style="margin-bottom:16px">
+          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:6px">其他資訊</div>
+          <div style="font-size:13px">
+            <div>行動: ${owner.phone_mobile ? escapeHtml(owner.phone_mobile) : '<span style="color:var(--text-muted)">-</span>'}</div>
+            <div>市話: ${owner.phone_landline ? escapeHtml(owner.phone_landline) : '<span style="color:var(--text-muted)">-</span>'}</div>
+            <div style="margin-top:6px">地址: ${owner.address ? escapeHtml(owner.address) : '<span style="color:var(--text-muted)">-</span>'}</div>
           </div>
-
-          <div style="margin-bottom:14px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">行動電話</div>
-            <div style="font-size:12px">${owner.phone_mobile ? escapeHtml(owner.phone_mobile) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
-          </div>
-
-          <div style="margin-bottom:14px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">市話</div>
-            <div style="font-size:12px">${owner.phone_landline ? escapeHtml(owner.phone_landline) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
-          </div>
-
-          <div style="margin-bottom:14px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">戶籍地址</div>
-            <div style="font-size:12px;line-height:1.5;word-break:break-word">${owner.address ? escapeHtml(owner.address) : '<span style="color:var(--text-muted);opacity:.6">尚未提供</span>'}</div>
-          </div>
-
-          ${c ? `<div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:12px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase">最後聯繫</div>
-            <div style="font-size:12px;color:var(--text-muted)">${c.last_contact_date ? fmtDate(c.last_contact_date) : "尚無"}</div>
-            ${c.last_contact_result ? `<div style="margin-top:6px"><span class="mini-badge">${CONTACT_RESULT_LABEL[c.last_contact_result]}</span></div>` : ""}
-          </div>` : ""}
-
-          ${lr.length ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">土地 (${lr.length}筆)</div>
-            ${lr.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:11px">
-              <div style="font-weight:500;margin-bottom:2px">${escapeHtml(r.parcel_number)}</div>
-              <div style="color:var(--text-muted)">面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
-            </div>`).join("")}
-          </div>` : ""}
-
-          ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:12px">
-            <div style="font-weight:600;font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">建物 (${br.length}筆)</div>
-            ${br.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:11px">
-              <div style="font-weight:500;margin-bottom:2px">${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
-              <div style="color:var(--text-muted)">面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
-            </div>`).join("")}
-          </div>` : ""}
         </div>
+
+        ${c ? `<div style="margin-bottom:16px;border-top:1px solid var(--border);padding-top:12px">
+          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:6px">聯絡記錄</div>
+          <div style="font-size:13px">
+            <div>最後聯繫: ${c.last_contact_date ? fmtDate(c.last_contact_date) : '-'}</div>
+            ${c.last_contact_result ? `<div>結果: ${CONTACT_RESULT_LABEL[c.last_contact_result] || c.last_contact_result}</div>` : ""}
+          </div>
+        </div>` : ""}
+
+        ${lr.length ? `<div style="margin-bottom:16px;border-top:1px solid var(--border);padding-top:12px">
+          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:8px">土地 (${lr.length}筆)</div>
+          ${lr.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:12px">
+            <div>${escapeHtml(r.parcel_number)}</div>
+            <div style="color:var(--text-muted);font-size:11px">面積: ${fmtArea(r.total_area_sqm)}m² | 持分: ${r.ownership_numerator}/${r.ownership_denominator}</div>
+          </div>`).join("")}
+        </div>` : ""}
+
+        ${br.length ? `<div style="border-top:1px solid var(--border);padding-top:12px">
+          <div style="font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:8px">建物 (${br.length}筆)</div>
+          ${br.map((r) => `<div style="padding:8px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:12px">
+            <div>${_shortDoorAddr(r.address) || escapeHtml(r.address)}</div>
+            <div style="color:var(--text-muted);font-size:11px">面積: ${fmtArea(r.total_area_sqm * (r.ownership_numerator || 1) / (r.ownership_denominator || 1))}m²</div>
+          </div>`).join("")}
+        </div>` : ""}
       </div>
     `;
   };
 
-  el.querySelectorAll("#integ-roster tbody tr:not(.detail-row)").forEach((tr) => {
-    const toggle = tr.querySelector("[data-toggle]");
-    const ownerId = tr.dataset.ownerId;
-    const detailRow = document.getElementById(`detail-row-${ownerId}`);
-
-    // 點擊箭頭展開/收起
-    toggle?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (detailRow) {
-        detailRow.classList.toggle("hidden");
-        toggle.textContent = detailRow.classList.contains("hidden") ? "▶" : "▼";
-      }
-    });
-
-    // 點擊行顯示右側邊欄
-    tr.addEventListener("click", () => {
-      const ownerName = tr.querySelector(".col-name")?.textContent || "";
-      const owner = owners.find((o) => o.name === ownerName);
+  el.querySelectorAll("button[data-detail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ownerId = parseInt(btn.dataset.detail);
+      const owner = owners.find((o) => o.id === ownerId);
       if (owner) {
-        detailPanel.innerHTML = renderDetailPanel(owner);
+        openModal(`${owner.name} 詳細資訊`, renderDetailModal(owner), { width: "500px" });
       }
     });
   });
