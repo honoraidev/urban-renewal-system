@@ -1425,8 +1425,11 @@
 .bv-detail-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
 
 .bv-body { display: flex; flex-wrap: nowrap; gap: 20px; align-items: flex-start; }
-/* 格子區:自動縮小以容納右邊的統計面板 */
-.bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: visible; overflow-y: visible; padding: 12px 8px 12px 2px; }
+/* 格子區:自動縮小以容納右邊的統計面板。overflow-x 一定要是 auto,不能是 visible -
+   戶數多(例如一棟 10 戶)時,格子自然寬度加總常常超過扣掉右側統計面板後剩下的可用
+   寬度,visible 會讓多出來的格子直接蓋到 .bv-statpanel 上面(視覺重疊、還能點到底下
+   被蓋住的格子),auto 則是在這個容器內部產生水平捲軸,不會影響旁邊的統計面板。 */
+.bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: visible; padding: 12px 8px 12px 2px; }
 /* CSS grid instead of a <table> - a table's border-collapse/row-height rounding and
    the global `table { width:100%; overflow:hidden }` rule fought every attempt to size
    and border these cells correctly (the width rule stretched columns to fill the card;
