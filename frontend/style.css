@@ -1386,10 +1386,8 @@
 
 .bv-groups-grid { display: flex; flex-direction: column; gap: 18px; }
 .bv-group { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); padding: 20px 24px 24px; }
-.bv-group.bv-dragging { opacity: .4; }
 .bv-group-head { display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
 .bv-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-.bv-drag-handle { cursor: grab; color: var(--text-muted); font-size: 20px; user-select: none; }
 .bv-group-titlebox { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .bv-group-title { font-weight: 800; font-size: 18px; }
 .bv-group-header .bv-group-title { flex: 1 1 auto; }

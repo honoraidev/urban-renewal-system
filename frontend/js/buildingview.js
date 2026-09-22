@@ -3,36 +3,9 @@
 // Per-group "flip axes" toggle (doors-as-rows instead of floors-as-rows) - in-memory
 // only, not worth persisting across page loads.
 const buildingViewFlippedGroups = new Set();
-// Per-group「收合戶別狀態統計側欄」開關 - 戶數多的樓棟格子區常常要靠水平捲軸才看得完,
-// 收起右側統計面板讓格子區能用的寬度變大,同樣只存在記憶體,不用跨頁面保留。
-const buildingViewStatsHiddenGroups = new Set();
-
-function buildingViewGroupOrderKey(pid) {
-  return `buildingViewGroupOrder:${pid}`;
-}
-
-function loadBuildingViewGroupOrder(pid) {
-  try {
-    return JSON.parse(localStorage.getItem(buildingViewGroupOrderKey(pid)) || "[]");
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveBuildingViewGroupOrder(pid, orderedKeys) {
-  try {
-    localStorage.setItem(buildingViewGroupOrderKey(pid), JSON.stringify(orderedKeys));
-  } catch (e) { }
-}
-
-function applyBuildingViewSavedOrder(pid, groups) {
-  const savedOrder = loadBuildingViewGroupOrder(pid);
-  if (!savedOrder.length) return groups;
-  const byKey = new Map(groups.map((g) => [g.key, g]));
-  const ordered = savedOrder.filter((k) => byKey.has(k)).map((k) => byKey.get(k));
-  const remaining = groups.filter((g) => !savedOrder.includes(g.key));
-  return [...ordered, ...remaining];
-}
+// Per-group「戶別狀態統計側欄」是否已手動展開 - 預設收起(使用者反饋預設不要佔
+// 版面),點「顯示統計」才會加進這個 Set;只存在記憶體,不用跨頁面保留。
+const buildingViewStatsShownGroups = new Set();
 
 // 簽約 / 拜訪狀態在樓棟視圖直接顯示、點擊切換(整合清冊與登記清冊不再顯示)。
 const BUILDING_VIEW_TOGGLES = {
@@ -183,7 +156,7 @@ function buildingViewDonutHtml(pct) {
 function buildingViewGroupCardHtml(g) {
   // 預設不翻轉(樓層優先):行是樓層、列是戶別。點翻轉按鈕時改為戶別優先(行戶別、列樓層)
   const flipped = buildingViewFlippedGroups.has(g.key);
-  const statsHidden = buildingViewStatsHiddenGroups.has(g.key);
+  const statsHidden = !buildingViewStatsShownGroups.has(g.key);
   const st = buildingViewStats([g]);
 
   const rows = flipped ? g.doors.map((d) => ({ key: d, label: String(d) })) : g.floors.map((f) => ({ key: f.sort, label: f.label }));
@@ -238,9 +211,8 @@ function buildingViewGroupCardHtml(g) {
   const statRow = (tone, label, n) => `<div class="bv-stat-row"><span class="bv-dot bv-dot-${tone}"></span><span class="bv-stat-label">${label}</span><b class="bv-stat-n bv-stat-n-${tone}">${n}</b></div>`;
 
   return `
-    <div class="bv-group" draggable="true" data-bv-group-key="${g.key}" data-bv-title="${escapeHtml(String(g.title).toLowerCase())}">
+    <div class="bv-group" data-bv-group-key="${g.key}" data-bv-title="${escapeHtml(String(g.title).toLowerCase())}">
       <div class="bv-group-head">
-        <span class="bv-drag-handle" title="拖曳調整順序">⠿</span>
         <div class="bv-group-titlebox">
           <span class="bv-group-title">🏢 ${escapeHtml(g.title)}</span>
           <span class="bv-group-meta">${st.total} 戶</span>
@@ -430,7 +402,7 @@ async function renderBuildingViewTab(el) {
     el.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
   }
-  const groups = applyBuildingViewSavedOrder(pid, payload.groups || []);
+  const groups = payload.groups || [];
   const landOnlyOwners = payload.land_only_owners || [];
   buildingViewOwnerStatus = new Map(
     [...groups.flatMap((g) => Object.values(g.cells).flatMap((c) => c.owners)), ...landOnlyOwners].map((o) => [
@@ -536,31 +508,11 @@ async function renderBuildingViewTab(el) {
     const statsToggleBtn = card.querySelector("[data-bv-toggle-stats]");
     if (statsToggleBtn) {
       statsToggleBtn.addEventListener("click", () => {
-        if (buildingViewStatsHiddenGroups.has(key)) buildingViewStatsHiddenGroups.delete(key);
-        else buildingViewStatsHiddenGroups.add(key);
+        if (buildingViewStatsShownGroups.has(key)) buildingViewStatsShownGroups.delete(key);
+        else buildingViewStatsShownGroups.add(key);
         rerenderGroup(key);
       });
     }
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/plain", key);
-      card.classList.add("bv-dragging");
-    });
-    card.addEventListener("dragend", () => card.classList.remove("bv-dragging"));
-    card.addEventListener("dragover", (e) => e.preventDefault());
-    card.addEventListener("drop", (e) => {
-      e.preventDefault();
-      const draggedKey = e.dataTransfer.getData("text/plain");
-      if (!draggedKey || draggedKey === key) return;
-      const cards = [...container.children];
-      const draggedEl = container.querySelector(`[data-bv-group-key="${CSS.escape(draggedKey)}"]`);
-      const targetIndex = cards.indexOf(card);
-      if (!draggedEl) return;
-      container.insertBefore(draggedEl, cards.indexOf(draggedEl) < targetIndex ? card.nextSibling : card);
-      saveBuildingViewGroupOrder(
-        pid,
-        [...container.children].map((c) => c.dataset.bvGroupKey)
-      );
-    });
   }
 
   el.querySelectorAll("[data-bv-mode]").forEach((b) =>
