@@ -278,7 +278,6 @@ function renderSidebarProjects(projects) {
       return `
         <div class="sb-cg">
           <div class="sb-cg-head" data-city="${escapeHtml(city)}">
-            <span class="sb-ic sb-ic-blue sb-ic-sm">📍</span>
             <span class="sb-cg-name">${escapeHtml(city)}</span>
             <span class="sb-cg-count">${cases.length}</span>
             <span class="sb-cg-arrow ${open ? "open" : ""}">⌄</span>
