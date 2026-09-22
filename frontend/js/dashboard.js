@@ -962,17 +962,6 @@ function renderProjectHeader(p) {
   }
 }
 
-// 更新分頁列「整合清冊」下拉顯示的目前選項文字 + 高亮選中項,呼叫端負責先設好
-// state.integratedViewMode 本身。
-function setIntegratedTabLabel(mode) {
-  const details = document.getElementById("tab-integrated-details");
-  if (!details) return;
-  const opt = details.querySelector(`.tab-select-option[data-value="${mode}"]`);
-  const label = document.getElementById("tab-integrated-current");
-  if (label && opt) label.textContent = opt.textContent;
-  details.querySelectorAll(".tab-select-option").forEach((b) => b.classList.toggle("is-selected", b.dataset.value === mode));
-}
-
 // 切換分頁列的哪個按鈕反白 + 渲染對應內容 - 一般點分頁列按鈕走這個,
 // project_overview.js 的「進入案件管理」連結也是呼叫這個切到 SOP 進度分頁。
 async function switchProjectTab(tab) {
@@ -990,7 +979,6 @@ async function renderTab(tab) {
     state.integratedViewMode = "building";
     tab = "integrated";
     document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === "integrated"));
-    setIntegratedTabLabel("building");
   }
   // 地主帳號不得進入被隱藏的分頁(即使透過殘留狀態)
   if (isLandowner() && ["buildingview", "documents", "encumbrances", "expenses", "members", "development"].includes(tab)) {
@@ -1059,38 +1047,7 @@ function initDashboard() {
     backToDashboardOverviewBtn.addEventListener("click", goToDashboard);
   }
 
-  // 「整合清冊」的 details/summary 下拉不走這個通用 click-即-換頁的邏輯 - 它自己
-  // 決定什麼時候才需要真的重新渲染(見下面),不然單純點開/關下拉選單看選項也會
-  // 冒泡觸發整頁重整。
-  document.querySelectorAll(".tab-btn:not(#tab-integrated-details)").forEach((btn) => {
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchProjectTab(btn.dataset.tab));
   });
-
-  const tabIntegratedDetails = document.getElementById("tab-integrated-details");
-  if (tabIntegratedDetails) {
-    const activateIntegratedTab = async () => {
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === tabIntegratedDetails));
-      state.activeTab = "integrated";
-      await renderTab("integrated");
-    };
-    // 點標題本身(不是選單裡的選項)只是要打開/關閉下拉看選項,已經在整合清冊分頁
-    // 時完全不用重新整理;只有從別的分頁切過來時才需要真的換頁渲染。
-    tabIntegratedDetails.querySelector(".tab-select-trigger").addEventListener("click", () => {
-      if (state.activeTab !== "integrated") activateIntegratedTab();
-    });
-    tabIntegratedDetails.querySelectorAll(".tab-select-option").forEach((opt) => {
-      opt.addEventListener("click", () => {
-        const changed = state.integratedViewMode !== opt.dataset.value || state.activeTab !== "integrated";
-        state.integratedViewMode = opt.dataset.value;
-        setIntegratedTabLabel(opt.dataset.value);
-        tabIntegratedDetails.open = false;
-        if (changed) activateIntegratedTab();
-      });
-    });
-    document.addEventListener("click", (e) => {
-      if (tabIntegratedDetails.open && !e.target.closest("#tab-integrated-details")) {
-        tabIntegratedDetails.open = false;
-      }
-    });
-  }
 }
