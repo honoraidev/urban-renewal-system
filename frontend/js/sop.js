@@ -724,19 +724,24 @@ async function renderSopTab(el) {
   // 清單」裡還沒完成的項目抓過來唯讀顯示,一眼看到這關還剩什麼要辦,不用在完整
   // 清單裡逐條找哪些還沒打勾。這裡列出的項目跟上面是同一份資料,不是另一份獨立
   // 清單,不會有兜不起來的問題。
+  // 版面比照「案件總覽」頁的階段待辦(project_overview.js _ovSopTaskRowHtml):
+  // 圓圈標記 + 純文字描述 + 「SOP」小標籤,不要方形打勾框+灰字副標題那一套,
+  // 兩個地方顯示同一份資料(SOP還沒完成的項目)應該長一樣。ov-* 這幾個 class 定義在
+  // project_overview.js 的 overviewEnsureStyle() 裡,呼叫一次確保就算沒先進過
+  // 「案件總覽」頁,這裡的樣式也一定有掛上去。
+  if (typeof overviewEnsureStyle === "function") overviewEnsureStyle();
   const pendingTodosHtml = pendingItems.length
     ? pendingItems
         .map(
-          (t) => `<div class="sop-checklist-item">
-            <div class="sop-checklist-icon"></div>
-            <div style="flex:1">
-              <div class="sop-checklist-label">${escapeHtml(t.label)}</div>
-              ${t.sub ? `<div class="sop-checklist-sub">${escapeHtml(t.sub)}</div>` : ""}
+          (t) => `<div class="ov-todo-row">
+            <div class="ov-todo-lead">
+              <span class="ov-todo-mark"></span>
+              <div class="ov-todo-body"><div class="ov-todo-text">${escapeHtml(t.label)}<span class="ov-todo-chip">SOP</span></div></div>
             </div>
           </div>`
         )
         .join("")
-    : `<div class="empty-state">${checklistTotalCount ? "本階段任務都已完成 🎉" : "這一關沒有設定需求"}</div>`;
+    : `<div class="ov-todo-empty">${checklistTotalCount ? "本階段任務都已完成 🎉" : "這一關沒有設定需求"}</div>`;
 
   const canEditFlow =
     isManager() &&
@@ -787,7 +792,7 @@ async function renderSopTab(el) {
             <h4>📌 待辦提醒</h4>
             ${pendingItems.length ? `<span class="helper-text">還剩 ${pendingItems.length} 項</span>` : ""}
           </div>
-          <div class="sop-checklist">${pendingTodosHtml}</div>
+          <div class="ov-todo-list">${pendingTodosHtml}</div>
         </div>
 
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
