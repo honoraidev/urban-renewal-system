@@ -60,7 +60,7 @@ async function renderDocumentsTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3>文件清單 (${docs.length})</h3>
+      <h3 class="section-hero-title"><span class="hero-ic">📁</span>文件清單 (${docs.length})</h3>
       <div style="display:flex;gap:8px">
         <button class="btn-secondary btn-sm" id="view-ocr-batches-btn">謄本匯入批次紀錄</button>
         ${canOcr() ? `<button class="btn-primary btn-sm" id="upload-doc-btn">+ 上傳文件</button>` : ""}

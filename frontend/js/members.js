@@ -10,7 +10,7 @@ async function renderMembersTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3>案件人員 (${members.length})</h3>
+      <h3 class="section-hero-title"><span class="hero-ic">👤</span>案件人員 (${members.length})</h3>
       ${canEdit ? `<button class="btn-primary btn-sm" id="add-member-btn">+ 新增人員</button>` : ""}
     </div>
     ${members.length

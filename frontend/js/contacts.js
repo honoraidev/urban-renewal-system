@@ -62,7 +62,7 @@ async function renderContactsTab(el) {
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:10px">
       <div style="flex:1 1 auto;min-width:240px">
-        <h3 style="margin-bottom:2px">👥 地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
+        <h3 class="section-hero-title" style="margin-bottom:2px"><span class="hero-ic">👥</span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</h3>
         <div class="helper-text" style="margin:0">管理地主聯絡資訊,支援搜尋、篩選與批次聯絡作業。</div>
       </div>
       <button type="button" class="btn-secondary btn-sm" id="contacts-export-btn">⬆ 匯出 Excel</button>
@@ -88,7 +88,7 @@ async function renderContactsTab(el) {
       ${statTile("🏢", "type", "涵蓋樓層", `<span style="font-size:17px">${floorRangeText}</span>`)}
     </div>
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px;margin-top:4px">
-      <input type="text" id="contacts-search" class="search-input-pill" style="max-width:240px" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址...">
+      <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
       ${floorOptions.length
       ? `<details class="integ-filter" style="position:relative">
               <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">樓層:全部 ▾</summary>

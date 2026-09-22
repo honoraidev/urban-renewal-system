@@ -232,10 +232,10 @@ async function renderEncumbrancesTab(el) {
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:10px">
       <div style="flex:1 1 auto;min-width:240px">
-        <h3 style="margin-bottom:2px">📋 他項權利部 (${encumbrances.length})</h3>
+        <h3 class="section-hero-title" style="margin-bottom:2px"><span class="hero-ic">📋</span>他項權利部 (${encumbrances.length})</h3>
         <div class="helper-text" style="margin:0">管理土地與建物之他項權利資料,支援搜尋、篩選與編輯作業。</div>
       </div>
-      <input type="search" id="encumbrance-search" class="search-input-pill" style="max-width:260px" placeholder="搜尋地號/門牌/權利種類/權利人...">
+      <div class="hero-search">${BV_ICON.search}<input type="search" id="encumbrance-search" placeholder="搜尋地號/門牌/權利種類/權利人..."></div>
       ${rightTypeCats.length
       ? `<details class="integ-filter" style="position:relative">
               <summary style="list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);white-space:nowrap;font-size:13px">🔽 更多篩選 ▾</summary>
