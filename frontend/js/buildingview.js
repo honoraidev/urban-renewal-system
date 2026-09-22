@@ -432,16 +432,15 @@ async function renderBuildingViewTab(el) {
           <span class="bv-head-icon">${BV_ICON.building}</span>
           <div>
             <h2 class="bv-title">樓棟視圖</h2>
-            <p class="bv-sub">以樓層與戶別檢視地主整合狀態,點選戶別可查看地主與權屬詳情。</p>
           </div>
         </div>
-        <div class="bv-head-tools">
-          <div class="bv-search">${BV_ICON.search}<input type="search" id="bv-q" placeholder="搜尋門牌 / 戶別 / 所有權人..." autocomplete="off" value="${escapeHtml(buildingViewQuery)}"></div>
-          <div class="bv-viewtoggle" role="group" aria-label="檢視方式">
-            <button type="button" data-bv-mode="grid">${BV_ICON.grid}樓棟視圖</button>
-            <button type="button" data-bv-mode="list">${BV_ICON.list}列表檢視</button>
-            <button type="button" disabled title="尚未提供地圖檢視">${BV_ICON.map}地圖檢視</button>
-          </div>
+      </div>
+      <div class="bv-head-tools">
+        <div class="bv-search">${BV_ICON.search}<input type="search" id="bv-q" placeholder="搜尋門牌 / 戶別 / 所有權人..." autocomplete="off" value="${escapeHtml(buildingViewQuery)}"></div>
+        <div class="bv-viewtoggle" role="group" aria-label="檢視方式">
+          <button type="button" data-bv-mode="grid">${BV_ICON.grid}樓棟視圖</button>
+          <button type="button" data-bv-mode="list">${BV_ICON.list}列表檢視</button>
+          <button type="button" disabled title="尚未提供地圖檢視">${BV_ICON.map}地圖檢視</button>
         </div>
       </div>
       ${buildingViewSummaryHtml(stats)}
