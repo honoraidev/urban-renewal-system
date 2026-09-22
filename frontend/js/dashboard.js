@@ -617,7 +617,6 @@ async function goToNewProject() {
           <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
           <div class="field"><label>案件名稱</label><input name="name" required></div>
         </div>
-        <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date"></div>
         <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
         ${canCustomizeFlow
           ? `<div class="field">
@@ -644,7 +643,7 @@ async function goToNewProject() {
       document.getElementById("np-code").value = (prevValues && prevValues.project_code) || (await suggestNextProjectCode());
     })();
     if (prevValues) {
-      ["name", "expected_completion_date", "description"].forEach((k) => {
+      ["name", "description"].forEach((k) => {
         const field = document.querySelector(`#project-form [name="${k}"]`);
         if (field && prevValues[k] != null) field.value = prevValues[k];
       });
