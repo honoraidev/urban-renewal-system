@@ -1336,56 +1336,126 @@
   }
 
 /* ============ Building View (樓棟視圖) ============ */
-
-.bv-groups-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 900px) {
-  .bv-groups-grid { grid-template-columns: 1fr; }
+/* 版面:頁首(標題+搜尋+檢視切換)→ 總覽/圖例列 → 一個樓棟一張卡片(標題、四格統計、整合率圓環、
+   樓棟詳情鈕;下面是樓層×戶別格子 + 戶別狀態統計)。 */
+.bv-page { display: flex; flex-direction: column; gap: 16px; }
+.bv-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.bv-head-title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.bv-head-icon { display: inline-flex; flex: 0 0 auto; }
+.bv-title { margin: 0; font-size: 26px; font-weight: 800; line-height: 1.2; letter-spacing: .01em; }
+.bv-sub { margin: 4px 0 0; color: var(--text-muted); font-size: 14.5px; }
+.bv-head-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bv-search {
+  display: flex; align-items: center; gap: 10px; width: 320px; max-width: 100%; height: 46px; padding: 0 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); color: var(--text-muted);
 }
-.bv-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
-.bv-drag-handle { cursor: grab; color: var(--text-muted); font-size: 20px; user-select: none; }
+.bv-search:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(45, 212, 221, .18); }
+.bv-search input {
+  flex: 1; min-width: 0; height: 100%; border: none !important; background: transparent !important; box-shadow: none !important;
+  outline: none !important; padding: 0 !important; border-radius: 0 !important; font-size: 15px; color: var(--text);
+}
+.bv-viewtoggle { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.bv-viewtoggle button {
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 12px; font-size: 15px; font-weight: 700;
+  background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.bv-viewtoggle button:hover:not(:disabled):not(.active) { border-color: var(--text-muted); color: var(--text); opacity: 1; }
+.bv-viewtoggle button.active { border: 2px solid var(--brand); color: var(--brand-dark, var(--brand)); background: var(--surface); padding: 0 15px; }
+.bv-viewtoggle button:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+
+.bv-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap;
+  padding: 14px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+}
+.bv-chips { display: flex; align-items: center; gap: 14px 24px; flex-wrap: wrap; }
+.bv-chip { display: inline-flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--text); }
+.bv-chip-ic { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.bv-chip-label small { font-size: 12px; }
+.bv-chip-n { min-width: 32px; padding: 3px 10px; border-radius: 999px; font-weight: 800; text-align: center; font-size: 14px; }
+.bv-chip-agreed .bv-chip-ic { background: color-mix(in srgb, var(--success) 16%, var(--surface)); color: var(--success); }
+.bv-chip-agreed .bv-chip-n { background: var(--success-light); color: var(--success); }
+.bv-chip-opposed .bv-chip-ic { background: var(--danger-light); color: var(--danger); }
+.bv-chip-opposed .bv-chip-n { background: var(--danger-light); color: var(--danger); }
+.bv-chip-other .bv-chip-ic { background: var(--surface-2); color: var(--text-muted); }
+.bv-chip-other .bv-chip-n { background: var(--surface-2); color: var(--text-muted); }
+.bv-chip-mixed .bv-chip-ic { background: var(--purple-light); color: var(--purple); }
+.bv-chip-mixed .bv-chip-n { background: var(--info-light); color: var(--info); }
+.bv-chip-shared .bv-chip-ic { background: var(--purple-light); color: var(--purple); }
+.bv-chip-shared .bv-chip-n { background: var(--purple-light); color: var(--purple); }
+.bv-tip { font-size: 13.5px; color: var(--text-muted); }
+
+.bv-groups-grid { display: flex; flex-direction: column; gap: 18px; }
+.bv-group { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); padding: 20px 24px 24px; }
 .bv-group.bv-dragging { opacity: .4; }
-.bv-group-wide { grid-column: 1 / -1; }
-.bv-group-title { font-weight: 700; flex: 1 1 auto; font-size: 16px; }
+.bv-group-head { display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.bv-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.bv-drag-handle { cursor: grab; color: var(--text-muted); font-size: 20px; user-select: none; }
+.bv-group-titlebox { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bv-group-title { font-weight: 800; font-size: 18px; }
+.bv-group-header .bv-group-title { flex: 1 1 auto; }
 .bv-group-meta {
   font-size: 12.5px; color: var(--text-muted); white-space: nowrap; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px;
 }
-.bv-grid-wrap { overflow-x: auto; overflow-y: visible; padding: 2px 2px 10px; }
+.bv-flip-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px;
+}
+.bv-flip-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+
+.bv-tiles { display: flex; gap: 12px; flex-wrap: wrap; }
+.bv-tile { width: 120px; padding: 12px 16px; border-radius: 14px; display: flex; flex-direction: column; gap: 2px; }
+.bv-tile span { font-size: 13.5px; font-weight: 700; }
+.bv-tile b { font-size: 28px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.bv-tile-agreed { background: color-mix(in srgb, var(--success) 10%, var(--surface)); color: var(--success); }
+.bv-tile-other { background: var(--surface-2); color: var(--text-muted); }
+.bv-tile-other b { color: var(--text); }
+.bv-tile-opposed { background: var(--danger-light); color: var(--danger); }
+.bv-tile-shared { background: var(--purple-light); color: var(--purple); }
+
+.bv-donut { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.bv-donut-ring { position: relative; width: 84px; height: 84px; }
+.bv-donut-ring b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; color: var(--text); }
+.bv-donut-track { stroke: color-mix(in srgb, var(--info) 14%, var(--surface-2)); }
+.bv-donut-arc { stroke: var(--success); }
+.bv-detail-btn {
+  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 22px; border-radius: 12px; font-size: 15px; font-weight: 800;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.bv-detail-btn:hover { border-color: var(--brand); color: var(--brand-dark, var(--brand)); opacity: 1; }
+
+.bv-body { display: flex; flex-wrap: wrap; gap: 20px 26px; align-items: flex-start; }
+/* 格子區:寬度先照內容,放不下旁邊的統計面板就把面板擠到下一行;格子本身太寬就在自己裡面橫向捲動 */
+.bv-grid-wrap { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: visible; padding: 12px 8px 12px 2px; }
 /* CSS grid instead of a <table> - a table's border-collapse/row-height rounding and
    the global `table { width:100%; overflow:hidden }` rule fought every attempt to size
    and border these cells correctly (the width rule stretched columns to fill the card;
    the overflow rule then clipped a sliver off the last row's borders). Grid cells are
    sized and positioned independently, so neither problem can happen here. */
-.bv-grid { display: grid; gap: 4px; width: max-content; align-items: center; }
+.bv-grid { display: grid; gap: 8px; width: max-content; align-items: center; }
 .bv-grid-corner { width: 1px; }
-.bv-col-label {
-  font-size: 13px; color: var(--text-muted); font-weight: 700; padding-bottom: 5px;
-  text-align: center; white-space: nowrap;
-}
-.bv-col-label.bv-cell-wide { font-size: 11px; }
+.bv-col-label { font-size: 14px; color: var(--text-muted); font-weight: 700; padding-bottom: 2px; text-align: center; white-space: nowrap; }
 .bv-row-label {
-  text-align: right; padding-right: 12px; font-size: 13.5px;
-  font-weight: 700; color: var(--text-secondary); white-space: nowrap;
+  align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 62px; padding: 0 14px; margin-right: 6px;
+  background: var(--surface-2); border-radius: 12px; font-size: 18px; font-weight: 800; color: var(--text); white-space: nowrap;
 }
 .bv-cell {
-  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-  border-radius: 7px; cursor: pointer; position: relative; font-size: 12.5px; font-weight: 600;
-  border: 1px solid transparent; transition: transform .08s ease; white-space: nowrap;
+  position: relative; min-width: 88px; height: 60px; padding: 0 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+  font-size: 16px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
-/* 「16之1」這種帶「之」的門牌比純數字寬,固定方格會擠到換行 - 加寬、縮字級,不換行 */
-.bv-cell.bv-cell-wide { width: auto; min-width: 42px; padding: 0 4px; font-size: 10.5px; }
-.bv-cell:hover { transform: scale(1.15); z-index: 1; }
-.bv-cell-label { color: inherit; }
-.bv-cell-empty {
-  background: var(--surface-2); border: 1px dashed var(--border); color: var(--text-muted);
-  cursor: default; font-weight: 500; opacity: .6;
-}
-.bv-cell-empty:hover { transform: none; }
-/* 顏色故意比一般的 xxx-light token 更飽和(color-mix 拉到 38%,不是預設 -light
-   token 那種近乎白的淡色)- 樓棟視圖格子很小,使用者要一眼掃過去就分得出同意/
-   反對,顏色太淡掃過去會看不出差異。 */
-.bv-cell-agreed { background: color-mix(in srgb, var(--success) 38%, white); border-color: var(--success); color: var(--success); }
-.bv-cell-opposed { background: color-mix(in srgb, var(--danger) 38%, white); border-color: var(--danger); color: var(--danger); }
+/* 「16之1」這種帶「之」的門牌比純數字寬 - 整組改成圖示在左、文字在右,格子也放寬 */
+.bv-inline .bv-cell { flex-direction: row; gap: 8px; min-width: 124px; height: 52px; }
+.bv-cell-ic { display: inline-flex; }
+.bv-cell-ic:empty { display: none; }
+.bv-cell:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(15, 35, 38, .35); z-index: 2; }
+.bv-cell-empty { background: transparent; border-style: dashed; color: var(--text-muted); cursor: default; font-weight: 500; opacity: .55; }
+.bv-cell-empty:hover { transform: none; box-shadow: none; }
+.bv-cell.bv-dim { opacity: .2; }
+.bv-cell.bv-hit { outline: 2.5px solid var(--brand); outline-offset: 1px; }
+/* 顏色維持一定飽和度 - 使用者要一眼掃過去就分得出同意/反對 */
+.bv-cell-agreed { background: color-mix(in srgb, var(--success) 22%, var(--surface)); border-color: color-mix(in srgb, var(--success) 60%, var(--surface)); color: var(--success); }
+.bv-cell-opposed { background: color-mix(in srgb, var(--danger) 20%, var(--surface)); border-color: color-mix(in srgb, var(--danger) 60%, var(--surface)); color: var(--danger); }
 .bv-cell-pending { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
 /* 共有人意見不一(同意/反對/其他都有人) - 依 --bv-agreed-end / --bv-opposed-end
    (inline style 算好的累積百分比,見 buildingViewCellFillStyle)畫三色比例漸層:
@@ -1393,26 +1463,51 @@
    分佈,不要因為其中 1 人反對就整格蓋成純紅,埋沒其他人已經同意的事實。 */
 .bv-cell-mixed {
   background: linear-gradient(to right,
-    color-mix(in srgb, var(--success) 38%, white) 0%, color-mix(in srgb, var(--success) 38%, white) var(--bv-agreed-end, 0%),
-    color-mix(in srgb, var(--danger) 38%, white) var(--bv-agreed-end, 0%), color-mix(in srgb, var(--danger) 38%, white) var(--bv-opposed-end, 0%),
+    color-mix(in srgb, var(--success) 30%, var(--surface)) 0%, color-mix(in srgb, var(--success) 30%, var(--surface)) var(--bv-agreed-end, 0%),
+    color-mix(in srgb, var(--danger) 28%, var(--surface)) var(--bv-agreed-end, 0%), color-mix(in srgb, var(--danger) 28%, var(--surface)) var(--bv-opposed-end, 0%),
     var(--surface-2) var(--bv-opposed-end, 0%), var(--surface-2) 100%);
   border-color: var(--border); color: var(--text);
 }
-.bv-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 14px; }
-.bv-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
-.bv-legend-swatch { width: 12px; height: 12px; border-radius: 4px; border: 1px solid; flex-shrink: 0; }
+/* 共有(多位共同持分,如依持分比例登記的地下室/車位建號)—— 整格改紫色,跟一般聯絡狀態色區分開 */
+.bv-cell.bv-cell-shared { background: var(--purple-light); border-color: color-mix(in srgb, var(--purple) 55%, var(--surface)); color: var(--purple); }
 .bv-cell-badge {
-  position: absolute; top: -6px; right: -6px; background: var(--info); color: #fff;
-  border-radius: 999px; font-size: 9px; line-height: 1; padding: 2px 4px; font-weight: 700;
-  border: 1.5px solid var(--surface);
+  position: absolute; top: -10px; right: 8px; background: var(--info); color: #fff; border: 2px solid var(--surface);
+  border-radius: 999px; font-size: 12px; line-height: 1; padding: 3px 8px; font-weight: 800; white-space: nowrap;
 }
 .bv-cell-opposed .bv-cell-badge { background: var(--danger); }
 .bv-cell-agreed .bv-cell-badge { background: var(--success); }
-/* 共有(多位共同持分,如依持分比例登記的地下室/車位建號)—— 邊框改用紫色跟一般
-   聯絡狀態的底色區分開,不論該格目前是什麼聯絡狀態色都看得出來是共有格。 */
-.bv-cell-shared { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--purple) 55%, transparent) inset; }
-.bv-cell-badge-shared { background: var(--purple-light) !important; color: var(--purple) !important; border-color: var(--purple-light) !important; }
-.bv-legend-swatch.bv-cell-shared-swatch { background: var(--purple-light); border-color: var(--purple); }
+.bv-cell-badge.bv-cell-badge-shared { background: var(--purple); color: #fff; }
+
+.bv-statpanel { flex: 0 0 300px; max-width: 100%; padding: 16px 20px; border-radius: 14px; background: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); }
+.bv-stat-title { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+.bv-stat-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--text); }
+.bv-stat-label { flex: 1; min-width: 0; }
+.bv-stat-n { font-variant-numeric: tabular-nums; }
+.bv-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
+.bv-dot-agreed { background: var(--success); }
+.bv-dot-opposed { background: var(--danger); }
+.bv-dot-other { background: var(--text-muted); }
+.bv-dot-mixed { background: conic-gradient(var(--success) 0 40%, var(--danger) 40% 70%, var(--text-muted) 70% 100%); }
+.bv-dot-shared { background: var(--purple); }
+.bv-stat-n-opposed { color: var(--danger); }
+.bv-stat-n-shared { color: var(--purple); }
+.bv-stat-total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 800; font-size: 14.5px; }
+
+/* 列表檢視 / 樓棟詳情視窗 */
+.bv-list-row { cursor: pointer; }
+.bv-status-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.bv-status-agreed { background: var(--success-light); color: var(--success); }
+.bv-status-opposed { background: var(--danger-light); color: var(--danger); }
+.bv-status-other { background: var(--surface-2); color: var(--text-muted); }
+.bv-status-mixed { background: var(--info-light); color: var(--info); }
+.bv-status-shared { background: var(--purple-light); color: var(--purple); }
+
+@media (max-width: 900px) {
+  .bv-head-tools { width: 100%; }
+  .bv-search { flex: 1 1 100%; width: 100%; }
+  .bv-group { padding: 16px; }
+  .bv-statpanel { flex-basis: 100%; }
+}
 .bv-flip-btn { white-space: nowrap; }
 
 /* ============ Minguo year+month picker (地價年月) ============ */

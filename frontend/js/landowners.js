@@ -21,6 +21,17 @@ function syncProjectAggregates() {
   } catch (e) {}
 }
 
+// 若當前分頁是樓棟視圖,背景非同步重新畫(不中斷編輯視窗);其他分頁無需重畫
+// (整合清冊等分頁不含聯絡狀態色,更新側欄案件清單就夠了)。
+async function _refreshBackgroundIfBuilding() {
+  if (state.activeTab === "buildingview" && typeof renderBuildingViewTab === "function") {
+    const el = document.getElementById("tab-content");
+    if (el) {
+      try { await renderBuildingViewTab(el); } catch (e) {}
+    }
+  }
+}
+
 // 「整合清冊」:一列 = 一位地主,土地 + 建物資料合併呈現。純檢視。
 function _shortDoorAddr(addr) {
   if (!addr) return "";
@@ -1194,6 +1205,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       try {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
         syncProjectAggregates();
+        _refreshBackgroundIfBuilding();
         openEditLandownerModal(landownerId, siblingIds);
       } catch (err) {
         cb.checked = !cb.checked;
@@ -1224,6 +1236,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: { agreement_status: "signed" } });
         toast("已上傳並更新狀態", "success");
         syncProjectAggregates();
+        _refreshBackgroundIfBuilding();
         openEditLandownerModal(landownerId, siblingIds);
       } catch (err) {
         input.value = "";
@@ -1236,6 +1249,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: { agreement_status: "not_signed" } });
         toast("已取消", "success");
         syncProjectAggregates();
+        _refreshBackgroundIfBuilding();
         openEditLandownerModal(landownerId, siblingIds);
       } catch (err) { }
     });
@@ -1350,6 +1364,7 @@ function openContactSidePanel(landownerId, siblingIds) {
       closeSidePanel();
       toast("已建立拜訪紀錄", "success");
       syncProjectAggregates();
+      _refreshBackgroundIfBuilding();
       openEditLandownerModal(landownerId, siblingIds);
     } catch (err) {
       toast(`建立失敗:${err && err.message ? err.message : err}`, "error");
