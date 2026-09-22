@@ -257,7 +257,10 @@ def get_today_important(
     seen: set[int] = set()
     for e in events:
         urgent, important = todo_priority(e.event_date, e.content, e.is_important, today)
-        if urgent and important:
+        # 鈴鐺是「推播」,todo_priority 的「緊急」定義(含未來2天內到期)是給列表排序/
+        # 上色用的,提早推播會讓使用者在事發前2天就被打擾。鈴鐺這裡只認「已逾期」或
+        # 「今天到期」(event_date <= today),真的還沒到期的不推。
+        if urgent and important and e.event_date <= today:
             items.append(_todo_item(e, "、".join(urgent)))
             seen.add(e.id)
     items += [TodayImportantItem(**it) for it in urgent_sop_bell_items(db, projects)]
