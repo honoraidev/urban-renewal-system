@@ -523,7 +523,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
         ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-land="${o.id}">+ 新增土地</button>` : ""}
       </div>
       ${o.land_records.length
-      ? `<table>
+      ? `<table class="integ-land-table">
               <thead><tr><th>#</th><th>地號</th><th>地段</th><th>面積(m²)</th><th>持分</th><th>持有面積(m²)</th><th>持有面積(%)</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${o.land_records
@@ -559,8 +559,8 @@ function ownerDetailRowHtml(o, colspan, contact) {
         ${isEditor() ? `<button class="btn-secondary btn-sm" data-add-building="${o.id}">+ 新增建物</button>` : ""}
       </div>
       ${o.building_records.length
-      ? `<table>
-              <thead><tr><th>#</th><th>建號</th><th>座落地號</th><th class="col-floor">樓層</th><th>面積(m²)</th><th>持分</th><th>持有面積(m²)</th><th>持有面積(%)</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
+      ? `<table class="integ-building-table">
+              <thead><tr><th>#</th><th>建號</th><th>座落地號</th><th>樓層</th><th>面積(m²)</th><th>持分</th><th>持有面積(m²)</th><th>持有面積(%)</th>${isEditor() ? "<th>操作</th>" : ""}</tr></thead>
               <tbody>
                 ${o.building_records
         .map(

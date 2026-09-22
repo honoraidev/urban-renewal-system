@@ -61,6 +61,10 @@ DUAL_GATE_KEYS = {"consent_dual_1", "consent_dual_2", "consent_final"}
 CONTACT_RATE_KEYS = {"contact_rate"}
 CONTACT_RATE_THRESHOLD = 0.95
 
+# 「主管審核通過」這幾個 checklist 項目,只有 L0-L2 管理層(MANAGE_ROLES)可以確認/取消確認
+# ——案件負責人(case_owner)雖然是 EDIT_ROLES、能按其他 checklist 項目,但不算「主管」。
+MANAGER_ONLY_CHECKLIST_KEYS = {"briefing_reviewed_3", "consultant_reviewed", "briefing_reviewed_6", "briefing_reviewed_7"}
+
 # Real, checkable completion requirements for stages that aren't already covered by
 # _assert_gate_passed's ratio checks - mirrors the frontend's SOP_STAGE_CHECKLISTS
 # (same doc_type/manual-key names) so "完成本關卡" actually enforces what the checklist
@@ -596,6 +600,9 @@ def confirm_checklist_item(
     fabricated per-item progress tracker. Which items exist and what they mean is defined
     entirely on the frontend; this just stores whatever key it's told against the stage's
     own `data.checklist` dict."""
+    if payload.key in MANAGER_ONLY_CHECKLIST_KEYS and current_user.role not in MANAGE_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="僅管理層級可確認此項目")
+
     project_id = project.id
     sop = get_or_create_sop(db, project_id)
 

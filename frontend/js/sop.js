@@ -46,21 +46,21 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   briefing_1: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
-    { key: "briefing_reviewed_3", label: "主管審核通過", manual: true },
+    { key: "briefing_reviewed_3", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   consultant_review: [
     { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document" },
-    { key: "consultant_reviewed", label: "主管審核通過", manual: true },
+    { key: "consultant_reviewed", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_2: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
     { key: "consent_form_template", label: "上傳同意書範本", docType: "consent_form_template" },
     { key: "contract_template", label: "上傳合約範本", docType: "contract_template" },
-    { key: "briefing_reviewed_6", label: "主管審核通過", manual: true },
+    { key: "briefing_reviewed_6", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_3: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
-    { key: "briefing_reviewed_7", label: "主管審核通過", manual: true },
+    { key: "briefing_reviewed_7", label: "主管審核通過", manual: true, managerOnly: true },
   ],
 };
 
@@ -668,10 +668,16 @@ async function renderSopTab(el) {
           checklistAllDone = false;
           pendingItems.push({ label: item.label, sub });
         }
-        const confirmBtn =
-          item.manual && isEditor()
+        // 「主管審核通過」這幾項只有 L0-L2 管理層(isManager())能按確認/取消確認——
+        // 案件負責人(case_owner)雖然算 isEditor(),但不算「主管」,只顯示唯讀提示。
+        const canConfirmThis = item.managerOnly ? isManager() : isEditor();
+        const confirmBtn = !item.manual
+          ? ""
+          : canConfirmThis
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
-            : "";
+            : item.managerOnly
+              ? `<span class="sop-checklist-sub" title="僅管理層級可確認此項目" style="white-space:nowrap">需主管確認</span>`
+              : "";
         // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
         // 「相關檔案」找。
         const previewDoc = item.docType ? latestByType[item.docType] : null;
