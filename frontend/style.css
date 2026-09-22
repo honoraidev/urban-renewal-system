@@ -2081,18 +2081,17 @@
 /* 「門牌地址」欄多戶時收合成「共N戶 ▾」,點開是浮動面板蓋在表格上面(跟地主
    聯絡簿的篩選下拉 #contacts-phone-dd 同一套 details/summary 寫法),不像
    .enc-obligor-dd-list 那樣就地展開撐高整列。 */
-.enc-addr-dd { position: relative; display: inline-flex; }
-.enc-addr-dd > summary { list-style: none; cursor: pointer; }
-.enc-addr-dd > summary::-webkit-details-marker,
-.enc-addr-dd > summary::marker { display: none; content: ""; }
 .enc-addr-toggle {
   display: inline-block; border: 1px solid var(--border); background: var(--surface-2);
   color: var(--brand-dark, var(--brand)); font-size: 12px; font-weight: 700; padding: 2px 10px;
-  border-radius: 100px; white-space: nowrap;
+  border-radius: 100px; white-space: nowrap; cursor: pointer;
 }
 .enc-addr-toggle:hover { background: var(--surface); }
+/* 掛在 document.body 底下(見 encumbrances.js 的 wireEncDropdowns)、用 JS 算好
+   螢幕座標填進 top/left - 不能再用 position:absolute 相對 .enc-addr-dd 定位,
+   面板巢狀在 .table-wrap(overflow-x:auto)裡面沒辦法真的浮出容器。 */
 .enc-addr-dd-panel {
-  position: absolute; z-index: 20; top: 100%; left: 0; margin-top: 6px; background: var(--surface);
+  position: fixed; z-index: 200; background: var(--surface);
   border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
   min-width: 260px; max-width: 420px; max-height: 280px; overflow: auto;
 }

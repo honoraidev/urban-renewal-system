@@ -28,16 +28,88 @@ function encumbranceObligorsSummary(enc) {
 
 const PARCEL_KIND_LABEL = { land: "地號", building: "建號" };
 
+// 浮動下拉面板(共N戶/共N筆 ▾)的通用產生器 + 定位邏輯 - 原本用 <details>/<summary>
+// 內建的 position:absolute,面板巢狀在 .table-wrap(overflow-x:auto)裡面,瀏覽器會
+// 把 overflow-y 也一併視為 auto,面板沒辦法真的「浮出」容器,而是被硬夾在容器可視
+// 範圍內、跑到奇怪的位置(甚至疊到分頁列上面)。改成點擊時用 JS 算觸發按鈕的螢幕
+// 座標、把面板用 position:fixed 直接掛到 document.body,徹底脫離表格容器的
+// overflow 限制。面板內容存在旁邊一個不會顯示的 <template>,點擊當下才讀出來塞進
+// 浮動面板,不用每個按鈕各自綁一份內容。
+let _encDdSeq = 0;
+function encDropdownHtml(triggerHtml, panelInnerHtml) {
+  const id = `enc-dd-${++_encDdSeq}`;
+  return `<span style="position:relative;display:inline-flex">
+      <button type="button" class="enc-addr-toggle" data-enc-dd-toggle="${id}">${triggerHtml}</button>
+    </span><template id="${id}-tpl">${panelInnerHtml}</template>`;
+}
+function _closeEncDd() {
+  document.getElementById("enc-dd-panel")?.remove();
+}
+function wireEncDropdowns(container) {
+  container.querySelectorAll("[data-enc-dd-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.encDdToggle;
+      const already = document.getElementById("enc-dd-panel");
+      const wasOpenForThis = already && already.dataset.forId === id;
+      _closeEncDd();
+      if (wasOpenForThis) return; // 再點一次同一顆 = 關閉
+      const tpl = document.getElementById(`${id}-tpl`);
+      if (!tpl) return;
+      const rect = btn.getBoundingClientRect();
+      const panel = document.createElement("div");
+      panel.id = "enc-dd-panel";
+      panel.className = "enc-addr-dd-panel";
+      panel.dataset.forId = id;
+      panel.style.top = `${rect.bottom + 6}px`;
+      panel.style.left = `${rect.left}px`;
+      panel.innerHTML = tpl.innerHTML;
+      document.body.appendChild(panel);
+      // 面板可能超出視窗右邊,往左移到剛好貼齊視窗邊緣。
+      const overflowRight = panel.getBoundingClientRect().right - window.innerWidth;
+      if (overflowRight > 0) panel.style.left = `${rect.left - overflowRight - 8}px`;
+    });
+  });
+}
+// 這個全域點擊監聽只需要掛一次(不是每次 renderBody 都掛),放在 module 層級靠
+// IIFE 執行一次即可,重複掛一堆同樣的監聽器沒有意義還浪費效能。
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-enc-dd-toggle]") && !e.target.closest("#enc-dd-panel")) _closeEncDd();
+});
+
+// 純地址字串裡抓「幾樓/地下幾層」- 跟 landowners.js 的 _floorLabelOf 邏輯一樣,但
+// 那個吃的是完整 building_record 物件(優先讀 .floor 欄位),這裡手上只有從
+// property_address 拆出來的地址片段,沒有結構化欄位可以先讀,只能從文字裡撈。
+function _floorFromAddrString(addr) {
+  const a = String(addr || "").replace(/[０-９]/g, (d) => "０１２３４５６７８９".indexOf(d));
+  const m = a.match(/地下[一二三四五六七八九十\d]+層|\d+\s*樓/);
+  return m ? m[0].replace(/\s+/g, "") : "";
+}
+
+// 地號/建號欄:applies_to_parcels 是空白隔開的多筆(共同擔保好幾個地號/建號很常見,
+// 見 utils/ocr.py _normalize_applies_to_parcels),超過 1 筆就跟門牌地址欄同一套
+// 「共N筆 ▾」浮動下拉收合,不然共同擔保一多這欄會被撐成一長串。
 function encumbranceParcelsCellHtml(enc) {
-  return escapeHtml(enc.applies_to_parcels) || "-";
+  const tokens = (enc.applies_to_parcels || "").split(/\s+/).filter(Boolean);
+  if (!tokens.length) return "-";
+  if (tokens.length === 1) return escapeHtml(tokens[0]);
+  const panelHtml = tokens.map((t) => `<div class="enc-addr-panel-row">${escapeHtml(t)}</div>`).join("");
+  return `<div class="enc-addr-cell">
+      <div class="enc-addr-line">
+        <span class="mini-badge">${escapeHtml(tokens[0])}</span>
+        ${encDropdownHtml(`共${tokens.length}筆 ▾`, panelHtml)}
+      </div>
+    </div>`;
 }
 
 // 地號本身沒有門牌 - 後端(見 backend routers/encumbrances.py)查地號分頁缺門牌時,
 // 會自動補蓋在這塊地上的建物門牌,每筆編碼成「地址::建號」、用「、」串成一個字串
 // 回來。這裡拆開,比照整合清冊的門牌欄各自簡化(_shortDoorAddr,定義在
-// landowners.js)、地下室/車位持分建號一樣標灰色「(地下持分)」,同時把建號標出來
-// 方便對照是哪一棟。一整棟大樓的地號常常底下蓋了幾十戶,每戶又對到好幾個建號
-// (樓層/車位各自登記),不收起來的話這欄會被撐成一長串,所以:
+// landowners.js)、補上樓層(_floorFromAddrString,同一戶門牌可能對應好幾個不同
+// 樓層的建號,樓層才是真正分辨「這筆他項權利設定在哪一戶」的關鍵資訊,只看門牌
+// 號碼會以為好幾筆都是同一戶)、地下室/車位持分建號一樣標灰色「(地下持分)」,
+// 同時把建號標出來方便對照是哪一棟。一整棟大樓的地號常常底下蓋了幾十戶,每戶又
+// 對到好幾個建號(樓層/車位各自登記),不收起來的話這欄會被撐成一長串,所以:
 //   1. 每戶的建號超過 2 個就只顯示前 2 個 + 「共N筆」,完整清單放 title 提示裡。
 //   2. 戶數超過 1 戶就整體收合成「共N戶 ▾」,預設只看第一戶,點開才看全部。
 function encumbrancePropertyAddressCellHtml(enc) {
@@ -45,8 +117,10 @@ function encumbrancePropertyAddressCellHtml(enc) {
   const addrMap = new Map(); // label -> { shared, buildingNumbers: Set }
   enc.property_address.split("、").forEach((raw) => {
     const [addrPart, buildingNumber] = raw.split("::");
-    const label = _shortDoorAddr(addrPart);
-    if (!label) return;
+    const base = _shortDoorAddr(addrPart);
+    if (!base) return;
+    const floor = _floorFromAddrString(addrPart);
+    const label = floor ? `${base} ${floor}` : base;
     const shared = /房屋地下/.test(addrPart);
     if (!addrMap.has(label)) addrMap.set(label, { shared, buildingNumbers: new Set() });
     if (buildingNumber) addrMap.get(label).buildingNumbers.add(buildingNumber);
@@ -70,9 +144,6 @@ function encumbrancePropertyAddressCellHtml(enc) {
   if (entries.length === 1) {
     return `<div class="enc-addr-cell"><div class="enc-addr-line">${badgeOnly(entries[0])}</div>${bnHtml(entries[0][1])}</div>`;
   }
-  // 跟「地主聯絡簿」篩選(contacts.js 的 #contacts-phone-dd)同一套 details/summary
-  // 浮動下拉 - 點開是懸浮面板蓋在表格上面,不會把這一列的高度撐開、拖累其他欄對不
-  // 齊,跟原本用 hidden class 就地展開(會撐高整列)的 .enc-obligor-cell 不一樣。
   const panelHtml = entries
     .map((e) => `<div class="enc-addr-panel-row">${badgeOnly(e)}${bnHtml(e[1])}</div>`)
     .join("");
@@ -80,10 +151,7 @@ function encumbrancePropertyAddressCellHtml(enc) {
     <div class="enc-addr-cell">
       <div class="enc-addr-line">
         ${badgeOnly(entries[0])}
-        <details class="enc-addr-dd">
-          <summary class="enc-addr-toggle">共${entries.length}戶 ▾</summary>
-          <div class="enc-addr-dd-panel">${panelHtml}</div>
-        </details>
+        ${encDropdownHtml(`共${entries.length}戶 ▾`, panelHtml)}
       </div>
       ${bnHtml(entries[0][1])}
     </div>`;
@@ -290,6 +358,7 @@ async function renderEncumbrancesTab(el) {
       ? slice.map(encumbranceRowHtml).join("")
       : `<tr><td colspan="${isEditor() ? 8 : 7}" class="empty-state" style="border:none">${encActiveKind === "land" ? "尚無土地他項權利資料" : "尚無建物他項權利資料"}</td></tr>`;
     wireRowButtons();
+    wireEncDropdowns(tbody);
 
     const pageBtn = (label, n, opts = {}) =>
       `<button type="button" class="lv-pg${opts.active ? " active" : ""}${opts.arrow ? " lv-pg-arrow" : ""}" data-enc-page="${n}"${opts.disabled ? " disabled" : ""}${opts.aria ? ` aria-label="${opts.aria}"` : ""}>${label}</button>`;
@@ -385,31 +454,6 @@ async function renderEncumbrancesTab(el) {
   if (addBtn) addBtn.addEventListener("click", () => openEncumbranceFormModal(null, encActiveKind));
 }
 
-function obligorRowHtml(o) {
-  o = o || { name: "", numerator: "", denominator: "" };
-  return `
-    <div class="field-row obligor-row" style="align-items:center">
-      <div class="field" style="flex:1 1 160px;margin-bottom:0"><input class="obligor-name" placeholder="義務人姓名" value="${escapeHtml(o.name || "")}" autocomplete="off"></div>
-      <div class="field" style="flex:0 0 70px;margin-bottom:0"><input class="obligor-num" type="number" placeholder="分子" value="${escapeHtml(o.numerator || "")}" autocomplete="off"></div>
-      <span style="color:var(--text-muted)">/</span>
-      <div class="field" style="flex:0 0 70px;margin-bottom:0"><input class="obligor-den" type="number" placeholder="分母" value="${escapeHtml(o.denominator || "")}" autocomplete="off"></div>
-      <button type="button" class="btn-danger btn-sm obligor-remove-btn" title="刪除這位義務人">✕</button>
-    </div>`;
-}
-
-function wireObligorRows(wrap) {
-  wrap.querySelectorAll(".obligor-remove-btn").forEach((btn) => {
-    btn.onclick = () => {
-      const rows = wrap.querySelectorAll(".obligor-row");
-      if (rows.length <= 1) {
-        btn.closest(".obligor-row").querySelectorAll("input").forEach((inp) => (inp.value = ""));
-        return;
-      }
-      btn.closest(".obligor-row").remove();
-    };
-  });
-}
-
 function openEncumbranceFormModal(encumbrance, defaultKind) {
   const isEdit = !!encumbrance;
   const e = encumbrance || {
@@ -419,10 +463,8 @@ function openEncumbranceFormModal(encumbrance, defaultKind) {
     property_address: "",
     right_type: "",
     right_holder: "",
-    obligors: [],
     secured_amount: null,
   };
-  const obligors = e.obligors && e.obligors.length ? e.obligors : [{ name: "", numerator: "", denominator: "" }];
   openModal(
     isEdit ? "編輯他項權利" : "新增他項權利",
     `
@@ -437,20 +479,21 @@ function openEncumbranceFormModal(encumbrance, defaultKind) {
             <option value="building" ${e.parcel_kind === "building" ? "selected" : ""}>建物</option>
           </select>
         </div>
-        <div class="field"><label>對應地號/建號</label><input name="applies_to_parcels" value="${escapeHtml(e.applies_to_parcels)}" autocomplete="off"></div>
       </div>
-      <div class="field"><label>門牌地址</label><input name="property_address" value="${escapeHtml(e.property_address)}" autocomplete="off"></div>
+      <div class="field">
+        <label>對應地號/建號<span class="helper-text" style="font-weight:400">(共同擔保好幾筆時,每筆換行分開填,不用自己空格隔開)</span></label>
+        <textarea name="applies_to_parcels" rows="2" style="font-family:inherit;resize:vertical" autocomplete="off">${escapeHtml((e.applies_to_parcels || "").split(/\s+/).filter(Boolean).join("\n"))}</textarea>
+      </div>
+      <div class="field">
+        <label>門牌地址<span class="helper-text" style="font-weight:400">(好幾戶時用頓號、分開,每戶各自一行看比較清楚)</span></label>
+        <textarea name="property_address" rows="3" style="font-family:inherit;resize:vertical" autocomplete="off">${escapeHtml((e.property_address || "").split("、").filter(Boolean).join("\n"))}</textarea>
+      </div>
       <div class="field-row">
         <div class="field">
           <label>權利種類</label>
           <select name="right_type">${encumbranceRightTypeOptionsHtml(e.right_type || "")}</select>
         </div>
         <div class="field"><label>他項權利人</label><input name="right_holder" value="${escapeHtml(e.right_holder)}" autocomplete="off"></div>
-      </div>
-      <div class="field">
-        <label>義務人(可填多位,各自標債權額比例)</label>
-        <div id="obligor-rows">${obligors.map(obligorRowHtml).join("")}</div>
-        <button type="button" class="btn-secondary btn-sm" id="obligor-add-btn" style="margin-top:6px">+ 新增義務人</button>
       </div>
       <div class="field" style="max-width:260px">
         <label>擔保債權總金額(元)</label>
@@ -463,31 +506,20 @@ function openEncumbranceFormModal(encumbrance, defaultKind) {
     </form>`
   );
 
-  const rowsWrap = document.getElementById("obligor-rows");
-  wireObligorRows(rowsWrap);
-  document.getElementById("obligor-add-btn").addEventListener("click", () => {
-    rowsWrap.insertAdjacentHTML("beforeend", obligorRowHtml(null));
-    wireObligorRows(rowsWrap);
-  });
-
   document.getElementById("encumbrance-form").addEventListener("submit", async (evt) => {
     evt.preventDefault();
     const fd = new FormData(evt.target);
-    const obligorPayload = [...rowsWrap.querySelectorAll(".obligor-row")]
-      .map((row) => ({
-        name: row.querySelector(".obligor-name").value.trim(),
-        numerator: row.querySelector(".obligor-num").value.trim() || null,
-        denominator: row.querySelector(".obligor-den").value.trim() || null,
-      }))
-      .filter((o) => o.name);
+    // textarea 裡改成一行一筆是給使用者看的排版,存回資料庫前要還原成原本的分隔
+    // 格式(地號/建號空白隔開、門牌地址頓號隔開),後端跟其他地方讀取的格式才不會變。
+    const parcelsLines = (fd.get("applies_to_parcels") || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const addressLines = (fd.get("property_address") || "").split("\n").map((s) => s.trim()).filter(Boolean);
     const payload = {
       registration_order: (fd.get("registration_order") || "").trim() || null,
-      applies_to_parcels: (fd.get("applies_to_parcels") || "").trim() || null,
+      applies_to_parcels: parcelsLines.join(" ") || null,
       parcel_kind: (fd.get("parcel_kind") || "").trim() || null,
-      property_address: (fd.get("property_address") || "").trim() || null,
+      property_address: addressLines.join("、") || null,
       right_type: (fd.get("right_type") || "").trim() || null,
       right_holder: (fd.get("right_holder") || "").trim() || null,
-      obligors: obligorPayload,
       secured_amount: parseSecuredAmount(fd.get("secured_amount")),
     };
     try {
