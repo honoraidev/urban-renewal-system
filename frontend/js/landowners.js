@@ -183,17 +183,20 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       /* 表格預設會把多的水平空間平均塞給內容最短的欄位(例如地號、樓層),看起來
          像留白留很大一塊;給每欄一個合理寬度,讓姓名/建物門牌這種內容較長的欄位
          吃到大部分空間,數字欄跟樓層欄維持剛好夠用的寬度就好。 */
-      #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:64px; }
-      #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:13%; }
-      #integ-roster .col-floor { width:9%; }
-      #integ-roster .col-nowrap { width:15%; }
-      #integ-roster .col-name { width:9%; font-weight:600; }
-      #integ-roster .num { width:9%; text-align:right; font-variant-numeric:tabular-nums; }
+      #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:60px; }
+      #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:11%; }
+      #integ-roster .col-floor { width:7%; }
+      #integ-roster .col-nowrap { width:12%; }
+      #integ-roster .col-name { width:8%; font-weight:600; }
+      #integ-roster .num { width:8%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
-      #integ-roster .cell-visit { width:13%; }
-      #integ-roster .cell-visit .mini-badge { margin-right:6px; }
-      #integ-roster .row-actions { width:90px; text-align:right; }
-      #integ-roster .visit-date { color:var(--text-muted); font-size:12px; }
+      /* badge 跟日期一定要各佔一行,不能讓瀏覽器自己決定怎麼換行 - 欄位窄的時候
+         "2026-09-21" 這種字串會被硬從中間拆成兩截(「2026-」/「09-21」),很難看。 */
+      #integ-roster .cell-visit { width:17%; }
+      #integ-roster .cell-visit-inner { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+      #integ-roster .visit-date { color:var(--text-muted); font-size:12px; display:flex; flex-direction:column; gap:2px; }
+      #integ-roster .visit-date-text { white-space:nowrap; }
+      #integ-roster .row-actions { width:100px; text-align:right; }
       #integ-roster td { word-break:break-word; }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
@@ -264,7 +267,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const bldSqm = br.reduce((s, r) => s + (Number(r.total_area_sqm || 0) * (r.ownership_numerator || 1)) / (r.ownership_denominator || 1), 0);
     const c = contactBy.get(o.id);
     const visit = c && c.last_contact_date
-      ? `${fmtDate(c.last_contact_date)}${c.is_overdue ? ` <span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
+      ? `<span class="visit-date-text">${fmtDate(c.last_contact_date)}</span>${c.is_overdue ? `<span class="contact-overdue-flag">⚠ 逾期</span>` : ""}`
       : `<span style="color:var(--text-muted)">尚無</span>`;
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
@@ -306,8 +309,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="cell-visit">
-              ${resultBadge}
-              <span class="visit-date">${visit}</span>
+              <div class="cell-visit-inner">
+                ${resultBadge}
+                <span class="visit-date">${visit}</span>
+              </div>
             </td>
             <td class="row-actions">
               <button type="button" class="btn-secondary btn-sm integ-toggle-btn" data-toggle="${o.id}">
