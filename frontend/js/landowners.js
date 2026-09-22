@@ -166,7 +166,11 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     </div>
     <style>
       #integ-roster .table-wrap { border:1px solid var(--border); border-radius:12px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,.04); }
-      #integ-roster table { border-collapse:separate; border-spacing:0; width:100%; font-size:13px; }
+      /* table-layout:fixed 只套外層主表格(靠 > 限定直接子代 table)- 展開列裡巢狀的
+         土地/建物卡片表格欄位數、內容長度都不一樣,套同一組固定寬度只會把它們擠壞。 */
+      #integ-roster > .table-wrap > table {
+        border-collapse:separate; border-spacing:0; width:100%; font-size:13px; table-layout:fixed;
+      }
       #integ-roster thead th {
         position:sticky; top:0; z-index:2; background:var(--surface-2);
         padding:10px 12px; text-align:left; font-weight:700; color:var(--text-muted);
@@ -176,15 +180,21 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster tbody tr:last-child td { border-bottom:none; }
       #integ-roster tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 45%, transparent); }
       #integ-roster tbody tr:hover { background:color-mix(in srgb, var(--brand) 8%, transparent); }
-      #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:52px; }
-      #integ-roster .col-nowrap { white-space:nowrap; }
-      #integ-roster .col-name { font-weight:600; white-space:nowrap; }
-      #integ-roster .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      /* 表格預設會把多的水平空間平均塞給內容最短的欄位(例如地號、樓層),看起來
+         像留白留很大一塊;給每欄一個合理寬度,讓姓名/建物門牌這種內容較長的欄位
+         吃到大部分空間,數字欄跟樓層欄維持剛好夠用的寬度就好。 */
+      #integ-roster .col-idx { color:var(--text-muted); font-variant-numeric:tabular-nums; width:64px; }
+      #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:13%; }
+      #integ-roster .col-floor { width:9%; }
+      #integ-roster .col-nowrap { width:15%; }
+      #integ-roster .col-name { width:9%; font-weight:600; }
+      #integ-roster .num { width:9%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
-      #integ-roster .cell-visit { white-space:nowrap; }
+      #integ-roster .cell-visit { width:13%; }
       #integ-roster .cell-visit .mini-badge { margin-right:6px; }
-      #integ-roster .row-actions { white-space:nowrap; text-align:right; }
-      #integ-roster .visit-date { color:var(--text-muted); }
+      #integ-roster .row-actions { width:90px; text-align:right; }
+      #integ-roster .visit-date { color:var(--text-muted); font-size:12px; }
+      #integ-roster td { word-break:break-word; }
       #integ-roster .cell-sub {
         white-space:normal; font-weight:400; font-size:11.5px; color:var(--text-muted);
         line-height:1.35; margin-top:2px; word-break:break-word;
@@ -198,9 +208,14 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster .integ-toggle-btn.expanded { background:var(--brand); color:#fff; border-color:var(--brand); }
       /* 展開列裡的卡片表格也巢狀在 #integ-roster 底下,上面 thead th 的 sticky
          選到它就會跟外層表頭疊在一起亂飄,展開列裡的表頭固定關掉。 */
-      #integ-roster .integ-detail-card thead th { position:static; padding:6px 10px; font-size:11.5px; }
-      #integ-roster .integ-detail-card tbody td { padding:6px 10px; font-size:12px; }
-      #integ-roster .integ-detail-card table { font-size:12px; }
+      #integ-roster .integ-detail-card thead th {
+        position:static; padding:7px 10px; font-size:11px; color:var(--text-muted);
+        font-weight:600; background:color-mix(in srgb, var(--surface-2) 60%, transparent);
+      }
+      #integ-roster .integ-detail-card tbody td { padding:7px 10px; font-size:12px; border-bottom:1px solid var(--border); }
+      #integ-roster .integ-detail-card tbody tr:last-child td { border-bottom:none; }
+      #integ-roster .integ-detail-card tbody tr:nth-child(even) { background:color-mix(in srgb, var(--surface-2) 35%, transparent); }
+      #integ-roster .integ-detail-card table { font-size:12px; width:100%; border-collapse:collapse; }
       #integ-roster .integ-detail-wrap { display:flex; gap:14px; padding:16px; align-items:flex-start; }
       #integ-roster .integ-detail-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
       #integ-roster .integ-detail-card {
@@ -284,12 +299,12 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
         : `<span style="color:var(--text-muted)">-</span>`;
     })()}</td>
             <td class="col-floor">${_floorsCellHtml(br)}</td>
-            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}</td>
+            <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
-            <td class="num">${fmt2(landSqm * 0.3025)}</td>
+            <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
             <td class="num">${fmt2(bldSqm)}</td>
-            <td class="num">${fmt2(bldSqm * 0.3025)}</td>
+            <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="cell-visit">
               ${resultBadge}
               <span class="visit-date">${visit}</span>
@@ -497,7 +512,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
         <div class="integ-side-row"><span class="integ-side-label">📝 備註</span><span class="integ-side-val">${noteHtml}</span></div>
       </div>
       <div class="integ-side-actions">
-        <button type="button" class="btn-secondary btn-block" data-view-detail="${o.id}">📄 查看詳細內容</button>
+        <button type="button" class="btn-primary btn-block" data-view-detail="${o.id}">📄 查看詳細內容</button>
         <button type="button" class="btn-secondary btn-block" data-view-contacts="${o.id}">💬 聯絡紀錄</button>
       </div>
     </div>`;
