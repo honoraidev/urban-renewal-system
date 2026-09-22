@@ -132,7 +132,7 @@ function buildingViewSummaryHtml(stats) {
         ${chip("mixed", BV_ICON.pie, "<small>共有人意見不一(比例漸層)</small>", stats.mixed, "同一戶有多位共有人,同意/反對/其他都有,格子底色依人數比例畫漸層")}
         ${chip("shared", BV_ICON.users, "多位共有", stats.shared, "多位共同持分的地下層戶(常見於依持分比例登記的地下室/車位建號),紫色格子")}
       </div>
-      <div class="bv-tip">💡 拖曳區塊可調整順序;點格子開地主編輯視窗</div>
+      <div class="bv-tip">💡點格子開地主編輯視窗</div>
     </div>`;
 }
 
@@ -167,10 +167,11 @@ function buildingViewGroupCardHtml(g) {
   // sliver off the last row's cell borders no matter how that was patched. CSS grid
   // sidesteps all of that: every cell is sized/positioned independently, so there's no
   // table-layout box for a border to get clipped against.
-  // 「16之1」「34之2」這種帶「之」的門牌比純數字寬,圖示改放文字左邊(整組一起換,不然同一列
-  // 有的圖示在上有的在左會很亂)。
+  // 「16之1」「34之2」這種帶「之」的門牌比純數字寬,圖示改放文字左邊 - 只有真的帶
+  // 「之」字的那幾欄變寬(逐欄各自判斷、grid-template-columns 也逐欄給寬度),不是
+  // 整排欄位只要出現一個「之」字門牌就全部格子跟著被撐寬。
   const wideCls = (label) => (String(label).includes("之") ? " bv-cell-wide" : "");
-  const inline = cols.some((c) => wideCls(c.label));
+  const colWidths = cols.map((c) => (wideCls(c.label) ? "var(--bv-cell-w-wide)" : "var(--bv-cell-w)")).join(" ");
   const headerCellsHtml = cols
     .map((c) => `<div class="bv-col-label${wideCls(c.label)}">${escapeHtml(c.label)}</div>`)
     .join("");
@@ -229,7 +230,7 @@ function buildingViewGroupCardHtml(g) {
       </div>
       <div class="bv-body">
         <div class="bv-grid-wrap">
-          <div class="bv-grid${inline ? " bv-inline" : ""}" style="grid-template-columns:var(--bv-row-label-w) repeat(${cols.length}, var(--bv-cell-w))">
+          <div class="bv-grid" style="grid-template-columns:var(--bv-row-label-w) ${colWidths}">
             <div class="bv-grid-corner"></div>${headerCellsHtml}${bodyHtml}
           </div>
         </div>

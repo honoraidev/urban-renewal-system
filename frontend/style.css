@@ -1457,9 +1457,11 @@
 /* 固定寬度(不是 min-width)- 格子寬度統一由 --bv-cell-w 這個 CSS 變數決定,
    buildingview.js 的 grid-template-columns 也讀同一個變數,兩邊才會對得齊;
    門牌文字太長就用 ellipsis 截斷,不再讓內容反過來撐開格子跟捲軸,一整排格子
-   看起來才會整齊劃一。響應式斷點只要覆寫這個變數,格子跟 grid 欄寬會一起變小。 */
-.bv-grid { --bv-cell-w: 56px; --bv-row-label-w: 64px; }
-.bv-grid.bv-inline { --bv-cell-w: 76px; }
+   看起來才會整齊劃一。響應式斷點只要覆寫這個變數,格子跟 grid 欄寬會一起變小。
+   --bv-cell-w-wide 只給「16之1」這種帶「之」字的門牌格子用,逐欄各自判斷是否套用
+   (見 buildingview.js 的 colWidths),不會因為整排裡出現一個帶「之」的門牌就把
+   其他純數字格子也跟著撐寬。 */
+.bv-grid { --bv-cell-w: 56px; --bv-cell-w-wide: 76px; --bv-row-label-w: 64px; }
 .bv-cell {
   position: relative; width: var(--bv-cell-w); height: 46px; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
@@ -1469,8 +1471,10 @@
    「×N 共有人數」的角標(.bv-cell-badge)是用 position:absolute + 負的 top 刻意
    突出格子邊界顯示的,.bv-cell 若有 overflow:hidden 會連這個角標一起裁掉一半。 */
 .bv-cell-label { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-/* 「16之1」這種帶「之」的門牌比純數字寬 - 整組改成圖示在左、文字在右,格子也放寬 */
-.bv-inline .bv-cell { height: 44px; flex-direction: row; gap: 4px; }
+/* 「16之1」這種帶「之」的門牌比純數字寬 - 改成圖示在左、文字在右,格子也放寬;
+   直接套在格子本身(不再依賴父層 .bv-inline),同一排可以純數字格子維持窄版、
+   帶「之」的格子單獨變寬,不會整排一起被撐開。 */
+.bv-cell.bv-cell-wide { width: var(--bv-cell-w-wide); height: 44px; flex-direction: row; gap: 4px; }
 .bv-cell-ic { display: inline-flex; }
 .bv-cell-ic:empty { display: none; }
 .bv-cell:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -8px rgba(15, 35, 38, .35); z-index: 2; }
@@ -1530,10 +1534,9 @@
 @media (max-width: 950px) {
   .bv-col-label { font-size: 10.5px; }
   .bv-row-label { padding: 0 5px; font-size: 12px; }
-  .bv-grid { --bv-cell-w: 50px; --bv-row-label-w: 58px; gap: 5px; }
-  .bv-grid.bv-inline { --bv-cell-w: 68px; }
+  .bv-grid { --bv-cell-w: 50px; --bv-cell-w-wide: 68px; --bv-row-label-w: 58px; gap: 5px; }
   .bv-cell { height: 42px; font-size: 11px; padding: 0 3px; }
-  .bv-inline .bv-cell { height: 40px; gap: 3px; }
+  .bv-cell.bv-cell-wide { height: 40px; gap: 3px; }
 }
 
 @media (max-width: 900px) {
@@ -1544,10 +1547,9 @@
   .bv-statpanel { flex-basis: 100%; }
   .bv-col-label { font-size: 9.5px; }
   .bv-row-label { padding: 0 4px; font-size: 11.5px; margin-right: 3px; }
-  .bv-grid { --bv-cell-w: 44px; --bv-row-label-w: 52px; gap: 4px; }
-  .bv-grid.bv-inline { --bv-cell-w: 62px; }
+  .bv-grid { --bv-cell-w: 44px; --bv-cell-w-wide: 62px; --bv-row-label-w: 52px; gap: 4px; }
   .bv-cell { height: 38px; font-size: 10.5px; padding: 0 2px; }
-  .bv-inline .bv-cell { height: 36px; gap: 2px; }
+  .bv-cell.bv-cell-wide { height: 36px; gap: 2px; }
 }
 .bv-flip-btn { white-space: nowrap; }
 
