@@ -84,3 +84,6 @@ class TodayImportantItem(BaseModel):
     kind: str = "todo"
     # 為什麼會出現在鈴鐺(自動判斷的緊急原因,或「今天標了重要」)
     reason: str | None = None
+    # kind 開頭是 sop 時,點鈴鐺項目要跳到的關卡編號(可能不是案件目前所在的關卡 -
+    # 例如駁回意見卡在已強制完成的舊關卡裡),前端據此開對應案件的 SOP 分頁並選好關卡。
+    stage: int | None = None

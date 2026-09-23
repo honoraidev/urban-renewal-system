@@ -15,6 +15,7 @@ from deps import (
 )
 from models.building_record import BuildingRecord
 from models.consent_record import ConsentRecord
+from models.contact_log import ContactLog
 from models.document import Document
 from models.land_record import LandRecord
 from models.landowner import Landowner
@@ -24,6 +25,7 @@ from models.user import User
 from routers.projects import get_project_or_404
 from schemas.sop import (
     ChecklistConfirmRequest,
+    ChecklistRejectRequest,
     ConsentRecordRead,
     ConsentUpsertRequest,
     SopCompleteRequest,
@@ -195,6 +197,115 @@ def _resolved_stages(sop: SopStage) -> dict:
     return out
 
 
+def _parse_checklist_ts(value: str) -> datetime:
+    """checklist 裡的 confirmed_at/rejected_at 是 datetime.now(timezone.utc).isoformat()
+    存的(帶 +00:00),但 Document.uploaded_at 是 DB 存的 naive UTC(見其他地方 fromisoformat
+    後一律轉成不帶 tzinfo 比較的慣例)- 兩邊時區處理方式不一致直接比較會丟
+    TypeError,這裡統一去掉 tzinfo 再比。"""
+    return datetime.fromisoformat(value).replace(tzinfo=None)
+
+
+def rejected_checklist_bell_items(db: Session, projects: list[Project]) -> list[dict]:
+    """哪些案件有「主管審核通過」被駁回、還沒回應 - 全站鈴鐺用,案件相關人員(不限
+    管理層,只要看得到這個案件就會出現在自己鈴鐺裡)提醒要處理駁回意見。掃過案件
+    所有關卡,不是只看目前這關 - 關卡可能被「強制完成」跳過,駁回意見卡在已經跳過
+    的舊關卡裡也還是沒解決,不能因為案件已經往前走了就當作沒這回事。「已回應」的
+    判斷跟前端 sop.js 同一套:駁回後對應文件重新上傳過(上傳時間晚於駁回時間)就
+    不用再推播。"""
+    items = []
+    for p in projects:
+        sop = db.scalar(select(SopStage).where(SopStage.project_id == p.id))
+        if sop is None:
+            continue
+        for stage_idx_str, stage_entry in _resolved_stages(sop).items():
+            stage_idx = int(stage_idx_str)
+            req = STAGE_CHECKLIST_REQUIREMENTS.get(stage_entry.get("key") or "")
+            if not req:
+                continue
+            checklist = (stage_entry.get("data") or {}).get("checklist") or {}
+            doc_types = req.get("doc_types") or []
+            latest_upload = (
+                db.scalar(
+                    select(func.max(Document.uploaded_at)).where(
+                        Document.project_id == p.id,
+                        Document.doc_type.in_(doc_types),
+                        Document.sop_stage == stage_idx,
+                    )
+                )
+                if doc_types
+                else None
+            )
+            for ck in req.get("checklist_keys", []):
+                if ck not in MANAGER_ONLY_CHECKLIST_KEYS:
+                    continue
+                entry = checklist.get(ck)
+                if not entry or not entry.get("rejected_at") or entry.get("confirmed_at"):
+                    continue
+                if latest_upload and latest_upload > _parse_checklist_ts(entry["rejected_at"]):
+                    continue  # 已經重新上傳過對應文件,視為已回應
+                items.append(
+                    {
+                        "id": -(p.id * 1000 + stage_idx + 1),  # 負數避開 calendar_events.id,乘 1000 避開跟其他鈴鐺項目撞
+                        "content": f"第{stage_idx}關「{stage_entry.get('name', '')}」的審核項目被駁回",
+                        "project_id": p.id,
+                        "project_name": p.name,
+                        "kind": "sop_rejected",
+                        "reason": entry.get("reason", ""),
+                        "stage": stage_idx,
+                    }
+                )
+    return items
+
+
+def pending_manager_review_bell_items(db: Session, projects: list[Project]) -> list[dict]:
+    """哪些案件有「主管審核通過」項目,對應文件已經上傳、但主管還沒確認也還沒駁回
+    - 全站鈴鐺用,只給管理層看,提醒該去審了。掃過案件所有關卡(理由同
+    rejected_checklist_bell_items - 強制完成跳過的舊關卡一樣可能卡著沒審過的項目)。
+    駁回過的項目如果案件負責人已經重新上傳過文件(上傳時間晚於駁回時間),一樣算
+    「待審」要推播 - 不然駁回一次以後就永遠不會再進這張清單,主管收不到「已經改好、
+    可以重審」的通知,只能靠自己想到要回去點開看。"""
+    items = []
+    for p in projects:
+        sop = db.scalar(select(SopStage).where(SopStage.project_id == p.id))
+        if sop is None:
+            continue
+        for stage_idx_str, stage_entry in _resolved_stages(sop).items():
+            stage_idx = int(stage_idx_str)
+            req = STAGE_CHECKLIST_REQUIREMENTS.get(stage_entry.get("key") or "")
+            doc_types = req.get("doc_types") if req else None
+            if not req or not doc_types:
+                continue
+            latest_upload = db.scalar(
+                select(func.max(Document.uploaded_at)).where(
+                    Document.project_id == p.id,
+                    Document.doc_type.in_(doc_types),
+                    Document.sop_stage == stage_idx,
+                )
+            )
+            if latest_upload is None:
+                continue
+            checklist = (stage_entry.get("data") or {}).get("checklist") or {}
+            for ck in req.get("checklist_keys", []):
+                if ck not in MANAGER_ONLY_CHECKLIST_KEYS:
+                    continue
+                entry = checklist.get(ck)
+                if entry and entry.get("confirmed_at"):
+                    continue  # 已經確認通過了,不用再推播
+                if entry and entry.get("rejected_at") and latest_upload <= _parse_checklist_ts(entry["rejected_at"]):
+                    continue  # 駁回後還沒有新的上傳,案件負責人還沒回應,不算「待審」
+                items.append(
+                    {
+                        "id": -(p.id * 2000 + stage_idx + 1),
+                        "content": f"第{stage_idx}關「{stage_entry.get('name', '')}」文件已上傳,待審核",
+                        "project_id": p.id,
+                        "project_name": p.name,
+                        "kind": "sop_pending_review",
+                        "stage": stage_idx,
+                    }
+                )
+    return items
+
+
 def _status_response(project_id: int, sop: SopStage) -> SopStatusResponse:
     return SopStatusResponse(
         project_id=project_id,
@@ -213,7 +324,9 @@ def _assert_checklist_passed(db: Session, project_id: int, stage: int, sop: SopS
 
     for doc_type in requirements.get("doc_types", []):
         exists = db.scalar(
-            select(Document.id).where(Document.project_id == project_id, Document.doc_type == doc_type)
+            select(Document.id).where(
+                Document.project_id == project_id, Document.doc_type == doc_type, Document.sop_stage == stage
+            )
         )
         if not exists:
             raise HTTPException(
@@ -254,7 +367,9 @@ def _assert_generic_requirements(db: Session, project_id: int, stage: int, sop: 
     if requirements.get("document_required"):
         doc_type = requirements.get("document_type")
         exists = doc_type and db.scalar(
-            select(Document.id).where(Document.project_id == project_id, Document.doc_type == doc_type)
+            select(Document.id).where(
+                Document.project_id == project_id, Document.doc_type == doc_type, Document.sop_stage == stage
+            )
         )
         if not exists:
             raise HTTPException(
@@ -668,6 +783,56 @@ def confirm_checklist_item(
     return _status_response(project_id, sop)
 
 
+@router.post("/{stage}/checklist/reject", response_model=SopStatusResponse)
+def reject_checklist_item(
+    stage: int,
+    payload: ChecklistRejectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_editor),
+):
+    """主管審核不通過 - 只能用在 MANAGER_ONLY_CHECKLIST_KEYS(「主管審核通過」那幾項),
+    駁回後這個項目回到「尚未確認」狀態(done=False),但額外存駁回原因/時間/駁回人,
+    案件負責人在檢核清單上看得到「已駁回:原因」,直到重新上傳文件或主管改按確認為止
+    (見前端 sop.js 用 rejected_at 是否比最新文件上傳時間早來判斷要不要繼續顯示駁回)。"""
+    if payload.key not in MANAGER_ONLY_CHECKLIST_KEYS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="這個項目不支援駁回")
+    if current_user.role not in MANAGE_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="僅管理層級可駁回此項目")
+    if not payload.reason.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請填寫駁回原因")
+
+    project_id = project.id
+    sop = get_or_create_sop(db, project_id)
+
+    if not (0 <= stage <= _final_stage_index(sop)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid stage number")
+
+    stage_data = dict(sop.stage_data)
+    stages = dict(stage_data["stages"])
+    stage_key = str(stage)
+    stage_entry = dict(stages[stage_key])
+    entry_data = dict(stage_entry.get("data") or {})
+    checklist = dict(entry_data.get("checklist") or {})
+
+    checklist[payload.key] = {
+        "rejected_at": datetime.now(timezone.utc).isoformat(),
+        "rejected_by": current_user.id,
+        "reason": payload.reason.strip(),
+    }
+
+    entry_data["checklist"] = checklist
+    stage_entry["data"] = entry_data
+    stage_entry = _touch_stage_meta(stage_entry, current_user)
+    stages[stage_key] = stage_entry
+    stage_data["stages"] = stages
+    sop.stage_data = stage_data
+
+    db.commit()
+    db.refresh(sop)
+    return _status_response(project_id, sop)
+
+
 @router.post("/{stage}/form", response_model=SopStatusResponse)
 def save_stage_form(
     stage: int,
@@ -881,6 +1046,26 @@ def upsert_consent_record(
     record.consent_status = payload.consent_status
     record.notes = payload.notes
     record.recorded_by = current_user.id
+
+    # 這張「本輪同意狀態」表雖然是每一輪(consent_dual_1/consent_dual_2/consent_final)
+    # 各自獨立記錄的,但同意度雙門檻(見 utils/consent_ratio.py _agreed_landowner_ids)
+    # 是看「最新一筆拜訪紀錄=電訪同意」+「地主.agreement_status=已簽約」這兩個全域
+    # 欄位算的,兩邊各記各的、按同意鈕完全不影響上面比例會讓人以為壞掉。這裡在按
+    # 同意/反對的同時,順手回寫拜訪紀錄跟簽約狀態,讓同意率也跟著動 —— 不影響「這
+    # 一輪自己記了什麼」,下一輪 ConsentRecord 一樣是全新一筆。
+    if payload.consent_status in ("agreed", "opposed"):
+        db.add(
+            ContactLog(
+                project_id=project_id,
+                landowner_id=payload.landowner_id,
+                contact_date=datetime.now(timezone.utc),
+                contact_method="other",
+                contact_result=payload.consent_status,
+                staff_id=current_user.id,
+                notes=f"SOP 第{stage}關同意書追蹤:{'同意' if payload.consent_status == 'agreed' else '反對'}",
+            )
+        )
+        landowner.agreement_status = "signed" if payload.consent_status == "agreed" else "not_signed"
 
     db.commit()
     db.refresh(record)

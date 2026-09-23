@@ -328,9 +328,25 @@
   }
   /* 浮窗裡的項目要恢復成正常「圖示+文字」清單樣式,不是收合列那種置中純圖示 -
      搬出 .sb 之後不再吃得到 .sb.collapsed .nav-link 那組置中規則,但保險起見還是
-     明講一次,不依賴「反正離開 .sb 就沒事」這種隱含假設。 */
-  .sb-flyout-panel .nav-link { text-align: left; padding: 8px 10px; justify-content: flex-start; }
+     明講一次,不依賴「反正離開 .sb 就沒事」這種隱含假設。子項目之間加分隔線、加大
+     間距,單純的清單看起來更像一份精緻選單,不是隨手排的按鈕堆疊。 */
+  .sb-flyout-panel .nav-link { text-align: left; padding: 10px 12px; justify-content: flex-start; border-radius: 8px; }
   .sb-flyout-panel .nav-link-label, .sb-flyout-panel .sb-chev { display: inline-flex; }
+  .sb-flyout-panel .nav-link + .nav-link { margin-top: 2px; }
+  /* 案件管理浮窗:城市標題做成一個色塊小標籤(不再是可點的收合列,見下面
+     cursor:default 那條),案件列改成卡片式(淺底、無左側縮排、圖示+階段徽章),
+     跟底下案件列拉出清楚的視覺層次,不是隨手排的清單。 */
+  .sb-flyout-panel .sb-cg-head { background: var(--brand-light); color: var(--brand-dark); padding: 8px 10px; margin-bottom: 6px; }
+  .sb-flyout-panel .sb-cg-count { background: var(--surface); }
+  .sb-flyout-panel .sb-cg-items { display: flex; flex-direction: column; gap: 6px; }
+  .sb-flyout-panel .sb-case-item {
+    margin: 0; padding: 10px; border-radius: 10px; background: var(--surface-2); border-left-width: 0;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .sb-flyout-panel .sb-case-item:hover { background: var(--brand-light); transform: translateX(1px); }
+  .sb-flyout-panel .sb-case-item.active { border-left-width: 0; box-shadow: inset 3px 0 0 var(--brand); }
+  .sb-flyout-panel .sb-case-name::before { content: "📁"; margin-right: 6px; font-size: 12px; }
+  .sb-flyout-panel .sb-case-stage { background: var(--surface); }
   .navbar { display: flex; align-items: center; padding: 20px 20px 16px; gap: 10px; flex-shrink: 0; }
   .navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17.5px; letter-spacing: .02em; }
   .navbar .brand .brand-text {
@@ -1043,6 +1059,10 @@
     border: 1.5px solid var(--border); color: transparent;
   }
   .sop-checklist-item.done .sop-checklist-icon { background: var(--success); border-color: var(--success); color: #fff; }
+  /* 主管駁回「主管審核通過」項目 - 紅色叉叉圖示 + 駁回原因用警示色,案件負責人一眼
+     看得出這項被退回、不是單純還沒送審。 */
+  .sop-checklist-item.rejected .sop-checklist-icon { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .sop-checklist-item.rejected .sop-checklist-sub { color: var(--danger); font-weight: 600; }
   .sop-checklist-label { font-weight: 700; font-size: 13.5px; color: var(--text); }
   .sop-checklist-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
@@ -2288,6 +2308,11 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .nw-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .nw-toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 .nw-date { width: auto; border-radius: 12px; }
+.nw-range-row { display: flex; align-items: center; gap: 10px; }
+.nw-range-toggle { display: inline-flex; padding: 3px; background: var(--surface-2); border-radius: 10px; gap: 2px; }
+.nw-range-btn { border: none; background: transparent; padding: 5px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--text-muted); }
+.nw-range-btn:hover:not(.active) { color: var(--text); opacity: 1; }
+.nw-range-btn.active { background: var(--surface); color: var(--brand-dark, var(--brand)); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
 .nw-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
 @media (max-width: 1000px) { .nw-layout { grid-template-columns: 1fr; } }

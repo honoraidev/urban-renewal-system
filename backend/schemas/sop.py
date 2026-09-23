@@ -52,6 +52,13 @@ class SopCompleteRequest(BaseModel):
     reason: str | None = None
 
 
+class ChecklistRejectRequest(BaseModel):
+    # 只用於「主管審核通過」這類 managerOnly 項目(見 backend/routers/sop.py
+    # MANAGER_ONLY_CHECKLIST_KEYS) - 駁回時要留原因,案件負責人才知道要改什麼。
+    key: str
+    reason: str
+
+
 class ChecklistConfirmRequest(BaseModel):
     # Free-form key naming a checklist item within one SOP stage (e.g.
     # "landowner_roster_confirmed") - not an enum, since which items exist per stage is

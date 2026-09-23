@@ -482,11 +482,27 @@ let newsEditMode = false;
 let regulationsEditMode = false;
 let websitesEditMode = false;
 
+// 本週 = 台灣時間認定的週一到週日,回傳 "YYYY-MM-DD" 字串範圍,直接跟 fmtDateTW()
+// 的輸出做字典序比較(ISO 日期格式本來就能直接這樣比大小,不用轉回 Date 物件)。
+function _newsWeekRangeTW() {
+  const todayTW = fmtDateTW(new Date().toISOString());
+  const [y, m, d] = todayTW.split("-").map(Number);
+  const local = new Date(y, m - 1, d); // 只借它算「星期幾」跟位移天數,不牽扯任何時區轉換
+  const dow = local.getDay(); // 0=Sun..6=Sat
+  const monday = new Date(local);
+  monday.setDate(monday.getDate() + (dow === 0 ? -6 : 1 - dow));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  return { start: fmt(monday), end: fmt(sunday) };
+}
+
 async function goToNews() {
   setActiveNav("news");
   showView("view-news");
   newsEditMode = false;
-  newsDateFilter = fmtDateTW(new Date().toISOString()); // 預設只看今天,清空篩選才是看全部
+  newsRangeMode = "today"; // 預設只看今天,兩顆快速篩選鈕/日期選擇器都能再改
+  newsDateFilter = "";
   newsCatFilter = "";
   newsTagFilter = "";
   newsQuery = "";
@@ -532,7 +548,8 @@ async function loadNews() {
 // 縮圖 image_url / 摘要 summary 是抓新聞時存的(見 backend utils/news_fetch.py);沒有縮圖的
 // (舊資料、抓不到圖的新聞)用分類色塊 + 圖示代替,圖片載入失敗也會退回色塊。
 // 標籤是從標題 + 摘要的關鍵字比對出來的(見 _newsTagsOf),不是另外存的欄位。
-let newsDateFilter = ""; // 右上角日期選擇器(空字串 = 全部)
+let newsDateFilter = ""; // 右上角日期選擇器手動選的自訂日期(newsRangeMode==="custom" 才用)
+let newsRangeMode = "today"; // "today" | "week" | "custom" | "all" - 見 renderNewsList() 的 dated 篩選
 let newsCatFilter = ""; // 分類篩選(空字串 = 全部分類)
 let newsTagFilter = ""; // 熱門標籤篩選
 let newsQuery = ""; // 搜尋框(已小寫)
@@ -639,9 +656,17 @@ function renderNewsList() {
   if (!el) return;
   const editable = isManager() && newsEditMode;
 
-  const dated = newsDateFilter
-    ? currentLoadedNews.filter((r) => fmtDateTW(r.published_at || r.created_at) === newsDateFilter)
-    : currentLoadedNews;
+  const todayTW = fmtDateTW(new Date().toISOString());
+  const weekRangeTW = newsRangeMode === "week" ? _newsWeekRangeTW() : null;
+  const dated = currentLoadedNews.filter((r) => {
+    const d = fmtDateTW(r.published_at || r.created_at);
+    if (newsRangeMode === "today") return d === todayTW;
+    if (newsRangeMode === "week") return d >= weekRangeTW.start && d <= weekRangeTW.end;
+    if (newsRangeMode === "custom") return !newsDateFilter || d === newsDateFilter;
+    return true; // "all"
+  });
+  document.getElementById("news-range-today")?.classList.toggle("active", newsRangeMode === "today");
+  document.getElementById("news-range-week")?.classList.toggle("active", newsRangeMode === "week");
   const catOf = (r) => (r.category || "").trim() || "未分類";
   const matchesQuery = (r) =>
     !newsQuery ||
@@ -1680,6 +1705,21 @@ function initResources() {
   });
   document.getElementById("news-date-filter")?.addEventListener("change", (e) => {
     newsDateFilter = e.currentTarget.value; // yyyy-mm-dd,清空(按瀏覽器內建的 x)就是全部
+    newsRangeMode = newsDateFilter ? "custom" : "all"; // 手動選日期會蓋掉「今日/本週」快速篩選鈕
+    renderNewsList();
+  });
+  document.getElementById("news-range-today")?.addEventListener("click", () => {
+    newsRangeMode = "today";
+    newsDateFilter = "";
+    const dateFilterEl = document.getElementById("news-date-filter");
+    if (dateFilterEl) dateFilterEl.value = "";
+    renderNewsList();
+  });
+  document.getElementById("news-range-week")?.addEventListener("click", () => {
+    newsRangeMode = "week";
+    newsDateFilter = "";
+    const dateFilterEl = document.getElementById("news-date-filter");
+    if (dateFilterEl) dateFilterEl.value = "";
     renderNewsList();
   });
   document.getElementById("news-search")?.addEventListener("input", (e) => {

@@ -81,8 +81,8 @@ function _renderBellDropdown() {
     <div class="nav-bell-list">${items.length
       ? items
           .map(
-            (it, i) => `<button type="button" class="nav-bell-item" style="--i:${i}" data-bell-item="${it.id}" data-bell-project="${it.project_id ?? ""}">
-              <div class="nav-bell-item-text">${it.kind === "sop" ? "📋" : "🔥"} ${escapeHtml(it.content)}</div>
+            (it, i) => `<button type="button" class="nav-bell-item" style="--i:${i}" data-bell-item="${it.id}" data-bell-project="${it.project_id ?? ""}" data-bell-kind="${it.kind}" data-bell-stage="${it.stage ?? ""}">
+              <div class="nav-bell-item-text">${it.kind && it.kind.startsWith("sop") ? "📋" : "🔥"} ${escapeHtml(it.content)}</div>
               ${it.reason ? `<div class="nav-bell-item-reason">${escapeHtml(it.reason)}</div>` : ""}
               <div class="nav-bell-item-proj">${it.project_name ? "📁 " + escapeHtml(it.project_name) : "👤 個人"}</div>
             </button>`
@@ -94,7 +94,11 @@ function _renderBellDropdown() {
     row.addEventListener("click", () => {
       closeBellDropdown();
       const pid = row.dataset.bellProject;
-      if (pid && typeof goToProjectOverviewPage === "function") {
+      const kind = row.dataset.bellKind;
+      const stageRaw = row.dataset.bellStage;
+      if (pid && kind && kind.startsWith("sop") && typeof goToProjectSopStage === "function") {
+        goToProjectSopStage(Number(pid), stageRaw !== "" ? Number(stageRaw) : null);
+      } else if (pid && typeof goToProjectOverviewPage === "function") {
         goToProjectOverviewPage(Number(pid));
       } else if (typeof goToMyWork === "function") {
         goToMyWork();

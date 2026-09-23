@@ -111,7 +111,9 @@ def _stage_tasks(db: Session, project_id: int, idx_str: str, entry: dict) -> lis
         kind = t["kind"]
         if kind == "doc":
             done = bool(t.get("doc_type")) and db.scalar(
-                select(Document.id).where(Document.project_id == project_id, Document.doc_type == t["doc_type"]).limit(1)
+                select(Document.id)
+                .where(Document.project_id == project_id, Document.doc_type == t["doc_type"], Document.sop_stage == stage_index)
+                .limit(1)
             ) is not None
         elif kind == "land":
             done = db.scalar(select(LandRecord.id).where(LandRecord.project_id == project_id).limit(1)) is not None
@@ -203,6 +205,7 @@ def urgent_sop_bell_items(db: Session, projects: list[Project]) -> list[dict]:
                 "project_name": p.name,
                 "kind": "sop",
                 "reason": reason,
+                "stage": block["index"],
             }
         )
     return items
@@ -276,7 +279,11 @@ def _stage_progress_pct(db: Session, project_id: int, idx_str: str, entry: dict)
             return 0
         done_items = 0
         for doc_type in doc_types:
-            if db.scalar(select(Document.id).where(Document.project_id == project_id, Document.doc_type == doc_type)):
+            if db.scalar(
+                select(Document.id).where(
+                    Document.project_id == project_id, Document.doc_type == doc_type, Document.sop_stage == stage_index
+                )
+            ):
                 done_items += 1
         for ck in checklist_keys:
             if checklist.get(ck):

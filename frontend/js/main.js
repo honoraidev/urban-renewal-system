@@ -40,6 +40,14 @@ function bootstrapApp() {
     try {
       localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
     } catch (e) { }
+    // 案件清單(#sb-cases)裡每個城市分組是否展開,是在 renderSidebarProjects() 畫
+    // HTML 的當下就決定的,不會因為之後切換 .collapsed 自動重畫。收合狀態下城市
+    // 分組要強制全部展開(見 renderSidebarProjects 的 forceOpen),不然使用者在展開
+    // 側邊欄時手動收合過的城市,收合成圖示列後會卡在看不到案件、也點不了標題列
+    // 展開的狀態 - 這裡切換的當下就重畫一次,不用等下次 loadDashboard()。
+    if (typeof renderSidebarProjects === "function" && typeof dashboardProjectsById === "object") {
+      renderSidebarProjects(Object.values(dashboardProjectsById));
+    }
   };
   sbCollapseBtn?.addEventListener("click", () => applySidebarCollapsed(!sb?.classList.contains("collapsed")));
   let savedSidebarCollapsed = "0";

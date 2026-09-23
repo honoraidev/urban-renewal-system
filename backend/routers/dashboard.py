@@ -13,7 +13,7 @@ from models.project import Project, ProjectMember
 from models.sop import SopStage
 from models.user import User
 from routers.project_overview import _stage_task_block, urgent_sop_bell_items
-from routers.sop import _resolved_stages
+from routers.sop import _resolved_stages, pending_manager_review_bell_items, rejected_checklist_bell_items
 from utils.todo_priority import DUE_URGENT_DAYS, todo_priority
 from schemas.dashboard import (
     CalendarEventCreate,
@@ -253,10 +253,12 @@ def get_today_important(
     current_user: User = Depends(get_current_user),
 ):
     """全站頂端鈴鐺用(個人的 + 看得到的案件共用的都算,跟工作看板行事曆同一份資料,
-    同一套 _visible_project_ids 可見範圍)。會出現的有三種:
+    同一套 _visible_project_ids 可見範圍)。會出現的有五種:
       1. 自動判斷「緊急且重要」的待辦(逾期 30 天內 ~ 2 天內到期;規則見 utils/todo_priority.py)
       2. 案件已延遲/快到期、這階段還有未完成 SOP 項目的案件(彙整成一則)
-      3. 今天、手動標「重要」的待辦(即使還沒到緊急)"""
+      3. 今天、手動標「重要」的待辦(即使還沒到緊急)
+      4. 「主管審核通過」被駁回、還沒回應的案件(案件相關人員都看得到,不限管理層)
+      5. 「主管審核通過」對應文件已上傳、待審核的案件(只有管理層看得到)"""
     project_ids = _visible_project_ids(db, current_user)
     today = datetime.utcnow().date()
     ev_filter = CalendarEvent.created_by == current_user.id
@@ -294,6 +296,9 @@ def get_today_important(
             items.append(_todo_item(e, "、".join(urgent)))
             seen.add(e.id)
     items += [TodayImportantItem(**it) for it in urgent_sop_bell_items(db, projects)]
+    items += [TodayImportantItem(**it) for it in rejected_checklist_bell_items(db, projects)]
+    if current_user.role in MANAGE_ROLES:
+        items += [TodayImportantItem(**it) for it in pending_manager_review_bell_items(db, projects)]
     for e in events:
         if e.event_date == today and e.is_important and e.id not in seen:
             items.append(_todo_item(e, "今天標為重要"))

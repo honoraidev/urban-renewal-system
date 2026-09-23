@@ -40,6 +40,7 @@ async function loadCurrentUser() {
   renderNavUser();
   showApp();
   if (typeof startReminderPolling === "function") startReminderPolling();
+  if (typeof liveConnect === "function") liveConnect();
   // 重新整理瀏覽器後回到上次停留的畫面(案件/分頁),不要每次都被彈回總覽 -
   // restoreLastView() 讀 persistViewState() 存的 sessionStorage 快照。
   await restoreLastView();
@@ -65,6 +66,7 @@ async function doLogout() {
   sessionStorage.removeItem("lastView");
   if (typeof myWorkStopPolling === "function") myWorkStopPolling();
   if (typeof stopReminderPolling === "function") stopReminderPolling();
+  if (typeof liveDisconnect === "function") liveDisconnect();
   document.getElementById("app").classList.add("hidden");
   document.getElementById("view-login").classList.remove("hidden");
   loggingOut = false;

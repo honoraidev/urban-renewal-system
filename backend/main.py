@@ -2,6 +2,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import anyio
 from fastapi import FastAPI
@@ -11,12 +12,19 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, expenses, landowners, ocr, ocr_intake, project_notes, project_overview, projects, resources, sop, sso, users
+from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, events, expenses, landowners, ocr, ocr_intake, project_notes, project_overview, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
+from utils.live_events import broadcast
 
 _MUTATING_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
+
+# 兩個背景排程(抓新聞、同意度快照)原本用 datetime.now() 算「本機時間 9:00」,隱含假設
+# 容器系統時間就是台灣時間 —— NAS 上這個容器系統時區其實是 UTC,「9:00」實際變成
+# UTC 9:00 = 台灣時間下午 5 點,跟預期差了 8 小時。改成明確指定 Asia/Taipei,不管容器
+# 系統時區設什麼,都固定在台灣時間早上 9 點跑。
+TAIWAN_TZ = ZoneInfo("Asia/Taipei")
 
 
 def _auto_migrate() -> None:
@@ -459,12 +467,12 @@ def _auto_migrate() -> None:
 
 
 async def _daily_news_fetch_loop() -> None:
-    """背景常駐迴圈:每天本機時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
+    """背景常駐迴圈:每天台灣時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
     失敗只印警告,不能讓這個迴圈掛掉 - 掛掉就永遠不會再排下一次。"""
     from utils.news_fetch import fetch_and_store_news
 
     while True:
-        now = datetime.now()
+        now = datetime.now(TAIWAN_TZ)
         target = now.replace(hour=9, minute=0, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
@@ -481,13 +489,13 @@ async def _daily_news_fetch_loop() -> None:
 
 
 async def _daily_consent_snapshot_loop() -> None:
-    """背景常駐迴圈:每天本機時間 9:05 替每個案件存一筆拜訪同意快照(見
+    """背景常駐迴圈:每天台灣時間 9:05 替每個案件存一筆拜訪同意快照(見
     utils/visit_consent.take_daily_consent_snapshots),給案件卡片「本週 vs 上週」
     比較用。單次失敗只印警告,不能讓迴圈掛掉。"""
     from utils.visit_consent import take_daily_consent_snapshots
 
     while True:
-        now = datetime.now()
+        now = datetime.now(TAIWAN_TZ)
         target = now.replace(hour=9, minute=5, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
@@ -702,6 +710,10 @@ class ActivityLogMiddleware:
                 _write_activity, user_id, project_id, landowner_id, scope["method"], scope["path"], label,
                 status_code, detail,
             )
+            # 全站即時同步(見 utils/live_events.py)- 讓其他分頁/帳號不用重整就看到
+            # 這次異動,跟活動紀錄用同一個「這次請求算不算數」的判斷(label 不是
+            # None、狀態碼成功),不用每個端點自己另外接線。
+            broadcast(project_id)
         except Exception:
             pass
 
@@ -713,6 +725,7 @@ app.include_router(sso.router)
 app.include_router(case_lookup.router)
 app.include_router(projects.router)
 app.include_router(dashboard.router)
+app.include_router(events.router)
 app.include_router(landowners.router)
 app.include_router(contacts.router)
 app.include_router(sop.router)

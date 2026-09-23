@@ -526,18 +526,82 @@ async function renderSopSummary() {
 
   const forceCloseBtn = document.getElementById("force-close-project-btn");
   if (forceCloseBtn) {
-    forceCloseBtn.addEventListener("click", async () => {
-      const reason = prompt("請輸入強制結案原因:");
-      if (reason === null) return;
-      try {
-        await api(`/projects/${pid}/sop/force-close`, { method: "POST", body: { force: true, reason } });
-        toast("案件已強制結案", "success");
-        await loadDashboard();
-        await renderSopSummary();
-        if (state.activeTab === "sop") renderTab("sop");
-      } catch (err) { }
+    forceCloseBtn.addEventListener("click", () => {
+      openForceReasonModal("強制結案", "強制結案", async (reason) => {
+        try {
+          await api(`/projects/${pid}/sop/force-close`, { method: "POST", body: { force: true, reason } });
+          toast("案件已強制結案", "success");
+          await loadDashboard();
+          await renderSopSummary();
+          if (state.activeTab === "sop") renderTab("sop");
+          refreshReminderBell();
+        } catch (err) { }
+      });
     });
   }
+}
+
+// 主管駁回「XX 主管審核通過」項目時要留原因,案件負責人才知道要改什麼(見 backend
+// routers/sop.py reject_checklist_item)。跟其他小型輸入框一樣用 openModal 蓋一個,
+// 不用瀏覽器原生 prompt() 那種擋不住樣式又容易被使用者誤按取消的陽春輸入框。
+function openRejectChecklistModal(pid, stage, key, label, onDone) {
+  openModal(
+    `駁回:${escapeHtml(label)}`,
+    `
+    <div class="field">
+      <label>駁回原因</label>
+      <textarea id="sop-reject-reason" rows="4" placeholder="請說明要修正的地方,案件負責人會看到這則原因..." autofocus></textarea>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+      <button type="button" class="btn-danger" id="sop-reject-submit">駁回</button>
+    </div>`,
+    { width: "420px" }
+  );
+  document.getElementById("sop-reject-submit").addEventListener("click", async () => {
+    const reason = document.getElementById("sop-reject-reason").value.trim();
+    if (!reason) {
+      toast("請填寫駁回原因", "error");
+      return;
+    }
+    try {
+      await api(`/projects/${pid}/sop/${stage}/checklist/reject`, {
+        method: "POST",
+        body: { key, reason },
+      });
+      toast("已駁回", "success");
+      closeModal();
+      onDone();
+      refreshReminderBell();
+    } catch (err) { }
+  });
+}
+
+// 「強制結案」「強制完成關卡」都要主管留一個原因,原本用瀏覽器原生 prompt() 輸入,
+// 跟駁回原因一樣有樣式擋不住、容易誤按取消的問題,改用同一套 openModal 彈跳視窗。
+function openForceReasonModal(title, submitLabel, onSubmit) {
+  openModal(
+    title,
+    `
+    <div class="field">
+      <label>原因</label>
+      <textarea id="sop-force-reason" rows="4" placeholder="請說明強制執行的原因..." autofocus></textarea>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+      <button type="button" class="btn-danger" id="sop-force-submit">${escapeHtml(submitLabel)}</button>
+    </div>`,
+    { width: "420px" }
+  );
+  document.getElementById("sop-force-submit").addEventListener("click", async () => {
+    const reason = document.getElementById("sop-force-reason").value.trim();
+    if (!reason) {
+      toast("請填寫原因", "error");
+      return;
+    }
+    closeModal();
+    onSubmit(reason);
+  });
 }
 
 async function renderSopTab(el) {
@@ -620,12 +684,16 @@ async function renderSopTab(el) {
       ? await api(`/projects/${pid}/consent-ratio`, { params: { stage: selected }, silent: true }).catch(() => null)
       : null;
     const landowners = needsLandowners ? await api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []) : [];
+    // 各關卡分開認定:同一個 doc_type(例如 briefing_material)在第1/2/3輪說明會都會用到,
+    // 只看「這一關自己上傳的」,不能被其他關卡上傳過同類型文件就誤判成這關也完成了。
     const latestByType = {};
-    allDocs.forEach((d) => {
-      if (!latestByType[d.doc_type] || new Date(d.uploaded_at) > new Date(latestByType[d.doc_type].uploaded_at)) {
-        latestByType[d.doc_type] = d;
-      }
-    });
+    allDocs
+      .filter((d) => d.sop_stage === selected)
+      .forEach((d) => {
+        if (!latestByType[d.doc_type] || new Date(d.uploaded_at) > new Date(latestByType[d.doc_type].uploaded_at)) {
+          latestByType[d.doc_type] = d;
+        }
+      });
     const landCount = landowners.reduce((sum, o) => sum + (o.land_records || []).length, 0);
     const buildingCount = landowners.reduce((sum, o) => sum + (o.building_records || []).length, 0);
     const phoneCount = landowners.filter((o) => (o.phone_landline || "").trim() || (o.phone_mobile || "").trim()).length;
@@ -642,6 +710,7 @@ async function renderSopTab(el) {
       .map((item) => {
         let done = true;
         let sub = item.sub || "";
+        let rejected = false;
         if (item.docType) {
           const doc = latestByType[item.docType];
           const formEntry = item.form ? stageForms[item.docType] : null;
@@ -674,8 +743,34 @@ async function renderSopTab(el) {
             : "載入中";
         } else if (item.manual) {
           const confirmed = confirmedChecklist[item.key];
-          done = !!confirmed;
-          sub = done ? `已確認・${fmtDate(confirmed.confirmed_at)}` : "尚未確認";
+          done = !!(confirmed && confirmed.confirmed_at);
+          // 駁回後只要相關文件重新上傳過(上傳時間晚於駁回時間),就當作案件負責人已經
+          // 回應過了,不用一直卡著舊的駁回訊息;主管審核通過項目一定跟同一關某個上傳
+          // 項目搭配,找那個項目的最新上傳時間來比對。
+          if (confirmed && confirmed.rejected_at) {
+            rejected = true;
+            if (item.managerOnly) {
+              // 有些關卡(如事業計畫說明會)一次要上傳好幾份文件(簡報+同意書+合約),
+              // 之前只檢查 checklistConfig 裡第一個上傳項目,重新上傳的如果是後面那幾份
+              // 就偵測不到 - 改成掃過整關所有上傳項目,任一份在駁回之後重新上傳過就算。
+              // doc.uploaded_at 後端存的是沒有時區標記的 UTC 字串,直接 new Date() 會被
+              // 瀏覽器當成本地時間解讀(差 8 小時,剛好足以讓「已經比駁回時間晚」的
+              // 判斷失準)- 要用 parseApiDate() 補上 Z 再比,rejected_at 本身已經帶
+              // +00:00 不受影響。
+              const rejectedAt = parseApiDate(confirmed.rejected_at);
+              const resubmitted = checklistConfig.some((ci) => {
+                if (!ci.docType || ci.manual) return false;
+                const doc = latestByType[ci.docType];
+                return doc && parseApiDate(doc.uploaded_at) > rejectedAt;
+              });
+              if (resubmitted) rejected = false;
+            }
+          }
+          sub = done
+            ? `已確認・${fmtDate(confirmed.confirmed_at)}`
+            : rejected
+              ? `已駁回・${fmtDate(confirmed.rejected_at)}:${confirmed.reason}`
+              : "尚未確認";
         }
         checklistTotalCount++;
         if (done) checklistDoneCount++;
@@ -693,6 +788,12 @@ async function renderSopTab(el) {
             : item.managerOnly
               ? `<span class="sop-checklist-sub" title="僅管理層級可確認此項目" style="white-space:nowrap">需主管確認</span>`
               : "";
+        // 「駁回」只給主管審核通過這類項目(managerOnly),還沒確認過才顯示(已確認要
+        // 駁回的話,先按「取消確認」退回未確認狀態即可,不用兩顆按鈕併存)。
+        const rejectBtn =
+          item.manual && item.managerOnly && canConfirmThis && !done
+            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-reject="${item.key}" data-checklist-reject-label="${escapeHtml(item.label)}" data-checklist-reject-stage="${selected}">駁回</button>`
+            : "";
         // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
         // 「相關檔案」找。
         const previewDoc = item.docType ? latestByType[item.docType] : null;
@@ -722,13 +823,13 @@ async function renderSopTab(el) {
         // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
         const rosterBtn = "";
         return `
-        <div class="sop-checklist-item ${done ? "done" : ""}">
-          <div class="sop-checklist-icon">${done ? "✓" : ""}</div>
+        <div class="sop-checklist-item ${done ? "done" : ""}${rejected ? " rejected" : ""}">
+          <div class="sop-checklist-icon">${done ? "✓" : rejected ? "✗" : ""}</div>
           <div style="flex:1">
             <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
             <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
           </div>
-          ${rosterBtn}${confirmBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
+          ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
         </div>`;
       })
       .join("");
@@ -877,11 +978,24 @@ async function renderSopTab(el) {
         });
         toast(currentlyConfirmed ? "已取消確認" : "已確認", "success");
         renderSopTab(el);
+        refreshReminderBell();
         // 確認地主清冊正確的當下就順手把 Excel 匯出下載,不用再切去整合清冊按一次。
         if (key === "landowner_roster_confirmed" && !currentlyConfirmed) {
           await downloadRosterExcel(pid);
         }
       } catch (err) { }
+    });
+  });
+
+  el.querySelectorAll("[data-checklist-reject]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openRejectChecklistModal(
+        pid,
+        Number(btn.dataset.checklistRejectStage),
+        btn.dataset.checklistReject,
+        btn.dataset.checklistRejectLabel,
+        () => renderSopTab(el)
+      );
     });
   });
 
@@ -928,6 +1042,7 @@ async function renderSopTab(el) {
         const label = DOC_TYPE_LABEL[docType] || docType;
         toast(`【${label}】已成功上傳`, "success");
         renderSopTab(el);
+        refreshReminderBell();
       } catch (err) { }
     });
   });
@@ -942,21 +1057,23 @@ async function renderSopTab(el) {
         await renderSopSummary();
         state.sopSelectedStage = null;
         renderSopTab(el);
+        refreshReminderBell();
       } catch (err) { }
     });
   }
   const forceBtn = document.getElementById("force-stage-btn");
   if (forceBtn) {
-    forceBtn.addEventListener("click", async () => {
-      const reason = prompt("請輸入強制完成原因:");
-      if (reason === null) return;
-      try {
-        await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: { force: true, reason } });
-        toast("已強制完成關卡", "success");
-        await renderSopSummary();
-        state.sopSelectedStage = null;
-        renderSopTab(el);
-      } catch (err) { }
+    forceBtn.addEventListener("click", () => {
+      openForceReasonModal("強制完成關卡", "強制完成", async (reason) => {
+        try {
+          await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: { force: true, reason } });
+          toast("已強制完成關卡", "success");
+          await renderSopSummary();
+          state.sopSelectedStage = null;
+          renderSopTab(el);
+          refreshReminderBell();
+        } catch (err) { }
+      });
     });
   }
   // ---- 階段任務清單上傳項目的預覽按鈕 ----
@@ -995,7 +1112,7 @@ async function renderConsentPanel(el, stage) {
           </p>
          <div class="table-wrap">
             <table>
-              <thead><tr><th>地主</th><th>本輪同意狀態</th><th>操作</th></tr></thead>
+              <thead><tr><th>地主</th><th>統一編號</th><th>本輪同意狀態</th><th>操作</th></tr></thead>
               <tbody>
                 ${landowners
                   .map((o) => {
@@ -1003,6 +1120,7 @@ async function renderConsentPanel(el, stage) {
                     const status = rec ? rec.consent_status : "pending";
                     return `<tr>
                       <td>${escapeHtml(o.name)}</td>
+                      <td>${escapeHtml(o.id_number) || "-"}</td>
                       <td><span class="consent-status-badge cs-${status}">${CONSENT_STATUS_LABEL[status]}</span></td>
                       <td class="actions-cell">
                         <button class="btn-secondary btn-sm" data-consent="${o.id}" data-status="agreed">同意</button>

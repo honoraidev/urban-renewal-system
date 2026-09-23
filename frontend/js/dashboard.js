@@ -279,9 +279,16 @@ function renderSidebarProjects(projects) {
     sidebarCitiesInitialized = true;
   }
 
+  // 側邊欄收合成圖示列時,案件清單改在浮窗裡顯示、城市分組不能再收合(見下面
+  // .sb-cg-head 點擊防呆),但這裡如果不強制全部當成 open,原本在展開側邊欄時就手動
+  // 收合過的城市(不在 expandedSidebarCities 裡)一收合成圖示列,底下案件列表就會
+  // 用 max-height:0 的收合樣式畫出來 —— 使用者在浮窗裡看不到案件、又點不了標題列
+  // 展開,等於完全被鎖住看不到那個城市的案件。收合狀態下一律強制展開,忽略
+  // expandedSidebarCities 記的狀態。
+  const forceOpen = document.querySelector(".sb")?.classList.contains("collapsed");
   wrap.innerHTML = Object.entries(byCity)
     .map(([city, cases]) => {
-      const open = expandedSidebarCities.has(city);
+      const open = forceOpen || expandedSidebarCities.has(city);
       return `
         <div class="sb-cg">
           <div class="sb-cg-head" data-city="${escapeHtml(city)}">
@@ -955,6 +962,18 @@ async function openProject(id, defaultTab = "sop") {
   state.activeTab = initialTab;
   // renderTab() 本身現在就會刷新公告卡片,這裡不用再額外呼叫一次。
   await Promise.all([renderTab(state.activeTab), renderSopSummary()]);
+}
+
+// 鈴鐺裡 SOP 相關的提醒(見 reminders.js _renderBellDropdown)點下去要直接開到那個
+// 案件的 SOP 分頁、並選好對應關卡 —— 不能只是 openProject() 完就好,因為駁回意見可能
+// 卡在已經強制完成、案件目前已經走過去的舊關卡,不能只跳去「目前這關」讓人自己找。
+async function goToProjectSopStage(pid, stageIdx) {
+  await openProject(pid, "sop");
+  const stages = state.projectCache[pid]?.sop?.stages || {};
+  if (Number.isInteger(stageIdx) && String(stageIdx) in stages) {
+    state.sopSelectedStage = stageIdx;
+    await renderTab("sop");
+  }
 }
 
 // 麵包屑的「城市」那一段 - 跟側欄「案件管理」清單同一套依城市分組的邏輯,city 沒填
