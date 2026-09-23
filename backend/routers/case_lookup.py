@@ -18,7 +18,7 @@ from models.project import Project, ProjectMember
 from models.user import User
 from routers.projects import _alert_tier_counts
 from routers.sop import _final_stage_index, _resolved_stages, get_or_create_sop
-from utils.consent_ratio import calculate_consent_ratio
+from utils.visit_consent import compute_visit_breakdown
 
 router = APIRouter(prefix="/internal/case-lookup", tags=["case-lookup"])
 
@@ -89,7 +89,22 @@ def project_summary(project_id: int, employee_no: str, request: Request, db: Ses
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     sop = get_or_create_sop(db, project.id)
-    ratio = calculate_consent_ratio(db, project.id, project.current_stage)
+    # 跟網頁「案件卡片 / 關鍵指標」同一套定義(最新一次拜訪結果),不是 SOP 關卡
+    # 湊關用的嚴格版(電訪同意 + 已簽約)——兩套刻意不同,詳見 utils/visit_consent.py
+    # 開頭的說明,這裡要跟使用者平常在網頁上看到的數字一致。
+    v = compute_visit_breakdown(db, project.id)
+    headcount_ratio = v["headcount_agreed"] / v["headcount_total"] if v["headcount_total"] else 0.0
+    land_ratio = v["land_agreed_sqm"] / v["land_total_sqm"] if v["land_total_sqm"] else 0.0
+    building_ratio = v["building_agreed_sqm"] / v["building_total_sqm"] if v["building_total_sqm"] else 0.0
+    consent = {
+        "headcount_total": v["headcount_total"],
+        "headcount_agreed": v["headcount_agreed"],
+        "headcount_opposed": v["headcount_opposed"],
+        "headcount_ratio": headcount_ratio,
+        "land_share_ratio": land_ratio,
+        "building_share_ratio": building_ratio,
+        "dual_gate_passed": headcount_ratio >= 0.8 and land_ratio >= 0.8,
+    }
     alert_tiers = _alert_tier_counts(db, project.id)
 
     return {
@@ -100,7 +115,7 @@ def project_summary(project_id: int, employee_no: str, request: Request, db: Ses
         "current_stage": project.current_stage,
         "final_stage": _final_stage_index(sop),
         "stage_name": _stage_name(project.current_stage, sop),
-        "consent": ratio,
+        "consent": consent,
         "alert_tiers": alert_tiers,
         "as_of": datetime.now(timezone.utc).isoformat(),
     }

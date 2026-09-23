@@ -190,6 +190,21 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   // 統計卡片(從「地主聯絡簿」搬過來,同一份 allRows,口徑保持一致):地主總數、
   // 已/未聯絡人數+佔比、建物門牌數(去重後的簡化門牌)、涵蓋樓層範圍。
   const isContacted = (o) => !!o.contact_status && o.contact_status !== "not_contacted";
+  // 跟後端 utils/building_view.py 的 is_shared_building_record() 同一套判斷 - 共有
+  // 部分/公設建號(OCR 常把每位區分所有權人名下都掛一筆,無真實門牌)不是真的一戶。
+  // 已/未聯絡統計要濾掉「名下建物全部都只是這種公設」的地主,不然人數會比樓棟
+  // 視圖多算(那些人樓棟視圖根本畫不出一格);只有土地、沒有建物的地主不受影響,
+  // 他們是真實可聯絡的人,只是樓棟視圖沒有畫他們而已,還是照算。
+  const _isSharedBuildingRecord = (r) => {
+    if ((r.main_use || "").trim() === "共有部分") return true;
+    if (Array.isArray(r.common_part_shares) && r.common_part_shares.length) return true;
+    return (r.address || "").includes("共同使用");
+  };
+  const countsForContactStats = (o) => {
+    const brs = o.building_records || [];
+    return brs.length === 0 || brs.some((r) => !_isSharedBuildingRecord(r));
+  };
+  const contactableRows = allRows.filter(countsForContactStats);
   const doorSet = new Set();
   const floorKeys = [];
   allRows.forEach((o) => {
@@ -200,10 +215,10 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       if (floorLabel) floorKeys.push(_floorSortKey(floorLabel));
     });
   });
-  const contactedCount = allRows.filter(isContacted).length;
-  const notContactedCount = allRows.length - contactedCount;
-  const contactedPct = allRows.length ? Math.round((contactedCount / allRows.length) * 1000) / 10 : 0;
-  const notContactedPct = allRows.length ? Math.round((notContactedCount / allRows.length) * 1000) / 10 : 0;
+  const contactedCount = contactableRows.filter(isContacted).length;
+  const notContactedCount = contactableRows.length - contactedCount;
+  const contactedPct = contactableRows.length ? Math.round((contactedCount / contactableRows.length) * 1000) / 10 : 0;
+  const notContactedPct = contactableRows.length ? Math.round((notContactedCount / contactableRows.length) * 1000) / 10 : 0;
   const floorRangeText = floorKeys.length
     ? (() => {
         const min = Math.min(...floorKeys);

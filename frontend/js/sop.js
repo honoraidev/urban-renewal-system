@@ -778,20 +778,28 @@ async function renderSopTab(el) {
           checklistAllDone = false;
           pendingItems.push({ label: item.label, sub });
         }
-        // 「主管審核通過」這幾項只有 L0-L2 管理層(isManager())能按確認/取消確認——
+        // 「主管審核通過」這幾項只有 L0-L2 管理層(isManager())能按確認——
         // 案件負責人(case_owner)雖然算 isEditor(),但不算「主管」,只顯示唯讀提示。
         const canConfirmThis = item.managerOnly ? isManager() : isEditor();
+        // managerOnly 項目確認後不給「取消確認」,一經確認就是定案 —— 要反悔的話走
+        // 「駁回」留原因通知案件負責人,不能自己默默點掉,確認才有意義。非 managerOnly
+        // 的一般人工確認項目(例如「確認地主清冊正確」)還是保留取消確認,那個功能
+        // 本來就是設計成可以反覆切換來解鎖/鎖住謄本匯入用的。
         const confirmBtn = !item.manual
           ? ""
           : canConfirmThis
-            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">${done ? "取消確認" : "確認"}</button>`
+            ? done
+              ? item.managerOnly
+                ? ""
+                : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">取消確認</button>`
+              : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">確認</button>`
             : item.managerOnly
               ? `<span class="sop-checklist-sub" title="僅管理層級可確認此項目" style="white-space:nowrap">需主管確認</span>`
               : "";
-        // 「駁回」只給主管審核通過這類項目(managerOnly),還沒確認過才顯示(已確認要
-        // 駁回的話,先按「取消確認」退回未確認狀態即可,不用兩顆按鈕併存)。
+        // 「駁回」只給主管審核通過這類項目(managerOnly)- 確認後既然不能取消確認了,
+        // 駁回就要能對「已確認」的項目也生效,才是唯一能反悔的路。
         const rejectBtn =
-          item.manual && item.managerOnly && canConfirmThis && !done
+          item.manual && item.managerOnly && canConfirmThis
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-reject="${item.key}" data-checklist-reject-label="${escapeHtml(item.label)}" data-checklist-reject-stage="${selected}">駁回</button>`
             : "";
         // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
