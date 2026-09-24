@@ -516,6 +516,13 @@ async function goToNews() {
   document.getElementById("manage-news-cats-btn")?.classList.toggle("hidden", !isManager());
   document.getElementById("fetch-news-now-btn")?.classList.toggle("hidden", !isManager());
   await loadNews();
+  api("/news/auto-sync", { method: "POST", silent: true })
+    .then((r) => {
+      if (!r || !r.fetched) return;
+      if (r.created) toast(`新增了 ${r.created} 筆新聞`, "success");
+      loadNews();
+    })
+    .catch(() => {});
 }
 
 async function loadNewsSyncTime() {
@@ -639,7 +646,7 @@ function _newsItemHtml(r, cat, editable) {
         ${summary ? `<div class="nw-item-summary">${escapeHtml(summary)}</div>` : ""}
         <div class="nw-item-foot">
           ${src ? `<span class="nw-src-pill">來源:${escapeHtml(src)}</span>` : ""}
-          <span class="nw-item-tags">${tags.map((t) => `<button type="button" class="nw-tag" data-news-tag="${escapeHtml(t)}"># ${escapeHtml(t)}</button>`).join("")}</span>
+          <span class="nw-item-tags">${tags.map((t) => `<button type="button" class="nw-tag" data-news-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}</span>
         </div>
         ${editable
       ? `<div class="news-card-actions">
@@ -752,7 +759,7 @@ function renderNewsList() {
     const list = newsTagsExpanded ? sorted : sorted.slice(0, NEWS_HOT_TAG_LIMIT);
     tagsEl.innerHTML = list.length
       ? list
-          .map(([t, n]) => `<button type="button" class="nw-tag nw-tag-lg ${newsTagFilter === t ? "active" : ""}" data-news-tag="${escapeHtml(t)}"># ${escapeHtml(t)}<span class="nw-tag-n">${n}</span></button>`)
+          .map(([t, n]) => `<button type="button" class="nw-tag nw-tag-lg ${newsTagFilter === t ? "active" : ""}" data-news-tag="${escapeHtml(t)}">${escapeHtml(t)}<span class="nw-tag-n">${n}</span></button>`)
           .join("")
       : `<span class="helper-text">還沒有標籤</span>`;
     const moreBtn = document.getElementById("news-tags-more");
@@ -900,7 +907,7 @@ function _regCardHtml(r, tone, editable) {
         </div>
         ${r.description ? `<div class="reg-card-desc">${escapeHtml(r.description)}</div>` : ""}
         <div class="reg-card-foot">
-          <span class="reg-card-tags">${tags.map((t) => `<span class="reg-tag">#${escapeHtml(t)}</span>`).join("")}</span>
+          <span class="reg-card-tags">${tags.map((t) => `<span class="reg-tag">${escapeHtml(t)}</span>`).join("")}</span>
           ${editable
       ? `<span class="news-card-actions">
                  <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>

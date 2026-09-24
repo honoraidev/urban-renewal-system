@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
 CONVERTIBLE_EXTS = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
 
@@ -22,8 +23,29 @@ def _cache_path_for(file_path: str) -> str:
     return os.path.join(cache_dir, os.path.basename(file_path) + ".pdf")
 
 
+_WINDOWS_SOFFICE_PATHS = (
+    r"C:\Program Files\LibreOffice\program\soffice.exe",
+    r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+)
+
+
+def _find_soffice() -> str:
+    """NAS 的 docker 映像有裝 LibreOffice(PATH 上就有 soffice);本機 Windows 開發機
+    通常不在 PATH 上,再找預設安裝位置。都找不到就丟出看得懂的錯誤,不是 WinError 2。"""
+    found = shutil.which("soffice") or shutil.which("soffice.exe")
+    if found:
+        return found
+    for path in _WINDOWS_SOFFICE_PATHS:
+        if os.path.exists(path):
+            return path
+    raise RuntimeError("這台伺服器沒有安裝 LibreOffice,無法預覽 Word/Excel/PowerPoint,請改用下載查看")
+
+
 def convert_to_pdf(file_path: str) -> str:
     """回傳轉好的 PDF 路徑;失敗時丟例外(訊息帶 LibreOffice 的 stderr)。"""
+    # 本機 Windows 的上傳路徑長得像「/app/uploads 加反斜線子目錄」(沒有磁碟代號、斜線混用),
+    # Python 讀得到,但 LibreOffice 認不得 → 先轉成完整的絕對路徑。
+    file_path = os.path.abspath(file_path)
     cache_path = _cache_path_for(file_path)
     if os.path.exists(cache_path) and os.path.getmtime(cache_path) >= os.path.getmtime(file_path):
         return cache_path
@@ -35,12 +57,13 @@ def convert_to_pdf(file_path: str) -> str:
     try:
         result = subprocess.run(
             [
-                "soffice",
+                _find_soffice(),
                 "--headless",
                 "--norestore",
                 "--nolockcheck",
                 "--nodefault",
-                f"-env:UserInstallation=file://{profile_dir}",
+                # Windows 路徑要轉成 file:///C:/... 的形式 LibreOffice 才認得
+                f"-env:UserInstallation={Path(profile_dir).as_uri()}",
                 "--convert-to",
                 "pdf",
                 "--outdir",

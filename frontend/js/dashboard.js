@@ -42,43 +42,150 @@ function projectConsentBreakdownHtml(breakdown, names) {
     </div>`;
 }
 
-// 本週 vs 上週的三個指標(人數/土地/建物同意)比較區塊。
-function projectWeeklyCompareHtml(breakdown, lastWeek) {
-  const pctOf = (b, agreedKey, totalKey) => {
-    const total = b ? b[totalKey] : 0;
-    return total > 0 ? (b[agreedKey] / total) * 100 : 0;
-  };
-  const items = [
-    { label: "人數同意", agreedKey: "headcount_agreed", totalKey: "headcount_total" },
-    { label: "土地同意", agreedKey: "land_agreed_sqm", totalKey: "land_total_sqm" },
-    { label: "建物同意", agreedKey: "building_agreed_sqm", totalKey: "building_total_sqm" },
-  ];
+// 「YYYY-MM-DD」+ 天數位移 -> 「YYYY/MM/DD」,純用 UTC 整數日期運算(Date.UTC),
+// 不透過瀏覽器當地時區解析單純日期字串,避免月底/跨年這種進位算錯,也不會因為
+// 使用者裝置時區不同而位移一天。
+function _wkDateShift(dateStr, days) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return `${dt.getUTCFullYear()}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+// 圓形徽章裡的小圖示一律用 SVG(不用 ✓/✕/↑/↓/→ 這種文字符號)- 不同瀏覽器/字型
+// 對這幾個 Unicode 符號的粗細、置中位置渲染差很多,看起來會比範本裡乾淨的線條
+// 圖示笨重,跟同一張卡片裡本來就是 SVG 畫的日期膠囊小箭頭也對不起來。
+const _wkSvg = (path) =>
+  `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+// 「變化」欄的箭頭:朝好的方向(good)用有精神的斜角箭頭、朝壞的方向(bad)用
+// 平實的直角箭頭 - 不是隨機選字體,同一份 up/down 各自有兩種畫法,依 tone 決定
+// 用哪個,參考圖上同意(綠、好事)是斜的「↗」、反對(紅、壞事)是直的「↑」就是
+// 這個規則畫出來的,不是巧合。
+const WK_ICON = {
+  check: _wkSvg(`<path d="M5 13l4 4L19 7"/>`),
+  cross: _wkSvg(`<path d="M6 6l12 12M18 6L6 18"/>`),
+  upStraight: _wkSvg(`<path d="M12 19V6M6 12l6-6 6 6"/>`),
+  upDiagonal: _wkSvg(`<path d="M7 17L17 7M9 7h8v8"/>`),
+  downStraight: _wkSvg(`<path d="M12 5v13M18 12l-6 6-6-6"/>`),
+  downDiagonal: _wkSvg(`<path d="M7 7l10 10M17 9v8h-8"/>`),
+  flat: _wkSvg(`<path d="M5 12h13M13 7l5 5-5 5"/>`),
+  people: _wkSvg(`<circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 5.5a3 3 0 0 1 0 5.5M17.5 14.5a5 5 0 0 1 3 4.5"/>`),
+  bars: _wkSvg(`<path d="M6 19v-6M12 19V6M18 19v-9"/>`),
+  calendar: _wkSvg(`<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>`),
+  caret: _wkSvg(`<path d="M7 10l5 5 5-5"/>`),
+};
+
+const WK_WEEK_CHOICES = 8;
+
+function _wkOffsetLabel(offset) {
+  return offset === 0 ? "本週" : offset === 1 ? "上週" : `${offset} 週前`;
+}
+
+// 本地日期的「第 offset 週」週一 ~ 週日(跟後端 weekly-compare 的週界線一致)
+function _wkWeekRange(offset) {
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - offset * 7);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const f = (d) => `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  return `${f(monday)} - ${f(sunday)}`;
+}
+
+// 日期膠囊的下拉選單:選一週 → 跟後端要那週 vs 前一週的資料,只重畫這一塊。
+document.addEventListener("click", async (e) => {
+  const opt = e.target.closest("[data-wkt-pick]");
+  if (opt) {
+    e.stopPropagation();
+    const box = opt.closest(".wkt-range-wrap");
+    const pid = Number(box.dataset.pid);
+    const offset = Number(opt.dataset.wktPick);
+    box.querySelector(".wkt-menu")?.remove();
+    try {
+      const data = await api(`/projects/${pid}/weekly-compare`, { params: { week_offset: offset } });
+      const card = box.closest(".project-card-weekly");
+      if (card) card.outerHTML = projectWeeklyCompareHtml(data.breakdown, data.last_week_breakdown, pid, offset);
+    } catch (err) {}
+    return;
+  }
+  const btn = e.target.closest("[data-wkt-pid]");
+  document.querySelectorAll(".wkt-menu").forEach((m) => {
+    if (!btn || !btn.parentElement.contains(m)) m.remove();
+  });
+  if (!btn) return;
+  e.stopPropagation();
+  const wrap = btn.parentElement;
+  if (wrap.querySelector(".wkt-menu")) {
+    wrap.querySelector(".wkt-menu").remove();
+    return;
+  }
+  const cur = Number(btn.dataset.wktOffset);
+  const menu = document.createElement("div");
+  menu.className = "wkt-menu";
+  menu.innerHTML = Array.from({ length: WK_WEEK_CHOICES }, (_, i) =>
+    `<button type="button" class="wkt-menu-item ${i === cur ? "active" : ""}" data-wkt-pick="${i}"><b>${_wkOffsetLabel(i)}</b><span>${_wkWeekRange(i)}</span></button>`
+  ).join("");
+  wrap.appendChild(menu);
+}, true);
+
+// 本週 vs 上週的同意/反對人數比較 —— 上週/變化/本週三欄並排、中間夾漲跌,樣式照
+// 使用者給的參考模板(圓形勾/叉徽章 + 底部圓角標籤 + 副標題 + 日期區間膠囊)做。
+function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 0) {
   if (!lastWeek) {
     return `
       <div class="project-card-weekly">
-        <div class="project-card-weekly-head">📅 本週 vs 上週</div>
+        <div class="wk-head"><div class="wk-head-icon">📅</div><div class="wk-head-title">本週 vs 上週</div></div>
         <div class="project-card-weekly-empty">快照累積中,滿一週後才會有比較資料</div>
       </div>`;
   }
-  const rowsHtml = items
-    .map((it) => {
-      const cur = pctOf(breakdown, it.agreedKey, it.totalKey);
-      const prev = pctOf(lastWeek, it.agreedKey, it.totalKey);
-      const delta = cur - prev;
-      const dir = delta > 0.5 ? "up" : delta < -0.5 ? "down" : "flat";
-      const arrow = dir === "up" ? "↑" : dir === "down" ? "↓" : "→";
-      return `
-        <div class="project-card-weekly-item">
-          <div class="project-card-weekly-pct">${Math.round(cur)}%</div>
-          <div class="project-card-weekly-delta ${dir}">${arrow} ${delta >= 0 ? "+" : ""}${Math.round(delta)}%</div>
-          <div class="project-card-weekly-prev">上週 ${Math.round(prev)}%</div>
-        </div>`;
-    })
-    .join("");
+  // lastWeek.snapshot_date 是上週日(這週一的前一天):上週 = 往前 6 天 ~ 當天,本週 = +1 ~ +7 天。
+  const prevStart = _wkDateShift(lastWeek.snapshot_date, -6);
+  const prevEnd = _wkDateShift(lastWeek.snapshot_date, 0);
+  const weekStart = _wkDateShift(lastWeek.snapshot_date, 1);
+  const weekEnd = _wkDateShift(lastWeek.snapshot_date, 7);
+  const md = (d) => d.slice(5);
+  const countOf = (b, key) => {
+    if (!b) return 0;
+    if (key === "other") return Math.max(0, (b.headcount_total || 0) - (b.headcount_agreed || 0) - (b.headcount_opposed || 0));
+    return b[key] || 0;
+  };
+  const rows = [
+    { key: "headcount_agreed", label: "同意", icon: WK_ICON.check, tone: "agree" },
+    { key: "headcount_opposed", label: "反對", icon: WK_ICON.cross, tone: "oppose" },
+    { key: "other", label: "其他", icon: WK_ICON.people, tone: "other" },
+  ];
+  const arrow = `<span class="wkt-arrow" aria-hidden="true"></span>`;
+  const rowHtml = (r) => {
+    const prev = countOf(lastWeek, r.key);
+    const cur = countOf(breakdown, r.key);
+    const delta = cur - prev;
+    // 變化百分比 = 相對上週人數的增減;上週是 0 人時沒有基準,有增加就算 100%。
+    const pct = prev > 0 ? Math.round((delta / prev) * 100) : delta > 0 ? 100 : 0;
+    const sign = delta > 0 ? "+" : "";
+    return `
+      <div class="wkt-label"><span class="wkt-badge wkt-${r.tone}">${r.icon}</span>${r.label}</div>
+      <div class="wkt-val wkt-${r.tone}">${prev}<small>人</small></div>
+      ${arrow}
+      <div class="wkt-delta ${delta ? `wkt-${r.tone}` : "wkt-flat"}">${sign}${delta}<small>人</small> <span class="wkt-pct">(${sign}${pct}%)</span></div>
+      ${arrow}
+      <div class="wkt-val wkt-${r.tone} wkt-cur">${cur}<small>人</small></div>`;
+  };
   return `
-    <div class="project-card-weekly">
-      <div class="project-card-weekly-head">📅 本週 vs 上週</div>
-      <div class="project-card-weekly-row">${rowsHtml}</div>
+    <div class="project-card-weekly wkt">
+      <div class="wkt-head">
+        <span class="wkt-head-icon">${WK_ICON.bars}</span>
+        <span class="wkt-head-title">本週 vs 上週</span>
+        <span class="wkt-range-wrap" data-pid="${pid || ""}"><button type="button" class="wkt-range" ${pid ? `data-wkt-pid="${pid}" data-wkt-offset="${weekOffset}"` : "disabled"} title="切換週次">
+          ${WK_ICON.calendar} ${_wkOffsetLabel(weekOffset)} ${md(weekStart)} - ${md(weekEnd)}
+          <span class="wkt-range-caret">${WK_ICON.caret}</span>
+        </button></span>
+      </div>
+      <div class="wkt-grid">
+        <div></div>
+        <div class="wkt-col-h">上週<span>${md(prevStart)}-${md(prevEnd)}</span></div>
+        <div></div>
+        <div class="wkt-col-h">變化</div>
+        <div></div>
+        <div class="wkt-col-h">本週<span>${md(weekStart)}-${md(weekEnd)}</span></div>
+        ${rows.map(rowHtml).join("")}
+      </div>
     </div>`;
 }
 
@@ -424,12 +531,7 @@ async function loadDashboard() {
               <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             ${projectConsentBreakdownHtml(p.visit_breakdown, p.agreed_landowner_names)}
-            ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown)}
-            <div class="project-card-tiers">
-              <span class="tier-badge tier-reminder">▲ 提醒:${p.reminder_count}</span>
-              <span class="tier-badge tier-warning">▲ 警示:${p.warning_count}</span>
-              <span class="tier-badge tier-urgent">▲ 緊急:${p.urgent_count}</span>
-            </div>
+            ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown, p.id)}
             ${p.case_handler_name || p.case_manager_name
               ? `<div class="project-card-footer">
                   ${p.case_handler_name ? `<span>👤 ${escapeHtml(p.case_handler_name)}</span>` : ""}
@@ -790,7 +892,6 @@ async function openProjectEditModal(projectId) {
       </div>
       <div class="field"><label>案件地址</label><input name="address" value="${escapeHtml(p.address || "")}"></div>
       <div class="field"><label>案件類型</label><input name="case_type" value="${escapeHtml(p.case_type || "")}" placeholder="例:都市更新(權利變換)"></div>
-      <div class="field"><label>預計完成日</label><input type="date" name="expected_completion_date" value="${p.expected_completion_date || ""}"></div>
       <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
       <div class="field"><label>案件簡介</label><textarea name="summary" rows="4" placeholder="案件總覽頁顯示的簡介段落,例如基地面積、預計興建規模等">${escapeHtml(p.summary || "")}</textarea></div>
       <div class="field">
@@ -865,7 +966,6 @@ async function openProjectEditModal(projectId) {
   document.getElementById("project-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
-    payload.expected_completion_date = payload.expected_completion_date || null;
     try {
       const updated = await api(`/projects/${projectId}`, { method: "PATCH", body: payload });
       toast("案件資料已更新", "success");
@@ -910,8 +1010,10 @@ async function goToProjectOverviewPage(id) {
     const badgeEl = document.getElementById("pov-status-badge");
     const crumbNameEl = document.getElementById("pov-crumb-name");
     if (nameEl) {
-      nameEl.textContent = project.name;
-      nameEl.title = `${project.name} (${project.project_code})`;
+      // 案名後面接「編輯案件資料 → 備註」的第一行(例如「地號0578-0000 等 13 筆」)
+      const note = (project.description || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
+      nameEl.innerHTML = `${escapeHtml(project.name)}${note ? `<span class="pov-name-note">${escapeHtml(note)}</span>` : ""}`;
+      nameEl.title = `${project.name} (${project.project_code})${note ? `\n${project.description}` : ""}`;
     }
     if (crumbNameEl) crumbNameEl.textContent = project.name;
     _setCrumbCity("pov", project.city);
@@ -995,7 +1097,7 @@ function renderProjectHeader(p) {
   const crumbNameEl = document.getElementById("pd-crumb-name");
 
   if (nameEl) {
-    const fullName = `${p.name} (${p.project_code})${p.description ? ` · ${p.description}` : ""}`;
+    const fullName = `${p.name}${p.description ? ` · ${p.description}` : ""}`;
     nameEl.textContent = fullName;
     // 標題現在強制一行顯示、太長會用「...」截斷(見 style.css .project-header h2)
     // - 補個 title 屬性,滑鼠移上去還是看得到完整名稱。

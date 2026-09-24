@@ -549,7 +549,7 @@ async function downloadRosterExcel(pid) {
     const a = document.createElement("a");
     a.href = url;
     const proj = state.currentProject || {};
-    a.download = `${proj.name || proj.project_code || "roster"}清冊.xlsx`;
+    a.download = `${proj.name || proj.project_code || "roster"}-清冊.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -617,7 +617,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
           (br, idx) => `<tr>
                     <td>${idx + 1}</td>
                     <td>${escapeHtml(br.building_number) || "-"}</td>
-                    <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number) || "-"}</td>
+                    <td>${escapeHtml((o.land_records.find((lr) => lr.id === br.land_record_id) || {}).parcel_number || br.parcel_number) || "-"}</td>
                     <td>${escapeHtml(br.floor) || "-"}</td>
                     <td>${fmtArea(br.total_area_sqm)}</td>
                     <td>${br.ownership_numerator}/${br.ownership_denominator}</td>

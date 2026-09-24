@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -215,6 +216,19 @@ def fetch_news_now(db: Session = Depends(get_db), current_user: User = Depends(r
     from utils.news_fetch import fetch_and_store_news
 
     return fetch_and_store_news(db)
+
+
+@router.post("/news/auto-sync")
+def auto_sync_news(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """打開新聞頁時自動補抓 - 任何登入者都可觸發,但距上次同步未滿 30 分鐘就直接跳過,
+    避免每個人每次點進來都去打 Google 新聞 RSS。"""
+    from utils.news_fetch import fetch_and_store_news
+
+    state = db.get(NewsSyncState, 1)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if state and now - state.last_synced_at < timedelta(minutes=30):
+        return {"fetched": False, "created": 0}
+    return {"fetched": True, "created": len(fetch_and_store_news(db))}
 
 
 @router.get("/news/sync-status", response_model=NewsSyncStatusRead)

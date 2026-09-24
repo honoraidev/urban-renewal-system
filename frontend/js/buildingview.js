@@ -432,7 +432,7 @@ async function renderBuildingViewTab(el) {
       <div class="section-toolbar">
         <h3>樓棟視圖</h3>
       </div>
-      <div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「登記資料 → 建物登記」匯入建物資料</div>
+      <div class="empty-state">尚無建物地址資料可供產生樓棟視圖,請先於「SOP 進度 第1階段・籌備階段 → 上傳建物謄本PDF」匯入建物資料</div>
       ${buildingViewLandOnlySectionHtml(landOnlyOwners)}
     `;
     wireLandOnlyOwnerLinks(el);

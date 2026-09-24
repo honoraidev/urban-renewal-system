@@ -56,7 +56,10 @@ async function renderMembersTab(el) {
   });
 }
 
-async function openAddMemberModal(existingMembers) {
+// onDone(選填):新增成功後要做什麼,不給就沿用原本「重新整理人員分頁」的行為 -
+// 案件總覽頁的「相關人員」卡也會呼叫這個 modal,那裡沒有 #tab-content 可以
+// renderTab,得傳自己的重畫函式進來。
+async function openAddMemberModal(existingMembers, onDone) {
   const pid = state.currentProjectId;
   // 這裡故意打 /users/assignable 而不是 /users - 後者限 L0~L2(使用者管理頁用),
   // L3 案件負責人打會 403,新增人員的挑選清單整個跑不出來。
@@ -145,7 +148,8 @@ async function openAddMemberModal(existingMembers) {
       await api(`/projects/${pid}/members`, { method: "POST", body: { user_id: userId } });
       closeModal();
       toast("已新增人員", "success");
-      renderTab("members");
+      if (typeof onDone === "function") onDone();
+      else renderTab("members");
     } catch (err) { }
   });
 }

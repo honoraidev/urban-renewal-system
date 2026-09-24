@@ -28,8 +28,13 @@ function openBuildingTitleDeedWizard(sopStage) {
   renderWizardStep0();
 }
 
-function wizardProgressHtml(label) {
-  return `<div class="wizard-progress-label">📝 ${escapeHtml(label)}</div>`;
+function wizardProgressHtml(label, rightHtml = "") {
+  return `<div class="wizard-progress-label"><span class="wz-prog-icon">📝</span><span class="wz-prog-text">${escapeHtml(label)}</span>${rightHtml}</div>`;
+}
+
+// 表單分區小標(基本資料 / 公告現值…)
+function wizardSectionHtml(icon, title) {
+  return `<div class="wz-sec"><span class="wz-sec-icon">${icon}</span><span>${escapeHtml(title)}</span></div>`;
 }
 
 function normalizeTitleDeedData(raw) {
@@ -209,25 +214,52 @@ async function wizardGetPdfDoc(fileIndex) {
   return doc;
 }
 
+const _wzTbSvg = (d) =>
+  `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const WZ_TB_ICON = {
+  search: _wzTbSvg(`<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>`),
+  up: _wzTbSvg(`<path d="M6 15l6-6 6 6"/>`),
+  down: _wzTbSvg(`<path d="M6 9l6 6 6-6"/>`),
+  minus: _wzTbSvg(`<path d="M6 12h12"/>`),
+  plus: _wzTbSvg(`<path d="M12 6v12M6 12h12"/>`),
+  rotate: _wzTbSvg(`<path d="M20 11a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>`),
+  expand: _wzTbSvg(`<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>`),
+  sidebar: _wzTbSvg(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`),
+};
+
+function _wzThumbsHidden() {
+  try {
+    return localStorage.getItem("wzThumbsHidden") === "1";
+  } catch (e) {
+    return false;
+  }
+}
+
 function wizardViewerToolbarHtml() {
   const zoomPct = Math.round((titleDeedWizard.viewerZoom || 1) * 100);
   const totalPages = wizardTotalPages();
   const page = titleDeedWizard.viewerGlobalPage || 1;
   return `
     <div class="wizard-viewer-toolbar">
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-search-btn" title="在這份檔案內搜尋文字">🔍</button>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-prev-page" title="上一頁" ${page <= 1 ? "disabled" : ""}>‹</button>
-      <span class="wizard-viewer-page-input-wrap">
+      <button type="button" class="wz-tb-btn" id="wizard-viewer-thumbs-toggle" title="${_wzThumbsHidden() ? "顯示縮圖" : "隱藏縮圖"}">${WZ_TB_ICON.sidebar}</button>
+      <button type="button" class="wz-tb-btn" id="wizard-viewer-search-btn" title="在這份檔案內搜尋文字">${WZ_TB_ICON.search}</button>
+      <span class="wz-tb-group">
+        <button type="button" class="wz-tb-btn" id="wizard-viewer-prev-page" title="上一頁" ${page <= 1 ? "disabled" : ""}>${WZ_TB_ICON.up}</button>
+        <button type="button" class="wz-tb-btn" id="wizard-viewer-next-page" title="下一頁" ${page >= totalPages ? "disabled" : ""}>${WZ_TB_ICON.down}</button>
+      </span>
+      <span class="wizard-viewer-page-input-wrap wz-tb-field">
         <input type="number" id="wizard-viewer-page-input" value="${page}" min="1" max="${totalPages}">
-        / ${totalPages}
+        <span class="wz-tb-total">/ ${totalPages}</span>
       </span>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-next-page" title="下一頁" ${page >= totalPages ? "disabled" : ""}>›</button>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-out" title="縮小">－</button>
-      <span class="wizard-viewer-zoom-input-wrap">
-        <input type="number" id="wizard-viewer-zoom-input" value="${zoomPct}" min="20" max="400" step="10" title="輸入自訂縮放比例">%
+      <span class="wz-tb-group">
+        <button type="button" class="wz-tb-btn" id="wizard-viewer-zoom-out" title="縮小">${WZ_TB_ICON.minus}</button>
+        <span class="wizard-viewer-zoom-input-wrap wz-tb-zoom">
+          <input type="number" id="wizard-viewer-zoom-input" value="${zoomPct}" min="20" max="400" step="10" title="輸入自訂縮放比例">%
+        </span>
+        <button type="button" class="wz-tb-btn" id="wizard-viewer-zoom-in" title="放大">${WZ_TB_ICON.plus}</button>
       </span>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-zoom-in" title="放大">＋</button>
-      <button type="button" class="btn-sm btn-secondary" id="wizard-viewer-rotate" title="旋轉">⟳</button>
+      <button type="button" class="wz-tb-btn" id="wizard-viewer-rotate" title="旋轉">${WZ_TB_ICON.rotate}</button>
+      <button type="button" class="wz-tb-btn" id="wizard-viewer-fullscreen" title="全螢幕檢視">${WZ_TB_ICON.expand}</button>
     </div>`;
 }
 
@@ -240,11 +272,23 @@ function wizardViewerPaneHtml() {
   titleDeedWizard.viewerGlobalPage = Math.min(Math.max(1, titleDeedWizard.viewerGlobalPage || 1), wizardTotalPages());
   const widthPct = titleDeedWizard.viewerPaneWidthPct || 52;
   return `
-    <div class="wizard-viewer-pane" style="flex:0 0 ${widthPct}%">
-      <div class="wizard-window-titlebar">📄 謄本預覽</div>
-      ${wizardViewerToolbarHtml()}
-      <div class="wizard-viewer-canvas-wrap" id="wizard-viewer-canvas-wrap">
-        <div class="wizard-viewer-pages" id="wizard-viewer-pages"><span class="helper-text">載入中…</span></div>
+    <div class="wizard-viewer-pane${_wzThumbsHidden() ? " wz-thumbs-hidden" : ""}" style="flex:0 0 ${widthPct}%">
+      <div class="wz-file-head">
+        <span class="wz0-file-badge pdf" id="wz-viewer-file-badge">PDF</span>
+        <div class="wz-file-head-main">
+          <div class="wz-file-head-name" id="wz-viewer-file-name"></div>
+          <div class="wz-file-head-meta" id="wz-viewer-file-meta"></div>
+        </div>
+        <button type="button" class="wz-reselect-btn" id="wz-reselect-btn" title="放棄這次的辨識結果,回到選擇檔案">${WZ0_ICON.cloud} 重新選擇檔案</button>
+      </div>
+      <div class="wz-viewer-split">
+        <div class="wz-thumbs" id="wz-thumbs"></div>
+        <div class="wz-viewer-main">
+          ${wizardViewerToolbarHtml()}
+          <div class="wizard-viewer-canvas-wrap" id="wizard-viewer-canvas-wrap">
+            <div class="wizard-viewer-pages" id="wizard-viewer-pages"><span class="helper-text">載入中…</span></div>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -282,10 +326,28 @@ async function wizardRenderCurrentPage(scrollTo) {
   const counts = (titleDeedWizard.data && titleDeedWizard.data.file_page_counts) || [];
   const before = counts.slice(0, fileIndex).reduce((s, c) => s + c, 0);
 
+  const isPdf = (file.type || "").includes("pdf") && !!window.pdfjsLib;
+  const nameEl = document.getElementById("wz-viewer-file-name");
+  if (nameEl) nameEl.textContent = file.name;
+  const badgeEl = document.getElementById("wz-viewer-file-badge");
+  if (badgeEl) {
+    badgeEl.textContent = isPdf ? "PDF" : "IMG";
+    badgeEl.className = `wz0-file-badge ${isPdf ? "pdf" : "img"}`;
+  }
+  const metaEl = document.getElementById("wz-viewer-file-meta");
+  const fileCount = (titleDeedWizard.files || []).length;
+  const setMeta = (pages) => {
+    if (metaEl)
+      metaEl.textContent = [`${pages} 頁`, _wz0FileSize(file.size), fileCount > 1 ? `第 ${fileIndex + 1} / ${fileCount} 份檔案` : ""]
+        .filter(Boolean)
+        .join(" · ");
+  };
+
   try {
     container.innerHTML = "";
-    if ((file.type || "").includes("pdf") && window.pdfjsLib) {
+    if (isPdf) {
       const doc = await wizardGetPdfDoc(fileIndex);
+      setMeta(doc.numPages);
       for (let n = 1; n <= doc.numPages; n++) {
         const page = await doc.getPage(n);
         const viewport = page.getViewport({ scale: zoom * 1.4, rotation });
@@ -300,6 +362,7 @@ async function wizardRenderCurrentPage(scrollTo) {
         wizardDrawSearchHighlights(pageCtx, viewport, before + n);
       }
     } else {
+      setMeta(1);
       const img = await wizardLoadImage(wizardFileUrls()[fileIndex]);
       const swapped = rotation % 180 !== 0;
       const w = img.width * zoom;
@@ -319,9 +382,58 @@ async function wizardRenderCurrentPage(scrollTo) {
     }
     const target = container.querySelector(`canvas[data-global-page="${targetPage}"]`);
     if (target) target.scrollIntoView({ block: "start" });
+    wizardRenderThumbs(container, targetPage);
   } catch (err) {
     container.innerHTML = `<span class="helper-text">PDF 預覽載入失敗</span>`;
   }
+}
+
+// 左側縮圖列:直接把右邊已經畫好的大圖縮小複製過去,不用再叫 pdf.js 多畫一輪。
+function wizardRenderThumbs(pagesContainer, activePage) {
+  const thumbs = document.getElementById("wz-thumbs");
+  if (!thumbs) return;
+  thumbs.innerHTML = "";
+  pagesContainer.querySelectorAll(".wizard-viewer-page-canvas").forEach((src) => {
+    const gp = Number(src.dataset.globalPage);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wz-thumb";
+    btn.dataset.thumbPage = gp;
+    const c = document.createElement("canvas");
+    const scale = 150 / src.width;
+    c.width = 150;
+    c.height = Math.round(src.height * scale);
+    c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+    btn.appendChild(c);
+    btn.insertAdjacentHTML("beforeend", `<span class="wz-thumb-num">${gp}</span>`);
+    btn.addEventListener("click", () => wizardGoToPage(gp));
+    thumbs.appendChild(btn);
+  });
+  wizardMarkActiveThumb(activePage);
+  const wrap = document.getElementById("wizard-viewer-canvas-wrap");
+  if (wrap && !wrap._wzThumbSync) {
+    wrap._wzThumbSync = true;
+    let t = null;
+    wrap.addEventListener("scroll", () => {
+      clearTimeout(t);
+      t = setTimeout(() => wizardMarkActiveThumb(wizardCurrentVisiblePage()), 80);
+    });
+  }
+}
+
+function wizardMarkActiveThumb(page) {
+  const thumbs = document.getElementById("wz-thumbs");
+  if (!thumbs) return;
+  thumbs.querySelectorAll(".wz-thumb").forEach((b) => {
+    const on = Number(b.dataset.thumbPage) === Number(page);
+    b.classList.toggle("active", on);
+    if (on) {
+      const top = b.offsetTop;
+      const bottom = top + b.offsetHeight;
+      if (top < thumbs.scrollTop) thumbs.scrollTop = top - 6;
+      else if (bottom > thumbs.scrollTop + thumbs.clientHeight) thumbs.scrollTop = bottom - thumbs.clientHeight + 6;
+    }
+  });
 }
 
 // 🔍 只在「目前這份檔案」內找,行為比照瀏覽器/PDF閱讀器內建的 Ctrl+F:輸入文字後每一
@@ -463,6 +575,7 @@ function wizardGoToPage(n) {
   } else {
     const target = document.querySelector(`.wizard-viewer-page-canvas[data-global-page="${newPage}"]`);
     if (target) target.scrollIntoView({ block: "start" });
+    wizardMarkActiveThumb(newPage);
   }
 }
 
@@ -499,6 +612,21 @@ function wireWizardViewerToolbar() {
     wizardGoToPage((titleDeedWizard.viewerGlobalPage || 1) + 1);
   });
   document.getElementById("wizard-viewer-search-btn")?.addEventListener("click", wizardToggleSearchBar);
+  document.getElementById("wizard-viewer-thumbs-toggle")?.addEventListener("click", (e) => {
+    const pane = document.querySelector("#modal-root .wizard-viewer-pane");
+    if (!pane) return;
+    const hidden = pane.classList.toggle("wz-thumbs-hidden");
+    e.currentTarget.title = hidden ? "顯示縮圖" : "隱藏縮圖";
+    try {
+      localStorage.setItem("wzThumbsHidden", hidden ? "1" : "0");
+    } catch (err) {}
+  });
+  document.getElementById("wizard-viewer-fullscreen")?.addEventListener("click", () => {
+    const pane = document.querySelector("#modal-root .wizard-viewer-pane");
+    if (!pane) return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else pane.requestFullscreen?.();
+  });
   const pageInput = document.getElementById("wizard-viewer-page-input");
   if (pageInput) {
     pageInput.addEventListener("change", () => wizardGoToPage(Math.round(Number(pageInput.value)) || 1));
@@ -511,13 +639,37 @@ function wireWizardViewerPane() {
   wireWizardViewerToolbar();
   wireWizardSplitResize();
   wizardRenderCurrentPage();
+  document.getElementById("wz-reselect-btn")?.addEventListener("click", async () => {
+    const ok = await confirmDialog("目前的辨識結果與已編輯的內容都會清掉,回到選擇檔案的畫面。", {
+      title: "重新選擇檔案?",
+      confirmText: "重新選擇",
+      danger: true,
+    });
+    if (!ok) return;
+    wizardDiscardPendingJobs();
+    titleDeedWizard.data = null;
+    titleDeedWizard._pdfDocCache = {};
+    titleDeedWizard.viewerGlobalPage = 1;
+    titleDeedWizard.viewerTargetPage = null;
+    renderWizardStep0();
+  });
 }
 
 // 把審核步驟原本的內容(表單+按鈕)包成右欄,左欄固定放原始檔案預覽 - 審核跟看原圖
 // 可以同時進行,不用切來切去。呼叫端要記得在 openModal(...) 之後接著呼叫
 // wireWizardViewerPane(),不然切換原始檔案的按鈕不會有作用。
 function wizardSplitBodyHtml(rightHtml) {
-  return `<div class="wizard-split" id="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-split-handle" id="wizard-split-handle" title="拖曳調整左右寬度"></div><div class="wizard-form-pane-card"><div class="wizard-window-titlebar">📝 資料編輯</div><div class="wizard-form-pane">${rightHtml}</div></div></div>`;
+  return `<div class="wizard-split" id="wizard-split">${wizardViewerPaneHtml()}<div class="wizard-split-handle" id="wizard-split-handle" title="拖曳調整左右寬度"></div><div class="wizard-form-pane-card"><div class="wizard-window-titlebar wz-form-head"><span class="wz-form-head-icon">${WZ0_ICON.sheet}</span><span class="wz-form-head-title">資料編輯</span><span class="wz-record-counter" id="wz-record-counter"></span></div><div class="wizard-form-pane">${rightHtml}</div></div></div>`;
+}
+
+// 右欄標題右邊「目前第 i / n 筆」- 地號在前、建號接在後面一起算。
+function wizardUpdateRecordCounter() {
+  const el = document.getElementById("wz-record-counter");
+  const d = titleDeedWizard && titleDeedWizard.data;
+  if (!el || !d) return;
+  const total = (d.parcels || []).length + (d.buildings || []).length;
+  const idx = (titleDeedWizard.activeType === "building" ? (d.parcels || []).length : 0) + (titleDeedWizard.activeIndex || 0) + 1;
+  el.innerHTML = total ? `<span class="wz-record-counter-dot">✓</span> 第 ${Math.min(idx, total)} / ${total} 筆` : "";
 }
 
 // 審核精靈每一步(6個 render*SubStep)都呼叫這支取代直接呼叫 openModal - 同一筆地號/
@@ -600,7 +752,7 @@ function wizardStepTabWrapperHtml(resultsHtml) {
     <div class="wizard-step-tabs">
       <button type="button" class="wizard-step-tab-btn ${tab === "results" ? "active" : ""}" data-step-tab="results">辨識結果 <span class="wizard-ov-tab-count">${okCount}</span></button>
       <button type="button" class="wizard-step-tab-btn ${tab === "issues" ? "active" : ""}" data-step-tab="issues">未辨識項目 <span class="wizard-ov-tab-count warn">${issueCount}</span></button>
-      <button type="button" class="wizard-step-tab-btn ${tab === "settings" ? "active" : ""}" data-step-tab="settings">匯入設定</button>
+      <button type="button" class="wizard-step-tab-btn ${tab === "settings" ? "active" : ""}" data-step-tab="settings">⚙ 匯入設定</button>
     </div>
     <div id="wizard-step-tab-content">${content}</div>`;
 }
@@ -662,7 +814,20 @@ function renderWizardSplitStep(rightHtml, sourcePage) {
     // 精靈的 modal 已經開著了 - 只換右邊表單內容,不要重叫 openModal 整個重建
     // .modal-dialog(那樣會重跑一次淡入動畫,換一筆地號/建號就變成像整頁跳轉一樣)。
     const formPane = existingSplit.querySelector(".wizard-form-pane");
-    if (formPane) formPane.innerHTML = wrappedHtml;
+    if (formPane) {
+      formPane.innerHTML = wrappedHtml;
+      // 換到下一個子步驟(→ 所有權部 / 他項權利部…)要從最上面開始看,不要停在上一步捲到的
+      // 位置。會捲的不只右欄本身,整個視窗(.modal-dialog)也可能被捲下去,兩個都歸零;
+      // 部分子步驟的表格是畫完才長出來的,下一個 frame 再歸零一次。
+      const resetScroll = () => {
+        formPane.scrollTop = 0;
+        const dlg = formPane.closest(".modal-dialog");
+        if (dlg) dlg.scrollTop = 0;
+      };
+      resetScroll();
+      requestAnimationFrame(resetScroll);
+    }
+    wizardUpdateRecordCounter();
     wireWizardStepTabs();
     const pageChanged =
       titleDeedWizard._lastViewerTargetPage !== targetPage || titleDeedWizard._lastViewerFileCount !== fileCount;
@@ -676,7 +841,9 @@ function renderWizardSplitStep(rightHtml, sourcePage) {
   }
 
   titleDeedWizard.viewerTargetPage = targetPage;
-  openModal("掃描謄本匯入", wizardSplitBodyHtml(wrappedHtml), { width: "min(1680px, 98vw)" });
+  openModal("掃描謄本匯入", wizardSplitBodyHtml(wrappedHtml), { width: "98vw" });
+  _wzDecorateHeader(2);
+  wizardUpdateRecordCounter();
   wireWizardViewerPane();
   wireWizardStepTabs();
   titleDeedWizard._lastViewerTargetPage = targetPage;
@@ -741,44 +908,130 @@ function startWizardReview() {
 
 const WIZARD_RECORD_TYPE_LABEL = { both: "土地+建物謄本混合", land: "土地謄本(地號)", building: "建物謄本(建號)" };
 
+const _wz0Svg = (d, extra = "") =>
+  `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
+const WZ0_ICON = {
+  cloud: `<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path fill="currentColor" d="M7 18a5 5 0 0 1-.9-9.92A6 6 0 0 1 17.7 7.1 4.5 4.5 0 0 1 17.5 18H13v-4.2l1.3 1.3a1 1 0 0 0 1.4-1.42l-3-3a1 1 0 0 0-1.4 0l-3 3a1 1 0 0 0 1.4 1.42L11 13.8V18z"/></svg>`,
+  folder: _wz0Svg(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`),
+  doc: _wz0Svg(`<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>`),
+  sheet: `<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path fill="currentColor" d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2m7 1.5V9h5.5zM8 13v2h8v-2zm0 4v2h8v-2z"/></svg>`,
+  pencil: _wz0Svg(`<path d="M4 20h4L19 9l-4-4L4 16z"/>`),
+  up: _wz0Svg(`<path d="M6 15l6-6 6 6"/>`),
+  down: _wz0Svg(`<path d="M6 9l6 6 6-6"/>`),
+  trash: _wz0Svg(`<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>`),
+  sparkle: _wz0Svg(`<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>`),
+};
+const WZ0_START_LABEL = `${WZ0_ICON.sparkle} 開始辨識`;
+
+function _wz0FileSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// 標題列:圖示 + 標題 + 副標 + 右側步驟條(openModal 的標題只能放純文字,modals.js 關閉
+// 確認也是用標題字串比對,所以標題本身不動,另外把圖示/副標/步驟條塞進 header)。
+function _wzDecorateHeader(activeStep) {
+  const h3 = document.querySelector("#modal-root .modal-header h3");
+  if (!h3 || h3.closest(".wz0-head")) return;
+  h3.closest(".modal-dialog")?.classList.add("wz0-dialog");
+  const head = document.createElement("div");
+  head.className = "wz0-head";
+  head.innerHTML = `<span class="wz0-head-icon">${WZ0_ICON.sheet}</span><div class="wz0-head-text"></div>`;
+  h3.replaceWith(head);
+  const text = head.querySelector(".wz0-head-text");
+  text.appendChild(h3);
+  const steps = ["上傳檔案", "辨識與編輯", "完成匯入"];
+  head.insertAdjacentHTML(
+    "afterend",
+    `<div class="wz-stepper">${steps
+      .map((s, i) => {
+        const n = i + 1;
+        const cls = n < activeStep ? "done" : n === activeStep ? "active" : "";
+        return `${i ? `<span class="wz-stepper-arrow">→</span>` : ""}<span class="wz-stepper-item ${cls}"><span class="wz-stepper-num">${n}</span>${s}</span>`;
+      })
+      .join("")}</div>`
+  );
+}
+
+// 精靈沒按建立就離開(取消 / × / 重新選擇檔案):停掉還在跑的輪詢,並把這次辨識時新存的
+// 謄本檔案刪掉(後端 POST /ocr-jobs/{id}/discard,已建立過資料的 job 會被後端拒絕)。
+function wizardDiscardPendingJobs() {
+  const wz = titleDeedWizard;
+  if (!wz) return;
+  wz._cancelled = true;
+  const ids = wz.pendingJobIds || [];
+  wz.pendingJobIds = [];
+  const pid = state.currentProjectId;
+  ids.forEach((id) => api(`/projects/${pid}/ocr-jobs/${id}/discard`, { method: "POST", silent: true }).catch(() => {}));
+}
+
 function renderWizardStep0() {
   openModal(
     "掃描謄本匯入",
     `
-    <div class="field">
-      <label>選擇謄本圖片或 PDF(可多選;拍照多張時請依謄本頁面順序選取)</label>
-      <input type="file" id="wizard-file-input" accept="image/*,application/pdf" multiple>
+    <div class="wz0-drop" id="wizard-drop-zone">
+      <span class="wz0-drop-icon">${WZ0_ICON.cloud}</span>
+      <div class="wz0-drop-text">
+        <div class="wz0-drop-main">
+          拖曳檔案到此處,或
+          <label class="wz0-pick-btn">${WZ0_ICON.folder} 選擇檔案
+            <input type="file" id="wizard-file-input" accept="image/*,application/pdf" multiple hidden>
+          </label>
+        </div>
+        <div class="wz0-drop-sub">支援 JPG、PNG、PDF(可多選上傳)</div>
+      </div>
     </div>
-    <div style="margin:-4px 0 10px">
-      <button type="button" class="btn-link" id="wizard-pick-document-btn">或從本案件已上傳的文件選擇,不用重新下載再上傳</button>
+    <div class="wz0-info">
+      <span class="wz0-info-icon">i</span>
+      <span class="wz0-info-text">或從本案件已上傳的文件選擇,不用重新下載再上傳</span>
+      <button type="button" class="wz0-info-btn" id="wizard-pick-document-btn">📁 從已上傳文件選擇 <span aria-hidden="true">›</span></button>
     </div>
     <div id="wizard-file-list"></div>
-    <div class="field" style="margin-top:6px">
-      <label>謄本類別</label>
-      <select id="wizard-deed-category-step0">
+    <div class="wz0-field">
+      <label class="wz0-label" for="wizard-deed-category-step0"><span class="wz0-label-icon">${WZ0_ICON.doc}</span>謄本類別</label>
+      <select id="wizard-deed-category-step0" class="wz0-select">
         <option value="第一類謄本">第一類謄本</option>
         <option value="第二類謄本">第二類謄本</option>
         <option value="第三類謄本">第三類謄本</option>
-      </select>
-      <div class="helper-text">請選擇這批謄本的類別,辨識即以此為準</div>
-    </div>
-    <div class="helper-text">若有多張照片或多檔案,請用 ▲▼ 調整順序,順序需與謄本頁面順序需一致</div>
-    <div id="wizard-ocr-progress-wrap" style="display:none;margin-top:14px">
+      </select>    </div>
+    <div class="wz0-tip"><span class="wz0-tip-icon">!</span>若有多張照片或多檔案,請用 ▲▼ 調整順序,順序需與謄本頁面順序需一致</div>
+    <div id="wizard-ocr-progress-wrap" class="wz0-progress" style="display:none">
       <div class="progress-bar-track"><div class="progress-bar-fill" id="wizard-ocr-progress-fill" style="width:0%"></div></div>
-      <div class="helper-text" id="wizard-ocr-progress-label" style="margin-top:4px;text-align:center"></div>
+      <div id="wizard-ocr-progress-label" class="wz0-progress-label"></div>
     </div>
-    <div class="modal-footer">
-      <button type="button" class="btn-primary" id="wizard-start-ocr-btn">開始辨識</button>
+    <div class="modal-footer wz0-footer">
+      <button type="button" class="btn-secondary wz0-cancel" onclick="wizardDiscardPendingJobs();closeModal()">取消</button>
+      <button type="button" class="btn-primary wz0-start" id="wizard-start-ocr-btn">${WZ0_START_LABEL}</button>
     </div>`,
-    { width: "560px" }
+    { width: "720px" }
   );
+
+  _wzDecorateHeader(1);
 
   renderWizardFileList();
 
-  document.getElementById("wizard-file-input").addEventListener("change", (e) => {
-    titleDeedWizard.files.push(...Array.from(e.target.files));
-    e.target.value = "";
+  const addFiles = (list) => {
+    const ok = Array.from(list).filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+    if (ok.length < list.length) toast("只支援 JPG、PNG、PDF,其他格式已略過", "error");
+    titleDeedWizard.files.push(...ok);
     renderWizardFileList();
+  };
+  document.getElementById("wizard-file-input").addEventListener("change", (e) => {
+    addFiles(e.target.files);
+    e.target.value = "";
+  });
+  const drop = document.getElementById("wizard-drop-zone");
+  ["dragenter", "dragover"].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.add("dragging");
+    })
+  );
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("dragging")));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   });
   const recordTypeSelect = document.getElementById("wizard-record-type");
   if (recordTypeSelect) {
@@ -866,21 +1119,29 @@ function renderWizardFileList() {
   const wrap = document.getElementById("wizard-file-list");
   if (!wrap) return;
   if (!titleDeedWizard.files.length) {
-    wrap.innerHTML = `<div class="helper-text">尚未選擇檔案</div>`;
+    wrap.innerHTML = "";
     return;
   }
+  const last = titleDeedWizard.files.length - 1;
   wrap.innerHTML = titleDeedWizard.files
-    .map(
-      (f, i) => `
-      <div class="record-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px">
-        <span class="wizard-file-name" data-file-idx="${i}" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text" title="點兩下或按 ✏️ 重新命名">${i + 1}. ${escapeHtml(f.name)}</span>
-        <button type="button" class="btn-secondary btn-sm" data-rename-file="${i}" title="重新命名">✏️</button>
-        <button type="button" class="btn-secondary btn-sm" data-move-up="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
-        <button type="button" class="btn-secondary btn-sm" data-move-down="${i}" ${i === titleDeedWizard.files.length - 1 ? "disabled" : ""
-        }>▼</button>
-        <button type="button" class="btn-danger btn-sm" data-remove-file="${i}">移除</button>
-      </div>`
-    )
+    .map((f, i) => {
+      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      return `
+      <div class="wz0-file">
+        <span class="wz0-file-grip" aria-hidden="true">⋮⋮</span>
+        <span class="wz0-file-badge ${isPdf ? "pdf" : "img"}">${isPdf ? "PDF" : "IMG"}</span>
+        <div class="wz0-file-main">
+          <span class="wizard-file-name wz0-file-name" data-file-idx="${i}" title="點兩下或按「重新命名」改檔名">${last > 0 ? `${i + 1}. ` : ""}${escapeHtml(f.name)}</span>
+          <span class="wz0-file-size">${_wz0FileSize(f.size)}</span>
+        </div>
+        <div class="wz0-file-actions">
+          <button type="button" class="wz0-btn" data-rename-file="${i}">${WZ0_ICON.pencil} 重新命名</button>
+          <button type="button" class="wz0-btn wz0-btn-icon" data-move-up="${i}" title="往上移" ${i === 0 ? "disabled" : ""}>${WZ0_ICON.up}</button>
+          <button type="button" class="wz0-btn wz0-btn-icon" data-move-down="${i}" title="往下移" ${i === last ? "disabled" : ""}>${WZ0_ICON.down}</button>
+          <button type="button" class="wz0-btn wz0-btn-danger" data-remove-file="${i}">${WZ0_ICON.trash} 移除</button>
+        </div>
+      </div>`;
+    })
     .join("");
 
   // 檔名直接在畫面上變成輸入框改,不跳瀏覽器原生的 prompt() 對話框。
@@ -1007,6 +1268,7 @@ function startFakeProgress(wrapId, fillId, labelId, tauSeconds = 45, labelPrefix
 // 謄本辨識改為背景工作:POST 回 job(status=processing),這裡輪詢 GET ocr-jobs/{id}
 // 直到 completed / failed。回傳跟舊同步版一樣的 { job, data } 形狀。
 async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60 * 1000, progress = null } = {}) {
+  const wz = titleDeedWizard;
   const ui = progress && progress.takeOver ? progress.takeOver() : null;
   // 時間軸接著假進度條那邊算,不要重新歸零 —— 不然一接手就會從某個固定底線(例如
   // 92%)重新起跳,畫面上看起來像「一下子跳到後面」。沒有假進度條可接(例如沒傳
@@ -1035,6 +1297,7 @@ async function pollTitleDeedJob(pid, jobId, { intervalMs = 3000, maxMs = 45 * 60
   paint();
   while (Date.now() - started < maxMs) {
     await new Promise((r) => setTimeout(r, intervalMs));
+    if (wz && wz._cancelled) return { job: null, data: null, cancelled: true };
     paint();
     let detail = null;
     try {
@@ -1058,6 +1321,7 @@ async function runTitleDeedOcr() {
     toast("請先選擇至少一個檔案", "error");
     return;
   }
+  titleDeedWizard._cancelled = false;
   const btn = document.getElementById("wizard-start-ocr-btn");
   btn.disabled = true;
   btn.textContent = "辨識中...";
@@ -1078,16 +1342,18 @@ async function runTitleDeedOcr() {
     fd.append("record_type", titleDeedWizard.recordType);
     if (titleDeedWizard.sopStage != null) fd.append("sop_stage", String(titleDeedWizard.sopStage));
     let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+    if (result && result.job) (titleDeedWizard.pendingJobIds ||= []).push(result.job.id);
     if (result && result.job && result.job.status === "processing") {
       result = await pollTitleDeedJob(state.currentProjectId, result.job.id, { progress });
     }
+    if (result && result.cancelled) return;
 
     if (!result || !result.job || result.job.status !== "completed") {
       const errMsg = (result && result.job && result.job.error_message) || "辨識失敗,請確認檔案或聯絡管理員";
       toast(errMsg, "error");
       progress.stop();
       btn.disabled = false;
-      btn.textContent = "開始辨識";
+      btn.innerHTML = WZ0_START_LABEL;
       return;
     }
 
@@ -1115,7 +1381,7 @@ async function runTitleDeedOcr() {
   } catch (err) {
     progress.stop();
     btn.disabled = false;
-    btn.textContent = "開始辨識";
+    btn.innerHTML = WZ0_START_LABEL;
     if (err && err.message && err.message !== "unauthorized" && !document.querySelector(".toast-error")) {
       toast(err.message, "error");
     }
@@ -1625,7 +1891,7 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       wrap.innerHTML = `
         <div class="progress-bar-track"><div class="progress-bar-fill" id="wizard-rescan-progress-fill" style="width:0%"></div></div>
         <div class="helper-text" id="wizard-rescan-progress-label" style="margin-top:4px;text-align:center"></div>`;
-      btn.insertAdjacentElement("afterend", wrap);
+      (btn.closest(".wizard-progress-label") || btn).insertAdjacentElement("afterend", wrap);
     }
     var progress = btn
       ? startFakeProgress("wizard-rescan-progress-wrap", "wizard-rescan-progress-fill", "wizard-rescan-progress-label", 40, "重新辨識中")
@@ -1635,9 +1901,11 @@ function openWizardSingleRecordRescan(recordType, record, rerender) {
       Array.from(input.files).forEach((f) => fd.append("files", f));
       fd.append("record_type", recordType === "parcel" ? "land" : "building");
       let result = await api(`/projects/${state.currentProjectId}/ocr/title-deed`, { method: "POST", body: fd, isForm: true });
+      if (result && result.job) (titleDeedWizard.pendingJobIds ||= []).push(result.job.id);
       if (result && result.job && result.job.status === "processing") {
         result = await pollTitleDeedJob(state.currentProjectId, result.job.id, { progress });
       }
+      if (result && result.cancelled) return;
       if (!result || !result.job || result.job.status !== "completed") {
         toast((result && result.job && result.job.error_message) || "辨識失敗", "error");
         if (progress) progress.stop();
@@ -1689,11 +1957,12 @@ function renderParcelDescriptionSubStep(idx) {
   const p = parcels[idx];
   titleDeedWizard._rerenderCurrentSubstep = () => renderParcelDescriptionSubStep(idx);
   renderWizardSplitStep(`
-    ${wizardProgressHtml(`地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 1/3 土地標示部`)}
-    <div style="margin-bottom:10px">
-      <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的謄本檔案並辨識</button>
-    </div>
+    ${wizardProgressHtml(
+      `地號編輯(第 ${idx + 1} / ${parcels.length} 筆) · 1/3 土地標示部`,
+      `<button type="button" class="wz-rescan-btn" id="wizard-rescan-btn" title="重新上傳這一筆的謄本檔案並辨識">⟳ 重新辨識此筆</button>`
+    )}
     <form id="wizard-step-form" autocomplete="off">
+      ${wizardSectionHtml("👤", "基本資料")}
       <div class="field-row">
         <div class="field"><label>鄉鎮市區</label><input name="township" value="${escapeHtml(p.township)}" autocomplete="off"></div>
         <div class="field"><label>地段</label><input name="section" value="${escapeHtml(p.section)}" autocomplete="off"></div>
@@ -1703,13 +1972,14 @@ function renderParcelDescriptionSubStep(idx) {
         <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(p.parcel_number)}" autocomplete="off"></div>
         <div class="field"><label>土地面積(㎡)</label><input name="area_sqm" type="number" step="0.01" value="${escapeHtml(p.area_sqm)}" autocomplete="off"></div>
       </div>
+      ${wizardSectionHtml("💰", "公告現值")}
       <div class="field-row">
         <div class="field"><label>當期公告土地現值 年期</label><input name="announced_value_period" value="${escapeHtml(p.announced_value_period)}" placeholder="例: 115年01月" autocomplete="off"></div>
         <div class="field"><label>當期公告土地現值(元/㎡)</label><input name="announced_value_per_sqm" type="number" step="1" value="${escapeHtml(p.announced_value_per_sqm)}" placeholder="例: 362000" autocomplete="off"></div>
       </div>
     </form>
     <div class="modal-footer">
-      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
+      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立多筆</button>
       <button type="button" class="btn-danger" id="wizard-delete-parcel-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:土地所有權部</button>
@@ -2060,10 +2330,10 @@ function renderBuildingDescriptionSubStep(idx) {
   const b = buildings[idx];
   titleDeedWizard._rerenderCurrentSubstep = () => renderBuildingDescriptionSubStep(idx);
   renderWizardSplitStep(`
-    ${wizardProgressHtml(`建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/3 建物標示部`)}
-    <div style="margin-bottom:10px">
-      <button type="button" class="btn-secondary btn-sm" id="wizard-rescan-btn">重新上傳這一筆的建物謄本檔案並辨識</button>
-    </div>
+    ${wizardProgressHtml(
+      `建號編輯(第 ${idx + 1} / ${buildings.length} 筆) · 1/3 建物標示部`,
+      `<button type="button" class="wz-rescan-btn" id="wizard-rescan-btn" title="重新上傳這一筆的建物謄本檔案並辨識">⟳ 重新辨識此筆</button>`
+    )}
     <form id="wizard-step-form" autocomplete="off">
       <div class="field-row">
         <div class="field"><label>地號</label><input name="parcel_number" value="${escapeHtml(b.parcel_number)}" autocomplete="off"></div>
@@ -2090,7 +2360,7 @@ function renderBuildingDescriptionSubStep(idx) {
       </div>
     </form>
     <div class="modal-footer">
-      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立</button>
+      <button type="button" class="btn-primary btn-sm" id="wizard-oneclick-btn" style="margin-right:auto">⚡ 一鍵建立多筆</button>
       <button type="button" class="btn-danger" id="wizard-delete-building-btn">刪除此筆</button>
       ${idx > 0 ? `<button type="button" class="btn-secondary" id="wizard-prev-item-btn">上一筆</button>` : ""}
       <button type="button" class="btn-primary" id="wizard-next-item-btn">下一步:建物所有權部</button>
@@ -2370,6 +2640,8 @@ async function submitTitleDeedWizard() {
     toast("上一批謄本資料還在建立中,請等它完成再送出", "error");
     return;
   }
+  // 開始建立就不能再當「取消」丟掉這批檔案了
+  titleDeedWizard.pendingJobIds = [];
   wizardSubmitInFlight = true;
   const warnUnload = (e) => {
     e.preventDefault();
@@ -2644,10 +2916,8 @@ function offerBuildingImportFollowUp(sopStage) {
     </div>`,
     { width: "480px" }
   );
-  document.getElementById("start-building-import-btn").addEventListener("click", async () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === "buildings"));
-    state.activeTab = "buildings";
-    await renderTab("buildings");
+  // 留在原本的頁面(通常是 SOP 進度)直接開建物謄本精靈,不切換分頁。
+  document.getElementById("start-building-import-btn").addEventListener("click", () => {
     openBuildingTitleDeedWizard(sopStage);
   });
 }

@@ -99,18 +99,21 @@ def _alert_tier_counts(db: Session, project_id: int) -> dict[str, int]:
 
 
 def _case_handler_names(db: Session, project_id: int) -> tuple[str | None, str | None]:
-    """First case_staff/case_owner and first manager/sys_admin assigned to the project
-    (by assigned_at) - display-only "who's on this case" for the dashboard card, not an
-    access-control list (see MANAGE_ROLES/EDIT_ROLES in deps.py for the real thing)."""
+    """All case_staff/case_owner and all manager/sys_admin assigned to the project, each
+    joined with 「、」(by assigned_at) - display-only "who's on this case" for the dashboard
+    card, not an access-control list (see MANAGE_ROLES/EDIT_ROLES in deps.py)."""
     rows = db.execute(
-        select(User.display_name, User.role)
+        select(User.display_name, User.username, User.role)
         .join(ProjectMember, ProjectMember.user_id == User.id)
         .where(ProjectMember.project_id == project_id)
         .order_by(ProjectMember.assigned_at)
     ).all()
-    handler = next((name for name, role in rows if role in ("case_staff", "case_owner")), None)
-    manager = next((name for name, role in rows if role in ("manager", "sys_admin")), None)
-    return handler, manager
+
+    def names(roles: tuple[str, ...]) -> str | None:
+        picked = [display or username for display, username, role in rows if role in roles]
+        return "、".join(picked) or None
+
+    return names(("case_staff", "case_owner")), names(("manager", "sys_admin"))
 
 
 @router.get("/dashboard-summary", response_model=DashboardSummary)
@@ -297,6 +300,29 @@ def create_project(
 @router.get("/{project_id}", response_model=ProjectRead)
 def get_project(project: Project = Depends(require_project_viewer)):
     return project
+
+
+@router.get("/{project_id}/weekly-compare")
+def get_weekly_compare(
+    week_offset: int = 0,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_viewer),
+):
+    """案件卡片「本週 vs 上週」切換週次用:week_offset=0 是本週(跟 dashboard-summary 同一套
+    算法),1 是上一週 vs 再上一週,以此類推。回傳形狀跟 dashboard-summary 每張卡片的
+    visit_breakdown / last_week_breakdown 一樣,前端直接重畫。"""
+    week_offset = max(0, min(week_offset, 52))
+    today_d = date.today()
+    week_monday = today_d - timedelta(days=today_d.weekday()) - timedelta(weeks=week_offset)
+    week_start = datetime.combine(week_monday, datetime.min.time())
+    week_end = None if week_offset == 0 else week_start + timedelta(days=7)
+    return {
+        "breakdown": compute_visit_breakdown(db, project.id, week_end),
+        "last_week_breakdown": {
+            **compute_visit_breakdown(db, project.id, week_start),
+            "snapshot_date": (week_monday - timedelta(days=1)).isoformat(),
+        },
+    }
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -507,8 +533,8 @@ def download_roster_xlsx(
     content = build_roster_workbook(
         project, land_records, building_records, landowners_by_id, encumbrances
     )
-    # 下載檔名 = 案件名稱 + 清冊(中文名放 RFC 5987 的 filename*,ASCII fallback 用案件編號)
-    fname = f"{(project.name or project.project_code).strip()}清冊.xlsx"
+    # 下載檔名 = 案件名稱-清冊(中文名放 RFC 5987 的 filename*,ASCII fallback 用案件編號)
+    fname = f"{(project.name or project.project_code).strip()}-清冊.xlsx"
 
     disk_path, _stored_name = build_upload_path(project.project_code, fname)
     with open(disk_path, "wb") as out:
@@ -538,7 +564,7 @@ def download_roster_xlsx(
 @router.get("/{project_id}/members", response_model=list[ProjectMemberRead])
 def list_project_members(db: Session = Depends(get_db), project: Project = Depends(require_project_staff_viewer)):
     rows = db.execute(
-        select(ProjectMember, User.username, User.display_name)
+        select(ProjectMember, User.username, User.display_name, User.email)
         .join(User, User.id == ProjectMember.user_id)
         .where(ProjectMember.project_id == project.id)
         .order_by(ProjectMember.assigned_at)
@@ -551,8 +577,9 @@ def list_project_members(db: Session = Depends(get_db), project: Project = Depen
             display_name=display_name,
             role_in_project=member.role_in_project,
             assigned_at=member.assigned_at,
+            email=email,
         )
-        for member, username, display_name in rows
+        for member, username, display_name, email in rows
     ]
 
 
@@ -585,6 +612,7 @@ def add_project_member(
         display_name=user.display_name,
         role_in_project=member.role_in_project,
         assigned_at=member.assigned_at,
+        email=user.email,
     )
 
 

@@ -130,7 +130,7 @@ function lttLoadSplitSetting(pid) {
 
 function lttSplitLabel() {
   const o = Math.round(LTT_GENERAL_SPLIT.owner * 100);
-  return o % 10 === 0 ? `${o / 10}/${10 - o / 10}` : `${o}%/${100 - o}%`;
+  return o % 10 === 0 ? `${o / 10}：${10 - o / 10}` : `${o}%：${100 - o}%`;
 }
 
 const _lttSvg = (body, size = 18, sw = 1.9) =>
@@ -146,6 +146,7 @@ const LTT_ICON = {
   grid: _lttSvg(`<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>`, 20),
   filter: _lttSvg(`<path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/>`, 18),
   chevDown: _lttSvg(`<path d="M6 9l6 6 6-6"/>`, 16, 2.2),
+  layers: _lttSvg(`<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>`, 17, 1.9),
   chevUp: _lttSvg(`<path d="M6 15l6-6 6 6"/>`, 16, 2.2),
   chevLeft: _lttSvg(`<path d="M15 6l-6 6 6 6"/>`, 16, 2.2),
   chevRight: _lttSvg(`<path d="M9 6l6 6-6 6"/>`, 16, 2.2),
@@ -206,7 +207,7 @@ async function renderLandValueTaxTab(el) {
   const parcelCount = landOwners.reduce((n, o) => n + o.land_records.length, 0);
 
   if (!parcelCount) {
-    el.innerHTML = `<div class="empty-state">尚無土地登記資料,請先於「土地登記」頁籤匯入資料</div>`;
+    el.innerHTML = `<div class="empty-state">尚無土地登記資料,請先於「SOP進度 第1階段・籌備階段 → 上傳土地謄本PDF」匯入土地資料</div>`;
     return;
   }
 
@@ -506,7 +507,8 @@ function lttRenderList() {
 }
 
 function lttStatusChipHtml(status) {
-  return `<span class="lv-status lv-status-${status}">${LTT_STATUS_LABEL[status]}</span>`;
+  const icon = status === "done" ? `<span class="lv-status-check">✓</span>` : "";
+  return `<span class="lv-status lv-status-${status}">${icon}${LTT_STATUS_LABEL[status]}</span>`;
 }
 
 // 一列的稅額欄:自用(綠)／一般(深)／節省(紅)並排;沒輸入前次移轉現值就顯示提示,不硬塞 0 元。
@@ -532,9 +534,9 @@ function lttRowHtml(s) {
     <div class="lv-row-wrap${open ? " open" : ""}" data-lv-owner="${s.owner.id}">
       <div class="lv-cols lv-row" data-lv-toggle="1" role="button" tabindex="0" aria-expanded="${open}">
         <div class="lv-c-seq">${s.seq}</div>
-        <div class="lv-c-name">${escapeHtml(s.owner.name)}</div>
-        <div class="lv-c-count"><span class="lv-count-pill">${s.parcels.length} 筆土地</span><span class="lv-chev-up">${LTT_ICON.chevDown}</span></div>
-        <div class="lv-right lv-c-value">${s.currentValue ? _lttFmt(s.currentValue) : `<span class="lv-muted">-</span>`}</div>
+        <div class="lv-c-name" title="${escapeHtml(s.owner.name)}">${escapeHtml(s.owner.name)}</div>
+        <div class="lv-c-count"><span class="lv-count-pill">${LTT_ICON.layers}${s.parcels.length}筆土地<span class="lv-chev-up">${LTT_ICON.chevDown}</span></span></div>
+        <div class="lv-c-value"><span class="lv-c-value-label">本次申報移轉現值</span><b>${s.currentValue ? _lttFmt(s.currentValue) : `<span class="lv-muted">-</span>`}</b></div>
         <div class="lv-c-tax">${lttTaxLineHtml(s)}</div>
         <div class="lv-center">${lttStatusChipHtml(s.status)}</div>
         <div class="lv-c-act">${lttActionsHtml(s)}</div>
@@ -682,10 +684,10 @@ function openLttSettingsModal() {
     "試算設定",
     `<div class="field"><label>協議合建稅額分攤比例 - 地主負擔(%)</label>
        <input type="number" id="lv-split-owner" min="0" max="100" step="1" value="${ownerPct}">
-       <div class="helper-text" style="margin-top:6px">建商負擔:<b id="lv-split-dev">${100 - ownerPct}</b>%。只影響展開明細裡「協議合建分攤」那一行顯示的地主/建商金額,不改變稅額本身。</div>
+       <div class="helper-text" style="margin-top:6px">建商負擔:<b id="lv-split-dev">${100 - ownerPct}</b>%。只影響展開明細裡「協議分攤」那一行顯示的地主/建商金額,不改變稅額本身。</div>
      </div>
      <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-       <button type="button" class="btn-secondary" id="lv-split-reset">恢復預設(4/6)</button>
+       <button type="button" class="btn-secondary" id="lv-split-reset">恢復預設(4：6)</button>
        <button type="button" class="btn-primary" id="lv-split-save">儲存</button>
      </div>`,
     { width: "440px" }
@@ -762,7 +764,7 @@ function lttGeneralSplitHtml(generalTax) {
   if (!generalTax) return "";
   const ownerShare = generalTax * LTT_GENERAL_SPLIT.owner;
   const developerShare = generalTax * LTT_GENERAL_SPLIT.developer;
-  return `<div class="ltt-split-badge">協議合建${lttSplitLabel()}分攤 · 地主 ${Math.round(ownerShare).toLocaleString()} 元 / 建商 ${Math.round(developerShare).toLocaleString()} 元</div>`;
+  return `<div class="ltt-split-badge">協議分攤 ${lttSplitLabel()} · 地主 ${Math.round(ownerShare).toLocaleString()} 元 / 建商 ${Math.round(developerShare).toLocaleString()} 元</div>`;
 }
 
 // 計算明細欄:把「前次移轉現值 → 物價指數調整 → 調整後前次移轉現值 → 漲價總數額 → 漲價倍數

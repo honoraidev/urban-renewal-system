@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy import select, text as _sql_text
+from sqlalchemy import func, select, text as _sql_text
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
@@ -25,6 +25,7 @@ from schemas.ocr import (
     PageSplitResult,
     TitleDeedExtraction,
 )
+from routers.documents import _standard_upload_name
 from utils.file_storage import build_upload_path
 from utils.ocr import (
     DEED_EXTRACT_SEMAPHORE,
@@ -51,6 +52,41 @@ def get_ocr_job_or_404(db: Session, project_id: int, job_id: int) -> OcrJob:
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR job not found")
     return job
+
+
+@router.post("/ocr-jobs/{job_id}/discard", status_code=status.HTTP_204_NO_CONTENT)
+def discard_ocr_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    """匯入精靈沒按建立就關掉:把這次辨識時「新存」的謄本檔案刪掉(從「已上傳文件」挑的
+    舊檔不動)。已經用這次辨識結果建立過土地/建物資料的 job 不能丟,回 409。
+    新存的檔案 description 一定是「謄本掃描匯入…」(見 extract_title_deed_job /
+    _relabel_job_documents),而且只掛在這一個 job 底下 - 兩個條件都符合才刪。"""
+    job = get_ocr_job_or_404(db, project.id, job_id)
+    used = db.scalar(select(func.count()).select_from(LandRecord).where(LandRecord.source_ocr_job_id == job_id)) or db.scalar(
+        select(func.count()).select_from(BuildingRecord).where(BuildingRecord.source_ocr_job_id == job_id)
+    )
+    if used:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="這次辨識的資料已經建立,不能取消")
+
+    doc_ids = db.scalars(select(OcrJobDocument.document_id).where(OcrJobDocument.ocr_job_id == job_id)).all()
+    for doc in db.scalars(select(Document).where(Document.id.in_(doc_ids))).all():
+        other_jobs = db.scalar(
+            select(func.count())
+            .select_from(OcrJobDocument)
+            .where(OcrJobDocument.document_id == doc.id, OcrJobDocument.ocr_job_id != job_id)
+        )
+        if other_jobs or not (doc.description or "").startswith("謄本掃描匯入"):
+            continue
+        if os.path.exists(doc.file_path):
+            os.remove(doc.file_path)
+        db.delete(doc)
+    # 背景辨識還在跑的 job 先留著(執行緒之後還會更新它),跑完的直接刪
+    if job.status != "processing":
+        db.delete(job)
+    db.commit()
 
 
 @router.get("/ocr-jobs/{job_id}", response_model=OcrJobDetail)
@@ -198,7 +234,14 @@ def extract_title_deed_job(
         # 同一個 SOP 階段內,再上傳一次同檔名的檔案視為「覆蓋」:先刪掉舊的那筆
         # (連同磁碟上的檔案)再存新的,SOP 階段的「相關檔案」列表才不會一直疊出
         # 同名的重複項目 - 比照 development.js 的「相關文件」同一套覆蓋邏輯。
-        upload_filename = upload.filename or "upload"
+        # 跟一般上傳同一套自動命名(案名-土地謄本 / 案名-建物謄本);一次好幾份檔案時
+        # 第 2 份起加 (2)(3)… 避免同一批互相被下面的「同名覆蓋」刪掉。
+        doc_type_for_name = "building_register" if record_type == "building" else "property_register"
+        upload_filename = _standard_upload_name(project.name, doc_type_for_name, None, upload.filename or "upload")
+        new_file_seq = len(newly_created_document_ids)
+        if new_file_seq and upload_filename != (upload.filename or "upload"):
+            stem, ext = os.path.splitext(upload_filename)
+            upload_filename = f"{stem}({new_file_seq + 1}){ext}"
         if sop_stage is not None:
             dup = db.scalar(
                 select(Document).where(

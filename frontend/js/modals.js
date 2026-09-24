@@ -32,6 +32,7 @@ function openModal(title, bodyHtml, { width = "480px" } = {}) {
       });
       if (!ok) return;
     }
+    if (title === "掃描謄本匯入" && typeof wizardDiscardPendingJobs === "function") wizardDiscardPendingJobs();
     closeModal();
   };
   return root;

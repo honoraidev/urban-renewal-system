@@ -4,12 +4,13 @@ import re
 
 import pymupdf as fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from deps import get_current_user, require_project_ocr_editor, require_project_staff_viewer
+from deps import MANAGE_ROLES, get_current_user, require_project_ocr_editor, require_project_staff_viewer
 from models.building_record import BuildingRecord
 from models.document import Document
 from models.document_folder import DocumentFolder
@@ -47,6 +48,11 @@ VALID_DOC_TYPES = {
     "roi_report",
     "willingness_form",
     "landowner_roster",
+    "architecture_drawing",
+    "appraisal_result",
+    "chairman_approved_roi",
+    "unit_area_split",
+    "invitation_letter",
 }
 
 DOC_TYPE_LABELS_MAP = {
@@ -62,6 +68,11 @@ DOC_TYPE_LABELS_MAP = {
     "cadastral_map": "地籍圖",
     "consultant_document": "顧問文件",
     "briefing_material": "說明會資料",
+    "architecture_drawing": "建築圖面",
+    "appraisal_result": "估價結果",
+    "chairman_approved_roi": "董事長簽核之投報表",
+    "unit_area_split": "分坪",
+    "invitation_letter": "邀請函",
     "photo": "照片",
     "other": "其他",
 }
@@ -89,7 +100,8 @@ def extract_file_content_text(content: bytes, filename: str, content_type: str |
         try:
             doc = fitz.open(stream=content, filetype="pdf")
             pages_text = []
-            for i in range(min(len(doc), 3)):
+            # 只看第一頁就夠判斷文件類型;掃描頁每頁都要跑 OCR,多看幾頁只會更慢。
+            for i in range(min(len(doc), 1)):
                 txt = doc[i].get_text("text").strip()
                 if txt:
                     pages_text.append(txt)
@@ -135,7 +147,9 @@ async def inspect_document_content(
 ):
     content = await file.read()
     filename = file.filename or "file"
-    extracted_text = extract_file_content_text(content, filename, file.content_type)
+    # 掃描頁會跑 OCR(CPU 上一頁好幾秒),這支是 async 端點,直接呼叫會卡住整個事件迴圈
+    # → 辨識期間全站(包含登入)都沒回應。丟到執行緒池跑。
+    extracted_text = await run_in_threadpool(extract_file_content_text, content, filename, file.content_type)
 
     raw_lines = [line.strip() for line in re.split(r"[\r\n]+", extracted_text) if line.strip()]
     cleaned_lines = []
@@ -261,10 +275,22 @@ async def inspect_document_content(
 def list_documents(
     db: Session = Depends(get_db),
     project: Project = Depends(require_project_staff_viewer),
+    current_user: User = Depends(get_current_user),
 ):
-    return db.scalars(
+    docs = db.scalars(
         select(Document).where(Document.project_id == project.id).order_by(Document.uploaded_at.desc())
     ).all()
+    if current_user.role in MANAGE_ROLES:
+        return docs
+    # 非管理層只看得到每個檔名分組裡最新的一版 - 版本歷史(前端 documents.js
+    # renderDocRows 用檔名把同一份文件的歷次上傳分組、收進展開列)只開放管理層
+    # 查閱,避免舊版內容(可能已經過時或誤傳)外流給不該看的人。docs 已經照
+    # uploaded_at 由新到舊排序,同檔名第一次出現的就是最新那筆。
+    # 分組要連 SOP 關卡一起看(見前端 renderDocRows):不同關卡的同名檔是不同文件。
+    latest_by_name: dict[tuple[str, int | None], Document] = {}
+    for d in docs:
+        latest_by_name.setdefault((d.file_name, d.sop_stage), d)
+    return list(latest_by_name.values())
 
 
 # --- 案件資料 folder tree -------------------------------------------------------
@@ -443,17 +469,24 @@ def _resolve_upload_folder_id(
     return folder_id_for_doc_type(folder_map, doc_type)
 
 
-# 每案只會有一份的文件類型 → 上傳時自動改名成「案名-類型.副檔名」。
-# 同名就會被文件清單歸成同一份文件的不同版本,重新上傳剛好變成新版。
-# 同意書/合約/意願書(常是一人一份)、照片、其他、說明會資料、顧問文件可能一次好幾份,保留原檔名。
+# SOP 各關卡上傳項目 → 上傳時自動改名成「案名-類型.副檔名」。同名(且同關卡)就會被
+# 文件清單歸成同一份文件的不同版本,重新上傳剛好變成新版。掛在個別地主底下的文件
+# (landowner_id,例如一人一份的同意書)保留原檔名。
 STANDARD_UPLOAD_NAME_LABELS = {
-    "cadastral_map": "地籍圖",
+    "roi_report": "投報表",
     "property_register": "土地謄本",
     "building_register": "建物謄本",
-    "roi_report": "投報表",
-    "landowner_roster": "地主清冊",
-    "consent_form_template": "同意書範本",
-    "contract_template": "合約範本",
+    "landowner_roster": "清冊",
+    "cadastral_map": "地籍圖",
+    "briefing_material": "說明會簡報",
+    "consultant_document": "顧問文件",
+    "architecture_drawing": "建築圖面",
+    "appraisal_result": "估價結果",
+    "consent_form_template": "同意書",
+    "contract_template": "合約",
+    "chairman_approved_roi": "董事長簽核之投報表",
+    "unit_area_split": "分坪",
+    "invitation_letter": "邀請函",
 }
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 

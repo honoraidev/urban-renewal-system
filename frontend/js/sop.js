@@ -5,13 +5,13 @@
 const SOP_DEFAULT_STAGE_DEFS = [
   { key: "initial_approval", name: "初始核定立案" },
   { key: "ocr_roster", name: "籌備階段" },
-  { key: "contact_rate", name: "意願調查" },
+  { key: "contact_rate", name: "地主拜訪" },
   { key: "briefing_1", name: "都更說明會" },
-  { key: "consent_dual_1", name: "同意書簽署(第一輪)" },
-  { key: "consultant_review", name: "都更規劃與估價" },
-  { key: "briefing_2", name: "事業計畫說明會" },
-  { key: "briefing_3", name: "權利變換說明會" },
-  { key: "consent_dual_2", name: "同意書補強(第二輪)" },
+  { key: "consent_dual_1", name: "意願書簽署" },
+  { key: "consultant_review", name: "圖面規劃與估價" },
+  { key: "briefing_2", name: "第2次都更說明會" },
+  { key: "briefing_3", name: "合約說明會" },
+  { key: "consent_dual_2", name: "簽約會" },
   { key: "consent_final", name: "送件審查" },
 ];
 const DUAL_GATE_KEYS = ["consent_dual_1", "consent_dual_2", "consent_final"];
@@ -50,12 +50,17 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   consultant_review: [
     { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document" },
+    { key: "architecture_drawing", label: "上傳建築圖面", docType: "architecture_drawing" },
+    { key: "appraisal_result", label: "上傳估價結果", docType: "appraisal_result" },
     { key: "consultant_reviewed", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_2: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
     { key: "consent_form_template", label: "上傳同意書", docType: "consent_form_template" },
     { key: "contract_template", label: "上傳合約", docType: "contract_template" },
+    { key: "chairman_approved_roi", label: "上傳董事長簽核之投報表", docType: "chairman_approved_roi" },
+    { key: "unit_area_split", label: "上傳分坪", docType: "unit_area_split" },
+    { key: "invitation_letter", label: "上傳邀請函", docType: "invitation_letter" },
     { key: "briefing_reviewed_6", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_3: [
@@ -505,6 +510,16 @@ async function renderSopSummary() {
   const sop = await api(`/projects/${pid}/sop`);
   state.projectCache[pid].sop = sop;
 
+  // 頂上那排階段圓圈(跟案件總覽頁一模一樣的橫幅)- 用同一份 overview API 的
+  // pct 資料畫,不是這裡的 sop.stages(那份沒有算好的完成百分比)。
+  overviewEnsureStyle();
+  const stageBandEl = document.getElementById("pd-stage-band");
+  if (stageBandEl) {
+    api(`/projects/${pid}/overview`).then((overview) => {
+      stageBandEl.innerHTML = `<div class="ov-stage-scroll">${overview.stages.map(_ovStageHtml).join("")}</div>`;
+    });
+  }
+
   const isFinished = sop.final.status !== "pending";
 
   let finalBanner = "";
@@ -514,31 +529,55 @@ async function renderSopSummary() {
     finalBanner = `<div class="final-banner warning">案件已由主管強制結案${sop.final.reason ? ":" + escapeHtml(sop.final.reason) : ""}</div>`;
   }
 
+  // 「強制結案」整個案件的按鈕已拿掉(使用者要求),只剩各關卡的「主管強制完成」。
   const headerActions = document.getElementById("pd-header-actions");
-  if (headerActions) {
-    headerActions.innerHTML =
-      isManager() && !isFinished ? `<button class="btn-danger btn-sm" id="force-close-project-btn">強制結案</button>` : "";
+  if (headerActions) headerActions.innerHTML = "";
+
+  // 右上角「整體進度」圓環卡 + 編輯案件/⋮ - 跟案件總覽頁(project_overview.js)同一套
+  // 樣式,這裡的 sop.stages 是物件(key 是關卡編號字串),不是陣列,算法要對應調整。
+  const progressCardEl = document.getElementById("pd-progress-card");
+  if (progressCardEl) {
+    const stageList = Object.values(sop.stages);
+    const totalStages = stageList.length;
+    const doneStages = stageList.filter((s) => s.status === "completed" || s.status === "force_closed").length;
+    const progressPct = totalStages ? Math.round((doneStages / totalStages) * 100) : 0;
+    progressCardEl.innerHTML = `
+      <div class="ov-progress-body">
+        <div class="ov-progress-ring" style="--pct:${progressPct}"><div class="ov-progress-ring-hole">${doneStages} / ${totalStages}</div></div>
+        <div class="ov-progress-text"><div class="ov-progress-pct">${progressPct}%</div></div>
+      </div>
+      <div class="ov-progress-sub">已完成 ${doneStages} 項 / 共 ${totalStages} 項</div>`;
+  }
+  const pdEditBtn = document.getElementById("pd-edit-btn");
+  if (pdEditBtn) pdEditBtn.onclick = () => openProjectEditModal(pid);
+  const pdMenuBtn = document.getElementById("pd-menu-btn");
+  if (pdMenuBtn) {
+    pdMenuBtn.classList.toggle("hidden", !isManager());
+    pdMenuBtn.onclick = (e) => {
+      e.stopPropagation();
+      closeAllProjectCardMenus();
+      const pop = document.createElement("div");
+      pop.className = "project-card-menu-pop";
+      pop.style.cssText = "position:absolute;right:0;top:calc(100% + 4px)";
+      pop.innerHTML = `<button type="button" data-pm="delete" class="danger">🗑️ 刪除案件</button>`;
+      pop.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        closeAllProjectCardMenus();
+        openDeleteProjectModal(state.currentProject);
+      });
+      pdMenuBtn.parentElement.appendChild(pop);
+      setTimeout(() => {
+        document.addEventListener("click", _onDocClickProjectMenu, true);
+        document.addEventListener("keydown", _onKeyProjectMenu, true);
+      }, 0);
+    };
   }
 
   // 頁籤上方常駐的「進度 X/9」橫幅已移除(使用者反饋不需要) - 階段進度改成只在
   // 「流程」頁籤裡的 SOP 卡片查看,這裡只留結案通知(finalBanner)。
   el.innerHTML = finalBanner;
 
-  const forceCloseBtn = document.getElementById("force-close-project-btn");
-  if (forceCloseBtn) {
-    forceCloseBtn.addEventListener("click", () => {
-      openForceReasonModal("強制結案", "強制結案", async (reason) => {
-        try {
-          await api(`/projects/${pid}/sop/force-close`, { method: "POST", body: { force: true, reason } });
-          toast("案件已強制結案", "success");
-          await loadDashboard();
-          await renderSopSummary();
-          if (state.activeTab === "sop") renderTab("sop");
-          refreshReminderBell();
-        } catch (err) { }
-      });
-    });
-  }
+
 }
 
 // 主管駁回「XX 主管審核通過」項目時要留原因,案件負責人才知道要改什麼(見 backend
@@ -776,15 +815,99 @@ async function renderSopTab(el) {
         if (done) checklistDoneCount++;
         else {
           checklistAllDone = false;
-          pendingItems.push({ label: item.label, sub });
+          pendingItems.push({ label: item.label, sub, key: item.key || item.docType || item.action || item.label });
         }
-        // 「主管審核通過」這幾項只有 L0-L2 管理層(isManager())能按確認——
-        // 案件負責人(case_owner)雖然算 isEditor(),但不算「主管」,只顯示唯讀提示。
         const canConfirmThis = item.managerOnly ? isManager() : isEditor();
-        // managerOnly 項目確認後不給「取消確認」,一經確認就是定案 —— 要反悔的話走
-        // 「駁回」留原因通知案件負責人,不能自己默默點掉,確認才有意義。非 managerOnly
-        // 的一般人工確認項目(例如「確認地主清冊正確」)還是保留取消確認,那個功能
-        // 本來就是設計成可以反覆切換來解鎖/鎖住謄本匯入用的。
+        const ITEM_DEFAULT_SUBS = {
+          consultant_document: "顧問合約、會議紀錄、相關文件等",
+          architecture_drawing: "建築平面圖、立面圖、結構圖等",
+          appraisal_result: "估價報告、比較表、附件等",
+          briefing_material: "簡報檔、說明會簡報、附件等",
+          consent_form_template: "同意書範本、意願書、相關文件等",
+          contract_template: "都市更新事業計畫參與合約範本",
+          chairman_approved_roi: "董事長簽核報表、相關紀錄",
+          unit_area_split: "分坪計算表、單元圖資檔",
+          invitation_letter: "開會通知單、郵寄回條證明",
+          cadastral_map: "地籍圖資、範圍圖檔等",
+          land_deed: "土地登記謄本、地號明細檔",
+          building_deed: "建物登記謄本、建號明細檔",
+          roi_report: "財務評估報告、投資報酬分析表",
+          consultant_reviewed: "經辦人員提交後，由主管審核",
+          briefing_reviewed_3: "經辦人員提交後，由主管審核",
+          briefing_reviewed_6: "經辦人員提交後，由主管審核",
+          briefing_reviewed_7: "經辦人員提交後，由主管審核",
+          landowner_roster_confirmed: "核對地主名冊與產權清冊資料",
+          contact_info_established: "盤點與記錄地主聯絡電話與通訊地址",
+          contact_rate_95: "追蹤聯絡進度達成95%完成率目標"
+        };
+
+        let subDisplay = sub;
+        if (!done && (!subDisplay || subDisplay === "尚未上傳" || subDisplay === "尚未確認" || subDisplay === "尚未匯入")) {
+          subDisplay = ITEM_DEFAULT_SUBS[item.docType || item.key] || item.sub || subDisplay;
+          if (item.key === "landowner_roster_confirmed" && (landCount === 0 || buildingCount === 0)) {
+            subDisplay = "請先完成「上傳土地謄本PDF」與「上傳建物謄本PDF」,才能確認並下載地主清冊";
+          }
+        }
+
+        let iconEmoji = "📄";
+        let iconTheme = "theme-blue";
+
+        if (item.docType === "architecture_drawing" || item.key === "architecture_drawing") {
+          iconEmoji = "🏢";
+          iconTheme = "theme-green";
+        } else if (item.docType === "appraisal_result" || item.key === "appraisal_result") {
+          iconEmoji = "📊";
+          iconTheme = "theme-orange";
+        } else if (item.managerOnly || (item.manual && (item.key.includes("reviewed") || item.key.includes("confirm")))) {
+          iconEmoji = "🛡️";
+          iconTheme = "theme-mint";
+        } else if (item.action === "land" || item.key === "cadastral_map") {
+          iconEmoji = "🗺️";
+          iconTheme = "theme-amber";
+        } else if (item.action === "building") {
+          iconEmoji = "🏠";
+          iconTheme = "theme-teal";
+        } else if (item.countOf || item.contactRate) {
+          iconEmoji = "👥";
+          iconTheme = "theme-purple";
+        } else if (item.docType === "consultant_document") {
+          iconEmoji = "📄";
+          iconTheme = "theme-blue";
+        } else if (item.docType === "roi_report" || item.docType === "chairman_approved_roi") {
+          iconEmoji = "📈";
+          iconTheme = "theme-orange";
+        } else if (item.docType === "briefing_material") {
+          iconEmoji = "🎤";
+          iconTheme = "theme-purple";
+        } else if (item.docType === "consent_form_template" || item.docType === "contract_template") {
+          iconEmoji = "✍️";
+          iconTheme = "theme-blue";
+        }
+
+        const pendingStatusText = item.docType ? "尚未上傳" : item.action ? "尚未匯入" : "尚未確認";
+        const statusPillHtml = `<div class="sop-status-pill ${done ? "done" : rejected ? "rejected" : "pending"}">
+          <span class="sop-status-icon">${done ? "✓" : rejected ? "⚠️" : "🕒"}</span>
+          <span>${done ? "已完成" : rejected ? "已駁回" : pendingStatusText}</span>
+        </div>`;
+
+        const uploadBtn =
+          item.docType && canOcr()
+            ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">☁️</span> ${done ? "重新上傳" : "上傳"}</button>
+               <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
+            : "";
+        const formBtn =
+          item.form && isEditor()
+            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-form="${item.docType}">${stageForms[item.docType] ? "編輯" : "填表"}</button>`
+            : "";
+        const actionLabel = done ? "重新上傳" : "上傳";
+        const actionBtn =
+          item.action && canOcr()
+            ? rosterLocked
+              ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
+              : item.action === "building" && landCount === 0
+                ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
+                : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-action="${item.action}" data-checklist-action-stage="${selected}"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
+            : "";
         const confirmBtn = !item.manual
           ? ""
           : canConfirmThis
@@ -792,52 +915,63 @@ async function renderSopTab(el) {
               ? item.managerOnly
                 ? ""
                 : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">取消確認</button>`
-              : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">確認</button>`
+              : item.key === "landowner_roster_confirmed" && (landCount === 0 || buildingCount === 0)
+                // 確認清冊時會順便匯出清冊 Excel,土地/建物謄本都還沒匯入就沒東西可匯
+                ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」與「上傳建物謄本PDF」,才能確認並下載地主清冊">✓ 確認</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">✓ 確認</button>`
             : item.managerOnly
-              ? `<span class="sop-checklist-sub" title="僅管理層級可確認此項目" style="white-space:nowrap">需主管確認</span>`
+              ? `<span class="sop-tag-manager" title="僅管理層級可確認此項目"><i class="sop-tag-icon">👤</i> 需主管確認</span>`
               : "";
-        // 「駁回」只給主管審核通過這類項目(managerOnly)- 確認後既然不能取消確認了,
-        // 駁回就要能對「已確認」的項目也生效,才是唯一能反悔的路。
         const rejectBtn =
           item.manual && item.managerOnly && canConfirmThis
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-reject="${item.key}" data-checklist-reject-label="${escapeHtml(item.label)}" data-checklist-reject-stage="${selected}">駁回</button>`
             : "";
-        // 已上傳檔案的項目(例如「上傳土地謄本PDF」)直接在該列放預覽眼睛,不用再到下面
-        // 「相關檔案」找。
-        const previewDoc = item.docType ? latestByType[item.docType] : null;
-        const previewBtn = previewDoc
-          ? `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">👁</button>`
-          : "";
-        const uploadBtn =
-          item.docType && canOcr()
-            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-upload="${item.docType}">${done ? "重新上傳" : "上傳"}</button>
-               <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
+        // 土地/建物謄本是走「掃描謄本匯入」存的,doc_type 是 property_register / building_register
+        // (見 backend routers/ocr.py);這關沒上傳過就退回整個案件最新的一份。
+        const deedType = item.action === "land" ? "property_register" : item.action === "building" ? "building_register" : null;
+        const latestDeed = (type) =>
+          latestByType[type] ||
+          allDocs
+            .filter((d) => d.doc_type === type)
+            .sort((a, b) => parseApiDate(b.uploaded_at) - parseApiDate(a.uploaded_at))[0] ||
+          null;
+        // 謄本在「辨識」那一刻就存檔了,匯入精靈中途關掉也會留下檔案 - 只有真的匯入完成
+        // (done)才顯示預覽,不然會出現「有眼睛可以看檔案、狀態卻是尚未匯入」的矛盾。
+        // 匯入時若是「從已上傳文件選擇」挑的檔案,它的 doc_type 不是謄本類別 - 所以優先
+        // 從土地/建物資料的 source_ocr_job_id 找回當次匯入用的原檔(點下去再查 job 明細)。
+        const deedJobId =
+          deedType && done
+            ? Math.max(
+                0,
+                ...landowners.flatMap((o) => (item.action === "land" ? o.land_records : o.building_records) || []).map((r) => r.source_ocr_job_id || 0)
+              ) || null
+            : null;
+        const previewDoc = item.docType ? latestByType[item.docType] : deedType && done && !deedJobId ? latestDeed(deedType) : null;
+        const previewBtn = deedJobId
+          ? `<button type="button" class="btn-secondary btn-sm" data-sop-deed-job="${deedJobId}" title="預覽匯入的謄本">👁</button>`
+          : previewDoc
+            ? `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">👁</button>`
             : "";
-        const formBtn =
-          item.form && isEditor()
-            ? `<button type="button" class="btn-secondary btn-sm" data-checklist-form="${item.docType}">${stageForms[item.docType] ? "編輯" : "填表"}</button>`
-            : "";
-        // 土地/建物登記謄本匯入(原本放在「整合清冊」頁工具列,搬過來跟關卡需求放一起)。
-        // 建物匯入要先有土地資料(建號比對地號用),沒有就整個鎖住。
-        const actionLabel = item.action === "land" ? "土地登記匯入" : "建物登記匯入";
-        const actionBtn =
-          item.action && canOcr()
-            ? rosterLocked
-              ? `<button type="button" class="btn-secondary btn-sm" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入">${actionLabel}</button>`
-              : item.action === "building" && landCount === 0
-                ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記">${actionLabel}</button>`
-                : `<button type="button" class="btn-secondary btn-sm" data-checklist-action="${item.action}" data-checklist-action-stage="${selected}">${actionLabel}</button>`
-            : "";
-        // 「產生地主清冊 Excel」跟著確認鈕一起搬到「整合清冊」頁工具列了,這裡不重複放。
         const rosterBtn = "";
+
         return `
-        <div class="sop-checklist-item ${done ? "done" : ""}${rejected ? " rejected" : ""}">
-          <div class="sop-checklist-icon">${done ? "✓" : rejected ? "✗" : ""}</div>
-          <div style="flex:1">
-            <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
-            <div class="sop-checklist-sub">${escapeHtml(sub)}</div>
+        <div class="sop-checklist-item ${done ? "done" : ""}${rejected ? " rejected" : ""}" data-checklist-anchor="${escapeHtml(item.key || item.docType || item.action || item.label)}">
+          <div class="sop-checklist-checkbox">
+            ${done ? '<span class="sop-check-v">✓</span>' : ""}
           </div>
-          ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
+          <div class="sop-checklist-icon-box ${iconTheme}">
+            <span class="sop-icon-emoji">${iconEmoji}</span>
+          </div>
+          <div class="sop-checklist-body">
+            <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
+            <div class="sop-checklist-sub">${escapeHtml(subDisplay)}</div>
+          </div>
+          <div class="sop-checklist-right">
+            ${statusPillHtml}
+            <div class="sop-checklist-actions">
+              ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
+            </div>
+          </div>
         </div>`;
       })
       .join("");
@@ -854,15 +988,18 @@ async function renderSopTab(el) {
   // project_overview.js 的 overviewEnsureStyle() 裡,呼叫一次確保就算沒先進過
   // 「案件總覽」頁,這裡的樣式也一定有掛上去。
   if (typeof overviewEnsureStyle === "function") overviewEnsureStyle();
+  const TODO_TONES = ["blue", "green", "orange", "purple", "pink", "teal"];
+  const todoDocIcon = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>`;
   const pendingTodosHtml = pendingItems.length
     ? pendingItems
         .map(
-          (t) => `<div class="ov-todo-row">
-            <div class="ov-todo-lead">
-              <span class="ov-todo-mark"></span>
-              <div class="ov-todo-body"><div class="ov-todo-text">${escapeHtml(t.label)}<span class="ov-todo-chip">SOP</span></div></div>
-            </div>
-          </div>`
+          (t, i) => `<button type="button" class="sop-todo-row" data-todo-jump="${escapeHtml(t.key)}" title="跳到「${escapeHtml(t.label)}」">
+            <span class="sop-todo-box"></span>
+            <span class="sop-todo-icon sop-todo-${TODO_TONES[i % TODO_TONES.length]}">${todoDocIcon}</span>
+            <span class="sop-todo-label">${escapeHtml(t.label)}</span>
+            <span class="sop-todo-chip">SOP</span>
+            <span class="sop-todo-arrow">›</span>
+          </button>`
         )
         .join("")
     : `<div class="ov-todo-empty">${checklistTotalCount ? "本階段任務都已完成 🎉" : "這一關沒有設定需求"}</div>`;
@@ -914,11 +1051,15 @@ async function renderSopTab(el) {
         </div>
 
         <div class="card sop-subcard">
-          <div class="sop-subcard-header">
-            <h4>📌 待辦提醒</h4>
-            ${pendingItems.length ? `<span class="helper-text">還剩 ${pendingItems.length} 項</span>` : ""}
+          <div class="sop-todo-head">
+            <span class="sop-todo-head-icon">📌</span>
+            <div class="sop-todo-head-text">
+              <div class="sop-todo-head-title">待辦提醒</div>
+              <div class="sop-todo-head-sub">請依流程上傳相關文件,完成後系統將自動更新進度</div>
+            </div>
+            ${pendingItems.length ? `<span class="sop-todo-count">還剩 <b>${pendingItems.length}</b> 項</span>` : ""}
           </div>
-          <div class="ov-todo-list">${pendingTodosHtml}</div>
+          <div class="sop-todo-list">${pendingTodosHtml}</div>
         </div>
 
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
@@ -1085,8 +1226,31 @@ async function renderSopTab(el) {
     });
   }
   // ---- 階段任務清單上傳項目的預覽按鈕 ----
+  // 待辦提醒點一下 → 捲到上面階段任務清單的同一項並閃一下
+  el.querySelectorAll("[data-todo-jump]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = [...el.querySelectorAll("[data-checklist-anchor]")].find((n) => n.dataset.checklistAnchor === btn.dataset.todoJump);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.remove("sop-flash");
+      void target.offsetWidth;
+      target.classList.add("sop-flash");
+    });
+  });
   el.querySelectorAll("[data-sop-file-view]").forEach((btn) => {
     btn.addEventListener("click", () => viewDocument(Number(btn.dataset.sopFileView), btn.dataset.sopFileViewName));
+  });
+  el.querySelectorAll("[data-sop-deed-job]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const detail = await api(`/projects/${state.currentProjectId}/ocr-jobs/${btn.dataset.sopDeedJob}`);
+      const docs = ((detail && detail.documents) || []).slice().sort((a, b) => a.page_order - b.page_order);
+      if (!docs.length) {
+        toast("找不到這次匯入的謄本檔案(可能已被刪除)", "error");
+        return;
+      }
+      if (docs.length > 1) toast(`這次匯入共 ${docs.length} 份檔案,先開啟第一份`, "info");
+      viewDocument(docs[0].document.id, docs[0].document.file_name);
+    });
   });
 }
 

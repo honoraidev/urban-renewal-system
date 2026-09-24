@@ -1,7 +1,7 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import anyio
@@ -203,7 +203,8 @@ def _auto_migrate() -> None:
     _DOCTYPE_ENUM = (
         "ENUM('property_register','building_register','consent_form','briefing_material',"
         "'contract','photo','other','consent_form_template','contract_template',"
-        "'cadastral_map','consultant_document','roi_report','willingness_form','landowner_roster')"
+        "'cadastral_map','consultant_document','roi_report','willingness_form','landowner_roster',"
+        "'architecture_drawing','appraisal_result','chairman_approved_roi','unit_area_split','invitation_letter')"
     )
     try:
         with engine.connect() as _conn:
@@ -469,7 +470,35 @@ def _auto_migrate() -> None:
 async def _daily_news_fetch_loop() -> None:
     """背景常駐迴圈:每天台灣時間 9:00 抓一次都更/危老新聞(見 utils/news_fetch)。單次
     失敗只印警告,不能讓這個迴圈掛掉 - 掛掉就永遠不會再排下一次。"""
+    from models.news_sync_state import NewsSyncState
     from utils.news_fetch import fetch_and_store_news
+
+    def run_once(reason: str) -> None:
+        try:
+            db = SessionLocal()
+            try:
+                created = fetch_and_store_news(db)
+                print(f"[news_fetch] {reason} run added {len(created)} item(s)", flush=True)
+            finally:
+                db.close()
+        except Exception as exc:
+            print(f"[news_fetch] {reason} run failed (ignored): {exc}", flush=True)
+
+    # 伺服器 9:00 當下沒在跑(重開機、當機)就會整天漏抓 - 啟動時補抓一次今天的。
+    try:
+        now = datetime.now(TAIWAN_TZ)
+        today_9 = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        if now >= today_9:
+            db = SessionLocal()
+            try:
+                state = db.get(NewsSyncState, 1)
+                last = state.last_synced_at.replace(tzinfo=timezone.utc) if state else None
+            finally:
+                db.close()
+            if last is None or last < today_9:
+                await asyncio.to_thread(run_once, "catch-up")
+    except Exception as exc:
+        print(f"[news_fetch] catch-up check failed (ignored): {exc}", flush=True)
 
     while True:
         now = datetime.now(TAIWAN_TZ)
@@ -477,15 +506,7 @@ async def _daily_news_fetch_loop() -> None:
         if target <= now:
             target += timedelta(days=1)
         await asyncio.sleep((target - now).total_seconds())
-        try:
-            db = SessionLocal()
-            try:
-                created = fetch_and_store_news(db)
-                print(f"[news_fetch] daily run added {len(created)} item(s)", flush=True)
-            finally:
-                db.close()
-        except Exception as exc:
-            print(f"[news_fetch] daily run failed (ignored): {exc}", flush=True)
+        await asyncio.to_thread(run_once, "daily")
 
 
 async def _daily_consent_snapshot_loop() -> None:
@@ -524,16 +545,23 @@ async def _bell_notify_loop() -> None:
 
             if not _sso_enabled():
                 continue
-            db = SessionLocal()
-            try:
-                _bell_notify_pass(db)
-            finally:
-                db.close()
+
+            # 查 DB + 逐筆打 LINE 推播都是同步呼叫,放在背景執行緒跑,不能卡住整個後端
+            # 的事件迴圈(不然推播期間所有 API、包含登入都會沒回應)。
+            def _pass() -> None:
+                db = SessionLocal()
+                try:
+                    _bell_notify_pass(db)
+                finally:
+                    db.close()
+
+            await asyncio.to_thread(_pass)
         except Exception as exc:
             print(f"[bell_notify] pass failed (ignored): {exc}", flush=True)
 
 
 def _bell_notify_pass(db) -> None:
+    from sqlalchemy import select
     from deps import MANAGE_ROLES
     from models.calendar_event import CalendarEvent
     from models.project import Project, ProjectMember
@@ -599,6 +627,7 @@ def _bell_notify_pass(db) -> None:
             "dedupe_key": f"urn:bell:calendar:{e.id}:{today_tw.isoformat()}",
             "action_icon": "⏰",
             "title": "待辦提醒",
+            "dedupe_ttl": 90000,
         })
 
     # 2) 案件層級鈴鐺(SOP 逾期彙整、被駁回的審核項)—— 案件成員都推
@@ -614,6 +643,7 @@ def _bell_notify_pass(db) -> None:
             "dedupe_key": f"urn:bell:project:{item['project_id']}:{item['id']}:{today.isoformat()}",
             "action_icon": "🔔",
             "title": "待辦提醒",
+            "dedupe_ttl": 90000,
         })
 
     # 3) 待主管審核 —— 只推管理層(跟鈴鐺前端的可見規則一致)
@@ -628,6 +658,7 @@ def _bell_notify_pass(db) -> None:
             "dedupe_key": f"urn:bell:review:{item['project_id']}:{item['id']}:{today.isoformat()}",
             "action_icon": "📋",
             "title": "待辦提醒",
+            "dedupe_ttl": 90000,
         })
 
 
@@ -641,6 +672,21 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_account(db)
+        # 謄本辨識跑在這個程序的背景執行緒裡,重開機時執行緒就沒了 - 還掛著 processing
+        # 的 job 永遠不會完成,前端會一直輪詢到 45 分鐘逾時。啟動時直接標成失敗。
+        from sqlalchemy import text as _sql_text
+
+        stale = db.execute(
+            _sql_text(
+                "UPDATE ocr_jobs SET status = 'failed', "
+                "error_message = '伺服器重新啟動,辨識中斷,請重新開始辨識' WHERE status = 'processing'"
+            )
+        ).rowcount
+        db.commit()
+        if stale:
+            print(f"[lifespan] marked {stale} interrupted OCR job(s) as failed", flush=True)
+    except Exception as exc:
+        print(f"[lifespan] stale OCR job cleanup failed (ignored): {exc}", flush=True)
     finally:
         db.close()
     # 立刻補一次「今天」的拜訪同意快照(不用等到明天 9:05 才有第一筆資料;

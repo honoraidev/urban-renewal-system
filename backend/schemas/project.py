@@ -72,6 +72,7 @@ class ProjectMemberRead(BaseModel):
     display_name: str
     role_in_project: str
     assigned_at: datetime
+    email: str | None = None
 
     model_config = {"from_attributes": True}
 

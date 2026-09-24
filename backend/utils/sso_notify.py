@@ -19,13 +19,15 @@ def enabled() -> bool:
 
 def send(payload: dict) -> None:
     if not enabled():
+        print(f"[sso_notify] disabled, skip: {payload.get('dedupe_key')}", flush=True)
         return
     try:
-        httpx.post(
+        r = httpx.post(
             f"{settings.SSO_ISSUER.rstrip('/')}/api/notify",
             headers={"X-Api-Key": settings.SSO_INTERNAL_API_KEY},
             json={"system": _SYSTEM, **payload},
             timeout=4,
         )
-    except Exception:  # noqa: BLE001
-        log.warning("sso_notify 送出失敗（不影響主流程）", exc_info=True)
+        print(f"[sso_notify] sent key={payload.get('dedupe_key')} status={r.status_code} body={r.text[:300]}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sso_notify] 送出失敗（不影響主流程）key={payload.get('dedupe_key')} error={exc!r}", flush=True)

@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260923_4">
+  <link rel="stylesheet" href="style.css?v=20260924_89">
 </head>
 
 <body>
@@ -199,15 +199,20 @@
                分頁列,跟下面的 view-project-detail(案件管理分頁頁面)是不同頁面 -->
           <div id="view-project-overview" class="hidden">
             <nav class="nw-crumbs"><a href="#" id="pov-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><a href="#" id="pov-crumb-cases">都更案件進度總覽</a><span class="nw-crumb-sep hidden" id="pov-crumb-city-sep">›</span><span id="pov-crumb-city" class="hidden"></span><span class="nw-crumb-sep">›</span><span id="pov-crumb-name"></span></nav>
-            <div class="pd-top-grid">
-              <div class="pd-top-left">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                  <h2 id="pov-name" style="margin:0"></h2>
-                  <span id="pov-status-badge"></span>
+            <div class="pov-header-banner">
+              <div class="pd-top-grid">
+                <div class="pd-top-left">
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <h2 id="pov-name" style="margin:0"></h2>
+                    <span id="pov-status-badge"></span>
+                  </div>
+                  <div class="ov-meta-row" id="pov-meta-row"></div>
                 </div>
-                <div class="ov-meta-row" id="pov-meta-row"></div>
-                <div class="ov-card ov-stage-band" id="ov-stage-band"></div>
+                <div class="pd-top-right">
+                  <div class="ov-card ov-progress-card" id="pov-progress-card"></div>
+                </div>
               </div>
+              <div class="ov-stage-band" id="ov-stage-band"></div>
             </div>
             <div id="project-overview-content"></div>
           </div>
@@ -230,7 +235,15 @@
                   </div>
                 </div>
               </div>
+              <div class="pd-top-right">
+                <div style="display:flex;justify-content:flex-end;gap:8px;position:relative">
+                  <button type="button" class="btn-secondary btn-sm" id="pd-edit-btn">✏️ 編輯案件</button>
+                  <button type="button" class="btn-secondary btn-sm" id="pd-menu-btn" title="案件選項">⋮</button>
+                </div>
+                <div class="ov-card ov-progress-card" id="pd-progress-card"></div>
+              </div>
             </div>
+            <div class="ov-card ov-stage-band" id="pd-stage-band"></div>
             <div id="pd-sop-summary" style="margin-bottom:16px"></div>
             <div class="tab-bar">
               <button class="tab-btn active" data-tab="sop">SOP 進度</button>
@@ -801,13 +814,13 @@
                       <tbody>
                         <tr><td>第0關 · 初始核定立案</td><td>上傳投報表</td></tr>
                         <tr><td>第1關 · 籌備階段</td><td>上傳地籍圖;匯入並校正土地與建物謄本;確認地主清冊正確、產出 Excel</td></tr>
-                        <tr><td>第2關 · 意願調查</td><td>建立地主聯絡方式,聯絡率達 95% 門檻</td></tr>
+                        <tr><td>第2關 · 地主拜訪</td><td>建立地主聯絡方式,聯絡率達 95% 門檻</td></tr>
                         <tr><td>第3關 · 都更說明會</td><td>上傳說明會簡報,主管審核通過</td></tr>
-                        <tr><td>第4關 · 同意書簽署(第一輪)</td><td>雙門檻同意度:人數同意率、土地持分同意率兩者都要 ≥ 80%</td></tr>
-                        <tr><td>第5關 · 都更規劃與估價</td><td>上傳顧問文件,主管審核通過</td></tr>
-                        <tr><td>第6關 · 事業計畫說明會</td><td>上傳說明會簡報、同意書、合約,主管審核通過</td></tr>
-                        <tr><td>第7關 · 權利變換說明會</td><td>上傳說明會簡報,主管審核通過</td></tr>
-                        <tr><td>第8關 · 同意書補強(第二輪)</td><td>雙門檻同意度再次確認 ≥ 80%</td></tr>
+                        <tr><td>第4關 · 意願書簽署</td><td>雙門檻同意度:人數同意率、土地持分同意率兩者都要 ≥ 80%</td></tr>
+                        <tr><td>第5關 · 圖面規劃與估價</td><td>上傳顧問文件、建築圖面、估價結果,主管審核通過</td></tr>
+                        <tr><td>第6關 · 第2次都更說明會</td><td>上傳說明會簡報、同意書、合約、董事長簽核之投報表、分坪、邀請函,主管審核通過</td></tr>
+                        <tr><td>第7關 · 合約說明會</td><td>上傳說明會簡報,主管審核通過</td></tr>
+                        <tr><td>第8關 · 簽約會</td><td>雙門檻同意度再次確認 ≥ 80%</td></tr>
                         <tr><td>第9關 · 送件審查</td><td>雙門檻同意度最終確認 ≥ 80%</td></tr>
                       </tbody>
                     </table>
@@ -957,28 +970,28 @@
       pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     }
   </script>
-  <script src="js/state.js?v=20260916_1"></script>
+  <script src="js/state.js?v=20260923_1"></script>
   <script src="js/utils.js?v=20260922_3"></script>
   <script src="js/api.js?v=20260914_1"></script>
-  <script src="js/modals.js?v=20260916_2"></script>
+  <script src="js/modals.js?v=20260924_1"></script>
   <script src="js/auth.js?v=20260923_1"></script>
-  <script src="js/dashboard.js?v=20260923_2"></script>
+  <script src="js/dashboard.js?v=20260924_6"></script>
   <script src="js/mywork.js?v=20260922_3"></script>
-  <script src="js/sop.js?v=20260923_8"></script>
+  <script src="js/sop.js?v=20260924_39"></script>
   <script src="js/development.js?v=20260918_1"></script>
   <script src="js/board.js?v=20260922_1"></script>
-  <script src="js/project_overview.js?v=20260922_2"></script>
-  <script src="js/ocr_wizard.js?v=20260922_1"></script>
-  <script src="js/landowners.js?v=20260922_21"></script>
+  <script src="js/project_overview.js?v=20260924_81"></script>
+  <script src="js/ocr_wizard.js?v=20260924_9"></script>
+  <script src="js/landowners.js?v=20260924_2"></script>
   <script src="js/contacts.js?v=20260922_8"></script>
-  <script src="js/documents.js?v=20260922_1"></script>
+  <script src="js/documents.js?v=20260924_1"></script>
   <script src="js/encumbrances.js?v=20260922_10"></script>
   <script src="js/expenses.js?v=20260909_18"></script>
-  <script src="js/members.js?v=20260922_1"></script>
-  <script src="js/resources.js?v=20260923_1"></script>
+  <script src="js/members.js?v=20260923_1"></script>
+  <script src="js/resources.js?v=20260924_3"></script>
   <script src="js/inventory.js?v=20260922_1"></script>
-  <script src="js/buildingview.js?v=20260922_9"></script>
-  <script src="js/land_value_tax.js?v=20260922_3"></script>
+  <script src="js/buildingview.js?v=20260924_1"></script>
+  <script src="js/land_value_tax.js?v=20260924_6"></script>
   <script src="js/reminders.js?v=20260921_18"></script>
   <script src="js/live.js?v=20260923_1"></script>
   <script src="js/main.js?v=20260923_1"></script>

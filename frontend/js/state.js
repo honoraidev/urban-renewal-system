@@ -64,6 +64,8 @@ const DOC_TYPE_LABEL = {
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
   willingness_form: "意願書",
   landowner_roster: "地主清冊",
+  architecture_drawing: "建築圖面", appraisal_result: "估價結果",
+  chairman_approved_roi: "董事長簽核之投報表", unit_area_split: "分坪", invitation_letter: "邀請函",
 };
 
 const DOC_TYPE_KEYWORDS = {

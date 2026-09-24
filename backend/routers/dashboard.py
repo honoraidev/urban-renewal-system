@@ -348,6 +348,15 @@ def create_calendar_event(
     db.add(ev)
     db.commit()
     db.refresh(ev)
+    if ev.is_important:
+        # 新增當下立刻補跑一次鈴鐺推播,不用等背景迴圈下一次 5 分鐘輪詢
+        # (使用者要求「有新項目出現就立即發」)。best-effort,失敗不影響建立備註本身。
+        try:
+            from main import _bell_notify_pass
+
+            _bell_notify_pass(db)
+        except Exception as exc:
+            print(f"[calendar_event] immediate bell notify failed (ignored): {exc!r}", flush=True)
     project_name = None
     if ev.project_id:
         p = db.get(Project, ev.project_id)

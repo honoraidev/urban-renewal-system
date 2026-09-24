@@ -47,13 +47,13 @@ router = APIRouter(prefix="/projects/{project_id}/sop", tags=["sop"])
 STAGE_DEFINITIONS: list[dict] = [
     {"key": "initial_approval", "name": "初始核定立案", "extra": {}},
     {"key": "ocr_roster", "name": "籌備階段", "extra": {}},
-    {"key": "contact_rate", "name": "意願調查", "extra": {"contact_rate_threshold": 0.95}},
+    {"key": "contact_rate", "name": "地主拜訪", "extra": {"contact_rate_threshold": 0.95}},
     {"key": "briefing_1", "name": "都更說明會", "extra": {}},
-    {"key": "consent_dual_1", "name": "同意書簽署(第一輪)", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
-    {"key": "consultant_review", "name": "都更規劃與估價", "extra": {}},
-    {"key": "briefing_2", "name": "事業計畫說明會", "extra": {}},
-    {"key": "briefing_3", "name": "權利變換說明會", "extra": {}},
-    {"key": "consent_dual_2", "name": "同意書補強(第二輪)", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
+    {"key": "consent_dual_1", "name": "意願書簽署", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
+    {"key": "consultant_review", "name": "圖面規劃與估價", "extra": {}},
+    {"key": "briefing_2", "name": "第2次都更說明會", "extra": {}},
+    {"key": "briefing_3", "name": "合約說明會", "extra": {}},
+    {"key": "consent_dual_2", "name": "簽約會", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
     {"key": "consent_final", "name": "送件審查", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
 ]
 STAGE_DEF_BY_KEY: dict[str, dict] = {d["key"]: d for d in STAGE_DEFINITIONS}
@@ -76,8 +76,21 @@ STAGE_CHECKLIST_REQUIREMENTS: dict[str, dict] = {
     "initial_approval": {"doc_types": ["roi_report"]},
     "ocr_roster": {"doc_types": ["cadastral_map"], "checklist_keys": ["landowner_roster_confirmed"], "needs_land": True, "needs_building": True},
     "briefing_1": {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_3"]},
-    "consultant_review": {"doc_types": ["consultant_document"], "checklist_keys": ["consultant_reviewed"]},
-    "briefing_2": {"doc_types": ["briefing_material", "consent_form_template", "contract_template"], "checklist_keys": ["briefing_reviewed_6"]},
+    "consultant_review": {
+        "doc_types": ["consultant_document", "architecture_drawing", "appraisal_result"],
+        "checklist_keys": ["consultant_reviewed"],
+    },
+    "briefing_2": {
+        "doc_types": [
+            "briefing_material",
+            "consent_form_template",
+            "contract_template",
+            "chairman_approved_roi",
+            "unit_area_split",
+            "invitation_letter",
+        ],
+        "checklist_keys": ["briefing_reviewed_6"],
+    },
     "briefing_3": {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_7"]},
 }
 
