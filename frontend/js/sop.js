@@ -541,12 +541,7 @@ async function renderSopSummary() {
     const totalStages = stageList.length;
     const doneStages = stageList.filter((s) => s.status === "completed" || s.status === "force_closed").length;
     const progressPct = totalStages ? Math.round((doneStages / totalStages) * 100) : 0;
-    progressCardEl.innerHTML = `
-      <div class="ov-progress-body">
-        <div class="ov-progress-ring" style="--pct:${progressPct}"><div class="ov-progress-ring-hole">${doneStages} / ${totalStages}</div></div>
-        <div class="ov-progress-text"><div class="ov-progress-pct">${progressPct}%</div></div>
-      </div>
-      <div class="ov-progress-sub">已完成 ${doneStages} 項 / 共 ${totalStages} 項</div>`;
+    progressCardEl.innerHTML = ovProgressCardHtml(doneStages, totalStages);
   }
   const pdEditBtn = document.getElementById("pd-edit-btn");
   if (pdEditBtn) pdEditBtn.onclick = () => openProjectEditModal(pid);

@@ -4086,3 +4086,72 @@ td.col-floor, th.col-floor { width: 150px; max-width: 150px; }
 .lv-table .lv-c-tax { column-gap: 16px; font-size: 14px; }
 .lv-table .lv-status { padding: 6px 10px; font-size: 14px; }
 .lv-table .lv-c-act .lv-btn-detail { white-space: nowrap; }
+/* 案件總覽:案名標題和下面地點/編號/負責人那一行拉開一些 */
+#view-project-overview .ov-meta-row { margin-top: 24px; }
+#view-project-overview #pov-name { font-size: 34px; }
+
+/* ---------- 右上角「完成進度」卡 v2(案件總覽 / SOP 頁共用) ---------- */
+.ovp-card { display: flex; align-items: center; gap: 22px; width: 100%; }
+.ovp-ring { position: relative; flex: 0 0 auto; width: 104px; height: 104px; }
+.ovp-ring svg { width: 100%; height: 100%; overflow: visible; }
+.ovp-track { fill: none; stroke: color-mix(in srgb, #94a3b8 22%, transparent); stroke-width: 9; }
+.ovp-bar { fill: none; stroke: #14a38b; stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray .4s ease; }
+.ovp-dot { fill: #14a38b; stroke: #fff; stroke-width: 2.5; }
+.ovp-ring-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 800; color: #1e293b; letter-spacing: -.02em;
+}
+.ovp-ring-text small { font-size: 14px; font-weight: 700; color: #64748b; margin-left: 1px; margin-top: 8px; }
+.ovp-info { flex: 1; min-width: 0; }
+.ovp-label { font-size: 14px; font-weight: 700; color: #64748b; }
+.ovp-count { margin-top: 2px; font-size: 18px; font-weight: 800; color: #64748b; }
+.ovp-count b { font-size: 36px; color: #1e293b; line-height: 1.1; margin-right: 2px; }
+.ovp-segs { display: flex; gap: 4px; margin-top: 10px; }
+.ovp-segs i { flex: 1; height: 6px; border-radius: 999px; background: color-mix(in srgb, #94a3b8 22%, transparent); }
+.ovp-segs i.on { background: #14a38b; }
+.ovp-hint { margin-top: 10px; font-size: 13.5px; color: #64748b; white-space: nowrap; }
+/* 右上角完成進度卡縮小 */
+.ovp-card { gap: 16px; }
+.ovp-ring { width: 82px; height: 82px; }
+.ovp-ring-text { font-size: 23px; }
+.ovp-ring-text small { font-size: 12px; margin-top: 6px; }
+.ovp-label { font-size: 12.5px; }
+.ovp-count { font-size: 15px; }
+.ovp-count b { font-size: 28px; }
+.ovp-segs { margin-top: 7px; gap: 3px; }
+.ovp-segs i { height: 5px; }
+.ovp-hint { margin-top: 7px; font-size: 12.5px; }
+.ov-progress-card:has(.ovp-card) { padding: 12px 16px !important; min-width: 0; }
+.ovp-card { gap: 13px; }
+.ovp-ring { width: 70px; height: 70px; }
+.ovp-ring-text { font-size: 20px; }
+.ovp-ring-text small { font-size: 11px; margin-top: 5px; }
+.ovp-label { font-size: 12px; }
+.ovp-count { font-size: 14px; }
+.ovp-count b { font-size: 24px; }
+.ovp-segs { margin-top: 6px; }
+.ovp-segs i { height: 4px; }
+.ovp-hint { margin-top: 6px; font-size: 12px; }
+.ov-progress-card:has(.ovp-card) { padding: 10px 14px !important; }
+.ovp-count b { font-size: 26px; }
+/* 進度卡原本被「按鈕列往上提 24px」的規則一起往上拉(按鈕列已刪),改成往下移一些 */
+#view-project-overview .pd-top-right > #pov-progress-card { transform: translateY(10px); }
+#view-project-overview .pd-top-right > #pov-progress-card { transform: translateY(2px); }
+#view-project-overview .pd-top-right > #pov-progress-card { transform: translateY(-6px); }
+/* 案名那一行(案名+備註+進行中)往上移一點 */
+#view-project-overview .pd-top-left > div:first-child { transform: translateY(-8px); }
+#view-project-overview .ov-meta-row { transform: translateY(-8px); }
+#view-project-overview .pd-top-left > div:first-child { transform: translateY(-14px); }
+#view-project-overview .ov-meta-row { transform: translateY(-14px); }
+.ovp-card { gap: 15px; }
+.ovp-ring { width: 78px; height: 78px; }
+.ovp-ring-text { font-size: 22px; }
+.ovp-ring-text small { font-size: 11.5px; }
+.ovp-label { font-size: 12.5px; }
+.ovp-count { font-size: 15px; }
+.ovp-count b { font-size: 28px; }
+.ovp-segs { margin-top: 7px; }
+.ovp-segs i { height: 5px; }
+.ovp-hint { margin-top: 7px; font-size: 12.5px; }
+.ov-progress-card:has(.ovp-card) { padding: 12px 16px !important; }
+#view-project-overview .pd-top-right > #pov-progress-card { transform: translateY(-16px); }

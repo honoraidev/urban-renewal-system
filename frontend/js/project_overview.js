@@ -260,6 +260,37 @@ function _alignBannerBgToStageLine() {
 }
 window.addEventListener("resize", _alignBannerBgToStageLine);
 
+// 右上角「完成進度」卡:圓環(中間百分比、進度尾端一個圓點)+ 完成數 + 每關一格的分段條 + 一句提示。
+// 案件總覽頁跟 SOP 頁共用(sop.js 也呼叫這支)。
+function ovProgressCardHtml(done, total) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  const angle = (pct / 100) * 2 * Math.PI - Math.PI / 2;
+  const dotX = 50 + r * Math.cos(angle);
+  const dotY = 50 + r * Math.sin(angle);
+  const hint =
+    !total ? "尚未設定關卡" : done === 0 ? "還沒開始,先完成第一項吧" : done >= total ? "全部完成,太棒了 🎉" : `再完成 ${total - done} 項就全部完成了`;
+  const segs = Array.from({ length: total }, (_, k) => `<i class="${k < done ? "on" : ""}"></i>`).join("");
+  return `
+    <div class="ovp-card">
+      <div class="ovp-ring">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="${r}" class="ovp-track"/>
+          <circle cx="50" cy="50" r="${r}" class="ovp-bar" stroke-dasharray="${(c * pct) / 100} ${c}" transform="rotate(-90 50 50)"/>
+          <circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="5.5" class="ovp-dot"/>
+        </svg>
+        <div class="ovp-ring-text">${pct}<small>%</small></div>
+      </div>
+      <div class="ovp-info">
+        <div class="ovp-label">完成進度</div>
+        <div class="ovp-count"><b>${done}</b> / ${total} 項</div>
+        <div class="ovp-segs">${segs}</div>
+        <div class="ovp-hint">${hint}</div>
+      </div>
+    </div>`;
+}
+
 function _ovDeltaHtml(cur, prev, unit, goodWhen) {
   if (prev == null || cur == null) return "";
   const delta = cur - prev;
@@ -545,17 +576,7 @@ async function renderProjectOverviewTab(el) {
     const totalStages = overview.stages.length;
     const doneStages = overview.stages.filter((s) => s.status === "completed" || s.status === "force_closed").length;
     const progressPct = totalStages ? Math.round((doneStages / totalStages) * 100) : 0;
-    progressCardEl.innerHTML = `
-      <div class="ov-progress-body">
-        <div class="ov-progress-ring" style="--pct:${progressPct}">
-          <div class="ov-progress-ring-hole"></div>
-        </div>
-        <div class="ov-progress-info">
-          <div class="ov-progress-frac">${doneStages}/${totalStages}</div>
-          <div class="ov-progress-pct">${progressPct}%</div>
-          <div class="ov-progress-sub">已完成 ${doneStages} 項 / 共 ${totalStages} 項</div>
-        </div>
-      </div>`;
+    progressCardEl.innerHTML = ovProgressCardHtml(doneStages, totalStages);
   }
   const editBtn = document.getElementById("pov-edit-btn");
   if (editBtn) editBtn.onclick = () => openProjectEditModal(pid);
