@@ -1,5 +1,9 @@
 "use strict";
 
+// 他項權利部標題圖示:跟樓棟視圖同一套雙色扁平配色(深藍 / 灰藍 / 淺藍) ——
+// 一份深藍「登記簿冊」(折角 + 文字列),右下角疊一個淺藍「鎖」徽章,代表抵押 / 設定等他項權利。
+const ENCUMBRANCE_ICON = `<svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true"><path d="M8 6a3 3 0 0 1 3-3h17l10 10v27a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3z" fill="#1f3a8a"/><path d="M28 3l10 10H31a3 3 0 0 1-3-3z" fill="#5b7aa8"/><g fill="#ffffff" opacity=".9"><rect x="13" y="19" width="18" height="3" rx="1.2"/><rect x="13" y="26" width="14" height="3" rx="1.2"/><rect x="13" y="33" width="9" height="3" rx="1.2"/></g><circle cx="35" cy="35" r="11" fill="#dbe7f7" stroke="#ffffff" stroke-width="2"/><rect x="29.5" y="34" width="11" height="8" rx="2" fill="#1f3a8a"/><path d="M32 34v-2.5a3 3 0 0 1 6 0V34" fill="none" stroke="#1f3a8a" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+
 function parseSecuredAmount(v) {
   if (v === null || v === undefined) return null;
   const digits = String(v).replace(/\D/g, "");
@@ -331,7 +335,7 @@ async function renderEncumbrancesTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
-      <h3 class="section-hero-title"><span class="hero-ic">📋</span>他項權利部 (${encumbrances.length})</h3>
+      <h3 class="section-hero-title"><span class="hero-ic" style="display:inline-flex;align-items:center;background:none">${ENCUMBRANCE_ICON}</span><span>他項權利部 (${encumbrances.length})</span></h3>
       <div class="hero-search">${BV_ICON.search}<input type="search" id="encumbrance-search" placeholder="搜尋地號/門牌/權利種類/權利人..."></div>
       ${rightTypeCats.length
       ? `<details class="integ-filter">

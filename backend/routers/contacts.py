@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from config import settings
 from database import get_db
-from deps import LANDOWNER_ROLE, get_current_user, require_project_editor, require_project_viewer
+from deps import (
+    LANDOWNER_ROLE,
+    get_current_user,
+    require_project_editor,
+    require_project_staff_viewer,
+    require_project_viewer,
+)
 from models.contact_log import ContactLog
 from models.landowner import Landowner
 from models.project import Project
@@ -28,11 +34,26 @@ def list_contacts(
         owner = db.get(Landowner, landowner_id)
         if owner is None or owner.project_id != project_id or owner.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your own record")
-    return db.scalars(
+    logs = db.scalars(
         select(ContactLog)
         .where(ContactLog.project_id == project_id, ContactLog.landowner_id == landowner_id)
         .order_by(ContactLog.contact_date.desc())
     ).all()
+    staff_ids = {c.staff_id for c in logs if c.staff_id}
+    names = {}
+    if staff_ids:
+        names = {
+            uid: (display or username)
+            for uid, display, username in db.execute(
+                select(User.id, User.display_name, User.username).where(User.id.in_(staff_ids))
+            ).all()
+        }
+    out = []
+    for c in logs:
+        item = ContactLogRead.model_validate(c)
+        item.staff_name = names.get(c.staff_id)
+        out.append(item)
+    return out
 
 
 @router.post(
@@ -81,6 +102,36 @@ def create_contact(
     db.commit()
     db.refresh(contact)
     return contact
+
+
+@router.get("/projects/{project_id}/contacts/recent")
+def list_recent_contacts(
+    since: datetime,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_staff_viewer),
+):
+    """案件總覽「本週拜訪」卡片:since(含)之後的所有拜訪紀錄,新到舊,附地主姓名與拜訪人員。"""
+    since_naive = since.astimezone(timezone.utc).replace(tzinfo=None) if since.tzinfo else since
+    rows = db.execute(
+        select(ContactLog, Landowner.name, User.display_name, User.username)
+        .join(Landowner, Landowner.id == ContactLog.landowner_id)
+        .outerjoin(User, User.id == ContactLog.staff_id)
+        .where(ContactLog.project_id == project.id, ContactLog.contact_date >= since_naive)
+        .order_by(ContactLog.contact_date.desc(), ContactLog.id.desc())
+    ).all()
+    return [
+        {
+            "id": c.id,
+            "landowner_id": c.landowner_id,
+            "landowner_name": owner_name,
+            "contact_date": c.contact_date.isoformat(),
+            "contact_method": c.contact_method,
+            "contact_result": c.contact_result,
+            "notes": c.notes,
+            "staff_name": display or username,
+        }
+        for c, owner_name, display, username in rows
+    ]
 
 
 def _normalize_datetime(val: datetime | str | None) -> datetime | None:

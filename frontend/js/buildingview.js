@@ -7,6 +7,33 @@ const buildingViewFlippedGroups = new Set();
 // 版面),點「顯示統計」才會加進這個 Set;只存在記憶體,不用跨頁面保留。
 const buildingViewStatsShownGroups = new Set();
 
+function buildingViewGroupOrderKey(pid) {
+  return `buildingViewGroupOrder:${pid}`;
+}
+
+function loadBuildingViewGroupOrder(pid) {
+  try {
+    return JSON.parse(localStorage.getItem(buildingViewGroupOrderKey(pid)) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveBuildingViewGroupOrder(pid, orderedKeys) {
+  try {
+    localStorage.setItem(buildingViewGroupOrderKey(pid), JSON.stringify(orderedKeys));
+  } catch (e) { }
+}
+
+function applyBuildingViewSavedOrder(pid, groups) {
+  const savedOrder = loadBuildingViewGroupOrder(pid);
+  if (!savedOrder.length) return groups;
+  const byKey = new Map(groups.map((g) => [g.key, g]));
+  const ordered = savedOrder.filter((k) => byKey.has(k)).map((k) => byKey.get(k));
+  const remaining = groups.filter((g) => !savedOrder.includes(g.key));
+  return [...ordered, ...remaining];
+}
+
 // 簽約 / 拜訪狀態在樓棟視圖直接顯示、點擊切換(整合清冊與登記清冊不再顯示)。
 const BUILDING_VIEW_TOGGLES = {
   agreement_status: { on: "signed", off: "not_signed", labels: AGREEMENT_STATUS_LABEL },
@@ -228,8 +255,9 @@ function buildingViewGroupCardHtml(g) {
   const statRow = (tone, label, n) => `<div class="bv-stat-row"><span class="bv-dot bv-dot-${tone}"></span><span class="bv-stat-label">${label}</span><b class="bv-stat-n bv-stat-n-${tone}">${n}</b></div>`;
 
   return `
-    <div class="bv-group" data-bv-group-key="${g.key}" data-bv-title="${escapeHtml(String(g.title).toLowerCase())}">
+    <div class="bv-group" draggable="true" data-bv-group-key="${g.key}" data-bv-title="${escapeHtml(String(g.title).toLowerCase())}">
       <div class="bv-group-head">
+        <span class="bv-drag-handle" title="拖曳調整順序">⠿</span>
         <div class="bv-group-titlebox">
           <span class="bv-group-title">🏢 ${escapeHtml(g.title)}</span>
           <span class="bv-group-meta">${st.total} 人</span>
@@ -418,7 +446,7 @@ async function renderBuildingViewTab(el) {
     el.innerHTML = `<div class="empty-state">載入失敗</div>`;
     return;
   }
-  const groups = payload.groups || [];
+  const groups = applyBuildingViewSavedOrder(pid, payload.groups || []);
   const landOnlyOwners = payload.land_only_owners || [];
   buildingViewOwnerStatus = new Map(
     [...groups.flatMap((g) => Object.values(g.cells).flatMap((c) => c.owners)), ...landOnlyOwners].map((o) => [
@@ -527,6 +555,26 @@ async function renderBuildingViewTab(el) {
         rerenderGroup(key);
       });
     }
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", key);
+      card.classList.add("bv-dragging");
+    });
+    card.addEventListener("dragend", () => card.classList.remove("bv-dragging"));
+    card.addEventListener("dragover", (e) => e.preventDefault());
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const draggedKey = e.dataTransfer.getData("text/plain");
+      if (!draggedKey || draggedKey === key) return;
+      const cards = [...container.children];
+      const draggedEl = container.querySelector(`[data-bv-group-key="${CSS.escape(draggedKey)}"]`);
+      const targetIndex = cards.indexOf(card);
+      if (!draggedEl) return;
+      container.insertBefore(draggedEl, cards.indexOf(draggedEl) < targetIndex ? card.nextSibling : card);
+      saveBuildingViewGroupOrder(
+        pid,
+        [...container.children].map((c) => c.dataset.bvGroupKey)
+      );
+    });
   }
 
   el.querySelectorAll("[data-bv-mode]").forEach((b) =>

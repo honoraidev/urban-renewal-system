@@ -698,7 +698,8 @@ function wireInvoiceScanner(formId, categories) {
       showNormalMode();
       return;
     }
-    menu.classList.toggle("hidden");
+    // 不再有拍照:按鈕直接開檔案選擇(圖片 / PDF,可一次多選),走同一套辨識流程。
+    if (fileInput) fileInput.click();
   });
 
   const startCamera = async () => {
@@ -796,7 +797,7 @@ function wireInvoiceScanner(formId, categories) {
 }
 
 const INVOICE_SCAN_HTML = `
-  <button type="button" id="scan-invoice-btn">📷 掃描發票</button>
+  <button type="button" id="scan-invoice-btn">📤 檔案上傳</button>
   <div id="invoice-scan-menu" class="hidden">
     <button type="button" class="isc-menu-btn" id="invoice-menu-camera"><span>📸</span>拍照</button>
     <button type="button" class="isc-menu-btn" id="invoice-menu-photo"><span>🖼️</span>選擇相片</button>

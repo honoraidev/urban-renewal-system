@@ -204,7 +204,10 @@ def _auto_migrate() -> None:
         "ENUM('property_register','building_register','consent_form','briefing_material',"
         "'contract','photo','other','consent_form_template','contract_template',"
         "'cadastral_map','consultant_document','roi_report','willingness_form','landowner_roster',"
-        "'architecture_drawing','appraisal_result','chairman_approved_roi','unit_area_split','invitation_letter')"
+        "'architecture_drawing','appraisal_result','chairman_approved_roi','unit_area_split','invitation_letter',"
+        "'consultant_contract','site_briefing','common_burden','arch_standard_floor','arch_floor_1',"
+        "'arch_basement_1','arch_basement_2plus','architect_contract','appraisal_contract','id_copy',"
+        "'land_title','building_title','renewal_consent','demolition_consent','seal_consent')"
     )
     try:
         with engine.connect() as _conn:

@@ -20,6 +20,7 @@ class ContactLogRead(BaseModel):
     contact_method: str
     contact_result: str
     staff_id: int | None = None
+    staff_name: str | None = None
     notes: str | None = None
     next_follow_up_date: date | None = None
     created_at: datetime

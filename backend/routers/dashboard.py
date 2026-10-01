@@ -40,7 +40,7 @@ def _visible_project_ids(db: Session, user: User) -> list[int]:
         db.scalars(
             select(Project.id)
             .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
-            .where(or_(Project.created_by == user.id, ProjectMember.user_id == user.id))
+            .where(ProjectMember.user_id == user.id)
             .distinct()
         )
     )
@@ -161,7 +161,7 @@ def get_my_work(
                 .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
                 .where(
                     Project.id.in_(project_ids),
-                    or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id),
+                    ProjectMember.user_id == current_user.id,
                 )
                 .distinct()
             )

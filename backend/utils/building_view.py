@@ -126,13 +126,12 @@ def group_building_records(records: list[dict]) -> list[dict]:
             cell = cells.setdefault(cell_key, {"owners": []})
             cell["owners"].extend(r["owners"])
         floors = [{"sort": s, "label": floors_seen[s]} for s in sorted(floors_seen.keys(), reverse=True)]
-        side_label = "奇數側" if side == 1 else "偶數側"
         mains = sorted({r["door_number"] for r in items})
         groups.append(
             {
                 # 維持「街::側::第一個門牌」格式,之前拖曳排好的卡片順序不會亂掉
                 "key": f"{street}::{side}::{doors[0]}",
-                "title": f"{street} {side_label} {mains[0]}-{mains[-1]}號",
+                "title": f"{street} {mains[0]}-{mains[-1]}號",
                 "doors": doors,
                 "floors": floors,
                 "cells": cells,

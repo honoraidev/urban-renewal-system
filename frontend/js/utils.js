@@ -348,5 +348,5 @@ function canOcr() {
 
 // L0-L3: can create a new project.
 function canCreateProject() {
-  return state.user && ["sys_admin", "manager", "ocr_staff", "case_owner"].includes(state.user.role);
+  return isManager();
 }

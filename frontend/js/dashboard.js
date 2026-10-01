@@ -22,7 +22,7 @@ function projectConsentBreakdownHtml(breakdown, names) {
   return `
     <div class="project-card-consent">
       <div class="consent-pie"
-        style="background:conic-gradient(var(--success) 0deg ${agreedDeg}deg, var(--danger) ${agreedDeg}deg ${opposedDeg}deg, #fff ${opposedDeg}deg 360deg)"${nameTitle}>
+        style="background:conic-gradient(var(--success) 0deg ${agreedDeg}deg, var(--danger) ${agreedDeg}deg ${opposedDeg}deg, var(--pie-rest, #fff) ${opposedDeg}deg 360deg)"${nameTitle}>
         <div class="consent-pie-hole">${agreedPct}<span class="consent-pie-unit">%</span></div>
       </div>
       <div class="consent-stats">
@@ -170,7 +170,6 @@ function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 
   return `
     <div class="project-card-weekly wkt">
       <div class="wkt-head">
-        <span class="wkt-head-icon">${WK_ICON.bars}</span>
         <span class="wkt-head-title">本週 vs 上週</span>
         <span class="wkt-range-wrap" data-pid="${pid || ""}"><button type="button" class="wkt-range" ${pid ? `data-wkt-pid="${pid}" data-wkt-offset="${weekOffset}"` : "disabled"} title="切換週次">
           ${WK_ICON.calendar} ${_wkOffsetLabel(weekOffset)} ${md(weekStart)} - ${md(weekEnd)}
@@ -359,9 +358,27 @@ function goToManual() {
   showView("view-manual");
 }
 
+// 側邊欄卡片(案件管理 / 工具與資源 / 系統指南)標題列:裡面有任何一項是目前頁面,標題列就跟著反白 -
+// 收合成圖示列時項目都藏起來了,靠這個才看得出現在在哪一區。
+function syncSidebarCardActive(forceCases = false) {
+  // 卡片內容在收合圖示列彈出浮窗時會被搬到 body 底下,不能用「卡片.querySelector」找反白項目 -
+  // 改成全域找出所有反白項目,再用 data-sb-owner(搬走也帶著)對回它屬於哪張卡片。
+  const owners = new Set();
+  document.querySelectorAll(".nav-link.active, .sb-case-item.active").forEach((el) => {
+    const o = el.closest("[data-sb-owner]")?.dataset.sbOwner || el.closest(".sb-card")?.dataset.sbCard;
+    if (o) owners.add(o);
+  });
+  if (forceCases) owners.add("cases"); // 進入案件頁時案件清單可能還沒畫好,直接強制反白
+  document.querySelectorAll(".sb-card").forEach((card) => {
+    const head = card.querySelector(".sb-card-head");
+    if (head) head.classList.toggle("active", owners.has(card.dataset.sbCard));
+  });
+}
+
 function setActiveNav(name) {
   document.querySelectorAll(".nav-link").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   document.querySelectorAll(".sb-case-item").forEach((b) => b.classList.remove("active"));
+  syncSidebarCardActive();
 }
 
 function setActiveSidebarCase(projectId) {
@@ -369,6 +386,7 @@ function setActiveSidebarCase(projectId) {
   document.querySelectorAll(".sb-case-item").forEach((b) =>
     b.classList.toggle("active", Number(b.dataset.projectId) === Number(projectId))
   );
+  syncSidebarCardActive(true);
 }
 
 function renderSidebarProjects(projects) {
@@ -393,26 +411,45 @@ function renderSidebarProjects(projects) {
   // 展開,等於完全被鎖住看不到那個城市的案件。收合狀態下一律強制展開,忽略
   // expandedSidebarCities 記的狀態。
   const forceOpen = document.querySelector(".sb")?.classList.contains("collapsed");
+  const _sbDt = (iso) => {
+    const d = iso ? parseApiDate(iso) : null;
+    if (!d || isNaN(d.getTime())) return "";
+    const z = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}/${z(d.getMonth() + 1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+  };
+  const SB_PIN_ICON = `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z" fill="#22b8cf"/><circle cx="12" cy="10" r="2.8" fill="#ffffff"/></svg>`;
+  const SB_FOLDER_ICON = `<svg viewBox="0 0 40 40" width="38" height="38" aria-hidden="true"><path d="M3 11a3 3 0 0 1 3-3h8.5l3.5 4H34a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill="#f59e0b"/><rect x="3" y="15" width="34" height="3" fill="#fcd34d" opacity=".7"/><path d="M3 19a3 3 0 0 1 3-3h28a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill="#fbbf24"/></svg>`;
   wrap.innerHTML = Object.entries(byCity)
     .map(([city, cases]) => {
       const open = forceOpen || expandedSidebarCities.has(city);
+      const latest = cases.map((c) => c.updated_at || c.created_at).filter(Boolean).sort().pop();
+      const latestText = _sbDt(latest);
       return `
         <div class="sb-cg">
           <div class="sb-cg-head" data-city="${escapeHtml(city)}">
-            <span class="sb-cg-name">${escapeHtml(city)}</span>
+            <span class="sb-cg-pin">${SB_PIN_ICON}</span>
+            <span class="sb-cg-title">
+              <span class="sb-cg-name">${escapeHtml(city)}</span>
+              <span class="sb-cg-sub">共 ${cases.length} 個案件${latestText ? ` · 最後更新 ${latestText}` : ""}</span>
+            </span>
             <span class="sb-cg-count">${cases.length}</span>
             <span class="sb-cg-arrow ${open ? "open" : ""}">⌄</span>
           </div>
           <div class="sb-cg-items ${open ? "open" : ""}">
             ${cases
-              .map(
-                (p) => `
+              .map((p) => {
+                const upd = _sbDt(p.updated_at || p.created_at);
+                return `
                 <div class="sb-case-item" data-project-id="${p.id}">
-                  <span class="sb-case-name">${escapeHtml(p.name)}</span>
-                  <span class="sb-case-stage">第${p.current_stage}階段</span>
+                  <span class="sb-case-ic">${SB_FOLDER_ICON}</span>
+                  <span class="sb-case-main">
+                    <span class="sb-case-name">${escapeHtml(p.name)}</span>
+                    ${upd ? `<span class="sb-case-sub">更新於 ${upd}</span>` : ""}
+                  </span>
+                  <span class="sb-case-stage sb-stage-c${Number(p.current_stage) % 4}">第${p.current_stage}階段</span>
                   <span class="sb-chev">›</span>
-                </div>`
-              )
+                </div>`;
+              })
               .join("")}
           </div>
         </div>`;
@@ -453,6 +490,81 @@ async function goToDashboard() {
   setActiveNav("dashboard");
   showView("view-dashboard");
   await loadDashboard();
+}
+
+// ===== 案件一覽:搜尋 / 篩選縣市 / 篩選負責人員(前端過濾,不重新打 API) =====
+let _dashFilter = { q: "", city: "", district: "", owner: "" };
+let _dashProjects = [];
+let _dashFilterBound = false;
+
+function _dashOwnerNames(p) {
+  const split = (v) => String(v || "").split("、").map((x) => x.trim()).filter(Boolean);
+  return [...new Set([...split(p.case_handler_name), ...split(p.case_manager_name)])];
+}
+
+function applyDashboardFilters() {
+  const cards = [...document.querySelectorAll("#project-grid .project-card")];
+  const q = _dashFilter.q.trim().toLowerCase();
+  let shown = 0;
+  cards.forEach((c) => {
+    const owners = (c.dataset.owners || "").split("|").filter(Boolean);
+    const ok =
+      (!q || (c.dataset.hay || "").includes(q)) &&
+      (!_dashFilter.city || c.dataset.city === _dashFilter.city) &&
+      (!_dashFilter.district || c.dataset.district === _dashFilter.district) &&
+      (!_dashFilter.owner || owners.includes(_dashFilter.owner));
+    c.classList.toggle("hidden", !ok);
+    if (ok) shown++;
+  });
+  const active = !!(q || _dashFilter.city || _dashFilter.district || _dashFilter.owner);
+  document.getElementById("dash-clear")?.classList.toggle("hidden", !active);
+  const countEl = document.getElementById("dash-count");
+  if (countEl) countEl.textContent = active ? `符合 ${shown} / ${cards.length} 件` : "";
+  document.getElementById("dash-empty")?.classList.toggle("hidden", shown > 0 || cards.length === 0);
+}
+
+// 行政區下拉:選了縣市就只列該縣市有案件的行政區,沒選就列全部
+function _dashFillDistrictOptions() {
+  const el = document.getElementById("dash-district");
+  if (!el) return;
+  const list = [...new Set(_dashProjects.filter((p) => !_dashFilter.city || p.city === _dashFilter.city).map((p) => p.district).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "zh-Hant")
+  );
+  if (_dashFilter.district && !list.includes(_dashFilter.district)) _dashFilter.district = "";
+  el.innerHTML = `<option value="">全部行政區</option>` + list.map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("");
+  el.value = _dashFilter.district;
+}
+
+function setupDashboardFilters(projects) {
+  _dashProjects = projects || [];
+  const qEl = document.getElementById("dash-q");
+  const cityEl = document.getElementById("dash-city");
+  const ownerEl = document.getElementById("dash-owner");
+  if (!qEl || !cityEl || !ownerEl) return;
+  const cities = [...new Set((projects || []).map((p) => p.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const owners = [...new Set((projects || []).flatMap(_dashOwnerNames))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  if (_dashFilter.city && !cities.includes(_dashFilter.city)) _dashFilter.city = "";
+  if (_dashFilter.owner && !owners.includes(_dashFilter.owner)) _dashFilter.owner = "";
+  cityEl.innerHTML = `<option value="">全部縣市</option>` + cities.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  ownerEl.innerHTML = `<option value="">全部負責人員</option>` + owners.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
+  _dashFillDistrictOptions();
+  qEl.value = _dashFilter.q;
+  cityEl.value = _dashFilter.city;
+  ownerEl.value = _dashFilter.owner;
+  if (!_dashFilterBound) {
+    _dashFilterBound = true;
+    qEl.addEventListener("input", () => { _dashFilter.q = qEl.value; applyDashboardFilters(); });
+    cityEl.addEventListener("change", () => { _dashFilter.city = cityEl.value; _dashFillDistrictOptions(); applyDashboardFilters(); });
+    document.getElementById("dash-district")?.addEventListener("change", (e) => { _dashFilter.district = e.target.value; applyDashboardFilters(); });
+    ownerEl.addEventListener("change", () => { _dashFilter.owner = ownerEl.value; applyDashboardFilters(); });
+    document.getElementById("dash-clear")?.addEventListener("click", () => {
+      _dashFilter = { q: "", city: "", district: "", owner: "" };
+      qEl.value = ""; cityEl.value = ""; ownerEl.value = "";
+      _dashFillDistrictOptions();
+      applyDashboardFilters();
+    });
+  }
+  applyDashboardFilters();
 }
 
 async function loadDashboard() {
@@ -509,12 +621,18 @@ async function loadDashboard() {
   summary.projects.forEach((p) => (dashboardProjectsById[p.id] = p));
 
   const cardAccents = ["accent-info", "accent-success", "accent-brand", "accent-danger"];
+  // 卡片頂端色條 / 階段色塊的顏色依「縣市」決定(同一縣市同色),不再是依卡片順序輪流換色。
+  const cityAccent = (city) => {
+    let h = 0;
+    for (const ch of String(city || "未分類")) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    return cardAccents[h % cardAccents.length];
+  };
 
   if (grid) {
     grid.innerHTML = summary.projects
       .map(
         (p, i) => `
-          <div class="card project-card ${cardAccents[i % cardAccents.length]}" data-project-id="${p.id}">
+          <div class="card project-card ${cityAccent(p.city)}" data-project-id="${p.id}" data-city="${escapeHtml(p.city || "")}" data-district="${escapeHtml(p.district || "")}" data-owners="${escapeHtml(_dashOwnerNames(p).join("|"))}" data-hay="${escapeHtml([p.name, p.project_code, p.description, p.city, p.district].filter(Boolean).join(" ").toLowerCase())}">
             <div class="project-card-top">
               ${isManager()
                 ? `<input type="checkbox" class="project-select-checkbox" data-select-project="${p.id}" ${selectedProjectIds.has(p.id) ? "checked" : ""}>`
@@ -542,6 +660,7 @@ async function loadDashboard() {
           </div>`
       )
       .join("");
+    setupDashboardFilters(summary.projects);
 
     grid.querySelectorAll(".project-card[data-project-id]").forEach((card) => {
       card.addEventListener("click", () => goToProjectOverviewPage(Number(card.dataset.projectId)));
@@ -1106,7 +1225,7 @@ function renderProjectHeader(p) {
   // 麵包屑第三段只放案件名稱(不含案號/備註),太長的完整版留給 h2 標題那行顯示就好。
   if (crumbNameEl) crumbNameEl.textContent = p.name;
   _setCrumbCity("pd", p.city);
-  if (subEl) subEl.textContent = [p.district, p.address].filter(Boolean).join(" · ") || "—";
+  if (subEl) subEl.textContent = [`${p.city || ""}${p.district || ""}`, p.address].filter(Boolean).join(" · ") || "—";
   if (badgeEl) {
     badgeEl.innerHTML =
       `<span class="status-badge status-${p.status}">${PROJECT_STATUS_LABEL[p.status] || p.status}</span>` +

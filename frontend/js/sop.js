@@ -1,5 +1,10 @@
 "use strict";
 
+// 上傳按鈕用的藍色雲端上傳圖示
+const SOP_DOWNLOAD_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 11l4.5 4.5 4.5-4.5M5 20h14"/></svg>`;
+const SOP_EYE_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const SOP_UPLOAD_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-4px"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 7.97"/><path d="M12 12v8M9 15l3-3 3 3"/></svg>`;
+
 // 內建關卡代碼清單(跟 backend/routers/sop.py 的 STAGE_DEFINITIONS 同一份定義,同一套
 // 慣例:後端是權威來源,這裡只是給「客製化關卡流程」編輯器當可選清單/預設值用)。
 const SOP_DEFAULT_STAGE_DEFS = [
@@ -11,7 +16,7 @@ const SOP_DEFAULT_STAGE_DEFS = [
   { key: "consultant_review", name: "圖面規劃與估價" },
   { key: "briefing_2", name: "第2次都更說明會" },
   { key: "briefing_3", name: "合約說明會" },
-  { key: "consent_dual_2", name: "簽約會" },
+  { key: "consent_dual_2", name: "簽約階段" },
   { key: "consent_final", name: "送件審查" },
 ];
 const DUAL_GATE_KEYS = ["consent_dual_1", "consent_dual_2", "consent_final"];
@@ -30,6 +35,88 @@ function sopStageLabel(key, stageObj) {
 
 // 客製化關卡流程後,內建關卡不一定還在原本的位置(甚至可能被刪掉了/改名了) - 這裡
 // 一律用 stage.key(後端已經幫每一關解析好)去對 checklist 設定,不用陣列位置。
+// 下拉群組(一列可展開,裡面是各自要上傳的文件)
+const SOP_GROUPS = {
+  consultant: { key: "consultant", label: "顧問文件", sub: "顧問文件、顧問合約、基地簡報、共同負擔", icon: "📄", theme: "theme-blue" },
+  architect: { key: "architect", label: "建築師文件", sub: "各樓層圖面、建築師合約", icon: "🏢", theme: "theme-green" },
+  appraiser: { key: "appraiser", label: "估價師文件", sub: "估價報告、估價合約", icon: "📊", theme: "theme-orange" },
+  contract: { key: "contract", label: "合約", sub: "合約與地主身分、權狀、同意書等文件", icon: "✍️", theme: "theme-blue" },
+};
+
+// 任務清單用的線條圖示(取代 emoji):顏色吃外層主題色(currentColor)
+const _sopSvg = (inner) => `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const SOP_LINE_ICONS = {
+  "📄": _sopSvg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+  "🏢": _sopSvg('<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>'),
+  "📊": _sopSvg('<path d="M4 20h16"/><rect x="5" y="11" width="3.2" height="9" rx="1"/><rect x="10.4" y="6" width="3.2" height="14" rx="1"/><rect x="15.8" y="13" width="3.2" height="7" rx="1"/>'),
+  "🛡️": _sopSvg('<path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6z"/><path d="M9 12l2.2 2.2L15.5 10"/>'),
+  "🗺️": _sopSvg('<path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>'),
+  "🏠": _sopSvg('<path d="M3.5 11L12 4l8.5 7"/><path d="M5.5 10v10h13V10M10 20v-5h4v5"/>'),
+  "👥": _sopSvg('<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5a6 6 0 0 1 12 0M16 5.3a3.2 3.2 0 0 1 0 6M17.5 14.2a5.5 5.5 0 0 1 3.5 5.3"/>'),
+  "📈": _sopSvg('<path d="M4 19h16M5 15l4-4 3.5 3L19 7"/><path d="M15 7h4v4"/>'),
+  "🎤": _sopSvg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>'),
+  contract: _sopSvg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8.5 17c1.2-2 2.2-2 3 0s2 2 3.5 0"/>'),
+  presentation: _sopSvg('<rect x="3" y="4" width="18" height="12" rx="1.8"/><path d="M12 16v4M8 20h8M7 12l3-3 2.5 2.5L17 8"/>'),
+  burden: _sopSvg('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/>'),
+  layers: _sopSvg('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5"/>'),
+  entry: _sopSvg('<path d="M5 21V4h9v17M3 21h18M14 8h5v13"/><circle cx="11.5" cy="13" r=".7"/>'),
+  basement: _sopSvg('<rect x="4" y="3" width="16" height="9" rx="1.5"/><path d="M4 16h16M12 13v8M9 18l3 3 3-3"/>'),
+  stairsDown: _sopSvg('<path d="M3 5h5v5h5v5h5v5"/><path d="M3 5v0M16 8l3 3-3 3"/>'),
+  idcard: _sopSvg('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16c.6-1.6 1.8-2.3 3.2-2.3s2.6.7 3.2 2.3M14.5 10h4M14.5 13.5h3"/>'),
+  land: _sopSvg('<path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>'),
+  title: _sopSvg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><circle cx="12" cy="14.5" r="2.5"/><path d="M10.6 16.6L10 20l2-1 2 1-.6-3.4"/>'),
+  checkdoc: _sopSvg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8.8 14l2.2 2.2 4.2-4.4"/>'),
+  demolish: _sopSvg('<path d="M14 6l4 4M12 8l-8 8 3 3 8-8M15 5l4-1-1 4"/><path d="M4 21h8"/>'),
+  stamp: _sopSvg('<path d="M9 14V9a3 3 0 1 1 6 0v5"/><path d="M5 14h14v4H5zM4 21h16"/>'),
+  "✍️": _sopSvg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+};
+const sopIconHtml = (emoji) => SOP_LINE_ICONS[emoji] || SOP_LINE_ICONS["📄"];
+
+// 把逐項結果組成清單:同一個 group 的連續項目收成一列「可下拉」的卡片,展開才看得到各自的上傳項目。
+// 展開中的下拉(群組 / 還沒上傳的地主清單)。上傳、確認後整頁會重畫,靠這份記錄把原本展開的維持展開。
+const _sopOpenDropdowns = new Set();
+let _sopAutoAdvanceTried = "";
+
+function buildSopChecklistHtml(results, stageNo) {
+  let out = "";
+  let i = 0;
+  while (i < results.length) {
+    const g = results[i].group;
+    if (!g) {
+      out += results[i].html;
+      i++;
+      continue;
+    }
+    const members = [];
+    while (i < results.length && results[i].group && results[i].group.key === g.key) {
+      members.push(results[i]);
+      i++;
+    }
+    const ddKey = `${stageNo}:group:${g.key}`;
+    const isOpen = _sopOpenDropdowns.has(ddKey);
+    const doneN = members.filter((m) => m.done).length;
+    const allDone = doneN === members.length;
+    out += `<div class="sop-group-wrap">
+      <div class="sop-checklist-item ${allDone ? "done" : ""}">
+        <div class="sop-checklist-checkbox">${allDone ? '<span class="sop-check-v">✓</span>' : ""}</div>
+        <div class="sop-checklist-icon-box ${g.theme}"><span class="sop-icon-emoji">${sopIconHtml(g.icon)}</span></div>
+        <div class="sop-checklist-body">
+          <div class="sop-checklist-label">${escapeHtml(g.label)}</div>
+          <div class="sop-checklist-sub">已完成 ${doneN}/${members.length} 項・${escapeHtml(g.sub)}</div>
+        </div>
+        <div class="sop-checklist-right">
+          <div class="sop-status-pill ${allDone ? "done" : "pending"}"><span class="sop-status-icon">${allDone ? "✓" : "🕒"}</span><span>${allDone ? "已完成" : "尚未完成"}</span></div>
+          <div class="sop-checklist-actions">
+            <button type="button" class="btn-secondary btn-sm doc-icon-btn${isOpen ? " sop-wr-open" : ""}" data-sop-group-toggle="${ddKey}" title="展開 / 收合" aria-label="展開 / 收合" aria-expanded="${isOpen}"><span class="sop-wr-chev">▾</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="sop-group-panel sop-checklist"${isOpen ? "" : " hidden"}>${members.map((m) => m.html).join("")}</div>
+    </div>`;
+  }
+  return out;
+}
+
 const SOP_STAGE_CHECKLISTS = {
   initial_approval: [
     { key: "roi_report", label: "上傳投報表", docType: "roi_report" },
@@ -44,27 +131,49 @@ const SOP_STAGE_CHECKLISTS = {
     { key: "contact_info_established", label: "地主聯絡方式建立", countOf: "landowner_with_phone" },
     { key: "contact_rate_95", label: "達到95%聯絡門檻", contactRate: true },
   ],
+  consent_dual_1: [
+    { key: "willingness_80", label: "意願書簽署人數達80%", willingnessRatio: true, threshold: 0.8 },
+  ],
+  consent_dual_2: [
+    { key: "signed_80", label: "已簽約人數達80%", signedRatio: true, threshold: 0.8 },
+  ],
   briefing_1: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "invitation_letter", label: "上傳邀請函", docType: "invitation_letter" },
     { key: "briefing_reviewed_3", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   consultant_review: [
-    { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document" },
-    { key: "architecture_drawing", label: "上傳建築圖面", docType: "architecture_drawing" },
-    { key: "appraisal_result", label: "上傳估價結果", docType: "appraisal_result" },
+    { key: "consultant_document", label: "上傳顧問文件", docType: "consultant_document", icon: "📄", group: SOP_GROUPS.consultant },
+    { key: "consultant_contract", label: "上傳顧問合約", docType: "consultant_contract", icon: "contract", group: SOP_GROUPS.consultant },
+    { key: "site_briefing", label: "上傳基地簡報", docType: "site_briefing", icon: "presentation", group: SOP_GROUPS.consultant },
+    { key: "common_burden", label: "上傳共同負擔", docType: "common_burden", icon: "burden", group: SOP_GROUPS.consultant },
+    { key: "arch_standard_floor", label: "上傳標準層圖面", docType: "arch_standard_floor", icon: "layers", group: SOP_GROUPS.architect },
+    { key: "arch_floor_1", label: "上傳一樓圖面", docType: "arch_floor_1", icon: "entry", group: SOP_GROUPS.architect },
+    { key: "arch_basement_1", label: "上傳地下一樓圖面", docType: "arch_basement_1", icon: "basement", group: SOP_GROUPS.architect },
+    { key: "arch_basement_2plus", label: "上傳地下二樓以下圖面", docType: "arch_basement_2plus", icon: "stairsDown", group: SOP_GROUPS.architect },
+    { key: "architect_contract", label: "上傳建築師合約", docType: "architect_contract", icon: "contract", group: SOP_GROUPS.architect },
+    { key: "appraisal_result", label: "上傳估價報告", docType: "appraisal_result", icon: "📊", group: SOP_GROUPS.appraiser },
+    { key: "appraisal_contract", label: "上傳估價合約", docType: "appraisal_contract", icon: "contract", group: SOP_GROUPS.appraiser },
     { key: "consultant_reviewed", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_2: [
-    { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
-    { key: "consent_form_template", label: "上傳同意書", docType: "consent_form_template" },
     { key: "contract_template", label: "上傳合約", docType: "contract_template" },
-    { key: "chairman_approved_roi", label: "上傳董事長簽核之投報表", docType: "chairman_approved_roi" },
-    { key: "unit_area_split", label: "上傳分坪", docType: "unit_area_split" },
+    { key: "consent_form_template", label: "上傳意願書", docType: "consent_form_template" },
     { key: "invitation_letter", label: "上傳邀請函", docType: "invitation_letter" },
+    { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "chairman_approved_roi", label: "上傳董事長簽核之投報表", docType: "chairman_approved_roi" },
+    { key: "unit_area_split", label: "上傳分坪表", docType: "unit_area_split" },
     { key: "briefing_reviewed_6", label: "主管審核通過", manual: true, managerOnly: true },
   ],
   briefing_3: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },
+    { key: "contract_template", label: "上傳合約", docType: "contract_template", icon: "contract", group: SOP_GROUPS.contract },
+    { key: "id_copy", label: "上傳身分證影本", docType: "id_copy", icon: "idcard", group: SOP_GROUPS.contract },
+    { key: "land_title", label: "上傳土地所有權狀", docType: "land_title", icon: "land", group: SOP_GROUPS.contract },
+    { key: "building_title", label: "上傳建築所有權狀", docType: "building_title", icon: "🏢", group: SOP_GROUPS.contract },
+    { key: "renewal_consent", label: "上傳都市更新事業計劃同意書", docType: "renewal_consent", icon: "checkdoc", group: SOP_GROUPS.contract },
+    { key: "demolition_consent", label: "上傳建物拆除同意書", docType: "demolition_consent", icon: "demolish", group: SOP_GROUPS.contract },
+    { key: "seal_consent", label: "上傳代刻印章同意書", docType: "seal_consent", icon: "stamp", group: SOP_GROUPS.contract },
     { key: "briefing_reviewed_7", label: "主管審核通過", manual: true, managerOnly: true },
   ],
 };
@@ -428,6 +537,10 @@ function verifyDocumentFileType(file, docType) {
 }
 
 async function inspectAndConfirmDocumentUpload(file, docType) {
+  // 「檔案內容與上傳類別是否相符」的檢查已移除(掃描檔 OCR 很慢):一律直接放行。
+  // 保留這個函式與呼叫端不動,下面原本的檢查邏輯不會再執行。
+  return true;
+  // eslint-disable-next-line no-unreachable
   if (!file || !docType || docType === "other" || docType === "photo") return true;
 
   const pid = state.currentProjectId;
@@ -672,13 +785,18 @@ async function renderSopTab(el) {
           : "🔒 未解鎖";
       const cls = isDone ? "done" : isCurrent ? "current" : "locked";
       const label = sopStageLabel(key, stage);
+      // 這一關需要上傳文件(任務清單有上傳項目)就一律顯示 📎,不管有沒有傳過
+      const stageReq = stage.data && stage.data.requirements;
+      const needsDocs = stageReq
+        ? !!stageReq.document_required
+        : ((stage.key && SOP_STAGE_CHECKLISTS[stage.key]) || []).some((it) => it.docType);
       return `
       <div class="sop-nav-item ${cls} ${num === Number(selected) ? "selected" : ""}" data-sop-nav="${key}">
         <div class="sop-nav-circle-wrap">
           <div class="sop-nav-circle">${isDone ? "✓" : key}</div>
         </div>
         <div class="sop-nav-text">
-          <div class="sop-nav-label">第${key}階段 ${escapeHtml(label)}${stagesWithFiles.has(num) ? ` <span title="已上傳相關檔案">📎</span>` : ""}</div>
+          <div class="sop-nav-label">第${key}階段 ${escapeHtml(label)}${needsDocs || stagesWithFiles.has(num) ? ` <span title="${stagesWithFiles.has(num) ? "已上傳相關檔案" : "需要上傳文件"}">📎</span>` : ""}</div>
           <div class="sop-nav-status">${statusText}</div>
         </div>
       </div>`;
@@ -712,7 +830,7 @@ async function renderSopTab(el) {
     ? buildGenericChecklistConfig(stageRequirements)
     : (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
   if (checklistConfig && checklistConfig.length) {
-    const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate);
+    const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate || item.willingnessRatio || item.signedRatio);
     const needsRatio = checklistConfig.some((item) => item.ratioGate);
     const ratioData = needsRatio
       ? await api(`/projects/${pid}/consent-ratio`, { params: { stage: selected }, silent: true }).catch(() => null)
@@ -730,7 +848,8 @@ async function renderSopTab(el) {
       });
     const landCount = landowners.reduce((sum, o) => sum + (o.land_records || []).length, 0);
     const buildingCount = landowners.reduce((sum, o) => sum + (o.building_records || []).length, 0);
-    const phoneCount = landowners.filter((o) => (o.phone_landline || "").trim() || (o.phone_mobile || "").trim()).length;
+    // 電子信箱 / 市內電話 / 行動電話 / LINE ID 任一項有填就算「已建立聯絡方式」
+    const phoneCount = landowners.filter((o) => [o.email, o.phone_landline, o.phone_mobile, o.line_id].some((v) => (v || "").trim())).length;
     const contactedCount = landowners.filter((o) => o.contact_status && o.contact_status !== "not_contacted").length;
     const contactRate = landowners.length > 0 ? contactedCount / landowners.length : 0;
     const confirmedChecklist = (selectedStage.data && selectedStage.data.checklist) || {};
@@ -740,9 +859,13 @@ async function renderSopTab(el) {
     const rosterLocked = !!confirmedChecklist.landowner_roster_confirmed;
     checklistAllDone = true;
 
-    const itemsHtml = checklistConfig
+    const itemResults = checklistConfig
       .map((item) => {
         let done = true;
+        let wrMissing = null;
+        let wrMissingTitle = "還未上傳意願書";
+        let wrToggleTip = "查看還未上傳意願書的地主";
+        let wrAllDoneText = "所有地主都已上傳意願書 🎉";
         let sub = item.sub || "";
         let rejected = false;
         if (item.docType) {
@@ -765,6 +888,29 @@ async function renderSopTab(el) {
             : item.countOf === "building" && landCount === 0
               ? "請先完成「上傳土地謄本PDF」,才能匯入建物登記"
               : "尚未匯入";
+        } else if (item.willingnessRatio) {
+          // 跟樓棟視圖同一批地主:已上傳意願書的人數 / 地主總人數
+          const threshold = item.threshold ?? 0.8;
+          const ids = new Set(landowners.map((o) => o.id));
+          const withFormIds = new Set(
+            allDocs.filter((d) => d.doc_type === "willingness_form" && d.landowner_id != null && ids.has(d.landowner_id)).map((d) => d.landowner_id)
+          );
+          const withForm = withFormIds.size;
+          wrMissing = landowners.filter((o) => !withFormIds.has(o.id));
+          const wr = landowners.length > 0 ? withForm / landowners.length : 0;
+          done = wr >= threshold;
+          sub = `已上傳意願書 ${withForm}/${landowners.length} 位(${Math.round(wr * 100)}%)・需達 ${Math.round(threshold * 100)}%`;
+        } else if (item.signedRatio) {
+          // 跟樓棟視圖同一批地主:已簽約(上傳意願書與簽約文件)的人數 / 地主總人數
+          const threshold = item.threshold ?? 0.8;
+          wrMissing = landowners.filter((o) => o.agreement_status !== "signed");
+          wrMissingTitle = "還未簽約";
+          wrToggleTip = "查看還未簽約的地主";
+          wrAllDoneText = "所有地主都已簽約 🎉";
+          const signedN = landowners.length - wrMissing.length;
+          const sr = landowners.length > 0 ? signedN / landowners.length : 0;
+          done = sr >= threshold;
+          sub = `已簽約 ${signedN}/${landowners.length} 位(${Math.round(sr * 100)}%)・需達 ${Math.round(threshold * 100)}%`;
         } else if (item.contactRate) {
           const threshold = item.threshold ?? CONTACT_RATE_THRESHOLD;
           done = contactRate >= threshold;
@@ -818,10 +964,10 @@ async function renderSopTab(el) {
           architecture_drawing: "建築平面圖、立面圖、結構圖等",
           appraisal_result: "估價報告、比較表、附件等",
           briefing_material: "簡報檔、說明會簡報、附件等",
-          consent_form_template: "同意書範本、意願書、相關文件等",
+          consent_form_template: "意願書範本、相關文件等",
           contract_template: "都市更新事業計畫參與合約範本",
           chairman_approved_roi: "董事長簽核報表、相關紀錄",
-          unit_area_split: "分坪計算表、單元圖資檔",
+          unit_area_split: "分坪表、單元圖資檔",
           invitation_letter: "開會通知單、郵寄回條證明",
           cadastral_map: "地籍圖資、範圍圖檔等",
           land_deed: "土地登記謄本、地號明細檔",
@@ -862,7 +1008,7 @@ async function renderSopTab(el) {
         } else if (item.action === "building") {
           iconEmoji = "🏠";
           iconTheme = "theme-teal";
-        } else if (item.countOf || item.contactRate) {
+        } else if (item.countOf || item.contactRate || item.willingnessRatio || item.signedRatio) {
           iconEmoji = "👥";
           iconTheme = "theme-purple";
         } else if (item.docType === "consultant_document") {
@@ -879,6 +1025,10 @@ async function renderSopTab(el) {
           iconTheme = "theme-blue";
         }
 
+        if (item.group) {
+          iconEmoji = item.icon || item.group.icon;
+          iconTheme = item.group.theme;
+        }
         const pendingStatusText = item.docType ? "尚未上傳" : item.action ? "尚未匯入" : "尚未確認";
         const statusPillHtml = `<div class="sop-status-pill ${done ? "done" : rejected ? "rejected" : "pending"}">
           <span class="sop-status-icon">${done ? "✓" : rejected ? "⚠️" : "🕒"}</span>
@@ -887,7 +1037,7 @@ async function renderSopTab(el) {
 
         const uploadBtn =
           item.docType && canOcr()
-            ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">☁️</span> ${done ? "重新上傳" : "上傳"}</button>
+            ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>
                <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
             : "";
         const formBtn =
@@ -898,10 +1048,10 @@ async function renderSopTab(el) {
         const actionBtn =
           item.action && canOcr()
             ? rosterLocked
-              ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
+              ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
               : item.action === "building" && landCount === 0
-                ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
-                : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-action="${item.action}" data-checklist-action-stage="${selected}"><span class="sop-btn-icon">☁️</span> ${actionLabel}</button>`
+                ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
+                : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-action="${item.action}" data-checklist-action-stage="${selected}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
             : "";
         const confirmBtn = !item.manual
           ? ""
@@ -909,7 +1059,7 @@ async function renderSopTab(el) {
             ? done
               ? item.managerOnly
                 ? ""
-                : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">取消確認</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-checklist-confirm="${item.key}" data-checklist-confirmed="${done}">取消確認</button>${item.key === "landowner_roster_confirmed" ? `<button type="button" class="btn-secondary btn-sm doc-icon-btn" data-roster-download title="下載地主清冊" aria-label="下載地主清冊">${SOP_DOWNLOAD_ICON}</button>` : ""}`
               : item.key === "landowner_roster_confirmed" && (landCount === 0 || buildingCount === 0)
                 // 確認清冊時會順便匯出清冊 Excel,土地/建物謄本都還沒匯入就沒東西可匯
                 ? `<button type="button" class="btn-secondary btn-sm" disabled title="請先完成「上傳土地謄本PDF」與「上傳建物謄本PDF」,才能確認並下載地主清冊">✓ 確認</button>`
@@ -943,19 +1093,53 @@ async function renderSopTab(el) {
             : null;
         const previewDoc = item.docType ? latestByType[item.docType] : deedType && done && !deedJobId ? latestDeed(deedType) : null;
         const previewBtn = deedJobId
-          ? `<button type="button" class="btn-secondary btn-sm" data-sop-deed-job="${deedJobId}" title="預覽匯入的謄本">👁</button>`
+          ? `<button type="button" class="btn-secondary btn-sm doc-icon-btn" data-sop-deed-job="${deedJobId}" title="預覽匯入的謄本" aria-label="預覽">${SOP_EYE_ICON}</button>`
           : previewDoc
-            ? `<button type="button" class="btn-secondary btn-sm" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">👁</button>`
+            ? `<button type="button" class="btn-secondary btn-sm doc-icon-btn" data-sop-file-view="${previewDoc.id}" data-sop-file-view-name="${escapeHtml(previewDoc.file_name)}" title="預覽 ${escapeHtml(previewDoc.file_name)}">${SOP_EYE_ICON}</button>`
             : "";
         const rosterBtn = "";
 
-        return `
+        // 意願書簽署人數:下拉查看「還沒上傳意願書」的地主與門牌
+        let wrToggleBtn = "";
+        let wrPanel = "";
+        if (wrMissing) {
+          const rows = wrMissing
+            .map((o) => {
+              // 門牌 + 樓層(「二層」寫成「二樓」,地下層維持「地下N層」)
+              const doors = [
+                ...new Set(
+                  (o.building_records || [])
+                    .map((r) => {
+                      const door = _shortDoorAddr(r.address);
+                      if (!door) return "";
+                      let fl = _floorLabelOf(r);
+                      if (fl && !fl.startsWith("地下")) fl = fl.replace(/層$/, "樓");
+                      return door + fl;
+                    })
+                    .filter(Boolean)
+                ),
+              ];
+              return { door: doors.join("、") || "—", name: o.name || "—" };
+            })
+            .sort((a, b) => a.door.localeCompare(b.door, "zh-Hant", { numeric: true }));
+          const wrKey = `${selected}:wr:${item.key}`;
+          const wrOpen = _sopOpenDropdowns.has(wrKey);
+          wrToggleBtn = `<button type="button" class="btn-secondary btn-sm doc-icon-btn${wrOpen ? " sop-wr-open" : ""}" data-wr-toggle="${wrKey}" title="${wrToggleTip}" aria-label="${wrToggleTip}" aria-expanded="${wrOpen}"><span class="sop-wr-chev">▾</span></button>`;
+          wrPanel = `<div class="sop-wr-panel"${wrOpen ? "" : " hidden"}>
+            <div class="sop-wr-title">${wrMissingTitle}(${rows.length} 位)</div>
+            ${rows.length
+              ? `<div class="sop-wr-list">${rows.map((r) => `<div class="sop-wr-row"><span class="sop-wr-door">${escapeHtml(r.door)}</span><span class="sop-wr-name">${escapeHtml(r.name)}</span></div>`).join("")}</div>`
+              : `<div class="helper-text">${wrAllDoneText}</div>`}
+          </div>`;
+        }
+
+        const itemHtml = `
         <div class="sop-checklist-item ${done ? "done" : ""}${rejected ? " rejected" : ""}" data-checklist-anchor="${escapeHtml(item.key || item.docType || item.action || item.label)}">
           <div class="sop-checklist-checkbox">
             ${done ? '<span class="sop-check-v">✓</span>' : ""}
           </div>
           <div class="sop-checklist-icon-box ${iconTheme}">
-            <span class="sop-icon-emoji">${iconEmoji}</span>
+            <span class="sop-icon-emoji">${sopIconHtml(iconEmoji)}</span>
           </div>
           <div class="sop-checklist-body">
             <div class="sop-checklist-label">${escapeHtml(item.label)}</div>
@@ -964,12 +1148,13 @@ async function renderSopTab(el) {
           <div class="sop-checklist-right">
             ${statusPillHtml}
             <div class="sop-checklist-actions">
-              ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}
+              ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}${wrToggleBtn}
             </div>
           </div>
         </div>`;
-      })
-      .join("");
+        return { html: wrPanel ? `<div class="sop-wr-wrap">${itemHtml}${wrPanel}</div>` : itemHtml, done, group: item.group || null };
+      });
+    const itemsHtml = buildSopChecklistHtml(itemResults, selected);
     checklistHtml = `<div class="sop-checklist">${itemsHtml}</div>`;
   }
 
@@ -1037,9 +1222,14 @@ async function renderSopTab(el) {
         </div>
 
         <div class="card sop-subcard">
-          <div class="sop-subcard-header">
-            <h4>📋 階段任務清單</h4>
-            ${checklistTotalCount ? `<span class="helper-text">${checklistDoneCount}/${checklistTotalCount} 已完成</span>` : ""}
+          <div class="sop-todo-head sop-task-head">
+            <span class="sop-todo-head-icon sop-task-head-icon">📋</span>
+            <div class="sop-todo-head-text">
+              <div class="sop-todo-head-title">階段任務清單</div>
+              <div class="sop-todo-head-sub">完成本階段需要的任務,完成後系統將自動更新進度</div>
+            </div>
+            ${isManager() && !isFinished && !selectedIsDone ? `<button type="button" class="btn-warning btn-sm" id="force-stage-btn"${selectedIsCurrent ? "" : ` data-force-stage="${selected}"`} title="${selectedIsCurrent ? "不用等任務清單完成,直接強制完成本階段" : "尚未解鎖,主管可直接強制完成這一關"}">主管強制完成</button>` : ""}
+            ${checklistTotalCount ? `<span class="sop-todo-count">已完成 <b>${checklistDoneCount}</b>/${checklistTotalCount}</span>` : ""}
           </div>
           ${checklistTotalCount ? `<div class="progress-bar-track sop-subcard-progress"><div class="progress-bar-fill" style="width:${stagePct}%"></div></div>` : ""}
           ${checklistHtml || `<div class="empty-state">這一關沒有設定需求,可直接人工完成</div>`}
@@ -1063,7 +1253,6 @@ async function renderSopTab(el) {
           ? `<div class="sop-action-bar">
                 <button class="btn-primary btn-sm" id="complete-stage-btn" ${checklistAllDone ? "" : "disabled title=\"還有項目未完成\""}>完成本階段</button>
                 ${!checklistAllDone ? `<span class="helper-text">還有項目未完成,無法進入下一關</span>` : ""}
-                ${isManager() ? `<button class="btn-warning btn-sm" id="force-stage-btn">主管強制完成</button>` : ""}
                 <span class="helper-text sop-last-updated">${lastUpdatedHtml}</span>
               </div>`
           : !selectedIsCurrent
@@ -1101,6 +1290,32 @@ async function renderSopTab(el) {
       );
     });
   }
+
+  el.querySelectorAll("[data-sop-group-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".sop-group-wrap").querySelector(".sop-group-panel");
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.classList.toggle("sop-wr-open", open);
+      if (open) _sopOpenDropdowns.add(btn.dataset.sopGroupToggle);
+      else _sopOpenDropdowns.delete(btn.dataset.sopGroupToggle);
+    });
+  });
+  el.querySelectorAll("[data-wr-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".sop-wr-wrap").querySelector(".sop-wr-panel");
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.classList.toggle("sop-wr-open", open);
+      if (open) _sopOpenDropdowns.add(btn.dataset.wrToggle);
+      else _sopOpenDropdowns.delete(btn.dataset.wrToggle);
+    });
+  });
+  el.querySelectorAll("[data-roster-download]").forEach((btn) => {
+    btn.addEventListener("click", () => downloadRosterExcel(pid));
+  });
 
   el.querySelectorAll("[data-checklist-confirm]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1205,12 +1420,36 @@ async function renderSopTab(el) {
       } catch (err) { }
     });
   }
+  // 本階段任務全部完成(進度 100%)就自動完成並進入下一階段,不用再按「完成本階段」。
+  // 最後一關不自動(完成會直接結案),同一關只自動試一次(失敗時不要一直重試)。
+  const _lastStageIdx = Object.keys(sop.stages || {}).length - 1;
+  const _autoKey = `${pid}:${sop.current_stage}`;
+  if (
+    selectedIsCurrent &&
+    isEditor() &&
+    checklistTotalCount > 0 &&
+    checklistAllDone &&
+    Number(selected) < _lastStageIdx &&
+    _sopAutoAdvanceTried !== _autoKey
+  ) {
+    _sopAutoAdvanceTried = _autoKey;
+    try {
+      await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: {}, silent: true });
+      toast("本階段已 100% 完成,自動進入下一階段", "success");
+      await loadDashboard();
+      await renderSopSummary();
+      state.sopSelectedStage = null;
+      renderSopTab(el);
+      refreshReminderBell();
+      return;
+    } catch (err) { }
+  }
   const forceBtn = document.getElementById("force-stage-btn");
   if (forceBtn) {
     forceBtn.addEventListener("click", () => {
       openForceReasonModal("強制完成關卡", "強制完成", async (reason) => {
         try {
-          await api(`/projects/${pid}/sop/${sop.current_stage}/complete`, { method: "POST", body: { force: true, reason } });
+          await api(`/projects/${pid}/sop/${forceBtn.dataset.forceStage ?? sop.current_stage}/complete`, { method: "POST", body: { force: true, reason } });
           toast("已強制完成關卡", "success");
           await renderSopSummary();
           state.sopSelectedStage = null;

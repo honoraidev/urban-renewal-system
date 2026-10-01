@@ -43,7 +43,7 @@ def _visible_projects_stmt(user: User):
     return (
         select(Project)
         .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
-        .where(or_(Project.created_by == user.id, ProjectMember.user_id == user.id))
+        .where(ProjectMember.user_id == user.id)
         .distinct()
         .order_by(Project.created_at.desc())
     )

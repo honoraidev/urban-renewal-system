@@ -60,12 +60,13 @@ const DOC_TYPE_LABEL = {
   property_register: "土地登記謄本", building_register: "建物登記謄本", consent_form: "同意書", briefing_material: "說明會資料",
   contract: "合約", photo: "照片", other: "其他",
   roi_report: "投報表",
-  consent_form_template: "同意書", contract_template: "合約",
+  consent_form_template: "意願書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
   willingness_form: "意願書",
   landowner_roster: "地主清冊",
   architecture_drawing: "建築圖面", appraisal_result: "估價結果",
-  chairman_approved_roi: "董事長簽核之投報表", unit_area_split: "分坪", invitation_letter: "邀請函",
+  chairman_approved_roi: "董事長簽核之投報表", unit_area_split: "分坪表", invitation_letter: "邀請函",
+  consultant_contract: "顧問合約", site_briefing: "基地簡報", common_burden: "共同負擔", arch_standard_floor: "標準層圖面", arch_floor_1: "一樓圖面", arch_basement_1: "地下一樓圖面", arch_basement_2plus: "地下二樓以下圖面", architect_contract: "建築師合約", appraisal_contract: "估價合約", id_copy: "身分證影本", land_title: "土地所有權狀", building_title: "建築所有權狀", renewal_consent: "都市更新事業計劃同意書", demolition_consent: "建物拆除同意書", seal_consent: "代刻印章同意書",
 };
 
 const DOC_TYPE_KEYWORDS = {

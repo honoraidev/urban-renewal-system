@@ -53,7 +53,7 @@ STAGE_DEFINITIONS: list[dict] = [
     {"key": "consultant_review", "name": "圖面規劃與估價", "extra": {}},
     {"key": "briefing_2", "name": "第2次都更說明會", "extra": {}},
     {"key": "briefing_3", "name": "合約說明會", "extra": {}},
-    {"key": "consent_dual_2", "name": "簽約會", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
+    {"key": "consent_dual_2", "name": "簽約階段", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
     {"key": "consent_final", "name": "送件審查", "extra": {"headcount_threshold": 0.8, "land_share_threshold": 0.8}},
 ]
 STAGE_DEF_BY_KEY: dict[str, dict] = {d["key"]: d for d in STAGE_DEFINITIONS}
@@ -75,9 +75,21 @@ MANAGER_ONLY_CHECKLIST_KEYS = {"briefing_reviewed_3", "consultant_reviewed", "br
 STAGE_CHECKLIST_REQUIREMENTS: dict[str, dict] = {
     "initial_approval": {"doc_types": ["roi_report"]},
     "ocr_roster": {"doc_types": ["cadastral_map"], "checklist_keys": ["landowner_roster_confirmed"], "needs_land": True, "needs_building": True},
-    "briefing_1": {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_3"]},
+    "briefing_1": {"doc_types": ["briefing_material", "invitation_letter"], "checklist_keys": ["briefing_reviewed_3"]},
     "consultant_review": {
-        "doc_types": ["consultant_document", "architecture_drawing", "appraisal_result"],
+        "doc_types": [
+            "consultant_document",
+            "consultant_contract",
+            "site_briefing",
+            "common_burden",
+            "arch_standard_floor",
+            "arch_floor_1",
+            "arch_basement_1",
+            "arch_basement_2plus",
+            "architect_contract",
+            "appraisal_result",
+            "appraisal_contract",
+        ],
         "checklist_keys": ["consultant_reviewed"],
     },
     "briefing_2": {
@@ -91,7 +103,19 @@ STAGE_CHECKLIST_REQUIREMENTS: dict[str, dict] = {
         ],
         "checklist_keys": ["briefing_reviewed_6"],
     },
-    "briefing_3": {"doc_types": ["briefing_material"], "checklist_keys": ["briefing_reviewed_7"]},
+    "briefing_3": {
+        "doc_types": [
+            "briefing_material",
+            "contract_template",
+            "id_copy",
+            "land_title",
+            "building_title",
+            "renewal_consent",
+            "demolition_consent",
+            "seal_consent",
+        ],
+        "checklist_keys": ["briefing_reviewed_7"],
+    },
 }
 
 
@@ -425,6 +449,35 @@ def _assert_generic_requirements(db: Session, project_id: int, stage: int, sop: 
             )
 
 
+WILLINGNESS_THRESHOLD = 0.8
+
+
+def willingness_ratio(db: Session, project_id: int) -> tuple[int, int]:
+    """(已上傳意願書的地主人數, 地主總人數) - 第4關「意願書簽署」過關門檻,跟樓棟視圖的人數同一批地主。"""
+    from models.document import Document
+
+    total = db.scalar(select(func.count(Landowner.id)).where(Landowner.project_id == project_id)) or 0
+    with_form = db.scalar(
+        select(func.count(func.distinct(Document.landowner_id))).where(
+            Document.project_id == project_id,
+            Document.doc_type == "willingness_form",
+            Document.landowner_id.isnot(None),
+        )
+    ) or 0
+    return with_form, total
+
+
+def signed_ratio(db: Session, project_id: int) -> tuple[int, int]:
+    """(已簽約的地主人數, 地主總人數) - 第8關「簽約階段」過關門檻。"""
+    total = db.scalar(select(func.count(Landowner.id)).where(Landowner.project_id == project_id)) or 0
+    signed = db.scalar(
+        select(func.count(Landowner.id)).where(
+            Landowner.project_id == project_id, Landowner.agreement_status == "signed"
+        )
+    ) or 0
+    return signed, total
+
+
 def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage) -> None:
     entry = sop.stage_data["stages"].get(str(stage)) or {}
     requirements = (entry.get("data") or {}).get("requirements")
@@ -453,6 +506,22 @@ def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Contact rate {ratio:.1%} is below the {CONTACT_RATE_THRESHOLD:.0%} threshold",
+            )
+    elif key == "consent_dual_1":
+        with_form, total = willingness_ratio(db, project_id)
+        ratio = with_form / total if total > 0 else 0.0
+        if ratio < WILLINGNESS_THRESHOLD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"已上傳意願書 {with_form}/{total} 位({ratio:.1%}),未達 {WILLINGNESS_THRESHOLD:.0%} 門檻",
+            )
+    elif key == "consent_dual_2":
+        signed_n, total = signed_ratio(db, project_id)
+        ratio = signed_n / total if total > 0 else 0.0
+        if ratio < WILLINGNESS_THRESHOLD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"已簽約 {signed_n}/{total} 位({ratio:.1%}),未達 {WILLINGNESS_THRESHOLD:.0%} 門檻",
             )
     elif key in DUAL_GATE_KEYS:
         ratio = calculate_consent_ratio(db, project_id, stage)
@@ -691,7 +760,11 @@ def complete_stage(
     stage_data["stages"] = stages
 
     if stage == sop.current_stage:
-        sop.current_stage = min(stage + 1, final_stage)
+        # 下一關若已經被主管提前強制完成(或本來就完成),直接跳過去,不要停在已完成的關卡上
+        nxt = stage + 1
+        while nxt < final_stage and (stages.get(str(nxt)) or {}).get("status") in ("completed", "force_closed"):
+            nxt += 1
+        sop.current_stage = min(nxt, final_stage)
 
     sop.stage_data = stage_data
     project.current_stage = sop.current_stage

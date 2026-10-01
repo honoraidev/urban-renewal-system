@@ -556,14 +556,19 @@ async function renderProjectOverviewTab(el) {
   const pid = state.currentProjectId;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
 
-  let overview, members, notes, feed, docs;
+  // 本週(週一 00:00 起,本地時間)- 「本週拜訪」卡片用
+  const _wkNow = new Date();
+  const _wkStart = new Date(_wkNow.getFullYear(), _wkNow.getMonth(), _wkNow.getDate() - ((_wkNow.getDay() + 6) % 7));
+  const _wkEnd = new Date(_wkStart.getFullYear(), _wkStart.getMonth(), _wkStart.getDate() + 6);
+  let overview, members, notes, feed, docs, weekContacts;
   try {
-    [overview, members, notes, feed, docs] = await Promise.all([
+    [overview, members, notes, feed, docs, weekContacts] = await Promise.all([
       api(`/projects/${pid}/overview`),
       api(`/projects/${pid}/members`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/notes`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/activity-feed`, { silent: true }).catch(() => []),
       api(`/projects/${pid}/documents`, { silent: true }).catch(() => []),
+      api(`/projects/${pid}/contacts/recent?since=${encodeURIComponent(_wkStart.toISOString())}`, { silent: true }).catch(() => []),
     ]);
   } catch (err) {
     el.innerHTML = `<div class="empty-state">載入失敗</div>`;
@@ -619,7 +624,7 @@ async function renderProjectOverviewTab(el) {
       <span class="ov-meta-item">👤 負責人：${escapeHtml(handlerName)}</span>
       <span class="ov-meta-item">💼 主管：${escapeHtml(managerName)}</span>`;
   }
-  const canEditMembers = isEditor();
+  const canEditMembers = isManager();
   // 每種角色一個標籤+頭像顏色;主管/負責人沿用上面 handler/manager 的判斷
   const MEMBER_TAG = {
     sys_admin: ["主管", "manager"],
@@ -687,34 +692,36 @@ async function renderProjectOverviewTab(el) {
         .sort((a, b) => (parseApiDate(b.uploaded_at)?.getTime() || 0) - (parseApiDate(a.uploaded_at)?.getTime() || 0))[0] || null
     );
   };
-  const timelineHtml = timeline.length
-    ? `<div class="ov-rec-list">${timeline
-        .map((t) => {
-          const recDoc = _recDocOf(t);
-          const menuBtn =
-            t.isNote && canEditNotes
-              ? `<button type="button" class="ov-rec-menu" data-ov-note-menu="${t.id}" title="更多">⋮</button>`
-              : `<span class="ov-rec-menu-spacer"></span>`;
-          return `<div class="ov-rec-row${recDoc ? " ov-rec-clickable" : ""}"${recDoc ? ` data-ov-rec-doc="${recDoc.id}" data-ov-rec-name="${escapeHtml(recDoc.file_name)}" title="點一下預覽 ${escapeHtml(recDoc.file_name)}" tabindex="0" role="button"` : ""}>
-            <span class="ov-rec-icon ov-rec-${_recTone(t)}">${OV_KM_ICON.doc}</span>
+  // 「本週拜訪」:本週所有拜訪紀錄(日期、地主、拜訪人員),點一列開該地主的資料視窗並展開拜訪紀錄 -
+  // 地主跟樓棟視圖是同一批資料,在樓棟視圖點同一戶看到的是同一份。
+  const _wkResultLabel = (r) => CONTACT_RESULT_LABEL[r] || r;
+  const _wkTone = (r) => (r === "agreed" ? "green" : r === "opposed" ? "red" : r === "no_answer" ? "amber" : "blue");
+  const _wkMD = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+  const timelineHtml = weekContacts.length
+    ? `<div class="ov-rec-list">${weekContacts
+        .map((c) => {
+          const when = parseApiDate(c.contact_date);
+          const whenText = when ? `${when.getFullYear()}/${String(when.getMonth() + 1).padStart(2, "0")}/${String(when.getDate()).padStart(2, "0")} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}` : "";
+          return `<div class="ov-rec-row ov-rec-clickable" data-ov-wk-owner="${c.landowner_id}" title="點一下查看拜訪紀錄" tabindex="0" role="button">
+            <span class="ov-rec-icon ov-rec-${_wkTone(c.contact_result)}">${OV_KM_ICON.doc}</span>
             <div class="ov-rec-main">
-              <span class="ov-rec-text" title="${escapeHtml(t.text)}">${escapeHtml(t.text)}</span>
-              ${t.who ? `<span class="ov-rec-who">${OV_KM_ICON.clock}${escapeHtml(t.who)}</span>` : ""}
+              <span class="ov-rec-text" title="${escapeHtml(c.notes || "")}">拜訪 — ${escapeHtml(c.landowner_name)}<span class="ov-wk-result ov-wk-${_wkTone(c.contact_result)}">${escapeHtml(_wkResultLabel(c.contact_result))}</span></span>
+              ${c.staff_name ? `<span class="ov-rec-who">${OV_KM_ICON.people}${escapeHtml(c.staff_name)}</span>` : ""}
             </div>
-            <span class="ov-rec-time">${OV_KM_ICON.clock}${fmtDateTime(t.time)}</span>
-            ${menuBtn}
+            <span class="ov-rec-time">${OV_KM_ICON.clock}${whenText}</span>
+            <span class="ov-rec-menu-spacer"></span>
           </div>`;
         })
         .join("")}</div>`
-    : `<div class="helper-text">尚無紀錄</div>`;
+    : `<div class="helper-text">本週還沒有拜訪紀錄</div>`;
   const recordsHeadHtml = `
     <div class="ov-km-head">
       <span class="ov-km-head-icon">${OV_KM_ICON.doc}</span>
       <div class="ov-km-head-text">
-        <div class="ov-km-head-title">重要紀錄</div>
-        <div class="ov-km-head-sub">記錄案件的重要文件與作業內容</div>
+        <div class="ov-km-head-title">本週拜訪</div>
+        <div class="ov-km-head-sub">${_wkMD(_wkStart)} – ${_wkMD(_wkEnd)} 的地主拜訪紀錄(點一筆可看拜訪紀錄)</div>
       </div>
-      <span class="ov-rec-count">${OV_KM_ICON.list} 共 ${timeline.length} 筆</span>
+      <span class="ov-rec-count">${OV_KM_ICON.list} 共 ${weekContacts.length} 筆</span>
     </div>`;
 
   const stageBandEl = document.getElementById("ov-stage-band");
@@ -866,6 +873,15 @@ async function renderProjectOverviewTab(el) {
     });
   });
 
+  el.querySelectorAll("[data-ov-wk-owner]").forEach((row) => {
+    const open = () => {
+      openEditLandownerModal(Number(row.dataset.ovWkOwner), null, { readOnly: true });
+    };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") open();
+    });
+  });
   el.querySelectorAll("[data-ov-rec-doc]").forEach((row) => {
     const open = () => viewDocument(Number(row.dataset.ovRecDoc), row.dataset.ovRecName);
     row.addEventListener("click", (e) => {

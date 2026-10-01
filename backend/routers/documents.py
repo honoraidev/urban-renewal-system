@@ -53,6 +53,21 @@ VALID_DOC_TYPES = {
     "chairman_approved_roi",
     "unit_area_split",
     "invitation_letter",
+    "consultant_contract",
+    "site_briefing",
+    "common_burden",
+    "arch_standard_floor",
+    "arch_floor_1",
+    "arch_basement_1",
+    "arch_basement_2plus",
+    "architect_contract",
+    "appraisal_contract",
+    "id_copy",
+    "land_title",
+    "building_title",
+    "renewal_consent",
+    "demolition_consent",
+    "seal_consent",
 }
 
 DOC_TYPE_LABELS_MAP = {
@@ -69,10 +84,25 @@ DOC_TYPE_LABELS_MAP = {
     "consultant_document": "顧問文件",
     "briefing_material": "說明會資料",
     "architecture_drawing": "建築圖面",
-    "appraisal_result": "估價結果",
+    "appraisal_result": "估價報告",
     "chairman_approved_roi": "董事長簽核之投報表",
     "unit_area_split": "分坪",
     "invitation_letter": "邀請函",
+    "consultant_contract": "顧問合約",
+    "site_briefing": "基地簡報",
+    "common_burden": "共同負擔",
+    "arch_standard_floor": "標準層圖面",
+    "arch_floor_1": "一樓圖面",
+    "arch_basement_1": "地下一樓圖面",
+    "arch_basement_2plus": "地下二樓以下圖面",
+    "architect_contract": "建築師合約",
+    "appraisal_contract": "估價合約",
+    "id_copy": "身分證影本",
+    "land_title": "土地所有權狀",
+    "building_title": "建築所有權狀",
+    "renewal_consent": "都市更新事業計劃同意書",
+    "demolition_consent": "建物拆除同意書",
+    "seal_consent": "代刻印章同意書",
     "photo": "照片",
     "other": "其他",
 }
@@ -482,11 +512,26 @@ STANDARD_UPLOAD_NAME_LABELS = {
     "consultant_document": "顧問文件",
     "architecture_drawing": "建築圖面",
     "appraisal_result": "估價結果",
-    "consent_form_template": "同意書",
+    "consent_form_template": "意願書",
     "contract_template": "合約",
     "chairman_approved_roi": "董事長簽核之投報表",
-    "unit_area_split": "分坪",
+    "unit_area_split": "分坪表",
     "invitation_letter": "邀請函",
+    "consultant_contract": "顧問合約",
+    "site_briefing": "基地簡報",
+    "common_burden": "共同負擔",
+    "arch_standard_floor": "標準層圖面",
+    "arch_floor_1": "一樓圖面",
+    "arch_basement_1": "地下一樓圖面",
+    "arch_basement_2plus": "地下二樓以下圖面",
+    "architect_contract": "建築師合約",
+    "appraisal_contract": "估價合約",
+    "id_copy": "身分證影本",
+    "land_title": "土地所有權狀",
+    "building_title": "建築所有權狀",
+    "renewal_consent": "都市更新事業計劃同意書",
+    "demolition_consent": "建物拆除同意書",
+    "seal_consent": "代刻印章同意書",
 }
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 
@@ -521,9 +566,48 @@ def upload_document(
     if doc_type not in VALID_DOC_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid doc_type")
 
+    # 意願書只有「最近一次拜訪結果是同意」的地主才能上傳(反對 / 未決定 / 未接聽 / 沒拜訪過都不行)。
+    if doc_type == "willingness_form" and landowner_id:
+        from models.contact_log import ContactLog
+
+        latest = db.scalar(
+            select(ContactLog.contact_result)
+            .where(ContactLog.project_id == project_id, ContactLog.landowner_id == landowner_id)
+            .order_by(ContactLog.contact_date.desc(), ContactLog.id.desc())
+            .limit(1)
+        )
+        if latest != "agreed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="拜訪結果為「同意」才能上傳意願書",
+            )
+
+    # 簽約文件(綁地主的合約)要先有這位地主的意願書才能上傳。
+    if doc_type == "contract" and landowner_id:
+        has_form = db.scalar(
+            select(Document.id)
+            .where(
+                Document.project_id == project_id,
+                Document.landowner_id == landowner_id,
+                Document.doc_type == "willingness_form",
+            )
+            .limit(1)
+        )
+        if has_form is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請先上傳意願書,才能上傳簽約文件")
+
     folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 
     upload_filename = _standard_upload_name(project.name, doc_type, landowner_id, file.filename or "upload")
+    # 地主的意願書 / 簽約文件一律自動命名:「案件名稱地主姓名-意願書」「案件名稱地主姓名-合約書」
+    if landowner_id and doc_type in ("willingness_form", "contract"):
+        owner = db.get(Landowner, landowner_id)
+        safe_project = _UNSAFE_FILENAME_CHARS.sub("", project.name or "").strip()
+        safe_owner = _UNSAFE_FILENAME_CHARS.sub("", (owner.name if owner else "") or "").strip()
+        if safe_project or safe_owner:
+            label = "意願書" if doc_type == "willingness_form" else "合約書"
+            ext = os.path.splitext(file.filename or "")[1].lower()
+            upload_filename = f"{safe_project}{safe_owner}-{label}{ext}"
     content = file.file.read()
     # 讓 ActivityLogMiddleware（讀 scope["state"]，跟這個 Request 共用同一份 scope）
     # 能把實際檔名帶進案件公告 / LINE 通知，而不是只有「上傳文件」這種通用標籤。

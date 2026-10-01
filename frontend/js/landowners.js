@@ -4,6 +4,11 @@
 // 資料表,只是名稱用哪個字依目前分頁而定,所以用一個模組層級變數記住目前該用哪個字,而不是
 // 把 isLand 一路傳進每個共用的 modal 函式。
 let currentLandownerLabel = "地主";
+// 從案件總覽「本週拜訪」點進來時,地主資料視窗的「拜訪紀錄」自動展開(只展開一次)。
+let _loExpandContactsOnce = false;
+// 從案件總覽「本週拜訪」點進來的地主資料視窗是純檢視:不能編輯、不能新增拜訪紀錄、不能上傳 /
+// 刪文件,也不顯示基本資料與拜訪/簽約狀態,只看姓名門牌、拜訪紀錄、相關文件。
+let _loModalReadOnly = false;
 
 // 地主 / 土地登記 / 建物登記 / 聯絡紀錄有異動後,連帶更新專案上方的 SOP 進度與同意率、
 // 以及左側側欄的關卡徽章與案件卡片統計(提醒/警示/緊急、人數/土地/建物同意)。
@@ -128,6 +133,10 @@ async function renderIntegratedRosterTab(el) {
 // 每次切分頁籤或重整這個分頁都會被重設回第 1 頁,使用者翻到一半的頁碼就白翻了。
 let integUi = { page: 1, pageSize: 10 };
 
+// 整合清冊標題圖示:跟樓棟視圖同一套雙色扁平配色(深藍 / 灰藍 / 淺藍),但畫成不同圖案 ——
+// 一張橫式「表格」(表頭 + 三列格子),右下角疊一個「人」的圓形徽章,代表一人一列的名冊。
+const INTEG_ROSTER_ICON = `<svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true"><rect x="3" y="7" width="35" height="32" rx="3.5" fill="#1f3a8a"/><rect x="3" y="7" width="35" height="9" rx="3.5" fill="#5b7aa8"/><rect x="3" y="12" width="35" height="4" fill="#5b7aa8"/><g fill="#ffffff" opacity=".9"><rect x="7" y="20" width="8" height="4.5" rx="1"/><rect x="17" y="20" width="8" height="4.5" rx="1"/><rect x="27" y="20" width="7" height="4.5" rx="1"/><rect x="7" y="27" width="8" height="4.5" rx="1"/><rect x="17" y="27" width="8" height="4.5" rx="1"/><rect x="27" y="27" width="7" height="4.5" rx="1"/></g><circle cx="36" cy="35" r="10.5" fill="#dbe7f7" stroke="#ffffff" stroke-width="2"/><circle cx="36" cy="32" r="3.2" fill="#1f3a8a"/><path d="M29.8 42.2a6.2 6.2 0 0 1 12.4 0z" fill="#1f3a8a"/></svg>`;
+
 async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
   const pid = state.currentProjectId;
   const [owners, alerts, contactSummary] = await Promise.all([
@@ -235,7 +244,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:8px">
-      <h3 class="section-hero-title"><span class="hero-ic">📊</span><span>${titleText} (<span id="integ-count">${allRows.length}</span>)</span></h3>
+      <h3 class="section-hero-title"><span class="hero-ic" style="display:inline-flex;align-items:center;background:none">${INTEG_ROSTER_ICON}</span><span>${titleText} (<span id="integ-count">${allRows.length}</span>)</span></h3>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
         <div class="hero-search">${BV_ICON.search}<input type="text" id="integrated-search" placeholder="搜尋姓名 / 地號 / 門牌..."></div>
         ${ddHtml("integ-visit-dd", "聯絡結果", [
@@ -291,7 +300,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
       #integ-roster th:nth-child(2), #integ-roster td:nth-child(2) { width:14%; }
       #integ-roster .col-floor { width:8%; }
       #integ-roster .col-nowrap { width:16%; }
-      #integ-roster .col-name { width:12%; font-weight:600; }
+      #integ-roster .col-name { width:calc(6em + 50px); min-width:calc(6em + 50px); max-width:calc(6em + 50px); font-weight:600; }
       #integ-roster .num { width:9%; text-align:right; font-variant-numeric:tabular-nums; }
       #integ-roster th.num { text-align:right; }
       #integ-roster .row-actions { width:90px; text-align:right; white-space:nowrap; }
@@ -367,7 +376,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     <div id="integ-roster"><div class="table-wrap">
       <table>
         <thead><tr>
-          <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號<br>(地段)</th><th>姓名</th>
+          <th class="col-idx">#</th><th>建物門牌</th><th class="col-floor">樓層</th><th>地號<br>(地段)</th><th class="col-name">姓名</th>
           <th class="num">土地㎡</th><th class="num">土地(坪)</th><th class="num">建物㎡</th><th class="num">建物(坪)</th>
           <th class="row-actions">操作</th>
         </tr></thead>
@@ -1232,8 +1241,10 @@ function loFieldHtml(label, name, value, extra) {
 // siblingIds:同一個樓棟視圖格子裡的共有人 id 清單(依序),讓編輯視窗能用標題列的
 // ▲▼ 按鈕或上下鍵切換到下一 / 上一位,不用先跳一層「此門牌共有人」清單再點進去。
 // 單筆編輯(從整合清冊等清單點「編輯」進來)不傳這個參數,就不會出現切換 UI。
-async function openEditLandownerModal(landownerId, siblingIds = null) {
-  if (_landownerEditModeFor !== landownerId) {
+async function openEditLandownerModal(landownerId, siblingIds = null, opts = {}) {
+  const readOnly = !!(opts && opts.readOnly);
+  _loModalReadOnly = readOnly;
+  if (_landownerEditModeFor !== landownerId || readOnly) {
     landownerEditMode = false;
     _landownerEditModeFor = landownerId;
   }
@@ -1244,11 +1255,14 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   let owner;
   let contacts = [];
   let latestContact = null;
+  let roDocs = [];
   try {
-    const [ownerResult, contactsResult] = await Promise.all([
+    const [ownerResult, contactsResult, docsResult] = await Promise.all([
       api(`/projects/${state.currentProjectId}/landowners/${landownerId}`),
       api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, { silent: true }).catch(() => []),
+      readOnly ? api(`/projects/${state.currentProjectId}/documents`, { silent: true }).catch(() => []) : Promise.resolve([]),
     ]);
+    roDocs = (docsResult || []).filter((d) => d.landowner_id === landownerId);
     owner = ownerResult;
     contacts = contactsResult;
     // 後端已依 contact_date 新到舊排序(見 routers/contacts.py list_contacts),第一筆就是最近一次。
@@ -1280,12 +1294,12 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
     _loEditorCurrentId = landownerId;
   }
   const idx = siblings ? siblings.indexOf(landownerId) : -1;
-  const canAddContact = isEditor() && !isLandowner() && !alreadyAgreed;
-  const editToggleBtnHtml = landownerEditMode
-    ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn">👁 檢視模式</button>`
+  const canAddContact = isEditor() && !isLandowner() && !alreadyAgreed && !readOnly;
+  const editToggleBtnHtml = readOnly ? "" : landownerEditMode
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-edit-toggle-btn" title="檢視模式" aria-label="檢視模式">👁</button>`
     : `<button type="button" class="btn-primary btn-sm" id="lo-edit-toggle-btn">✏️ 編輯</button>`;
   const addContactBtnHtml = canAddContact
-    ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 拜訪資料</button>`
+    ? `<button type="button" class="btn-secondary btn-sm" id="lo-add-contact-btn">+ 拜訪紀錄</button>`
     : "";
   const siblingNavHtml = siblings
     ? `<span class="lo-sibling-nav">
@@ -1294,30 +1308,62 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         <button type="button" class="lo-sibling-btn" onclick="switchLandownerSibling(1)" title="下一位">›</button>
       </span>`
     : "";
+  const expandContacts = _loExpandContactsOnce;
+  // 純檢視:拜訪紀錄不收合,每筆可點開看詳細;相關文件直接列出來(不用再按按鈕)。
+  const roContactsHtml = readOnly
+    ? `<div class="lo-ro-title">拜訪紀錄${contacts.length ? ` <span class="lod-count">${contacts.length}</span>` : ""}</div>
+      ${contacts.length
+      ? `<div class="lo-ro-list">${contacts
+        .map((c) => {
+          const rk = c.contact_result === "agreed" ? "agreed" : c.contact_result === "opposed" ? "opposed" : "pending";
+          return `<details class="lo-ro-contact">
+              <summary>
+                <span class="clm-date">${fmtDateTime(c.contact_date)}</span>
+                <span class="clm-method">${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span>
+                <span class="consent-status-badge cs-${rk}">${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span>
+              </summary>
+              <div class="lo-ro-detail">
+                <div class="clm-row"><span class="clm-label">拜訪時間</span><span>${fmtDateTime(c.contact_date)}</span></div>
+                <div class="clm-row"><span class="clm-label">拜訪方式</span><span>${CONTACT_METHOD_LABEL[c.contact_method] || c.contact_method}</span></div>
+                <div class="clm-row"><span class="clm-label">拜訪結果</span><span>${CONTACT_RESULT_LABEL[c.contact_result] || c.contact_result}</span></div>
+                <div class="clm-row"><span class="clm-label">拜訪人員</span><span>${escapeHtml(c.staff_name || "—")}</span></div>
+                <div class="clm-row"><span class="clm-label">拜訪紀錄</span><span>${c.notes ? escapeHtml(c.notes) : "—"}</span></div>
+                ${c.next_follow_up_date ? `<div class="clm-row"><span class="clm-label">下次跟進</span><span>${fmtDate(c.next_follow_up_date)}</span></div>` : ""}
+              </div>
+            </details>`;
+        })
+        .join("")}</div>`
+      : `<div class="helper-text">尚無拜訪紀錄</div>`}`
+    : "";
+  const roDocsHtml = readOnly
+    ? `<div class="lo-ro-title">相關文件${roDocs.length ? ` <span class="lod-count">${roDocs.length}</span>` : ""}</div>
+      ${roDocs.length
+      ? `<div class="lod-doc-list">${roDocs
+        .map(
+          (d) => `<div class="lod-doc">
+            <div class="lod-doc-main">
+              <div class="lod-doc-name" title="${escapeHtml(d.file_name)}">${escapeHtml(d.file_name)}</div>
+              <div class="lod-doc-meta"><span class="lod-chip">${escapeHtml(DOC_TYPE_LABEL[d.doc_type] || d.doc_type)}</span>${fmtDateTime(d.uploaded_at)}</div>
+            </div>
+            <button type="button" class="lod-icon-btn" data-lo-ro-view="${d.id}" data-lo-ro-name="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
+            <button type="button" class="lod-icon-btn" data-lo-ro-dl="${d.id}" data-lo-ro-name="${escapeHtml(d.file_name)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
+          </div>`
+        )
+        .join("")}</div>`
+      : `<div class="helper-text">這位地主目前沒有相關文件</div>`}`
+    : "";
+  _loExpandContactsOnce = false;
   const titleHtml = `<span class="lo-modal-title-row">
-      <span class="lo-modal-title-left">編輯${currentLandownerLabel}${siblingNavHtml}</span>
-      <span class="lo-modal-title-right">${addContactBtnHtml}${editToggleBtnHtml}</span>
+      <span class="lo-modal-title-left">${currentLandownerLabel}資料${siblingNavHtml}</span>
+      <span class="lo-modal-title-right">${landownerEditMode ? addContactBtnHtml + editToggleBtnHtml : ""}</span>
     </span>`;
   openModal(
     titleHtml,
     `
     <form id="landowner-edit-form">
-      <details class="lo-edit-section" open>
-        <summary>地主基本資料</summary>
-        <div class="lo-edit-section-body">
-          <div class="field-row">
-            ${loFieldHtml("姓名", "name", owner.name, "required")}
-            ${loFieldHtml("統一編號", "id_number", owner.id_number, 'placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"')}
-          </div>
-          <div class="field-row">
-            ${loFieldHtml("市內電話", "phone_landline", owner.phone_landline, 'placeholder="例如 02-12345678" autocomplete="off"')}
-            ${loFieldHtml("行動電話", "phone_mobile", owner.phone_mobile, 'placeholder="例如 0912345678" autocomplete="off"')}
-          </div>
-          <div class="field-row">
-            ${loFieldHtml("LINE ID", "line_id", owner.line_id, 'autocomplete="off"')}
-            ${loFieldHtml("電子郵箱", "email", owner.email, 'type="email" autocomplete="off"')}
-          </div>
-          <div class="field">
+      <div class="field-row lo-edit-top">
+        ${loFieldHtml("姓名", "name", owner.name, "required")}
+        <div class="field">
             <label>門牌地址${doorAddresses.length > 1 ? `(共 ${doorAddresses.length} 戶)` : ""}</label>
             ${landownerEditMode
       ? (buildingRecordsList.length
@@ -1338,6 +1384,22 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
             </div>`
     }
           </div>
+      </div>
+
+      ${readOnly ? "" : `      <details class="lo-edit-section"${landownerEditMode ? " open" : ""}>
+        <summary>地主基本資料</summary>
+        <div class="lo-edit-section-body">
+          <div class="field-row">
+            ${loFieldHtml("統一編號", "id_number", owner.id_number, 'placeholder="例如 A123456789 (二類遮罩)" autocomplete="off"')}
+          </div>
+          <div class="field-row">
+            ${loFieldHtml("市內電話", "phone_landline", owner.phone_landline, 'placeholder="例如 02-12345678" autocomplete="off"')}
+            ${loFieldHtml("行動電話", "phone_mobile", owner.phone_mobile, 'placeholder="例如 0912345678" autocomplete="off"')}
+          </div>
+          <div class="field-row">
+            ${loFieldHtml("LINE ID", "line_id", owner.line_id, 'autocomplete="off"')}
+            ${loFieldHtml("電子郵箱", "email", owner.email, 'type="email" autocomplete="off"')}
+          </div>
           ${deedAddresses.length
       ? `<div class="field">
             <label>原謄本門牌地址${deedAddresses.length > 1 ? `(共 ${deedAddresses.length} 戶)` : ""}</label>
@@ -1352,9 +1414,9 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
       : ""}
           ${loFieldHtml("地址", "address", owner.address)}
         </div>
-      </details>
+      </details>`}
 
-      <div class="field">
+      ${landownerEditMode || readOnly ? "" : `      <div class="field">
         <label>拜訪 / 簽約狀態</label>
         ${landownerEditMode
       ? `<div class="sop-checklist lo-visit-checklist">
@@ -1371,11 +1433,11 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
                 <div class="sop-checklist-icon">${owner.agreement_status === "signed" ? "✓" : ""}</div>
                 <div style="flex:1">
                   <div class="sop-checklist-label">已簽約</div>
-                  <div class="sop-checklist-sub">${owner.agreement_status === "signed" ? "已上傳意願書" : "上傳意願書即完成簽約"}</div>
+                  <div class="sop-checklist-sub">${owner.agreement_status === "signed" ? "已上傳簽約文件" : "上傳意願書與簽約文件後完成簽約"}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
                   ${owner.agreement_status === "signed" ? `<button type="button" class="btn-link btn-sm" data-lo-reset="agreement">取消</button>` : ""}
-                  <button type="button" class="btn-${owner.agreement_status === "signed" ? "secondary" : "primary"} btn-sm" data-lo-upload="willingness_form">${owner.agreement_status === "signed" ? "重新上傳" : "上傳意願書"}</button>
+                  <span class="helper-text">請到「相關文件」上傳意願書與簽約文件</span>
                 </div>
                 <input type="file" data-lo-upload-input="willingness_form" style="display:none">
               </div>`
@@ -1387,9 +1449,9 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
           <span class="mini-badge ${owner.agreement_status === "signed" ? "gate-ok" : ""}">${owner.agreement_status === "signed" ? "✓ 已簽約" : "未簽約"}</span>
         </div>`
     }
-      </div>
+      </div>`}
 
-      <details class="lo-edit-section">
+      ${readOnly ? roContactsHtml + roDocsHtml : landownerEditMode ? "" : `      <details class="lo-edit-section"${expandContacts ? " open" : ""}>
         <summary>拜訪紀錄${contacts.length ? ` (${contacts.length})` : ""}</summary>
         <div class="lo-edit-section-body">
           ${contacts.length
@@ -1414,24 +1476,40 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         </div>
       </details>
 
+`}
+
       <div class="modal-footer">
         ${landownerEditMode
       ? `<button type="button" class="btn-secondary" id="lo-cancel-btn">取消</button>
            <button type="submit" class="btn-primary">儲存</button>`
-      : `<button type="button" class="btn-secondary" id="lo-cancel-btn">關閉</button>`
+      : `${isLandowner() || readOnly ? "" : `<button type="button" class="btn-secondary lo-footer-left" id="lo-related-docs-btn">📎 相關文件</button>`}${addContactBtnHtml}${editToggleBtnHtml}`
     }
       </div>
     </form>`
   );
 
-  document.getElementById("lo-cancel-btn").addEventListener("click", () => {
+  // 編輯模式不要右上角叉叉(有「取消」鈕);檢視模式保留叉叉。
+  if (landownerEditMode) document.getElementById("modal-close-btn")?.remove();
+
+  document.getElementById("lo-cancel-btn")?.addEventListener("click", () => {
     landownerEditMode = false;
     closeModal();
   });
 
-  document.getElementById("lo-edit-toggle-btn").addEventListener("click", () => {
+  document.getElementById("lo-edit-toggle-btn")?.addEventListener("click", () => {
     landownerEditMode = !landownerEditMode;
-    openEditLandownerModal(landownerId, siblingIds);
+    openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
+  });
+
+  document.querySelectorAll("[data-lo-ro-view]").forEach((b) =>
+    b.addEventListener("click", () => viewDocument(Number(b.dataset.loRoView), b.dataset.loRoName))
+  );
+  document.querySelectorAll("[data-lo-ro-dl]").forEach((b) =>
+    b.addEventListener("click", () => downloadDocument(Number(b.dataset.loRoDl), b.dataset.loRoName))
+  );
+
+  document.getElementById("lo-related-docs-btn")?.addEventListener("click", () => {
+    openLandownerDocsSidePanel(landownerId, siblingIds);
   });
 
   document.getElementById("lo-add-contact-btn")?.addEventListener("click", () => {
@@ -1462,8 +1540,15 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
   // 拜訪 / 簽約狀態改成 SOP 關卡的做法:「已拜訪」是純勾選,勾了才會多出「已簽約」
   // 這格(沒拜訪完全不顯示簽約選項);「已簽約」靠上傳意願書判定,不用另外傳合約。
   // 每個動作都直接呼叫 API、整個重開編輯視窗刷新畫面,做法跟共有人上下鍵切換一致。
+  const renderedAt = Date.now();
   document.querySelectorAll("[data-lo-visit-toggle]").forEach((cb) => {
-    cb.addEventListener("change", async () => {
+    cb.addEventListener("change", async (ev) => {
+      // 剛開啟編輯模式的瞬間(例如點「編輯」那一下的殘留點擊)不算使用者勾選,
+      // 還原勾選狀態、不送出,避免一按編輯就被自動改成已拜訪。
+      if (!ev.isTrusted || Date.now() - renderedAt < 600) {
+        cb.checked = !cb.checked;
+        return;
+      }
       const next = cb.checked ? "visited" : "not_visited";
       const payload = { visit_status: next };
       // 取消拜訪時,已簽約不能繼續留著,一起歸零 - 不允許「沒拜訪卻已簽約」殘留
@@ -1472,7 +1557,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: payload });
         syncProjectAggregates();
         _refreshBackgroundIfBuilding();
-        openEditLandownerModal(landownerId, siblingIds);
+        openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
       } catch (err) {
         cb.checked = !cb.checked;
       }
@@ -1503,7 +1588,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         toast("已上傳並更新狀態", "success");
         syncProjectAggregates();
         _refreshBackgroundIfBuilding();
-        openEditLandownerModal(landownerId, siblingIds);
+        openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
       } catch (err) {
         input.value = "";
       }
@@ -1516,7 +1601,7 @@ async function openEditLandownerModal(landownerId, siblingIds = null) {
         toast("已取消", "success");
         syncProjectAggregates();
         _refreshBackgroundIfBuilding();
-        openEditLandownerModal(landownerId, siblingIds);
+        openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
       } catch (err) { }
     });
   });
@@ -1573,6 +1658,221 @@ function _nowForDatetimeLocalInput() {
   return d.toISOString().slice(0, 16);
 }
 
+// 這位地主的「相關文件」視窗:意願書上傳 + 拜訪→意願書→簽約 進度。
+// 只有最近一次拜訪結果是「同意」才能上傳意願書;反對/未決定 = 已拜訪但不能上傳;
+// 未接聽或沒拜訪過 = 未拜訪、不能上傳。
+let _loDocsChanged = false;
+async function openLandownerDocsSidePanel(landownerId, siblingIds = null) {
+  // 已經開著就只更新內容(不重開視窗、不閃爍);第一次才建立面板。
+  if (!document.getElementById("modal-side-panel")) {
+    openSidePanel("相關文件", `<div class="helper-text">載入中…</div>`, { width: "460px" });
+  }
+  let owner, contacts, docs;
+  try {
+    [owner, contacts, docs] = await Promise.all([
+      api(`/projects/${state.currentProjectId}/landowners/${landownerId}`),
+      api(`/projects/${state.currentProjectId}/landowners/${landownerId}/contacts`, { silent: true }).catch(() => []),
+      api(`/projects/${state.currentProjectId}/documents`),
+    ]);
+  } catch (e) {
+    return;
+  }
+  const panel = document.getElementById("modal-side-panel");
+  const body = panel && panel.querySelector(".modal-body");
+  if (!body) return;
+  // 關閉面板時,如果有變動過,才把後面的地主資料視窗刷新一次(狀態徽章才會跟上)。
+  const closeBtn = panel.querySelector("#modal-side-close-btn");
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      panel.remove();
+      if (_loDocsChanged) {
+        _loDocsChanged = false;
+        openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
+      }
+    };
+  }
+
+  const forms = docs
+    .filter((d) => d.landowner_id === landownerId && d.doc_type === "willingness_form")
+    .sort((x, y) => parseApiDate(y.uploaded_at) - parseApiDate(x.uploaded_at));
+  const contracts = docs
+    .filter((d) => d.landowner_id === landownerId && d.doc_type === "contract")
+    .sort((x, y) => parseApiDate(y.uploaded_at) - parseApiDate(x.uploaded_at));
+  const otherDocs = docs.filter((d) => d.landowner_id === landownerId && d.doc_type !== "willingness_form" && d.doc_type !== "contract");
+  const latest = contacts[0] || null;
+  const result = latest ? latest.contact_result : null;
+  const ro = _loModalReadOnly;
+  const canUpload = result === "agreed" && isEditor() && !isLandowner() && !ro;
+  const visited = owner.visit_status === "visited";
+  const visitedLog = contacts.find((c) => c.contact_result !== "no_answer");
+  const signed = owner.agreement_status === "signed";
+  const lastForm = forms[0] || null;
+  const lastContract = contracts[0] || null;
+  // 簽約 = 意願書之後還要再上傳簽約文件(合約);沒有意願書就不能上傳簽約文件。
+  const canUploadContract = !!lastForm && isEditor() && !isLandowner() && !ro;
+  // 同一個上傳區:還沒有意願書 → 上傳的是意願書;已有意願書 → 上傳的是簽約文件。
+  const nextIsContract = !!lastForm;
+  const zoneEnabled = nextIsContract ? canUploadContract : canUpload;
+
+  const blockedMsg = !latest
+    ? "尚未有拜訪紀錄,請先「+ 拜訪紀錄」,結果為同意才能上傳意願書"
+    : result === "no_answer"
+      ? "還未拜訪,不能進行上傳作業!"
+      : result === "opposed"
+        ? "最近一次拜訪結果為反對,已拜訪但不能上傳意願書"
+        : result === "agreed"
+          ? "你的角色沒有上傳權限"
+          : "最近一次拜訪結果尚未同意(已拜訪),不能上傳意願書";
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const dt = (iso) => {
+    const d = parseApiDate(iso);
+    return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  };
+  const ICON = {
+    check: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+    file: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>`,
+    pen: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`,
+    dash: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 12h10"/></svg>`,
+    eye: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>`,
+    upload: `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 7.97"/><path d="M12 12v8M9 15l3-3 3 3"/></svg>`,
+    lock: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
+  };
+
+  // 三步驟進度:on = 已完成(綠),cur = 目前這一步(藍),off = 還沒到(灰)
+  const step = (state, icon, title, sub, file) => `<div class="lod-step lod-${state}">
+      <div class="lod-dot">${icon}</div>
+      <div class="lod-st-title">${title}</div>
+      ${file ? `<div class="lod-st-file" title="${escapeHtml(file)}">${escapeHtml(file)}</div>` : ""}
+      <div class="lod-st-sub">${sub}</div>
+    </div>`;
+  const bar = (on) => `<div class="lod-bar${on ? " lod-bar-on" : ""}"></div>`;
+
+  const docRow = (d, tag, canDelete) => `<div class="lod-doc">
+      <div class="lod-doc-ic">${ICON.file}</div>
+      <div class="lod-doc-main">
+        <div class="lod-doc-name" title="${escapeHtml(d.file_name)}">${escapeHtml(d.file_name)}</div>
+        <div class="lod-doc-meta"><span class="lod-chip">${escapeHtml(tag)}</span>${dt(d.uploaded_at)}</div>
+      </div>
+      <button type="button" class="lod-icon-btn" data-lo-doc-view="${d.id}" data-lo-doc-name="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${ICON.eye}</button>
+      ${canDelete ? `<button type="button" class="lod-icon-btn lod-icon-danger" data-lo-doc-del="${d.id}" title="刪除" aria-label="刪除">${ICON.trash}</button>` : ""}
+    </div>`;
+
+  const docRows = [
+    ...forms.map((d) => docRow(d, "意願書", isEditor() && !ro)),
+    ...contracts.map((d) => docRow(d, "簽約文件", isEditor() && !ro)),
+  ].join("");
+  const otherRows = otherDocs.map((d) => docRow(d, DOC_TYPE_LABEL[d.doc_type] || d.doc_type, false)).join("");
+  const docCount = forms.length + contracts.length;
+
+  const statusMsg = signed
+    ? "已完成拜訪、上傳意願書與簽約文件,已簽約。"
+    : lastForm
+      ? "已完成拜訪並上傳意願書,請上傳簽約文件完成簽約。"
+      : canUpload
+        ? "已拜訪且同意,請上傳意願書。"
+        : blockedMsg;
+  const statusTone = signed ? "ok" : lastForm || canUpload ? "go" : "wait";
+  const statusIcon = signed ? ICON.check : lastForm || canUpload ? ICON.upload : ICON.lock;
+
+  const zoneHtml = (id, inputId, enabled, lockedMsg) => enabled
+    ? `<label id="${id}" class="lod-drop">
+          <span class="lod-drop-ic">${ICON.upload}</span>
+          <span class="lod-drop-text">
+            <b>將檔案拖曳到此,或 <u>點擊選擇檔案</u></b>
+            <small>支援 PDF、JPG、JPEG、PNG(單檔上限 10MB)</small>
+          </span>
+          <input type="file" id="${inputId}" accept=".pdf,.jpg,.jpeg,.png" style="display:none">
+        </label>`
+    : `<div class="lod-drop lod-drop-locked"><span class="lod-drop-ic">${ICON.lock}</span><span class="lod-drop-text"><b>${escapeHtml(lockedMsg)}</b></span></div>`;
+
+  body.innerHTML = `
+    <div class="lod-steps">
+      ${step(visited ? "on" : "off", visited ? ICON.check : ICON.dash, visited ? "已拜訪" : "未拜訪", visited && visitedLog ? dt(visitedLog.contact_date) : "—")}
+      ${bar(visited && !!lastForm)}
+      ${step(lastForm ? "on" : visited && canUpload ? "cur" : "off", ICON.file, lastForm ? "已上傳意願書" : "未上傳意願書", lastForm ? dt(lastForm.uploaded_at) : "—", lastForm ? lastForm.file_name : "")}
+      ${bar(!!lastForm && signed)}
+      ${step(signed ? "on" : lastForm ? "cur" : "off", signed ? ICON.check : ICON.pen, signed ? "已簽約" : "尚未簽約", signed ? (lastContract ? dt(lastContract.uploaded_at) : "已完成簽約") : "尚未完成簽約", signed && lastContract ? lastContract.file_name : "")}
+    </div>
+    <div class="lod-status lod-status-${statusTone}"><span class="lod-status-ic">${statusIcon}</span><span>${escapeHtml(statusMsg)}</span></div>
+    ${ro ? "" : `<div class="lod-sec-title">${nextIsContract ? "上傳簽約文件" : "上傳意願書"}</div>
+    ${zoneHtml("lo-docs-drop", "lo-docs-input", zoneEnabled, nextIsContract ? "你的角色沒有上傳權限" : blockedMsg)}`}
+    ${docRows ? `<div class="lod-sec-title">已上傳文件 <span class="lod-count">${docCount}</span></div><div class="lod-doc-list">${docRows}</div>` : ""}
+    ${otherRows ? `<div class="lod-sec-title">其他相關文件</div><div class="lod-doc-list">${otherRows}</div>` : ""}`;
+
+  const reopen = async () => {
+    _loDocsChanged = true;
+    syncProjectAggregates();
+    _refreshBackgroundIfBuilding();
+    await openLandownerDocsSidePanel(landownerId, siblingIds);
+  };
+
+  body.querySelectorAll("[data-lo-doc-view]").forEach((b) =>
+    b.addEventListener("click", () => viewDocument(Number(b.dataset.loDocView), b.dataset.loDocName))
+  );
+  body.querySelectorAll("[data-lo-doc-del]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      if (!confirm("確定要刪除這份文件嗎?")) return;
+      try {
+        const delId = Number(b.dataset.loDocDel);
+        const isForm = forms.some((f) => f.id === delId);
+        await api(`/projects/${state.currentProjectId}/documents/${delId}`, { method: "DELETE" });
+        // 刪掉最後一份簽約文件(或最後一份意願書)後,簽約就不成立,狀態退回未簽約
+        const remainingContracts = contracts.filter((c) => c.id !== delId).length;
+        const remainingForms = forms.filter((f) => f.id !== delId).length;
+        if (signed && ((!isForm && remainingContracts === 0) || (isForm && remainingForms === 0))) {
+          await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: { agreement_status: "not_signed" } });
+        }
+        toast("已刪除", "success");
+        await reopen();
+      } catch (err) { }
+    })
+  );
+
+  const wireZone = (zoneId, inputId, docType, markSigned) => {
+    const input = body.querySelector("#" + inputId);
+    const drop = body.querySelector("#" + zoneId);
+    const doUpload = async (file) => {
+      if (!file) return;
+      if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) {
+        toast("只支援 PDF、JPG、JPEG、PNG", "error");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast("單檔上限 10MB", "error");
+        return;
+      }
+      if (drop) {
+        drop.style.pointerEvents = "none";
+        drop.style.opacity = ".6";
+        drop.innerHTML = `<div style="font-weight:700;padding:18px 0">上傳中,請稍候…</div>`;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("doc_type", docType);
+      fd.append("landowner_id", landownerId);
+      try {
+        await api(`/projects/${state.currentProjectId}/documents`, { method: "POST", body: fd, isForm: true });
+        if (markSigned) {
+          await api(`/projects/${state.currentProjectId}/landowners/${landownerId}`, { method: "PATCH", body: { agreement_status: "signed" } });
+        }
+        toast(markSigned ? "已上傳簽約文件,完成簽約" : "已上傳意願書", "success");
+      } catch (err) { }
+      await reopen();
+    };
+    if (input) input.addEventListener("change", () => doUpload(input.files[0]));
+    if (drop) {
+      drop.addEventListener("dragover", (e) => e.preventDefault());
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        doUpload(e.dataTransfer.files[0]);
+      });
+    }
+  };
+  wireZone("lo-docs-drop", "lo-docs-input", nextIsContract ? "contract" : "willingness_form", nextIsContract);
+}
+
 function contactSidePanelFieldsHtml() {
   return `
     <div class="field"><label>拜訪時間</label><input type="datetime-local" name="c_contact_date" value="${_nowForDatetimeLocalInput()}" required></div>
@@ -1583,10 +1883,10 @@ function contactSidePanelFieldsHtml() {
     </div>
     <div class="field"><label>拜訪結果</label>
       <select name="c_contact_result">
-        ${Object.entries(CONTACT_RESULT_LABEL).map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
+        ${Object.entries(CONTACT_RESULT_LABEL).filter(([k]) => k !== "callback_needed").map(([k, v]) => `<option value="${k}" ${k === "undecided" ? "selected" : ""}>${v}</option>`).join("")}
       </select>
     </div>
-    <div class="field"><label>紀錄備註</label><textarea name="c_notes" rows="3"></textarea></div>`;
+    <div class="field"><label>拜訪紀錄</label><textarea name="c_notes" rows="3"></textarea></div>`;
 }
 
 function openContactSidePanel(landownerId, siblingIds) {
@@ -1631,7 +1931,7 @@ function openContactSidePanel(landownerId, siblingIds) {
       toast("已建立拜訪紀錄", "success");
       syncProjectAggregates();
       _refreshBackgroundIfBuilding();
-      openEditLandownerModal(landownerId, siblingIds);
+      openEditLandownerModal(landownerId, siblingIds, { readOnly: _loModalReadOnly });
     } catch (err) {
       toast(`建立失敗:${err && err.message ? err.message : err}`, "error");
     }

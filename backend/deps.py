@@ -107,12 +107,10 @@ def _landowner_owns_something(db: Session, project_id: int, user_id: int) -> boo
 
 
 def _has_project_access(db: Session, project: Project, user: User) -> bool:
-    """L0~L2(MANAGE_ROLES)一律全站可見/可寫,不需要是 ProjectMember - 改回
-    2026-09 之前的「全站權限模型」只保留給這三個角色。L3 案件負責人 / L4 案件工作
-    人員 / L5 檢視者現在只能碰自己建立的、或被加進 ProjectMember 名單的案件。"""
+    """L0~L2(MANAGE_ROLES)一律全站可見/可寫,不需要是 ProjectMember。
+    L3 案件負責人 / L4 案件工作人員 / L5 檢視者只能碰被 L0~L2 加進 ProjectMember
+    名單的案件(L3 不能自行開案,所以不再有「自己建立的案件」這條路)。"""
     if user.role in MANAGE_ROLES:
-        return True
-    if project.created_by == user.id:
         return True
     return _is_project_member(db, project.id, user.id)
 

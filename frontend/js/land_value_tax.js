@@ -7,6 +7,10 @@
 // 前次移轉現值的物價指數調整比例(%,以前次現值為基期100換算)沒有自動化資料來源 - 國稅局/
 // 地方稅務局的「土地增值稅分算表」才有逐年精確數字,系統不生造假資料,改用 land_records.
 // ltt_cpi_index 讓承辦人依單據手動輸入,留空視為100(不調整),維持原本可用的行為。
+// 土地增值稅試算標題圖示:跟樓棟視圖同一套雙色扁平配色(深藍 / 灰藍 / 淺藍) ——
+// 深藍計算機(淺藍螢幕 + 按鍵格),右上角灰藍「%」徽章,代表稅率試算。
+const LTT_TITLE_ICON = `<svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true"><rect x="7" y="5" width="28" height="39" rx="3.5" fill="#1f3a8a"/><rect x="11" y="9" width="20" height="9" rx="1.8" fill="#dbe7f7"/><g fill="#ffffff" opacity=".9"><rect x="11" y="22" width="5" height="5" rx="1.2"/><rect x="18.5" y="22" width="5" height="5" rx="1.2"/><rect x="26" y="22" width="5" height="5" rx="1.2"/><rect x="11" y="29.5" width="5" height="5" rx="1.2"/><rect x="18.5" y="29.5" width="5" height="5" rx="1.2"/><rect x="26" y="29.5" width="5" height="5" rx="1.2"/></g><rect x="11" y="37" width="12.5" height="4" rx="1.4" fill="#5b7aa8"/><rect x="26" y="37" width="5" height="4" rx="1.4" fill="#5b7aa8"/><circle cx="37" cy="13" r="9.5" fill="#5b7aa8" stroke="#ffffff" stroke-width="2"/><circle cx="33.8" cy="10" r="1.9" fill="#ffffff"/><circle cx="40.2" cy="16" r="1.9" fill="#ffffff"/><path d="M40.5 8.5l-7 9" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+
 function _lttGain({ originalValue, currentValue, cpiIndex, deductibleCost }) {
   const idx = cpiIndex && cpiIndex > 0 ? cpiIndex : 100;
   const adjustedOriginal = originalValue * (idx / 100);
@@ -225,7 +229,7 @@ async function renderLandValueTaxTab(el) {
     <div class="lv-page">
       <div class="lv-head">
         <div class="lv-title-area">
-          <span class="lv-title-icon">${LTT_ICON.calc}</span>
+          <span class="lv-title-icon" style="background:none;box-shadow:none;width:auto;height:auto;border:none">${LTT_TITLE_ICON}</span>
           <div>
             <div class="lv-title-line"><h2 class="lv-title">土地增值稅試算</h2><span class="lv-pill">自用／一般稅率同時試算</span></div>
             <div class="lv-sub-title">共 ${landOwners.length} 位地主 / ${parcelCount} 筆土地登記</div>

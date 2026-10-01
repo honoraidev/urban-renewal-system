@@ -175,6 +175,15 @@ function initAuth() {
     });
   }
 
+  // 點名字也能展開(跟點頭像同一個動作)
+  const navUserName = document.getElementById("nav-user-name");
+  if (navUserName && avatarBtn) {
+    navUserName.addEventListener("click", (e) => {
+      e.stopPropagation();
+      avatarBtn.click();
+    });
+  }
+
   const dropdown = document.getElementById("avatar-dropdown");
   if (dropdown) dropdown.addEventListener("click", (e) => e.stopPropagation());
   document.addEventListener("click", closeAvatarDropdown);

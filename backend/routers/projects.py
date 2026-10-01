@@ -127,12 +127,12 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         # L0~L2:全站可見,不限自己是不是 ProjectMember。
         projects_stmt = select(Project).order_by(Project.created_at.desc())
     else:
-        # L3~L5:只看得到自己建立、或被加入成員名單的案件(見 deps._has_project_access
+        # L3~L5:只看得到被加入成員名單的案件(見 deps._has_project_access
         # 同一套規則)。
         projects_stmt = (
             select(Project)
             .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
-            .where(or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id))
+            .where(ProjectMember.user_id == current_user.id)
             .distinct()
             .order_by(Project.created_at.desc())
         )
@@ -246,11 +246,11 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
         # L0~L2:全站可見。
         stmt = select(Project).order_by(Project.created_at.desc())
     else:
-        # L3~L5:只看得到自己建立、或被加入成員名單的案件(同 deps._has_project_access)。
+        # L3~L5:只看得到被加入成員名單的案件(同 deps._has_project_access)。
         stmt = (
             select(Project)
             .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
-            .where(or_(Project.created_by == current_user.id, ProjectMember.user_id == current_user.id))
+            .where(ProjectMember.user_id == current_user.id)
             .distinct()
             .order_by(Project.created_at.desc())
         )
@@ -264,8 +264,8 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in EDIT_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2/L3 role required")
+    if current_user.role not in MANAGE_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="L0/L1/L2 管理層 role required")
 
     existing = db.scalar(select(Project).where(Project.project_code == payload.project_code))
     if existing is not None:
@@ -587,7 +587,7 @@ def list_project_members(db: Session = Depends(get_db), project: Project = Depen
 def add_project_member(
     payload: ProjectMemberCreate,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_editor),
+    project: Project = Depends(require_project_manager),
 ):
     user = db.get(User, payload.user_id)
     if user is None:
@@ -620,7 +620,7 @@ def add_project_member(
 def remove_project_member(
     user_id: int,
     db: Session = Depends(get_db),
-    project: Project = Depends(require_project_editor),
+    project: Project = Depends(require_project_manager),
 ):
     member = db.scalar(
         select(ProjectMember).where(

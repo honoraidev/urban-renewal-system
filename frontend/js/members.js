@@ -1,16 +1,20 @@
 "use strict";
 
+// 案件人員標題圖示:跟樓棟視圖同一套雙色扁平配色(深藍 / 灰藍 / 淺藍),
+// 畫成「團隊」:前方深藍主人像(淺藍領口),後方左右各一位灰藍人像。
+const MEMBERS_TEAM_ICON = `<svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true"><circle cx="11" cy="17" r="5" fill="#5b7aa8"/><path d="M1 37a10 10 0 0 1 20 0z" fill="#5b7aa8"/><circle cx="37" cy="17" r="5" fill="#5b7aa8"/><path d="M27 37a10 10 0 0 1 20 0z" fill="#5b7aa8"/><circle cx="24" cy="18" r="7.5" fill="#1f3a8a" stroke="#ffffff" stroke-width="2"/><path d="M9.5 45a14.5 14.5 0 0 1 29 0z" fill="#1f3a8a" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/><path d="M19.5 45l4.5-8 4.5 8z" fill="#dbe7f7"/></svg>`;
+
 async function renderMembersTab(el) {
   const pid = state.currentProjectId;
   const members = await api(`/projects/${pid}/members`);
 
   // 人員名單所有角色(除了地主,見 dashboard.js 的 landownerHiddenTabs)都能看,
   // 但只有 L0~L3(isEditor())能新增/移除 - L4 案件工作人員 / L5 檢視者進來是唯讀。
-  const canEdit = isEditor();
+  const canEdit = isManager();
 
   el.innerHTML = `
     <div class="section-toolbar">
-      <h3 class="section-hero-title"><span class="hero-ic">👤</span>案件人員 (${members.length})</h3>
+      <h3 class="section-hero-title"><span class="hero-ic" style="display:inline-flex;align-items:center;background:none">${MEMBERS_TEAM_ICON}</span><span>案件人員 (${members.length})</span></h3>
       ${canEdit ? `<button class="btn-primary btn-sm" id="add-member-btn">+ 新增人員</button>` : ""}
     </div>
     ${members.length

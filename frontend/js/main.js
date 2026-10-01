@@ -88,14 +88,21 @@ function bootstrapApp() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && openCardFlyoutBody) closeCardFlyout();
   });
-  window.addEventListener("scroll", () => { if (openCardFlyoutBody) closeCardFlyout(); }, true);
+  // 頁面捲動才關閉浮窗;在浮窗自己裡面捲動(項目多時浮窗本身可捲)不能關掉它。
+  window.addEventListener("scroll", (e) => {
+    if (!openCardFlyoutBody) return;
+    if (e.target && e.target.nodeType === 1 && e.target.closest && e.target.closest(".sb-flyout-panel")) return;
+    closeCardFlyout();
+  }, true);
 
   // 側欄「案件管理／工具與資源／系統指南」卡片各自可收合(點標題列),不記憶狀態 -
   // 每次重新整理都是展開的,跟畫面上一開始看到的樣子一致。
   document.querySelectorAll("[data-sb-card-toggle]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const card = btn.closest(".sb-card");
-      if (sb?.classList.contains("collapsed")) {
+      // 浮窗只在桌機寬度的「收合圖示列」用;手機 / 窄視窗是抽屜選單,卡片直接在抽屜裡展開收合,
+      // 不能再彈浮窗疊在抽屜上(collapsed 狀態是存在 localStorage 的,窄視窗也可能帶著)。
+      if (sb?.classList.contains("collapsed") && window.matchMedia("(min-width: 641px)").matches) {
         e.stopPropagation();
         const wasOpenForThis = openCardFlyoutCard === card;
         closeCardFlyout();

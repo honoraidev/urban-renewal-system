@@ -7,6 +7,10 @@
 // 都會被重設回第 1 頁,使用者翻到一半的頁碼就白翻了。
 let contactsUi = { page: 1, pageSize: 10 };
 
+// 地主聯絡簿標題圖示:跟樓棟視圖 / 整合清冊同一套雙色扁平配色(深藍 / 灰藍 / 淺藍),
+// 畫成「通訊錄」:深藍書本 + 灰藍書背 + 右側索引標籤 + 封面上的人像。
+const CONTACTS_BOOK_ICON = `<svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true"><rect x="8" y="4" width="30" height="40" rx="3" fill="#1f3a8a"/><rect x="8" y="4" width="7" height="40" rx="3" fill="#5b7aa8"/><rect x="11" y="4" width="4" height="40" fill="#5b7aa8"/><rect x="37" y="10" width="7" height="6" rx="1.6" fill="#5b7aa8"/><rect x="37" y="20" width="7" height="6" rx="1.6" fill="#5b7aa8"/><rect x="37" y="30" width="7" height="6" rx="1.6" fill="#5b7aa8"/><circle cx="27" cy="16.5" r="5" fill="#dbe7f7"/><path d="M17 31a10 10 0 0 1 20 0z" fill="#dbe7f7"/><rect x="19" y="35.5" width="16" height="2.6" rx="1.2" fill="#ffffff" opacity=".9"/></svg>`;
+
 async function renderContactsTab(el) {
   const pid = state.currentProjectId;
   const owners = await api(`/projects/${pid}/landowners`);
@@ -31,7 +35,7 @@ async function renderContactsTab(el) {
 
   el.innerHTML = `
     <div class="section-toolbar" style="flex-wrap:wrap;gap:12px">
-      <h3 class="section-hero-title"><span class="hero-ic">👥</span><span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</span></h3>
+      <h3 class="section-hero-title"><span class="hero-ic" style="display:inline-flex;align-items:center;background:none">${CONTACTS_BOOK_ICON}</span><span>地主聯絡簿 (<span id="contacts-count">${allRows.length}</span>)</span></h3>
       <div class="hero-search">${BV_ICON.search}<input type="text" id="contacts-search" placeholder="搜尋地主姓名 / 建物門牌 / 電話 / 戶籍地址..."></div>
       ${floorOptions.length
       ? `<details class="integ-filter">

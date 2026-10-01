@@ -47,22 +47,42 @@ _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
         {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
         {"kind": "manual", "key": "briefing_reviewed_3", "label": "主管審核通過"},
     ],
-    "consent_dual_1": [{"kind": "ratio", "threshold": 0.8, "label": "達到同意度雙門檻(人數與面積皆 ≥ 80%)"}],
+    "consent_dual_1": [{"kind": "willingness", "threshold": 0.8, "label": "意願書簽署人數達80%"}],
     "consultant_review": [
         {"kind": "doc", "doc_type": "consultant_document", "label": "上傳顧問文件"},
+        {"kind": "doc", "doc_type": "consultant_contract", "label": "上傳顧問合約"},
+        {"kind": "doc", "doc_type": "site_briefing", "label": "上傳基地簡報"},
+        {"kind": "doc", "doc_type": "common_burden", "label": "上傳共同負擔"},
+        {"kind": "doc", "doc_type": "arch_standard_floor", "label": "上傳標準層圖面"},
+        {"kind": "doc", "doc_type": "arch_floor_1", "label": "上傳一樓圖面"},
+        {"kind": "doc", "doc_type": "arch_basement_1", "label": "上傳地下一樓圖面"},
+        {"kind": "doc", "doc_type": "arch_basement_2plus", "label": "上傳地下二樓以下圖面"},
+        {"kind": "doc", "doc_type": "architect_contract", "label": "上傳建築師合約"},
+        {"kind": "doc", "doc_type": "appraisal_result", "label": "上傳估價報告"},
+        {"kind": "doc", "doc_type": "appraisal_contract", "label": "上傳估價合約"},
         {"kind": "manual", "key": "consultant_reviewed", "label": "主管審核通過"},
     ],
     "briefing_2": [
-        {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
-        {"kind": "doc", "doc_type": "consent_form_template", "label": "上傳同意書"},
         {"kind": "doc", "doc_type": "contract_template", "label": "上傳合約"},
+        {"kind": "doc", "doc_type": "consent_form_template", "label": "上傳意願書"},
+        {"kind": "doc", "doc_type": "invitation_letter", "label": "上傳邀請函"},
+        {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
+        {"kind": "doc", "doc_type": "chairman_approved_roi", "label": "上傳董事長簽核之投報表"},
+        {"kind": "doc", "doc_type": "unit_area_split", "label": "上傳分坪表"},
         {"kind": "manual", "key": "briefing_reviewed_6", "label": "主管審核通過"},
     ],
     "briefing_3": [
         {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
+        {"kind": "doc", "doc_type": "contract_template", "label": "上傳合約"},
+        {"kind": "doc", "doc_type": "id_copy", "label": "上傳身分證影本"},
+        {"kind": "doc", "doc_type": "land_title", "label": "上傳土地所有權狀"},
+        {"kind": "doc", "doc_type": "building_title", "label": "上傳建築所有權狀"},
+        {"kind": "doc", "doc_type": "renewal_consent", "label": "上傳都市更新事業計劃同意書"},
+        {"kind": "doc", "doc_type": "demolition_consent", "label": "上傳建物拆除同意書"},
+        {"kind": "doc", "doc_type": "seal_consent", "label": "上傳代刻印章同意書"},
         {"kind": "manual", "key": "briefing_reviewed_7", "label": "主管審核通過"},
     ],
-    "consent_dual_2": [{"kind": "ratio", "threshold": 0.8, "label": "達到同意度雙門檻(人數與面積皆 ≥ 80%)"}],
+    "consent_dual_2": [{"kind": "signed", "threshold": 0.8, "label": "已簽約人數達80%"}],
     "consent_final": [{"kind": "ratio", "threshold": 0.8, "label": "達到同意度雙門檻(人數與面積皆 ≥ 80%)"}],
 }
 
@@ -127,10 +147,22 @@ def _stage_tasks(db: Session, project_id: int, idx_str: str, entry: dict) -> lis
                 .where(
                     Landowner.project_id == project_id,
                     (func.coalesce(func.trim(Landowner.phone_landline), "") != "")
-                    | (func.coalesce(func.trim(Landowner.phone_mobile), "") != ""),
+                    | (func.coalesce(func.trim(Landowner.phone_mobile), "") != "")
+                    | (func.coalesce(func.trim(Landowner.email), "") != "")
+                    | (func.coalesce(func.trim(Landowner.line_id), "") != ""),
                 )
                 .limit(1)
             ) is not None
+        elif kind == "willingness":
+            from routers.sop import willingness_ratio
+
+            with_form, total_owners = willingness_ratio(db, project_id)
+            done = total_owners > 0 and with_form / total_owners >= t["threshold"]
+        elif kind == "signed":
+            from routers.sop import signed_ratio
+
+            signed_n, total_owners = signed_ratio(db, project_id)
+            done = total_owners > 0 and signed_n / total_owners >= t["threshold"]
         elif kind == "contact_rate":
             total, reached = _landowner_counts()
             done = total > 0 and reached / total >= t["threshold"]
