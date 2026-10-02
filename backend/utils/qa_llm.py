@@ -109,7 +109,11 @@ def _honorai_events(system: str, messages: list[dict]):
     它自己會記對話(conversation_id),但我們這邊每次都是獨立提問(上下文自己組進 message),
     所以問完就把那段對話刪掉,不要在它的對話清單裡堆一堆。"""
     base = settings.HONORAI_URL.rstrip("/")
-    headers = {"Authorization": f"Bearer {settings.HONORAI_API_KEY}"}
+    key = (settings.HONORAI_API_KEY or "").strip()
+    # 金鑰只會是英數字元;設定檔裡如果誤填了中文(例如範例的「貼上新金鑰」沒換掉),HTTP 標頭會直接編碼失敗,先給清楚的訊息
+    if not key.isascii() or " " in key:
+        raise RuntimeError("HONORAI_API_KEY 設定不正確(含有中文或空白),請檢查 .env.nas 後重新建立容器")
+    headers = {"Authorization": f"Bearer {key}"}
     *history, last = messages
     parts = [system]
     if history:
