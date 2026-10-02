@@ -4803,3 +4803,19 @@ select option { color: var(--text); background: var(--surface); }
 .fqai-dots i:nth-child(3) { animation-delay: .3s; }
 @keyframes fqaiDot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
 
+
+/* 知識庫 AI 問答:改成右下角懸浮按鈕(按鈕在 #view-faq 裡,離開知識庫頁就跟著隱藏) */
+.fq-ai-btn {
+  position: fixed; right: 28px; bottom: 28px; z-index: 50; margin: 0; padding: 14px 24px 14px 20px; gap: 8px; border-radius: 999px;
+  box-shadow: 0 14px 30px -10px rgba(99, 76, 219, .7), 0 4px 10px rgba(0, 0, 0, .12);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.fq-ai-btn:hover { transform: translateY(-3px); box-shadow: 0 18px 34px -10px rgba(99, 76, 219, .8), 0 6px 14px rgba(0, 0, 0, .16); }
+.fq-ai-btn:active { transform: translateY(0); }
+.fq-ai-ic { font-size: 22px; line-height: 1; animation: fqAiSpark 2.4s ease-in-out infinite; }
+.fq-ai-label { font-size: 16px; font-weight: 800; letter-spacing: .04em; }
+@keyframes fqAiSpark { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.18) rotate(12deg); } }
+@media (max-width: 640px) { .fq-ai-btn { right: 16px; bottom: 16px; padding: 12px 18px 12px 16px; } }
+@media (prefers-reduced-motion: reduce) { .fq-ai-ic { animation: none; } }
+
+#fqai-clear { margin-left: 14px; vertical-align: middle; font-size: 12.5px; }

@@ -8,34 +8,64 @@
 const remindersState = {
   pollTimer: null,
   items: [],
-  readIds: _loadBellIdSet("bellReadIds"),
-  hiddenIds: _loadBellIdSet("bellHiddenIds"),
+  readIds: new Set(),
+  hiddenIds: new Set(),
 };
 
 // 鈴鐺的「已讀」「刪除」都只是自己這邊不想再看到/不想再被算進未讀數字,不是真的要
 // 對應那筆行事曆備註做什麼 - 案件裡其他成員也看得到同一筆備註,不能因為我按了
 // 已讀/刪除就影響到別人那邊的鈴鐺(這也是為什麼「刪除」故意不打後端 DELETE API)。
-// 兩個狀態都只存在這個瀏覽器分頁的 sessionStorage,換一台裝置或重新登入都會還原,
-// 這是刻意的行為,不是要做成跨裝置同步的已讀狀態。
+// 兩個狀態存在這台瀏覽器的 localStorage(依登入帳號分開),關掉分頁、隔天再開、
+// 重新登入都還在;換一台裝置才會重新出現(不做跨裝置同步)。
+// 記的是「id + 內容」:同一筆內容不變就一直保持已讀/刪除;SOP 彙整項的內容變了
+// (例如又多了逾期項目)才會當成新的提醒重新出現。
 // - 已讀:訊息還留在清單裡,只有未讀數字不算它。
 // - 刪除:整筆從「自己這邊」的清單裡拿掉,其他人的鈴鐺完全不受影響。
+const _BELL_MAX_KEYS = 500;
+function _bellStorageKey(key) {
+  const uid = (typeof state !== "undefined" && state.user && (state.user.id ?? state.user.username)) || "anon";
+  return `${key}:${uid}`;
+}
 function _loadBellIdSet(key) {
   try {
-    return new Set(JSON.parse(sessionStorage.getItem(key) || "[]"));
+    return new Set(JSON.parse(localStorage.getItem(_bellStorageKey(key)) || "[]"));
   } catch (e) {
     return new Set();
   }
 }
 function _saveBellIdSet(key, set) {
+  const arr = [...set].slice(-_BELL_MAX_KEYS);
   try {
-    sessionStorage.setItem(key, JSON.stringify([...set]));
+    localStorage.setItem(_bellStorageKey(key), JSON.stringify(arr));
   } catch (e) { }
+  // 同步到伺服器,換裝置 / 換網址登入同一帳號才不會又冒出來
+  if (typeof userPrefSet === "function") userPrefSet(key, arr);
+}
+// 登入後把伺服器上的已讀 / 刪除清單併進來(聯集,不會把任何一邊的紀錄弄丟),再寫回兩邊
+async function _syncBellSetsFromServer() {
+  for (const [key, set] of [["bellReadIds", remindersState.readIds], ["bellHiddenIds", remindersState.hiddenIds]]) {
+    const remote = await userPrefGet(key);
+    const remoteArr = Array.isArray(remote) ? remote : [];
+    const remoteSet = new Set(remoteArr);
+    remoteArr.forEach((x) => set.add(x));
+    // 兩邊不一樣(伺服器沒有 / 本機有舊紀錄 / 伺服器多了別台裝置的紀錄)就寫回兩邊
+    if (set.size !== remoteSet.size || [...set].some((x) => !remoteSet.has(x))) _saveBellIdSet(key, set);
+  }
+  _renderBellBadge();
+  if (typeof _renderBellDropdown === "function") _renderBellDropdown();
+}
+function _bellKey(it) {
+  return `${it.id}|${it.content || ""}`;
+}
+function _bellKeyById(id) {
+  const it = remindersState.items.find((x) => x.id === id);
+  return it ? _bellKey(it) : String(id);
 }
 function _bellVisibleItems() {
-  return remindersState.items.filter((it) => !remindersState.hiddenIds.has(it.id));
+  return remindersState.items.filter((it) => !remindersState.hiddenIds.has(_bellKey(it)));
 }
 function _bellUnreadCount() {
-  return _bellVisibleItems().filter((it) => !remindersState.readIds.has(it.id)).length;
+  return _bellVisibleItems().filter((it) => !remindersState.readIds.has(_bellKey(it))).length;
 }
 
 function remindersEnsureStyle() {
@@ -133,7 +163,7 @@ function _renderBellDropdown() {
   const items = _bellVisibleItems();
   dd.innerHTML = `
     <div class="nav-bell-dropdown-head">
-      <span>🔔 緊急重要待辦</span>
+      <span>🔔 提醒</span>
       <div class="nav-bell-head-actions">
         ${_bellUnreadCount() ? `<span class="nav-bell-count">${_bellUnreadCount()}</span>` : ""}
         ${items.length
@@ -163,7 +193,7 @@ function _renderBellDropdown() {
             </div>`;
           })
           .join("")
-      : `<div class="nav-bell-empty"><span class="e">🔕</span>目前沒有緊急重要的待辦<br>逾期或快到期的重要事項會自動出現在這裡</div>`
+      : `<div class="nav-bell-empty"><span class="e">🔕</span>目前沒有提醒<br>逾期或快到期的重要事項會自動出現在這裡</div>`
     }</div>`;
 
   dd.querySelectorAll(".nav-bell-row:not(.nav-bell-row-swipe) [data-bell-item]").forEach((row) => {
@@ -175,7 +205,7 @@ function _renderBellDropdown() {
       e.stopPropagation();
       // 「已讀」只是消音,訊息本身還留著 - 不打 API 改行事曆備註,單純記在這個
       // 分頁的本地已讀清單裡,重新渲染讓右上角數字扣掉它就好。
-      remindersState.readIds.add(Number(btn.dataset.bellRead));
+      remindersState.readIds.add(_bellKeyById(Number(btn.dataset.bellRead)));
       _saveBellIdSet("bellReadIds", remindersState.readIds);
       _renderBellBadge();
       _renderBellDropdown();
@@ -186,7 +216,7 @@ function _renderBellDropdown() {
       e.stopPropagation();
       // 這筆行事曆備註可能是案件其他成員建的、大家共用同一份資料 - 「刪除」故意
       // 不打後端 API 真的刪掉,只是從自己這邊的鈴鐺清單拿掉,不影響其他人看到的。
-      remindersState.hiddenIds.add(Number(btn.dataset.bellDelete));
+      remindersState.hiddenIds.add(_bellKeyById(Number(btn.dataset.bellDelete)));
       _saveBellIdSet("bellHiddenIds", remindersState.hiddenIds);
       _renderBellBadge();
       _renderBellDropdown();
@@ -199,7 +229,7 @@ function _renderBellDropdown() {
       // SOP 自動彙整項 - 跟單筆已讀/刪除同一套本地清單,一樣不影響其他人的鈴鐺。
       const targetSet = btn.dataset.bellBulk === "clear" ? remindersState.hiddenIds : remindersState.readIds;
       const storageKey = btn.dataset.bellBulk === "clear" ? "bellHiddenIds" : "bellReadIds";
-      _bellVisibleItems().forEach((it) => targetSet.add(it.id));
+      _bellVisibleItems().forEach((it) => targetSet.add(_bellKey(it)));
       _saveBellIdSet(storageKey, targetSet);
       _renderBellBadge();
       _renderBellDropdown();
@@ -396,7 +426,11 @@ function initReminders() {
 // 登入後立刻抓一次 + 每分鐘輪詢(見 auth.js loadCurrentUser/doLogout)。
 function startReminderPolling() {
   stopReminderPolling();
+  // 登入後才知道是哪個帳號,這時才載入該帳號的已讀/刪除紀錄
+  remindersState.readIds = _loadBellIdSet("bellReadIds");
+  remindersState.hiddenIds = _loadBellIdSet("bellHiddenIds");
   refreshReminderBell();
+  _syncBellSetsFromServer();
   remindersState.pollTimer = setInterval(refreshReminderBell, 60000);
 }
 function stopReminderPolling() {

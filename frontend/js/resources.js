@@ -1847,70 +1847,216 @@ function initResources() {
 }
 
 // ===== 知識庫 AI 問答 =====
-// 對話記錄只存在記憶體(換頁 / 重新整理就清空);每次提問把最近幾輪帶給後端,後端會自己從 FAQ 挑相關條目。
-let faqAiHistory = []; // [{role, content}]
+// 對話記錄存在 localStorage(每位使用者各一份,最多留最近 40 則),關掉視窗、換頁、重新整理後再打開都還在;
+// 回答中途關掉視窗也不會丟,回答會繼續寫進記錄,重新打開就看得到。
+const FAQ_AI_MAX_MSGS = 40;
+let faqAiMsgs = null; // [{role, content, sources?}]
 let faqAiBusy = false;
+let faqAiLive = ""; // 目前正在串流中的回答(還沒完成)
 
-function faqAiBubbleHtml(role, text, sources) {
+function faqAiStoreKey() {
+  return `faqAiHistory:${(state.user && state.user.id) || "anon"}`;
+}
+
+// 記錄格式 {t: 最後更新時間(毫秒), msgs: [...]};本機和伺服器各留一份,開視窗時比 t,新的那份為準
+let faqAiUpdated = 0;
+const _faqAiClean = (raw) =>
+  Array.isArray(raw) ? raw.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string") : [];
+
+function faqAiLoad() {
+  if (faqAiMsgs) return faqAiMsgs;
+  try {
+    const raw = JSON.parse(localStorage.getItem(faqAiStoreKey()) || "null");
+    if (Array.isArray(raw)) {
+      faqAiMsgs = _faqAiClean(raw); // 舊格式(純陣列)
+    } else if (raw && Array.isArray(raw.msgs)) {
+      faqAiMsgs = _faqAiClean(raw.msgs);
+      faqAiUpdated = Number(raw.t) || 0;
+    } else {
+      faqAiMsgs = [];
+    }
+  } catch (e) {
+    faqAiMsgs = [];
+  }
+  return faqAiMsgs;
+}
+
+function faqAiSave() {
+  faqAiMsgs = faqAiLoad().slice(-FAQ_AI_MAX_MSGS);
+  faqAiUpdated = Date.now();
+  const payload = { t: faqAiUpdated, msgs: faqAiMsgs };
+  try {
+    localStorage.setItem(faqAiStoreKey(), JSON.stringify(payload));
+  } catch (e) { }
+  if (typeof userPrefSet === "function") userPrefSet("faqAiHistory", payload);
+}
+
+// 打開視窗時去伺服器拿一次:伺服器的比較新就換成伺服器的(換裝置 / 換網址登入也看得到);本機比較新就傳上去
+async function faqAiSyncFromServer() {
+  faqAiLoad();
+  const remote = await userPrefGet("faqAiHistory");
+  if (faqAiBusy) return; // 正在回答中,不要蓋掉
+  if (remote && Array.isArray(remote.msgs) && (Number(remote.t) || 0) > faqAiUpdated) {
+    faqAiMsgs = _faqAiClean(remote.msgs);
+    faqAiUpdated = Number(remote.t) || 0;
+    try {
+      localStorage.setItem(faqAiStoreKey(), JSON.stringify({ t: faqAiUpdated, msgs: faqAiMsgs }));
+    } catch (e) { }
+    faqAiRender();
+  } else if (faqAiMsgs.length && (!remote || (Number(remote.t) || 0) < faqAiUpdated)) {
+    userPrefSet("faqAiHistory", { t: faqAiUpdated || Date.now(), msgs: faqAiMsgs }, 0);
+  }
+}
+
+function faqAiBubbleHtml(role, text, sources, extraCls = "") {
   const body = escapeHtml(text).replace(/\n/g, "<br>");
   const src = sources && sources.length
     ? `<div class="fqai-src">${sources.map((s) => `<span class="fqai-chip" title="${escapeHtml(s.question)}">Q${s.index}・${escapeHtml(s.question)}</span>`).join("")}</div>`
     : "";
-  return `<div class="fqai-msg fqai-${role}"><div class="fqai-bubble">${body}</div>${role === "assistant" ? src : ""}</div>`;
+  return `<div class="fqai-msg fqai-${role}"><div class="fqai-bubble ${extraCls}">${body}</div>${role === "assistant" ? src : ""}</div>`;
+}
+
+const FAQ_AI_WELCOME = `<div class="fqai-msg fqai-assistant"><div class="fqai-bubble">您好,我可以根據知識庫的內容回答都更相關問題。直接輸入您的問題吧!<br><span class="fqai-hint">例如:分配的房子會比原本的小嗎?更新後的稅負怎麼算?</span></div></div>`;
+const FAQ_AI_TYPING = `<div class="fqai-msg fqai-assistant" id="fqai-typing"><div class="fqai-bubble"><span class="fqai-dots"><i></i><i></i><i></i></span></div></div>`;
+
+// 依目前記錄把對話區整個畫一遍(視窗開著才有 #fqai-list)
+function faqAiRender() {
+  const list = document.getElementById("fqai-list");
+  if (!list) return;
+  const msgs = faqAiLoad();
+  let html = FAQ_AI_WELCOME;
+  msgs.forEach((m) => {
+    html += faqAiBubbleHtml(m.role, m.content, m.sources);
+  });
+  if (faqAiBusy) html += faqAiLive ? `<div id="fqai-livewrap">${faqAiBubbleHtml("assistant", faqAiLive)}</div>` : FAQ_AI_TYPING;
+  list.innerHTML = html;
+  list.scrollTop = list.scrollHeight;
+  const sendBtn = document.getElementById("fqai-send");
+  if (sendBtn) sendBtn.disabled = faqAiBusy;
+  const clearBtn = document.getElementById("fqai-clear");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !msgs.length);
+}
+
+// 串流中只更新「正在回答」那一個泡泡(視窗開著才有)
+function faqAiRenderLive() {
+  const list = document.getElementById("fqai-list");
+  if (!list) return;
+  let wrap = document.getElementById("fqai-livewrap");
+  if (!wrap) {
+    document.getElementById("fqai-typing")?.remove();
+    list.insertAdjacentHTML("beforeend", `<div id="fqai-livewrap"></div>`);
+    wrap = document.getElementById("fqai-livewrap");
+  }
+  wrap.innerHTML = faqAiBubbleHtml("assistant", faqAiLive);
+  list.scrollTop = list.scrollHeight;
+}
+
+async function faqAiAsk(q) {
+  const msgs = faqAiLoad();
+  const history = msgs.slice(-6).map((m) => ({ role: m.role, content: m.content }));
+  msgs.push({ role: "user", content: q });
+  faqAiSave();
+  faqAiBusy = true;
+  faqAiLive = "";
+  faqAiRender();
+
+  // 等太久就提醒一下(自架模型第一次回答要先載入模型,可能要一分鐘左右)
+  const hintTimer = setTimeout(() => {
+    const t = document.querySelector("#fqai-typing .fqai-bubble");
+    if (t) t.innerHTML = `<span class="fqai-dots"><i></i><i></i><i></i></span><div class="fqai-hint" style="margin-top:6px">AI 正在思考,第一次回答可能需要約一分鐘…</div>`;
+  }, 8000);
+
+  let sources = [];
+  let failed = null;
+  try {
+    const res = await fetch(API_BASE + "/faq/ask-stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(state.token ? { Authorization: "Bearer " + state.token } : {}) },
+      body: JSON.stringify({ question: q, history }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const data = await res.json();
+        detail = typeof data.detail === "string" ? data.detail : detail;
+      } catch (e) { }
+      throw new Error(detail || "AI 暫時無法回覆");
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let evt;
+        try { evt = JSON.parse(line); } catch (e) { continue; }
+        if (evt.type === "sources") sources = evt.sources || [];
+        else if (evt.type === "chunk") {
+          faqAiLive += evt.text;
+          faqAiRenderLive();
+        } else if (evt.type === "error") failed = evt.error || "AI 暫時無法回覆";
+      }
+    }
+    if (failed && !faqAiLive) throw new Error(failed);
+  } catch (err) {
+    failed = (err && err.message) || "AI 暫時無法回覆,請稍後再試";
+  }
+  clearTimeout(hintTimer);
+
+  const text = faqAiLive;
+  if (text) {
+    // 只列出答案裡有被引用(寫了「Q數字」)的條目
+    const cited = sources.filter((s) => new RegExp(`Q${s.index}(?!\\d)`).test(text));
+    msgs.push({ role: "assistant", content: failed ? `${text}\n\n(回答中斷:${failed})` : text, sources: cited });
+  } else {
+    // 沒有任何內容:錯誤訊息不寫進歷史,只在畫面上提示,並把這次提問從記錄拿掉(使用者可以重問)
+    msgs.pop();
+  }
+  faqAiSave();
+  faqAiBusy = false;
+  faqAiLive = "";
+  faqAiRender();
+  if (!text) {
+    const list = document.getElementById("fqai-list");
+    if (list) {
+      list.insertAdjacentHTML("beforeend", `<div class="fqai-msg fqai-assistant"><div class="fqai-bubble fqai-error">${escapeHtml(failed)}</div></div>`);
+      list.scrollTop = list.scrollHeight;
+      const input = document.getElementById("fqai-input");
+      if (input && !input.value) input.value = q; // 把問題放回輸入框,方便重送
+    }
+  }
 }
 
 function openFaqAiModal() {
   openModal(
-    `<span class="fqai-title">✨ AI 問答</span>`,
+    `<span class="fqai-title">✨ AI 問答</span><button type="button" class="btn-secondary btn-sm hidden" id="fqai-clear" title="清除對話記錄">清除對話</button>`,
     `<div class="fqai-wrap">
-      <div class="fqai-list" id="fqai-list">
-        <div class="fqai-msg fqai-assistant"><div class="fqai-bubble">您好,我可以根據知識庫的內容回答都更相關問題。直接輸入您的問題吧!<br><span class="fqai-hint">例如:分配的房子會比原本的小嗎?更新後的稅負怎麼算?</span></div></div>
-      </div>
+      <div class="fqai-list" id="fqai-list"></div>
       <form class="fqai-form" id="fqai-form">
         <textarea id="fqai-input" rows="2" placeholder="輸入問題,Enter 送出、Shift+Enter 換行" maxlength="1000"></textarea>
         <button type="submit" class="btn-primary" id="fqai-send">送出</button>
       </form>
-      <div class="fqai-note">AI 回覆僅供參考,涉及稅額、權益與法律效力請以主管機關或專業人員為準。</div>
+      <div class="fqai-note">AI 回覆僅供參考,涉及稅額、權益與法律效力請以主管機關或專業人員為準。對話記錄只存在這台電腦的瀏覽器。</div>
     </div>`,
     { width: "620px" }
   );
-  const list = document.getElementById("fqai-list");
   const input = document.getElementById("fqai-input");
   const form = document.getElementById("fqai-form");
-  const sendBtn = document.getElementById("fqai-send");
 
-  // 重開視窗時把已有的對話畫回來
-  faqAiHistory.forEach((m) => list.insertAdjacentHTML("beforeend", faqAiBubbleHtml(m.role, m.content, m.sources)));
-  list.scrollTop = list.scrollHeight;
+  faqAiRender();
+  faqAiSyncFromServer();
 
-  const send = async () => {
+  const send = () => {
     const q = input.value.trim();
     if (!q || faqAiBusy) return;
-    faqAiBusy = true;
-    sendBtn.disabled = true;
     input.value = "";
-    list.insertAdjacentHTML("beforeend", faqAiBubbleHtml("user", q));
-    list.insertAdjacentHTML("beforeend", `<div class="fqai-msg fqai-assistant" id="fqai-typing"><div class="fqai-bubble"><span class="fqai-dots"><i></i><i></i><i></i></span></div></div>`);
-    list.scrollTop = list.scrollHeight;
-    const history = faqAiHistory.slice(-8).map((m) => ({ role: m.role, content: m.content }));
-    try {
-      const res = await api("/faq/ask", { method: "POST", body: { question: q, history }, silent: true });
-      faqAiHistory.push({ role: "user", content: q });
-      faqAiHistory.push({ role: "assistant", content: res.answer, sources: res.sources });
-      document.getElementById("fqai-typing")?.remove();
-      // 只列出答案裡有被引用(寫了「Q數字」)的條目,沒引用就不列,避免把一堆沒用到的也掛上去
-      const cited = (res.sources || []).filter((s) => new RegExp(`Q${s.index}(?!\\d)`).test(res.answer));
-      list.insertAdjacentHTML("beforeend", faqAiBubbleHtml("assistant", res.answer, cited));
-    } catch (err) {
-      document.getElementById("fqai-typing")?.remove();
-      const msg = (err && err.message) || "AI 暫時無法回覆,請稍後再試";
-      list.insertAdjacentHTML("beforeend", `<div class="fqai-msg fqai-assistant"><div class="fqai-bubble fqai-error">${escapeHtml(msg)}</div></div>`);
-    } finally {
-      faqAiBusy = false;
-      sendBtn.disabled = false;
-      list.scrollTop = list.scrollHeight;
-      input.focus();
-    }
+    faqAiAsk(q);
   };
   form.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1921,6 +2067,13 @@ function openFaqAiModal() {
       e.preventDefault();
       send();
     }
+  });
+  document.getElementById("fqai-clear")?.addEventListener("click", () => {
+    if (faqAiBusy) return;
+    if (!confirm("確定要清除所有對話記錄嗎?")) return;
+    faqAiMsgs = [];
+    faqAiSave();
+    faqAiRender();
   });
   input.focus();
 }

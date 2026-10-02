@@ -387,40 +387,82 @@ def _pick_faq_context(question: str, items: list, limit: int = 8) -> list:
     return [it for _, it in scored[:limit]]
 
 
+def _faq_ask_prepare(payload: FaqAskRequest, db: Session):
+    """共用:檢查 AI 有沒有設定、挑出相關條目、組 system prompt 與對話。"""
+    from utils import qa_llm
+
+    if not qa_llm.available():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI 問答尚未啟用(缺少 AI 服務設定)")
+    items = db.scalars(select(FaqItem).order_by(FaqItem.created_at)).all()
+    picked = _pick_faq_context(payload.question, items, limit=3)
+    if picked:
+        # 每條答案截斷,提示字數壓小,自架模型回得比較快
+        block = "\n\n".join(
+            f"Q{i}.【{it.category or '一般'}】{it.question}\nA:{(it.answer or '')[:350]}" for i, it in enumerate(picked, 1)
+        )
+    else:
+        block = "(知識庫目前沒有任何條目)"
+    system = f"{_FAQ_ASK_SYSTEM}\n\n【知識庫條目】\n{block}"
+    messages = [{"role": m.role, "content": m.content} for m in payload.history[-6:]]
+    messages.append({"role": "user", "content": payload.question.strip()})
+    sources = [{"index": i, "id": it.id, "question": it.question} for i, it in enumerate(picked, 1)]
+    return system, messages, sources
+
+
 @router.post("/faq/ask")
 def ask_faq(
     payload: FaqAskRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """知識庫 AI 問答:從 FAQ 條目挑出相關的,連同提問丟給 LLM,回覆答案與參考條目。"""
+    """知識庫 AI 問答(一次回完整答案版)。"""
     from utils import qa_llm
 
-    if not qa_llm.available():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI 問答尚未啟用(缺少 AI 金鑰設定)")
-
-    items = db.scalars(select(FaqItem).order_by(FaqItem.created_at)).all()
-    picked = _pick_faq_context(payload.question, items)
-    if picked:
-        block = "\n\n".join(
-            f"Q{i}.【{it.category or '一般'}】{it.question}\nA:{it.answer}" for i, it in enumerate(picked, 1)
-        )
-    else:
-        block = "(知識庫目前沒有任何條目)"
-    system = f"{_FAQ_ASK_SYSTEM}\n\n【知識庫條目】\n{block}"
-
-    messages = [{"role": m.role, "content": m.content} for m in payload.history[-8:]]
-    messages.append({"role": "user", "content": payload.question.strip()})
+    system, messages, sources = _faq_ask_prepare(payload, db)
     try:
         answer = qa_llm.chat_complete(system, messages)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
     if not answer:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI 沒有產生回覆,請換個問法再試一次")
-    return {
-        "answer": answer,
-        "sources": [{"index": i, "id": it.id, "question": it.question} for i, it in enumerate(picked, 1)],
-    }
+    return {"answer": answer, "sources": sources}
+
+
+@router.post("/faq/ask-stream")
+def ask_faq_stream(
+    payload: FaqAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """知識庫 AI 問答(串流版,NDJSON):先送 sources,接著一段一段 chunk,最後 done / error。"""
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    from utils import qa_llm
+
+    system, messages, sources = _faq_ask_prepare(payload, db)
+
+    def gen():
+        yield _json.dumps({"type": "sources", "sources": sources}, ensure_ascii=False) + "\n"
+        sent = False
+        try:
+            for piece in qa_llm.chat_stream(system, messages):
+                if piece:
+                    sent = True
+                    yield _json.dumps({"type": "chunk", "text": piece}, ensure_ascii=False) + "\n"
+            if not sent:
+                yield _json.dumps({"type": "error", "error": "AI 沒有產生回覆,請換個問法再試一次"}, ensure_ascii=False) + "\n"
+            else:
+                yield _json.dumps({"type": "done"}) + "\n"
+        except RuntimeError as exc:
+            yield _json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/faq", response_model=FaqItemRead, status_code=status.HTTP_201_CREATED)

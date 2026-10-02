@@ -350,3 +350,26 @@ function canOcr() {
 function canCreateProject() {
   return isManager();
 }
+
+// ===== 伺服器端個人偏好(鈴鐺已讀/刪除、知識庫 AI 問答記錄) =====
+// 存在伺服器的 user_prefs,不同裝置、不同網址(本機 / NAS)登入同一帳號看到的一樣;
+// 失敗(離線、舊後端)一律靜默,呼叫端自己還有 localStorage 當備援。
+async function userPrefGet(key) {
+  try {
+    const r = await api(`/me/prefs/${key}`, { silent: true });
+    return r && r.value !== undefined ? r.value : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+const _userPrefTimers = {};
+function userPrefSet(key, value, delay = 600) {
+  clearTimeout(_userPrefTimers[key]);
+  _userPrefTimers[key] = setTimeout(async () => {
+    try {
+      await api(`/me/prefs/${key}`, { method: "PUT", body: { value }, silent: true });
+    } catch (e) { }
+  }, delay);
+}
+

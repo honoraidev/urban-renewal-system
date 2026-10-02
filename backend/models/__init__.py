@@ -24,6 +24,7 @@ from models.news_sync_state import NewsSyncState
 from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
 from models.project_note import ProjectNote
+from models.user_pref import UserPref
 
 __all__ = [
     "User",
@@ -55,4 +56,5 @@ __all__ = [
     "FaqItem",
     "InventoryItem",
     "ProjectNote",
+    "UserPref",
 ]

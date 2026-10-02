@@ -83,7 +83,19 @@ def _gemini(system: str, messages: list[dict]) -> str:
         raise RuntimeError("AI 服務回應格式異常") from exc
 
 
+def chat_stream(system: str, messages: list[dict]):
+    """逐段產出文字(generator)。HonorAI 是真的串流;OpenAI / Gemini 目前整段回來後一次吐出。"""
+    if _honorai_on():
+        yield from _honorai_events(system, messages)
+        return
+    yield chat_complete(system, messages)
+
+
 def _honorai(system: str, messages: list[dict]) -> str:
+    return "".join(_honorai_events(system, messages)).strip()
+
+
+def _honorai_events(system: str, messages: list[dict]):
     """自家 HonorAI:POST /api/chat(Bearer sk-...),回傳 NDJSON 串流 {type: chunk|sources|done|error}。
     它自己會記對話(conversation_id),但我們這邊每次都是獨立提問(上下文自己組進 message),
     所以問完就把那段對話刪掉,不要在它的對話清單裡堆一堆。"""
@@ -96,12 +108,11 @@ def _honorai(system: str, messages: list[dict]) -> str:
     parts.append("【使用者現在的問題】\n" + last["content"])
     message = "\n\n".join(parts)
 
-    chunks: list[str] = []
-    final = ""
+    got_chunk = False
     conv_id = None
     try:
         with httpx.stream(
-            "POST", f"{base}/api/chat", headers=headers, json={"message": message}, timeout=httpx.Timeout(120.0, connect=15.0)
+            "POST", f"{base}/api/chat", headers=headers, json={"message": message}, timeout=httpx.Timeout(180.0, connect=15.0)
         ) as r:
             if r.status_code != 200:
                 detail = ""
@@ -119,18 +130,20 @@ def _honorai(system: str, messages: list[dict]) -> str:
                     continue
                 kind = evt.get("type")
                 if kind == "chunk":
-                    chunks.append(evt.get("text", ""))
+                    got_chunk = True
+                    yield evt.get("text", "")
                 elif kind == "done":
-                    final = evt.get("answer") or ""
                     conv_id = evt.get("conversation_id") or conv_id
+                    # 串流途中都沒收到 chunk(對方一次給完整答案)就把 answer 補出去
+                    if not got_chunk and evt.get("answer"):
+                        yield evt["answer"]
                 elif kind == "error":
                     raise RuntimeError(f"HonorAI 目前無法回答:{evt.get('error', '未知錯誤')[:160]}")
     except httpx.HTTPError as exc:
         raise RuntimeError(f"HonorAI 連線失敗:{exc.__class__.__name__}") from exc
-
-    if conv_id:
-        try:
-            httpx.delete(f"{base}/api/conversations/{conv_id}", headers=headers, timeout=10.0)
-        except httpx.HTTPError:
-            pass
-    return (final or "".join(chunks)).strip()
+    finally:
+        if conv_id:
+            try:
+                httpx.delete(f"{base}/api/conversations/{conv_id}", headers=headers, timeout=10.0)
+            except httpx.HTTPError:
+                pass

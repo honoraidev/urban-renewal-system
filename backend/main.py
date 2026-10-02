@@ -12,7 +12,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, events, expenses, landowners, ocr, ocr_intake, project_notes, project_overview, projects, resources, sop, sso, users
+from routers import auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, events, expenses, landowners, ocr, ocr_intake, project_notes, prefs, project_overview, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -177,6 +177,24 @@ def _auto_migrate() -> None:
             _conn.commit()
     except Exception as exc:
         print(f"[auto_migrate] news_items.url widen skipped: {exc}", flush=True)
+
+    # user_prefs:每位使用者的小型個人狀態(鈴鐺已讀/刪除清單、知識庫 AI 問答記錄),
+    # 存伺服器才能跨裝置、跨網址(本機 / NAS)一致。舊資料庫沒有這張表,補建起來。
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(
+                _sql_text(
+                    "CREATE TABLE IF NOT EXISTS user_prefs ("
+                    "user_id INT NOT NULL, pref_key VARCHAR(64) NOT NULL, value MEDIUMTEXT NOT NULL, "
+                    "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                    "PRIMARY KEY (user_id, pref_key)"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] user_prefs create skipped: {exc}", flush=True)
 
     # news_sync_state:記錄「每日新聞抓取」上次執行時間的單列表(給新聞頁面右上角
     # 顯示同步時間用),舊資料庫沒有這張表,補建起來。
@@ -709,11 +727,11 @@ async def lifespan(app: FastAPI):
     # memory pressure on limited RAM systems while preserving optimal inference speed.
     news_task = asyncio.create_task(_daily_news_fetch_loop())
     consent_snapshot_task = asyncio.create_task(_daily_consent_snapshot_loop())
-    bell_notify_task = asyncio.create_task(_bell_notify_loop())
+    # 待辦 / 鈴鐺 LINE 推播已停用(使用者 2026-09 要求只保留登入登出通知),
+    # _bell_notify_loop 不再啟動。
     yield
     news_task.cancel()
     consent_snapshot_task.cancel()
-    bell_notify_task.cancel()
 
 
 app = FastAPI(title="Urban Renewal Management System API", version="0.1.0", lifespan=lifespan)
@@ -778,7 +796,7 @@ def _write_activity(user_id, project_id, landowner_id, method, path, label, stat
             )
         )
         db.commit()
-        _maybe_notify(db, user_id, project_id, label)
+        # 案件異動 LINE 通知已停用(使用者 2026-09 要求只保留登入登出通知)
     finally:
         db.close()
 
@@ -905,6 +923,7 @@ app.include_router(documents.router)
 app.include_router(expenses.router)
 app.include_router(expenses.category_router)
 app.include_router(users.router)
+app.include_router(prefs.router)
 app.include_router(ocr.router)
 app.include_router(ocr_intake.router)
 app.include_router(encumbrances.router)
