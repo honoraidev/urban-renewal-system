@@ -472,8 +472,11 @@ def ask_faq_start(
                 job["error"] = "AI 沒有產生回覆,請換個問法再試一次"
         except RuntimeError as exc:
             job["error"] = str(exc)
-        except Exception:  # noqa: BLE001
-            job["error"] = "AI 發生未預期的錯誤,請稍後再試"
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+
+            print(f"[faq_ask] unexpected error: {exc!r}\n{traceback.format_exc()}", flush=True)
+            job["error"] = f"AI 發生未預期的錯誤({exc.__class__.__name__}:{str(exc)[:120]})"
         finally:
             job["done"] = True
             job["ts"] = _time.time()
