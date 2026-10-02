@@ -2007,7 +2007,8 @@ async function faqAiAsk(q) {
     }
     if (failed && !faqAiLive) throw new Error(failed);
   } catch (err) {
-    failed = (err && err.message) || "AI 暫時無法回覆,請稍後再試";
+    // 瀏覽器連不上伺服器時丟的是 TypeError(Failed to fetch / network error),換成看得懂的說法
+    failed = err instanceof TypeError ? "連不到伺服器(可能正在重新啟動),請稍後再試" : (err && err.message) || "AI 暫時無法回覆,請稍後再試";
   }
   clearTimeout(hintTimer);
 
