@@ -1882,7 +1882,9 @@ function faqAiLoad() {
 }
 
 function faqAiSave() {
-  faqAiMsgs = faqAiLoad().slice(-FAQ_AI_MAX_MSGS);
+  // 原地裁切,不能換成新陣列:faqAiAsk 手上還抓著同一個陣列,換掉的話之後 push 進去的回答就跟記錄脫鉤、畫面一重畫就不見
+  const cur = faqAiLoad();
+  if (cur.length > FAQ_AI_MAX_MSGS) cur.splice(0, cur.length - FAQ_AI_MAX_MSGS);
   faqAiUpdated = Date.now();
   const payload = { t: faqAiUpdated, msgs: faqAiMsgs };
   try {
