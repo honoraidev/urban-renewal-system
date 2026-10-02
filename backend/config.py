@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     HONORAI_URL: str = ""
     HONORAI_API_KEY: str = ""
 
+    # 知識庫 AI 問答直連 Ollama(最優先):比走 HonorAI 快(不做 HonorAI 自己的前處理,
+    # 而且可以指定一顆能整個放進顯示卡的小模型)。OLLAMA_URL 沒填就不啟用。
+    OLLAMA_URL: str = ""
+    OLLAMA_MODEL: str = "qwen2.5:7b"
+    OLLAMA_NUM_CTX: int = 4096
+
     # 發票拍照辨識可選用 Google Gemini(有免費額度)。設了金鑰就優先用 Gemini,
     # 否則退回本機 PaddleOCR + 規則解析。金鑰申請:https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""
