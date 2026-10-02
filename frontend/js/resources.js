@@ -2035,47 +2035,66 @@ async function faqAiAsk(q) {
   }
 }
 
+// 點右下角「AI 問答」→ 展開 / 收起浮動對話面板(不是跳出視窗,背後的頁面還是可以操作)。
+// 面板只建一次、放在 #view-faq 裡:離開知識庫頁自動隱藏,回答中途收起也不會中斷,再打開對話都在。
 function openFaqAiModal() {
-  openModal(
-    `<span class="fqai-title">✨ AI 問答</span><button type="button" class="btn-secondary btn-sm hidden" id="fqai-clear" title="清除對話記錄">清除對話</button>`,
-    `<div class="fqai-wrap">
+  let panel = document.getElementById("fqai-panel");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "fqai-panel";
+    panel.className = "fqai-panel hidden";
+    panel.innerHTML = `
+      <div class="fqai-head">
+        <span class="fqai-title">✨ AI 問答</span>
+        <button type="button" class="btn-secondary btn-sm hidden" id="fqai-clear" title="清除對話記錄">清除對話</button>
+        <button type="button" class="fqai-close" id="fqai-close" title="收起" aria-label="收起">&times;</button>
+      </div>
       <div class="fqai-list" id="fqai-list"></div>
       <form class="fqai-form" id="fqai-form">
         <textarea id="fqai-input" rows="2" placeholder="輸入問題,Enter 送出、Shift+Enter 換行" maxlength="1000"></textarea>
         <button type="submit" class="btn-primary" id="fqai-send">送出</button>
       </form>
-      <div class="fqai-note">AI 回覆僅供參考,涉及稅額、權益與法律效力請以主管機關或專業人員為準。對話記錄只存在這台電腦的瀏覽器。</div>
-    </div>`,
-    { width: "620px" }
-  );
-  const input = document.getElementById("fqai-input");
-  const form = document.getElementById("fqai-form");
+      <div class="fqai-note">AI 回覆僅供參考,涉及稅額、權益與法律效力請以主管機關或專業人員為準。</div>`;
+    (document.getElementById("view-faq") || document.body).appendChild(panel);
 
-  faqAiRender();
-  faqAiSyncFromServer();
-
-  const send = () => {
-    const q = input.value.trim();
-    if (!q || faqAiBusy) return;
-    input.value = "";
-    faqAiAsk(q);
-  };
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    send();
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    const input = panel.querySelector("#fqai-input");
+    const send = () => {
+      const q = input.value.trim();
+      if (!q || faqAiBusy) return;
+      input.value = "";
+      faqAiAsk(q);
+    };
+    panel.querySelector("#fqai-form").addEventListener("submit", (e) => {
       e.preventDefault();
       send();
-    }
-  });
-  document.getElementById("fqai-clear")?.addEventListener("click", () => {
-    if (faqAiBusy) return;
-    if (!confirm("確定要清除所有對話記錄嗎?")) return;
-    faqAiMsgs = [];
-    faqAiSave();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        send();
+      }
+      if (e.key === "Escape") toggleFaqAiPanel(false);
+    });
+    panel.querySelector("#fqai-clear").addEventListener("click", () => {
+      if (faqAiBusy) return;
+      if (!confirm("確定要清除所有對話記錄嗎?")) return;
+      faqAiMsgs = [];
+      faqAiSave();
+      faqAiRender();
+    });
+    panel.querySelector("#fqai-close").addEventListener("click", () => toggleFaqAiPanel(false));
+  }
+  toggleFaqAiPanel(panel.classList.contains("hidden"));
+}
+
+function toggleFaqAiPanel(show) {
+  const panel = document.getElementById("fqai-panel");
+  if (!panel) return;
+  panel.classList.toggle("hidden", !show);
+  document.getElementById("faq-ai-btn")?.classList.toggle("is-open", show);
+  if (show) {
     faqAiRender();
-  });
-  input.focus();
+    faqAiSyncFromServer();
+    document.getElementById("fqai-input")?.focus();
+  }
 }

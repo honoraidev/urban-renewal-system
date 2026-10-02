@@ -4819,3 +4819,30 @@ select option { color: var(--text); background: var(--surface); }
 @media (prefers-reduced-motion: reduce) { .fq-ai-ic { animation: none; } }
 
 #fqai-clear { margin-left: 14px; vertical-align: middle; font-size: 12.5px; }
+
+/* ===== 知識庫 AI 問答:右下角浮動對話面板(取代跳出視窗) ===== */
+.fqai-panel {
+  position: fixed; right: 28px; bottom: 92px; z-index: 55; display: flex; flex-direction: column;
+  width: min(440px, calc(100vw - 32px)); height: min(620px, 72vh);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
+  box-shadow: 0 24px 60px -16px rgba(15, 23, 42, .45), 0 6px 16px rgba(15, 23, 42, .12);
+  animation: fqaiPanelIn .18s ease;
+}
+.fqai-panel.hidden { display: none !important; }
+@keyframes fqaiPanelIn { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+.fqai-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: #fff; flex: 0 0 auto;
+  background: linear-gradient(135deg, #7c4ddb, #3b82f6);
+}
+.fqai-head .fqai-title { font-size: 16px; font-weight: 800; flex: 1; }
+.fqai-head #fqai-clear { margin: 0; background: rgba(255, 255, 255, .18); color: #fff; border: 1px solid rgba(255, 255, 255, .35); font-size: 12.5px; }
+.fqai-close { background: none; border: none; color: #fff; font-size: 26px; line-height: 1; padding: 0 4px; cursor: pointer; opacity: .9; }
+.fqai-close:hover { opacity: 1; }
+.fqai-panel .fqai-list { flex: 1 1 auto; height: auto; min-height: 0; padding: 14px 14px 6px; }
+.fqai-panel .fqai-form { flex: 0 0 auto; padding: 8px 14px 0; }
+.fqai-panel .fqai-note { flex: 0 0 auto; padding: 6px 14px 12px; }
+.fq-ai-btn.is-open { filter: brightness(.92); }
+@media (max-width: 640px) {
+  .fqai-panel { right: 8px; left: 8px; width: auto; bottom: 76px; height: min(70vh, 560px); }
+}
+
