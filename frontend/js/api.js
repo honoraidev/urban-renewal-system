@@ -23,7 +23,7 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
     // 的可能是編輯前的舊資料。
     res = await fetch(url, { method, headers, body: fetchBody, cache: "no-store" });
   } catch (err) {
-    toast("無法連線到伺服器", "error");
+    if (!silent) toast("無法連線到伺服器", "error");
     throw err;
   }
 

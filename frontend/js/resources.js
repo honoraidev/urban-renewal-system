@@ -1971,38 +1971,31 @@ async function faqAiAsk(q) {
   let sources = [];
   let failed = null;
   try {
-    const res = await fetch(API_BASE + "/faq/ask-stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(state.token ? { Authorization: "Bearer " + state.token } : {}) },
-      body: JSON.stringify({ question: q, history }),
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      let detail = res.statusText;
-      try {
-        const data = await res.json();
-        detail = typeof data.detail === "string" ? data.detail : detail;
-      } catch (e) { }
-      throw new Error(detail || "AI 暫時無法回覆");
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
+    // 輪詢版:先送出問題拿 job_id,再每隔一下用短請求取「目前累積的文字」。
+    // 不用長時間的串流連線(經過 NAS 的 HTTPS 反向代理會被切斷,出現 ERR_HTTP2_PROTOCOL_ERROR)。
+    const start = await api("/faq/ask-start", { method: "POST", body: { question: q, history }, silent: true });
+    sources = start.sources || [];
+    let offset = 0;
+    let netErrors = 0;
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let evt;
-        try { evt = JSON.parse(line); } catch (e) { continue; }
-        if (evt.type === "sources") sources = evt.sources || [];
-        else if (evt.type === "chunk") {
-          faqAiLive += evt.text;
-          faqAiRenderLive();
-        } else if (evt.type === "error") failed = evt.error || "AI 暫時無法回覆";
+      await new Promise((r) => setTimeout(r, 700));
+      let poll;
+      try {
+        poll = await api(`/faq/ask-poll/${start.job_id}`, { params: { offset }, silent: true });
+        netErrors = 0;
+      } catch (e) {
+        // 偶發的連線失敗先重試幾次;伺服器明確說「已過期」就直接放棄
+        if (e instanceof TypeError && ++netErrors < 8) continue;
+        throw e;
+      }
+      if (poll.delta) {
+        faqAiLive += poll.delta;
+        faqAiRenderLive();
+      }
+      offset = poll.length;
+      if (poll.done) {
+        if (poll.error) failed = poll.error;
+        break;
       }
     }
     if (failed && !faqAiLive) throw new Error(failed);

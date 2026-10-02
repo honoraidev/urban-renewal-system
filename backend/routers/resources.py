@@ -429,6 +429,69 @@ def ask_faq(
     return {"answer": answer, "sources": sources}
 
 
+# ---- 輪詢版 AI 問答:不長時間佔著一條串流連線(Synology 反向代理走 HTTP/2 時,長串流會被切斷、
+# 瀏覽器出現 ERR_HTTP2_PROTOCOL_ERROR)。送出問題後立刻拿到 job_id,之後每隔一下用短請求來取「目前累積的文字」。
+# 工作記在這個程式的記憶體裡(單一 process),10 分鐘後清掉。
+import threading as _threading
+import time as _time
+import uuid as _uuid
+
+_FAQ_JOBS: dict = {}
+_FAQ_JOBS_LOCK = _threading.Lock()
+_FAQ_JOB_TTL = 600
+
+
+def _faq_jobs_gc() -> None:
+    now = _time.time()
+    for k in [k for k, v in _FAQ_JOBS.items() if now - v["ts"] > _FAQ_JOB_TTL]:
+        _FAQ_JOBS.pop(k, None)
+
+
+@router.post("/faq/ask-start")
+def ask_faq_start(
+    payload: FaqAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from utils import qa_llm
+
+    system, messages, sources = _faq_ask_prepare(payload, db)
+    job_id = _uuid.uuid4().hex
+    job = {"user_id": current_user.id, "text": "", "done": False, "error": None, "sources": sources, "ts": _time.time()}
+    with _FAQ_JOBS_LOCK:
+        _faq_jobs_gc()
+        _FAQ_JOBS[job_id] = job
+
+    def worker():
+        try:
+            for piece in qa_llm.chat_stream(system, messages):
+                if piece:
+                    job["text"] += piece
+                    job["ts"] = _time.time()
+            if not job["text"]:
+                job["error"] = "AI 沒有產生回覆,請換個問法再試一次"
+        except RuntimeError as exc:
+            job["error"] = str(exc)
+        except Exception:  # noqa: BLE001
+            job["error"] = "AI 發生未預期的錯誤,請稍後再試"
+        finally:
+            job["done"] = True
+            job["ts"] = _time.time()
+
+    _threading.Thread(target=worker, daemon=True).start()
+    return {"job_id": job_id, "sources": sources}
+
+
+@router.get("/faq/ask-poll/{job_id}")
+def ask_faq_poll(job_id: str, offset: int = 0, current_user: User = Depends(get_current_user)):
+    job = _FAQ_JOBS.get(job_id)
+    if job is None or job["user_id"] != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這次提問已過期,請重新送出")
+    text = job["text"]
+    offset = max(0, min(offset, len(text)))
+    return {"delta": text[offset:], "length": len(text), "done": job["done"], "error": job["error"]}
+
+
 @router.post("/faq/ask-stream")
 def ask_faq_stream(
     payload: FaqAskRequest,
