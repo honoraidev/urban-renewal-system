@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
+    # 知識庫「AI 問答」優先使用自家 HonorAI(OpenAI 以外的 Tailscale 內網服務);兩個都填才啟用,
+    # 沒填就退回 OPENAI_API_KEY / GEMINI_API_KEY。
+    HONORAI_URL: str = ""
+    HONORAI_API_KEY: str = ""
+
     # 發票拍照辨識可選用 Google Gemini(有免費額度)。設了金鑰就優先用 Gemini,
     # 否則退回本機 PaddleOCR + 規則解析。金鑰申請:https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""

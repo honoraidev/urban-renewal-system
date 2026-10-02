@@ -1749,6 +1749,7 @@ function initResources() {
   };
   document.getElementById("faq-q-input")?.addEventListener("input", runFaqSearch);
   document.getElementById("faq-search-btn")?.addEventListener("click", runFaqSearch);
+  document.getElementById("faq-ai-btn")?.addEventListener("click", openFaqAiModal);
   document.getElementById("faq-expand-all")?.addEventListener("click", () => {
     const rows = [...document.querySelectorAll("#faq-list .fq-row")];
     const allOpen = rows.length > 0 && rows.every((r) => r.classList.contains("open"));
@@ -1843,4 +1844,83 @@ function initResources() {
     renderFaqList(faqItemsCache);
   });
   document.getElementById("manage-faq-cats-btn")?.addEventListener("click", openManageFaqCatsModal);
+}
+
+// ===== 知識庫 AI 問答 =====
+// 對話記錄只存在記憶體(換頁 / 重新整理就清空);每次提問把最近幾輪帶給後端,後端會自己從 FAQ 挑相關條目。
+let faqAiHistory = []; // [{role, content}]
+let faqAiBusy = false;
+
+function faqAiBubbleHtml(role, text, sources) {
+  const body = escapeHtml(text).replace(/\n/g, "<br>");
+  const src = sources && sources.length
+    ? `<div class="fqai-src">${sources.map((s) => `<span class="fqai-chip" title="${escapeHtml(s.question)}">Q${s.index}・${escapeHtml(s.question)}</span>`).join("")}</div>`
+    : "";
+  return `<div class="fqai-msg fqai-${role}"><div class="fqai-bubble">${body}</div>${role === "assistant" ? src : ""}</div>`;
+}
+
+function openFaqAiModal() {
+  openModal(
+    `<span class="fqai-title">✨ AI 問答</span>`,
+    `<div class="fqai-wrap">
+      <div class="fqai-list" id="fqai-list">
+        <div class="fqai-msg fqai-assistant"><div class="fqai-bubble">您好,我可以根據知識庫的內容回答都更相關問題。直接輸入您的問題吧!<br><span class="fqai-hint">例如:分配的房子會比原本的小嗎?更新後的稅負怎麼算?</span></div></div>
+      </div>
+      <form class="fqai-form" id="fqai-form">
+        <textarea id="fqai-input" rows="2" placeholder="輸入問題,Enter 送出、Shift+Enter 換行" maxlength="1000"></textarea>
+        <button type="submit" class="btn-primary" id="fqai-send">送出</button>
+      </form>
+      <div class="fqai-note">AI 回覆僅供參考,涉及稅額、權益與法律效力請以主管機關或專業人員為準。</div>
+    </div>`,
+    { width: "620px" }
+  );
+  const list = document.getElementById("fqai-list");
+  const input = document.getElementById("fqai-input");
+  const form = document.getElementById("fqai-form");
+  const sendBtn = document.getElementById("fqai-send");
+
+  // 重開視窗時把已有的對話畫回來
+  faqAiHistory.forEach((m) => list.insertAdjacentHTML("beforeend", faqAiBubbleHtml(m.role, m.content, m.sources)));
+  list.scrollTop = list.scrollHeight;
+
+  const send = async () => {
+    const q = input.value.trim();
+    if (!q || faqAiBusy) return;
+    faqAiBusy = true;
+    sendBtn.disabled = true;
+    input.value = "";
+    list.insertAdjacentHTML("beforeend", faqAiBubbleHtml("user", q));
+    list.insertAdjacentHTML("beforeend", `<div class="fqai-msg fqai-assistant" id="fqai-typing"><div class="fqai-bubble"><span class="fqai-dots"><i></i><i></i><i></i></span></div></div>`);
+    list.scrollTop = list.scrollHeight;
+    const history = faqAiHistory.slice(-8).map((m) => ({ role: m.role, content: m.content }));
+    try {
+      const res = await api("/faq/ask", { method: "POST", body: { question: q, history }, silent: true });
+      faqAiHistory.push({ role: "user", content: q });
+      faqAiHistory.push({ role: "assistant", content: res.answer, sources: res.sources });
+      document.getElementById("fqai-typing")?.remove();
+      // 只列出答案裡有被引用(寫了「Q數字」)的條目,沒引用就不列,避免把一堆沒用到的也掛上去
+      const cited = (res.sources || []).filter((s) => new RegExp(`Q${s.index}(?!\\d)`).test(res.answer));
+      list.insertAdjacentHTML("beforeend", faqAiBubbleHtml("assistant", res.answer, cited));
+    } catch (err) {
+      document.getElementById("fqai-typing")?.remove();
+      const msg = (err && err.message) || "AI 暫時無法回覆,請稍後再試";
+      list.insertAdjacentHTML("beforeend", `<div class="fqai-msg fqai-assistant"><div class="fqai-bubble fqai-error">${escapeHtml(msg)}</div></div>`);
+    } finally {
+      faqAiBusy = false;
+      sendBtn.disabled = false;
+      list.scrollTop = list.scrollHeight;
+      input.focus();
+    }
+  };
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    send();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      send();
+    }
+  });
+  input.focus();
 }

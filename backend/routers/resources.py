@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -340,6 +341,86 @@ def delete_website(website_id: int, db: Session = Depends(get_db), current_user:
 @router.get("/faq", response_model=list[FaqItemRead])
 def list_faq_items(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.scalars(select(FaqItem).order_by(FaqItem.category, FaqItem.created_at)).all()
+
+
+class FaqAskMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(max_length=4000)
+
+
+class FaqAskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    history: list[FaqAskMessage] = Field(default_factory=list, max_length=12)
+
+
+_FAQ_ASK_SYSTEM = (
+    "你是「都更管理系統」知識庫的 AI 助理,協助同仁回答都市更新相關問題。請一律使用繁體中文,語氣專業、簡潔、好讀。\n"
+    "回答原則:\n"
+    "1. 優先根據下方【知識庫條目】回答,不要與條目內容矛盾;用到哪幾條,就在答案最後一行寫「參考:Q1、Q3」(編號對應條目編號)。\n"
+    "2. 條目沒有涵蓋時,先明說「知識庫目前沒有直接相關的條目」,再以一般都更常識簡要說明,並提醒需向主管或專業人員確認;不確定的內容不要編造數字、法條條號或日期。\n"
+    "3. 涉及稅額、持分、權利價值等試算或法律效力的問題,提醒以主管機關或專業人員核定為準。\n"
+    "4. 與都市更新或本系統無關的問題,禮貌說明你只協助都更相關問題。"
+)
+
+
+def _faq_bigrams(text: str) -> set[str]:
+    t = "".join(ch for ch in (text or "").lower() if not ch.isspace())
+    if len(t) < 2:
+        return {t} if t else set()
+    return {t[i : i + 2] for i in range(len(t) - 1)}
+
+
+def _pick_faq_context(question: str, items: list, limit: int = 8) -> list:
+    """用字元二元組重疊做簡易檢索:知識庫不大,不需要向量資料庫;條目很少時全部帶入。"""
+    if len(items) <= limit:
+        return list(items)
+    q = _faq_bigrams(question)
+    scored = []
+    for it in items:
+        hay = _faq_bigrams(f"{it.category or ''}{it.question}{it.answer}")
+        overlap = len(q & hay)
+        # 問題欄命中的權重加倍
+        overlap += len(q & _faq_bigrams(it.question))
+        if overlap:
+            scored.append((overlap, it))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [it for _, it in scored[:limit]]
+
+
+@router.post("/faq/ask")
+def ask_faq(
+    payload: FaqAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """知識庫 AI 問答:從 FAQ 條目挑出相關的,連同提問丟給 LLM,回覆答案與參考條目。"""
+    from utils import qa_llm
+
+    if not qa_llm.available():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI 問答尚未啟用(缺少 AI 金鑰設定)")
+
+    items = db.scalars(select(FaqItem).order_by(FaqItem.created_at)).all()
+    picked = _pick_faq_context(payload.question, items)
+    if picked:
+        block = "\n\n".join(
+            f"Q{i}.【{it.category or '一般'}】{it.question}\nA:{it.answer}" for i, it in enumerate(picked, 1)
+        )
+    else:
+        block = "(知識庫目前沒有任何條目)"
+    system = f"{_FAQ_ASK_SYSTEM}\n\n【知識庫條目】\n{block}"
+
+    messages = [{"role": m.role, "content": m.content} for m in payload.history[-8:]]
+    messages.append({"role": "user", "content": payload.question.strip()})
+    try:
+        answer = qa_llm.chat_complete(system, messages)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    if not answer:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI 沒有產生回覆,請換個問法再試一次")
+    return {
+        "answer": answer,
+        "sources": [{"index": i, "id": it.id, "question": it.question} for i, it in enumerate(picked, 1)],
+    }
 
 
 @router.post("/faq", response_model=FaqItemRead, status_code=status.HTTP_201_CREATED)
