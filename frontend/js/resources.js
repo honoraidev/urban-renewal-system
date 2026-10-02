@@ -2014,7 +2014,7 @@ async function faqAiAsk(q) {
   let text = faqAiLive;
   // 沒有真的引用到任何知識庫條目時,把模型自己寫的「參考:…」那一行(例如「參考:暫無適用之知識庫條目」)拿掉
   const _citedAny = sources.some((s) => new RegExp(`Q${s.index}(?!\\d)`).test(text));
-  if (!_citedAny) text = text.replace(/\n*[ \t]*參考[::][^\n]*$/gm, "").trim();
+  if (!_citedAny) text = text.replace(/\n*[ \t]*參考[:\uFF1A][^\n]*$/gm, "").trim();
   if (text) {
     // 只列出答案裡有被引用(寫了「Q數字」)的條目
     const cited = sources.filter((s) => new RegExp(`Q${s.index}(?!\\d)`).test(text));
