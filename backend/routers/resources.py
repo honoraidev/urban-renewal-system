@@ -445,19 +445,45 @@ def ask_faq_stream(
     system, messages, sources = _faq_ask_prepare(payload, db)
 
     def gen():
+        # 真正呼叫 AI 的部分放到背景執行緒,這裡每 8 秒沒東西就送一個心跳(ping):
+        # AI 要想很久才吐第一個字時,中間的反向代理(NAS 的 nginx 預設 60 秒沒資料就斷線)才不會把連線切掉。
+        import queue
+        import threading
+
+        q: "queue.Queue" = queue.Queue()
+
+        def worker():
+            try:
+                for piece in qa_llm.chat_stream(system, messages):
+                    if piece:
+                        q.put(("chunk", piece))
+                q.put(("end", None))
+            except RuntimeError as exc:
+                q.put(("error", str(exc)))
+            except Exception:  # noqa: BLE001
+                q.put(("error", "AI 發生未預期的錯誤,請稍後再試"))
+
+        threading.Thread(target=worker, daemon=True).start()
         yield _json.dumps({"type": "sources", "sources": sources}, ensure_ascii=False) + "\n"
         sent = False
-        try:
-            for piece in qa_llm.chat_stream(system, messages):
-                if piece:
-                    sent = True
-                    yield _json.dumps({"type": "chunk", "text": piece}, ensure_ascii=False) + "\n"
-            if not sent:
-                yield _json.dumps({"type": "error", "error": "AI 沒有產生回覆,請換個問法再試一次"}, ensure_ascii=False) + "\n"
+        while True:
+            try:
+                kind, val = q.get(timeout=8)
+            except queue.Empty:
+                yield _json.dumps({"type": "ping"}) + "\n"
+                continue
+            if kind == "chunk":
+                sent = True
+                yield _json.dumps({"type": "chunk", "text": val}, ensure_ascii=False) + "\n"
+            elif kind == "error":
+                yield _json.dumps({"type": "error", "error": val}, ensure_ascii=False) + "\n"
+                return
             else:
-                yield _json.dumps({"type": "done"}) + "\n"
-        except RuntimeError as exc:
-            yield _json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n"
+                if sent:
+                    yield _json.dumps({"type": "done"}) + "\n"
+                else:
+                    yield _json.dumps({"type": "error", "error": "AI 沒有產生回覆,請換個問法再試一次"}, ensure_ascii=False) + "\n"
+                return
 
     return StreamingResponse(
         gen(),
