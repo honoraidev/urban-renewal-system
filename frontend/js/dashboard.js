@@ -178,11 +178,11 @@ function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 
       </div>
       <div class="wkt-grid">
         <div></div>
-        <div class="wkt-col-h">上週<span>${md(prevStart)}-${md(prevEnd)}</span></div>
+        <div class="wkt-col-h" title="每位地主「截至該日為止最近一次拜訪結果」的人數,不是該週新增的筆數">上週<span>累計至 ${md(prevEnd)}</span></div>
         <div></div>
-        <div class="wkt-col-h">變化</div>
+        <div class="wkt-col-h" title="本週累計人數 − 上週累計人數;這週沒有新的拜訪結果就是 0">變化</div>
         <div></div>
-        <div class="wkt-col-h">本週<span>${md(weekStart)}-${md(weekEnd)}</span></div>
+        <div class="wkt-col-h" title="每位地主「截至該日為止最近一次拜訪結果」的人數,不是該週新增的筆數">本週<span>${weekOffset === 0 ? "目前累計" : "累計至 " + md(weekEnd)}</span></div>
         ${rows.map(rowHtml).join("")}
       </div>
     </div>`;
