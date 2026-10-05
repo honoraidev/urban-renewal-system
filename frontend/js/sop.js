@@ -40,7 +40,6 @@ const SOP_GROUPS = {
   consultant: { key: "consultant", label: "顧問文件", sub: "顧問文件、顧問合約、基地簡報、共同負擔", icon: "📄", theme: "theme-blue" },
   architect: { key: "architect", label: "建築師文件", sub: "各樓層圖面、建築師合約", icon: "🏢", theme: "theme-green" },
   appraiser: { key: "appraiser", label: "估價師文件", sub: "估價報告、估價合約", icon: "📊", theme: "theme-orange" },
-  transcripts: { key: "transcripts", label: "謄本文件", sub: "第一、二、三類謄本(選填,不影響完成本階段)", icon: "📄", theme: "theme-blue", optional: true },
   contract: { key: "contract", label: "合約", sub: "合約與地主身分、權狀、同意書等文件", icon: "✍️", theme: "theme-blue" },
 };
 
@@ -82,6 +81,19 @@ function buildSopChecklistHtml(results, stageNo) {
   let out = "";
   let i = 0;
   while (i < results.length) {
+    // 有子項目的列:父列照原樣顯示(含自己的上傳按鈕),後面連續的子項目收進它的展開面板
+    if (results[i].hasSubs) {
+      const parent = results[i];
+      const kids = [];
+      i++;
+      while (i < results.length && results[i].parentKey === parent.itemKey) {
+        kids.push(results[i]);
+        i++;
+      }
+      const open = _sopOpenDropdowns.has(`${stageNo}:sub:${parent.itemKey}`);
+      out += `<div class="sop-group-wrap">${parent.html}<div class="sop-group-panel sop-checklist"${open ? "" : " hidden"}>${kids.map((k) => k.html).join("")}</div></div>`;
+      continue;
+    }
     const g = results[i].group;
     if (!g) {
       out += results[i].html;
@@ -124,11 +136,14 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   ocr_roster: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
-    { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land", action: "land" },
-    { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building", action: "building" },
-    { key: "transcript_type1", label: "第一類謄本", docType: "transcript_type1", icon: "📄", group: SOP_GROUPS.transcripts },
-    { key: "transcript_type2", label: "第二類謄本", docType: "transcript_type2", icon: "checkdoc", group: SOP_GROUPS.transcripts },
-    { key: "transcript_type3", label: "第三類謄本", docType: "transcript_type3", icon: "title", group: SOP_GROUPS.transcripts },
+    { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land", action: "land", hasSubs: true },
+    { key: "land_transcript_type1", label: "第一類謄本", docType: "land_transcript_type1", parent: "land_deed", optional: true, icon: "📄", theme: "theme-amber" },
+    { key: "land_transcript_type2", label: "第二類謄本", docType: "land_transcript_type2", parent: "land_deed", optional: true, icon: "checkdoc", theme: "theme-amber" },
+    { key: "land_transcript_type3", label: "第三類謄本", docType: "land_transcript_type3", parent: "land_deed", optional: true, icon: "title", theme: "theme-amber" },
+    { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building", action: "building", hasSubs: true },
+    { key: "building_transcript_type1", label: "第一類謄本", docType: "building_transcript_type1", parent: "building_deed", optional: true, icon: "📄", theme: "theme-teal" },
+    { key: "building_transcript_type2", label: "第二類謄本", docType: "building_transcript_type2", parent: "building_deed", optional: true, icon: "checkdoc", theme: "theme-teal" },
+    { key: "building_transcript_type3", label: "第三類謄本", docType: "building_transcript_type3", parent: "building_deed", optional: true, icon: "title", theme: "theme-teal" },
     { key: "landowner_roster_confirmed", label: "確認地主清冊正確", manual: true },
   ],
   contact_rate: [
@@ -957,7 +972,7 @@ async function renderSopTab(el) {
               : "尚未確認";
         }
         // 選填項目(例如謄本類別)不算進進度、不擋「完成本階段」
-        if (!(item.group && item.group.optional)) {
+        if (!(item.optional || (item.group && item.group.optional))) {
           checklistTotalCount++;
           if (done) checklistDoneCount++;
           else {
@@ -1035,6 +1050,16 @@ async function renderSopTab(el) {
         if (item.group) {
           iconEmoji = item.icon || item.group.icon;
           iconTheme = item.group.theme;
+        } else if (item.icon) {
+          iconEmoji = item.icon;
+          iconTheme = item.theme || iconTheme;
+        }
+        // 有下拉子項目的列(土地 / 建物謄本 PDF):原本的按鈕不動,多一顆展開鈕
+        let subToggleBtn = "";
+        if (item.hasSubs) {
+          const subKey = `${selected}:sub:${item.key}`;
+          const subOpen = _sopOpenDropdowns.has(subKey);
+          subToggleBtn = `<button type="button" class="btn-secondary btn-sm doc-icon-btn${subOpen ? " sop-wr-open" : ""}" data-sop-group-toggle="${subKey}" title="展開 / 收合第一、二、三類謄本" aria-label="展開 / 收合" aria-expanded="${subOpen}"><span class="sop-wr-chev">▾</span></button>`;
         }
         const pendingStatusText = item.docType ? "尚未上傳" : item.action ? "尚未匯入" : "尚未確認";
         const statusPillHtml = `<div class="sop-status-pill ${done ? "done" : rejected ? "rejected" : "pending"}">
@@ -1155,11 +1180,11 @@ async function renderSopTab(el) {
           <div class="sop-checklist-right">
             ${statusPillHtml}
             <div class="sop-checklist-actions">
-              ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}${wrToggleBtn}
+              ${rosterBtn}${confirmBtn}${rejectBtn}${formBtn}${previewBtn}${uploadBtn}${actionBtn}${wrToggleBtn}${subToggleBtn}
             </div>
           </div>
         </div>`;
-        return { html: wrPanel ? `<div class="sop-wr-wrap">${itemHtml}${wrPanel}</div>` : itemHtml, done, group: item.group || null };
+        return { html: wrPanel ? `<div class="sop-wr-wrap">${itemHtml}${wrPanel}</div>` : itemHtml, done, group: item.group || null, itemKey: item.key, parentKey: item.parent || null, hasSubs: !!item.hasSubs };
       });
     const itemsHtml = buildSopChecklistHtml(itemResults, selected);
     checklistHtml = `<div class="sop-checklist">${itemsHtml}</div>`;

@@ -71,6 +71,12 @@ VALID_DOC_TYPES = {
     "transcript_type1",
     "transcript_type2",
     "transcript_type3",
+    "land_transcript_type1",
+    "land_transcript_type2",
+    "land_transcript_type3",
+    "building_transcript_type1",
+    "building_transcript_type2",
+    "building_transcript_type3",
 }
 
 DOC_TYPE_LABELS_MAP = {
@@ -109,6 +115,12 @@ DOC_TYPE_LABELS_MAP = {
     "transcript_type1": "第一類謄本",
     "transcript_type2": "第二類謄本",
     "transcript_type3": "第三類謄本",
+    "land_transcript_type1": "土地第一類謄本",
+    "land_transcript_type2": "土地第二類謄本",
+    "land_transcript_type3": "土地第三類謄本",
+    "building_transcript_type1": "建物第一類謄本",
+    "building_transcript_type2": "建物第二類謄本",
+    "building_transcript_type3": "建物第三類謄本",
     "photo": "照片",
     "other": "其他",
 }
@@ -541,6 +553,12 @@ STANDARD_UPLOAD_NAME_LABELS = {
     "transcript_type1": "第一類謄本",
     "transcript_type2": "第二類謄本",
     "transcript_type3": "第三類謄本",
+    "land_transcript_type1": "土地第一類謄本",
+    "land_transcript_type2": "土地第二類謄本",
+    "land_transcript_type3": "土地第三類謄本",
+    "building_transcript_type1": "建物第一類謄本",
+    "building_transcript_type2": "建物第二類謄本",
+    "building_transcript_type3": "建物第三類謄本",
 }
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 

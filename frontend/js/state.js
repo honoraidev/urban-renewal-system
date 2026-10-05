@@ -66,7 +66,7 @@ const DOC_TYPE_LABEL = {
   landowner_roster: "地主清冊",
   architecture_drawing: "建築圖面", appraisal_result: "估價結果",
   chairman_approved_roi: "董事長簽核之投報表", unit_area_split: "分坪表", invitation_letter: "邀請函",
-  consultant_contract: "顧問合約", site_briefing: "基地簡報", common_burden: "共同負擔", arch_standard_floor: "標準層圖面", arch_floor_1: "一樓圖面", arch_basement_1: "地下一樓圖面", arch_basement_2plus: "地下二樓以下圖面", architect_contract: "建築師合約", appraisal_contract: "估價合約", id_copy: "身分證影本", land_title: "土地所有權狀", building_title: "建築所有權狀", renewal_consent: "都市更新事業計劃同意書", demolition_consent: "建物拆除同意書", seal_consent: "代刻印章同意書", transcript_type1: "第一類謄本", transcript_type2: "第二類謄本", transcript_type3: "第三類謄本",
+  consultant_contract: "顧問合約", site_briefing: "基地簡報", common_burden: "共同負擔", arch_standard_floor: "標準層圖面", arch_floor_1: "一樓圖面", arch_basement_1: "地下一樓圖面", arch_basement_2plus: "地下二樓以下圖面", architect_contract: "建築師合約", appraisal_contract: "估價合約", id_copy: "身分證影本", land_title: "土地所有權狀", building_title: "建築所有權狀", renewal_consent: "都市更新事業計劃同意書", demolition_consent: "建物拆除同意書", seal_consent: "代刻印章同意書", transcript_type1: "第一類謄本", transcript_type2: "第二類謄本", transcript_type3: "第三類謄本", land_transcript_type1: "土地第一類謄本", land_transcript_type2: "土地第二類謄本", land_transcript_type3: "土地第三類謄本", building_transcript_type1: "建物第一類謄本", building_transcript_type2: "建物第二類謄本", building_transcript_type3: "建物第三類謄本",
 };
 
 const DOC_TYPE_KEYWORDS = {
