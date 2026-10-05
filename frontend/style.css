@@ -5213,4 +5213,6 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-pager #ann-page-no { white-space: nowrap; }
 .ann-popup-foot { flex-wrap: wrap; row-gap: 10px; }
 .ann-popup-foot .ann-read { flex: 1 1 auto; min-width: 0; }
+/* 上一筆 + 頁碼靠右,緊貼下一筆/關閉 */
+.ann-popup-foot .ann-pager { margin-left: auto; margin-right: 0; }
 
