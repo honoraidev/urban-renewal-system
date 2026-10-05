@@ -35,6 +35,7 @@ function myWorkEnsureStyle() {
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
+    .mw-follow-list { max-height:260px; overflow-y:auto; padding-right:6px; line-height:1.7; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
     .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
     .mw-scope-toggle button.active { background:var(--surface); color:var(--brand,#0d9488); box-shadow:0 1px 3px rgba(0,0,0,.1); }
@@ -220,7 +221,7 @@ function renderMyWork() {
         </div>
         <div class="mw-card" style="margin-bottom:16px">
           <h3>今日跟進名單</h3>
-          ${followList}
+          <div class="mw-follow-list">${followList}</div>
         </div>
         <div class="mw-card mw-board">
           <div class="mw-board-head">
