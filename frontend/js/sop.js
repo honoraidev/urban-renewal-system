@@ -944,9 +944,9 @@ async function renderSopTab(el) {
           wrAllDoneText = "所有地主都已聯絡 🎉";
         } else if (item.ratioGate) {
           const threshold = item.threshold ?? 0.8;
-          done = !!ratioData && ratioData.headcount_ratio >= threshold && ratioData.land_share_ratio >= threshold;
+          done = !!ratioData && ratioData.bv_headcount_ratio >= threshold && ratioData.bv_area_ratio >= threshold;
           sub = ratioData
-            ? `人數 ${Math.round(ratioData.headcount_ratio * 100)}%・面積 ${Math.round(ratioData.land_share_ratio * 100)}%`
+            ? `人數 ${Math.round(ratioData.bv_headcount_ratio * 100)}%・面積 ${Math.round(ratioData.bv_area_ratio * 100)}%`
             : "載入中";
         } else if (item.manual) {
           const confirmed = confirmedChecklist[item.key];
@@ -1257,7 +1257,6 @@ async function renderSopTab(el) {
       <div class="sop-detail-card">
         <div class="sop-detail-header">
           <div>
-            <h3>第${selected}階段・${escapeHtml(selectedLabel)}</h3>
             <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
           </div>
           <div class="sop-detail-header-right">
@@ -1533,12 +1532,12 @@ async function renderConsentPanel(el, stage) {
   el.innerHTML = `
     <div class="gate-bars">
       <div>
-        <div class="gate-bar-label"><span>人數同意率</span><span>${fmtPct(ratio.headcount_ratio)} (${ratio.headcount_agreed}/${ratio.headcount_total})</span></div>
-        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${Math.min(ratio.headcount_ratio * 100, 100)}%"></div></div>
+        <div class="gate-bar-label"><span>人數同意率</span><span>${fmtPct(ratio.bv_headcount_ratio)} (${ratio.bv_headcount_agreed}/${ratio.bv_headcount_total})</span></div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${Math.min(ratio.bv_headcount_ratio * 100, 100)}%"></div></div>
       </div>
       <div>
-        <div class="gate-bar-label"><span>面積同意率</span><span>${fmtPct(ratio.land_share_ratio)} (${ratio.land_share_agreed_sqm.toFixed(1)}/${ratio.land_share_total_sqm.toFixed(1)} m²)</span></div>
-        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${Math.min(ratio.land_share_ratio * 100, 100)}%"></div></div>
+        <div class="gate-bar-label"><span title="依樓棟視圖計算:只算非公設建物的持分樓地板面積">面積同意率</span><span>${fmtPct(ratio.bv_area_ratio)} (${ratio.bv_area_agreed_sqm.toFixed(1)}/${ratio.bv_area_total_sqm.toFixed(1)} m²)</span></div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${Math.min(ratio.bv_area_ratio * 100, 100)}%"></div></div>
       </div>
       <div class="helper-text">需人數與面積同意率皆 ≥ 80% 才能通過雙門檻${ratio.dual_gate_passed ? " · <strong style='color:var(--success)'>已達標</strong>" : ""}</div>
     </div>

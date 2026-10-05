@@ -110,6 +110,50 @@ def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold:
         else 0.0
     )
 
+    # ---- 樓棟視圖口徑(SOP 同意率面板 / 雙門檻實際使用)----
+    # 人數:跟整合清冊「已/未聯絡」統計同一套 —— 名下沒有建物(只有土地)或至少有一筆「非公設」
+    # 建物的地主才算;名下建物全是共有部分/公設的人樓棟視圖畫不出一格,不計入。
+    # 面積:只加總「非公設」建物登記的持分樓地板面積(= 樓棟視圖每一格的面積),同意者那幾位的部分
+    # 當分子。完全沒有建物資料(純土地案件)時退回用土地持分面積。
+    from utils.building_view import is_shared_building_record
+
+    bld_rows = db.execute(
+        select(
+            BuildingRecord.landowner_id,
+            BuildingRecord.main_use,
+            BuildingRecord.common_part_shares,
+            BuildingRecord.address,
+            BuildingRecord.total_area_sqm,
+            BuildingRecord.ownership_share_pct,
+        ).where(BuildingRecord.project_id == project_id)
+    ).all()
+    owner_ids_all = set(db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all())
+    has_any: set[int] = set()
+    has_real: set[int] = set()
+    bv_area_total = 0.0
+    bv_area_agreed = 0.0
+    for lid, main_use, cps, addr, total_area, share in bld_rows:
+        if lid is None:
+            continue
+        has_any.add(lid)
+        rec = type("R", (), {"main_use": main_use, "common_part_shares": cps, "address": addr})()
+        if is_shared_building_record(rec):
+            continue
+        has_real.add(lid)
+        owned = float(total_area or 0) * float(share or 0) / 100
+        bv_area_total += owned
+        if lid in agreed_ids:
+            bv_area_agreed += owned
+    bv_owner_ids = {lid for lid in owner_ids_all if lid not in has_any or lid in has_real}
+    bv_headcount_total = len(bv_owner_ids)
+    bv_headcount_agreed = len(agreed_ids & bv_owner_ids)
+    bv_headcount_ratio = bv_headcount_agreed / bv_headcount_total if bv_headcount_total > 0 else 0.0
+    if bv_area_total > 0:
+        bv_area_ratio = bv_area_agreed / bv_area_total
+    else:
+        bv_area_total, bv_area_agreed = land_share_total_sqm, land_share_agreed_sqm
+        bv_area_ratio = (land_share_agreed_sqm / land_share_total_sqm if land_share_total_sqm > 0 else 0.0)
+
     headcount_ratio = headcount_agreed / headcount_total if headcount_total > 0 else 0.0
     land_share_ratio = land_share_agreed_sqm / land_share_total_sqm if land_share_total_sqm > 0 else 0.0
     building_share_ratio = building_share_agreed_sqm / building_share_total_sqm if building_share_total_sqm > 0 else 0.0
@@ -125,5 +169,11 @@ def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold:
         "building_share_total_sqm": building_share_total_sqm,
         "building_share_agreed_sqm": building_share_agreed_sqm,
         "building_share_ratio": building_share_ratio,
-        "dual_gate_passed": headcount_ratio >= threshold and land_share_ratio >= threshold,
+        "bv_headcount_total": bv_headcount_total,
+        "bv_headcount_agreed": bv_headcount_agreed,
+        "bv_headcount_ratio": bv_headcount_ratio,
+        "bv_area_total_sqm": bv_area_total,
+        "bv_area_agreed_sqm": bv_area_agreed,
+        "bv_area_ratio": bv_area_ratio,
+        "dual_gate_passed": bv_headcount_ratio >= threshold and bv_area_ratio >= threshold,
     }
