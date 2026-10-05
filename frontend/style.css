@@ -5072,4 +5072,12 @@ select option { color: var(--text); background: var(--surface); }
 .ann-popup-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); }
 .ann-read { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
 .ann-read input { width: 18px; height: 18px; }
+/* 工作看板頂端公告:只留標題 + 公告人,點擊看詳細內容 */
+button.ann-compact { width: 100%; align-items: center; gap: 10px; padding: 10px 16px; text-align: left; font: inherit; color: var(--text); cursor: pointer; transition: filter .12s ease, transform .08s ease; }
+button.ann-compact:hover { filter: brightness(.98); border-color: var(--a); }
+button.ann-compact:active { transform: scale(.998); }
+.ann-compact .ann-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ann-by { flex: 0 0 auto; font-size: 13px; color: var(--text-muted); }
+.ann-more { flex: 0 0 auto; font-size: 13px; font-weight: 800; color: var(--a); }
+.ann-detail-content { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.7; }
 

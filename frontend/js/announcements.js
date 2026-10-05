@@ -19,16 +19,28 @@ async function loadAnnouncementBanner() {
   box.innerHTML = rows
     .map((a) => {
       const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
-      return `<div class="ann-banner ann-${escapeHtml(a.level)}">
+      return `<button type="button" class="ann-banner ann-compact ann-${escapeHtml(a.level)}" data-ann-id="${a.id}" title="點擊查看公告內容">
         <span class="ann-ic">${lv.icon}</span>
-        <div class="ann-main">
-          <div class="ann-title">${escapeHtml(a.title)}</div>
-          ${a.content ? `<div class="ann-content">${escapeHtml(a.content)}</div>` : ""}
-          <div class="ann-meta">${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・顯示至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>
-        </div>
-      </div>`;
+        <span class="ann-title">${escapeHtml(a.title)}</span>
+        <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
+        <span class="ann-more">查看 ›</span>
+      </button>`;
     })
     .join("");
+  box.querySelectorAll("[data-ann-id]").forEach((el) => {
+    el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annId));
+  });
+}
+
+function openAnnouncementDetail(a) {
+  if (!a) return;
+  const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
+  openModal(
+    `${lv.icon} ${escapeHtml(a.title)}`,
+    `<div class="ann-detail-content">${a.content ? escapeHtml(a.content) : '<span class="helper-text">(沒有補充內容)</span>'}</div>
+     <div class="ann-meta" style="margin-top:14px">公告人:${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・顯示至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>`,
+    { width: "520px" }
+  );
 }
 
 function setupAnnouncementButton() {
