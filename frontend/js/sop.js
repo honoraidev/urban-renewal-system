@@ -1257,6 +1257,7 @@ async function renderSopTab(el) {
       <div class="sop-detail-card">
         <div class="sop-detail-header">
           <div>
+            <h3>第${selected}階段・${escapeHtml(selectedLabel)}</h3>
             <span class="status-badge ${statusBadgeCls}">${statusBadgeText}</span>
           </div>
           <div class="sop-detail-header-right">
