@@ -65,7 +65,7 @@ function myWorkEnsureStyle() {
     .mw-board-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; }
     .mw-board-head h3 { margin:0; display:flex; align-items:center; gap:6px; }
     .mw-board-head .btn-sm { padding:5px 12px; font-size:13px; }
-    .mw-act-scroll { max-height:172px; overflow-y:auto; }
+    .mw-act-scroll { max-height:132px; overflow-y:auto; padding-right:6px; }
     .mw-act-more { margin-top:4px; text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); min-height:14px;
       white-space:nowrap; letter-spacing:normal; word-spacing:normal; }
     .mw-daydetail-ev { background:var(--surface-2); border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-sm,8px); padding:10px 12px; margin-bottom:8px; transition:border-color .15s ease; }
