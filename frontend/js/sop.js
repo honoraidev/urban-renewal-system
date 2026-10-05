@@ -899,6 +899,10 @@ async function renderSopTab(el) {
         } else if (item.countOf === "landowner_with_phone") {
           done = phoneCount > 0;
           sub = `${phoneCount}/${landowners.length} 位已建立聯絡方式`;
+          wrMissing = landowners.filter((o) => ![o.email, o.phone_landline, o.phone_mobile, o.line_id].some((v) => (v || "").trim()));
+          wrMissingTitle = "還未建立聯絡方式";
+          wrToggleTip = "查看還未建立聯絡方式的地主";
+          wrAllDoneText = "所有地主都已建立聯絡方式 🎉";
         } else if (item.countOf) {
           const count = item.countOf === "land" ? landCount : buildingCount;
           done = count > 0;
@@ -934,6 +938,10 @@ async function renderSopTab(el) {
           const threshold = item.threshold ?? CONTACT_RATE_THRESHOLD;
           done = contactRate >= threshold;
           sub = `已聯絡 ${contactedCount}/${landowners.length}(${Math.round(contactRate * 100)}%)`;
+          wrMissing = landowners.filter((o) => !o.contact_status || o.contact_status === "not_contacted");
+          wrMissingTitle = "還未聯絡(尚無拜訪紀錄)";
+          wrToggleTip = "查看還未聯絡的地主";
+          wrAllDoneText = "所有地主都已聯絡 🎉";
         } else if (item.ratioGate) {
           const threshold = item.threshold ?? 0.8;
           done = !!ratioData && ratioData.headcount_ratio >= threshold && ratioData.land_share_ratio >= threshold;
