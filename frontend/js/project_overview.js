@@ -474,10 +474,12 @@ async function _ovOpenMetricDetail(pid, kind) {
       const phone = o.phone_mobile || o.phone_landline || o.phone || "";
       const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "";
       const initial = (o.name || "").trim().charAt(0) || "?";
-      return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls}" data-md-name="${escapeHtml((o.name || "").toLowerCase())}">
+      const doors = [...new Set((o.building_records || []).map((r) => (typeof _shortDoorAddr === "function" ? _shortDoorAddr(r.address) : r.address)).filter(Boolean))].join("、");
+      return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls}" data-md-name="${escapeHtml(((o.name || "") + " " + doors).toLowerCase())}">
         <div class="ov-md-avatar">${escapeHtml(initial)}</div>
         <div class="ov-md-main">
           <div class="ov-md-name">${escapeHtml(o.name || "(未命名)")}</div>
+          ${doors ? `<div class="ov-md-door">🏠 ${escapeHtml(doors)}</div>` : ""}
           <div class="ov-md-meta">
             ${phone ? `<a class="ov-md-phone" href="tel:${escapeHtml(phone)}">📞 ${escapeHtml(phone)}</a>` : `<span class="ov-md-muted">未留電話</span>`}
           </div>
@@ -490,7 +492,7 @@ async function _ovOpenMetricDetail(pid, kind) {
     <div class="ov-md-toolbar">
       <span class="ov-md-count tone-${kind}">共 <b>${matched.length}</b> 位</span>
       ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
-      ${matched.length > 8 ? `<input type="search" class="ov-md-search" placeholder="搜尋姓名…" autocomplete="off">` : ""}
+      <input type="search" class="ov-md-search" placeholder="搜尋姓名 / 門牌…" autocomplete="off">
     </div>
     <div class="ov-md-list">${rowsHtml}</div>
     <div class="ov-md-empty hidden">找不到符合的地主</div>`;
