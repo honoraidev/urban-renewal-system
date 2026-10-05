@@ -152,9 +152,11 @@ const SOP_STAGE_CHECKLISTS = {
   ],
   consent_dual_1: [
     { key: "willingness_80", label: "意願書簽署人數達80%", willingnessRatio: true, threshold: 0.8 },
+    { key: "ratio_gate_dual_1", label: "人數與面積同意率皆達80%", ratioGate: true, threshold: 0.8 },
   ],
   consent_dual_2: [
     { key: "signed_80", label: "已簽約人數達80%", signedRatio: true, threshold: 0.8 },
+    { key: "ratio_gate_dual_2", label: "人數與面積同意率皆達80%", ratioGate: true, threshold: 0.8 },
   ],
   briefing_1: [
     { key: "briefing_material", label: "上傳說明會簡報", docType: "briefing_material" },

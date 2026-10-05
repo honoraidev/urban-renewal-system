@@ -47,7 +47,10 @@ _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
         {"kind": "doc", "doc_type": "briefing_material", "label": "上傳說明會簡報"},
         {"kind": "manual", "key": "briefing_reviewed_3", "label": "主管審核通過"},
     ],
-    "consent_dual_1": [{"kind": "willingness", "threshold": 0.8, "label": "意願書簽署人數達80%"}],
+    "consent_dual_1": [
+        {"kind": "willingness", "threshold": 0.8, "label": "意願書簽署人數達80%"},
+        {"kind": "ratio", "threshold": 0.8, "label": "人數與面積同意率皆達80%"},
+    ],
     "consultant_review": [
         {"kind": "doc", "doc_type": "consultant_document", "label": "上傳顧問文件"},
         {"kind": "doc", "doc_type": "consultant_contract", "label": "上傳顧問合約"},
@@ -82,7 +85,10 @@ _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
         {"kind": "doc", "doc_type": "seal_consent", "label": "上傳代刻印章同意書"},
         {"kind": "manual", "key": "briefing_reviewed_7", "label": "主管審核通過"},
     ],
-    "consent_dual_2": [{"kind": "signed", "threshold": 0.8, "label": "已簽約人數達80%"}],
+    "consent_dual_2": [
+        {"kind": "signed", "threshold": 0.8, "label": "已簽約人數達80%"},
+        {"kind": "ratio", "threshold": 0.8, "label": "人數與面積同意率皆達80%"},
+    ],
     "consent_final": [{"kind": "ratio", "threshold": 0.8, "label": "達到同意度雙門檻(人數與面積皆 ≥ 80%)"}],
 }
 

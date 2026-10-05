@@ -478,6 +478,19 @@ def signed_ratio(db: Session, project_id: int) -> tuple[int, int]:
     return signed, total
 
 
+def _assert_dual_gate(db: Session, project_id: int, stage: int) -> None:
+    """意願書簽署 / 簽約階段除了簽署人數,還要「人數同意率」與「面積同意率」(樓棟視圖口徑,見
+    utils/consent_ratio.py 的 bv_*)都達 80% 才能進下一關;主管強制完成不走這裡。"""
+    ratio = calculate_consent_ratio(db, project_id, stage)
+    if not ratio["dual_gate_passed"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"同意率未達門檻:人數 {ratio['bv_headcount_ratio']:.1%}、面積 {ratio['bv_area_ratio']:.1%}(兩者皆需 ≥ 80%)"
+            ),
+        )
+
+
 def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage) -> None:
     entry = sop.stage_data["stages"].get(str(stage)) or {}
     requirements = (entry.get("data") or {}).get("requirements")
@@ -515,6 +528,7 @@ def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage)
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"已上傳意願書 {with_form}/{total} 位({ratio:.1%}),未達 {WILLINGNESS_THRESHOLD:.0%} 門檻",
             )
+        _assert_dual_gate(db, project_id, stage)
     elif key == "consent_dual_2":
         signed_n, total = signed_ratio(db, project_id)
         ratio = signed_n / total if total > 0 else 0.0
@@ -523,6 +537,7 @@ def _assert_gate_passed(db: Session, project_id: int, stage: int, sop: SopStage)
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"已簽約 {signed_n}/{total} 位({ratio:.1%}),未達 {WILLINGNESS_THRESHOLD:.0%} 門檻",
             )
+        _assert_dual_gate(db, project_id, stage)
     elif key in DUAL_GATE_KEYS:
         ratio = calculate_consent_ratio(db, project_id, stage)
         if not ratio["dual_gate_passed"]:
