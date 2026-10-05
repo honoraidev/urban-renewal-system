@@ -111,48 +111,52 @@ def calculate_consent_ratio(db: Session, project_id: int, stage: int, threshold:
     )
 
     # ---- 樓棟視圖口徑(SOP 同意率面板 / 雙門檻實際使用)----
-    # 人數:跟整合清冊「已/未聯絡」統計同一套 —— 名下沒有建物(只有土地)或至少有一筆「非公設」
-    # 建物的地主才算;名下建物全是共有部分/公設的人樓棟視圖畫不出一格,不計入。
-    # 面積:只加總「非公設」建物登記的持分樓地板面積(= 樓棟視圖每一格的面積),同意者那幾位的部分
-    # 當分子。完全沒有建物資料(純土地案件)時退回用土地持分面積。
-    from utils.building_view import is_shared_building_record
+    # 跟「樓棟視圖」分頁頂端統計完全同一套:只取有地主的非公設建物登記,依門牌+樓層分格,
+    # 每格同一位地主只算一人;「同意」= 該地主最新一次拜訪結果為 agreed(跟格子顏色同一個定義);
+    # 地下層多位共有的格子(>1 人、樓層<0)算「多位共有」,計入總人數但不算同意。
+    # 面積 = 這些格子裡建物登記的持分樓地板面積(總面積 × 持分%),同意者的部分當分子。
+    # 完全沒有建物資料(純土地案件)時退回用土地持分面積。
+    from routers.contacts import _last_contact_result_by_landowner
+    from utils.building_view import floor_sort_key_and_label, is_shared_building_record, parse_address
 
+    last_result = _last_contact_result_by_landowner(db, project_id)
     bld_rows = db.execute(
-        select(
-            BuildingRecord.landowner_id,
-            BuildingRecord.main_use,
-            BuildingRecord.common_part_shares,
-            BuildingRecord.address,
-            BuildingRecord.total_area_sqm,
-            BuildingRecord.ownership_share_pct,
-        ).where(BuildingRecord.project_id == project_id)
-    ).all()
-    owner_ids_all = set(db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all())
-    has_any: set[int] = set()
-    has_real: set[int] = set()
+        select(BuildingRecord).where(BuildingRecord.project_id == project_id, BuildingRecord.landowner_id.isnot(None))
+    ).scalars().all()
+    cells: dict[tuple, dict] = {}
+    for r in bld_rows:
+        if is_shared_building_record(r):
+            continue
+        parsed = parse_address(r.address)
+        floor_sort, _label = floor_sort_key_and_label(r.floor)
+        if parsed:
+            key = (parsed[0], parsed[1], parsed[2], floor_sort)
+        else:
+            key = ("__unmatched__", r.id, 0, floor_sort)
+        cell = cells.setdefault(key, {"floor_sort": floor_sort, "owners": set(), "area_total": 0.0, "area_agreed": 0.0})
+        cell["owners"].add(r.landowner_id)
+        owned = float(r.total_area_sqm or 0) * float(r.ownership_share_pct or 0) / 100
+        cell["area_total"] += owned
+        if last_result.get(r.landowner_id) == "agreed":
+            cell["area_agreed"] += owned
+    bv_headcount_total = 0
+    bv_headcount_agreed = 0
     bv_area_total = 0.0
     bv_area_agreed = 0.0
-    for lid, main_use, cps, addr, total_area, share in bld_rows:
-        if lid is None:
-            continue
-        has_any.add(lid)
-        rec = type("R", (), {"main_use": main_use, "common_part_shares": cps, "address": addr})()
-        if is_shared_building_record(rec):
-            continue
-        has_real.add(lid)
-        owned = float(total_area or 0) * float(share or 0) / 100
-        bv_area_total += owned
-        if lid in agreed_ids:
-            bv_area_agreed += owned
-    bv_owner_ids = {lid for lid in owner_ids_all if lid not in has_any or lid in has_real}
-    bv_headcount_total = len(bv_owner_ids)
-    bv_headcount_agreed = len(agreed_ids & bv_owner_ids)
+    for cell in cells.values():
+        n = len(cell["owners"])
+        bv_headcount_total += n
+        bv_area_total += cell["area_total"]
+        if n > 1 and cell["floor_sort"] < 0:
+            continue  # 多位共有:不算同意
+        bv_headcount_agreed += sum(1 for lid in cell["owners"] if last_result.get(lid) == "agreed")
+        bv_area_agreed += cell["area_agreed"]
     bv_headcount_ratio = bv_headcount_agreed / bv_headcount_total if bv_headcount_total > 0 else 0.0
     if bv_area_total > 0:
         bv_area_ratio = bv_area_agreed / bv_area_total
     else:
         bv_area_total, bv_area_agreed = land_share_total_sqm, land_share_agreed_sqm
-        bv_area_ratio = (land_share_agreed_sqm / land_share_total_sqm if land_share_total_sqm > 0 else 0.0)
+        bv_area_ratio = land_share_agreed_sqm / land_share_total_sqm if land_share_total_sqm > 0 else 0.0
 
     headcount_ratio = headcount_agreed / headcount_total if headcount_total > 0 else 0.0
     land_share_ratio = land_share_agreed_sqm / land_share_total_sqm if land_share_total_sqm > 0 else 0.0
