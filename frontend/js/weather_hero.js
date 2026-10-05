@@ -74,8 +74,13 @@ async function loadWorkHeroWeather(dayByClock) {
   const icon = document.getElementById("mw-hero-ic");
   if (!line) return;
   let w = null;
-  // 依登入裝置位置取天氣:先用上次定位(立即顯示),同時向瀏覽器要最新位置;拒絕 / 不支援就退回預設(板橋)
+  // 依登入裝置位置取天氣:先用上次定位(立即顯示),同時向瀏覽器要最新位置;拒絕 / 不支援就顯示「未開啟GPS無法偵測天氣」
   const pos = await _wxPosition();
+  if (!pos) {
+    // 拒絕定位 / 裝置不支援 / 逾時:不再退回預設城市,直接提示;背景維持依時間的日夜配色
+    line.textContent = "未開啟GPS無法偵測天氣";
+    return;
+  }
   try {
     w = await api("/weather", { silent: true, params: pos ? { lat: pos.lat, lon: pos.lon } : undefined });
   } catch (e) {}
