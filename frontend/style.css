@@ -5516,4 +5516,5 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .mw-ann-card .ann-more { white-space: nowrap; }
 .mw-ann-card .ann-by { display: none; }
 .mw-ann-card .ann-row-btn { padding-right: 8px; gap: 8px; }
+.mw-ann-card #mywork-ann { max-height: 260px; overflow-y: auto; padding-right: 4px; }
 
