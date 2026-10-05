@@ -216,6 +216,14 @@ function initAuth() {
       try {
         await doLogin(username, password);
       } catch (err) {
+        // 系統維護中:後端回 503,detail 是 {maintenance:true,...} → 跳維護通知視窗
+        if (err && typeof err.message === "string" && err.message.startsWith('{"maintenance"')) {
+          try {
+            showMaintenanceNotice(JSON.parse(err.message));
+            if (errEl) { errEl.textContent = "系統維護中,目前僅限系統管理員登入"; errEl.classList.remove("hidden"); }
+            return;
+          } catch (e2) { /* 解析失敗就走一般錯誤 */ }
+        }
         const msg = LOGIN_ERROR_MESSAGES[err && err.message] || "登入失敗,請稍後再試";
         if (errEl) {
           errEl.textContent = msg;

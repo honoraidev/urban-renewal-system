@@ -33,6 +33,14 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="account_deactivated")
 
+    # 系統維護期間(管理員在「發布公告」設定維護時間)只有系統管理員能登入
+    if user.role != "sys_admin":
+        from routers.announcements import active_maintenance
+
+        maint = active_maintenance(db)
+        if maint:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=maint)
+
     # last_login_at 與登入紀錄都只是輔助資訊。users 那列若剛好被別的交易鎖住
     # (1205 Lock wait timeout / 1213 deadlock),絕不能讓登入整個失敗或卡 50 秒 ——
     # 設短 timeout,失敗就放棄這兩筆、照樣發 token。

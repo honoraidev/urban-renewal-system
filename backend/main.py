@@ -108,6 +108,8 @@ def _auto_migrate() -> None:
         ("calendar_events", "sop_stage", "INT NULL"),
         ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
+        ("announcements", "maint_start", "DATETIME NULL"),
+        ("announcements", "maint_end", "DATETIME NULL"),
     ):
         try:
             with engine.connect() as _conn:
@@ -205,7 +207,7 @@ def _auto_migrate() -> None:
                     "CREATE TABLE IF NOT EXISTS announcements ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(120) NOT NULL, content TEXT NULL, "
                     "level VARCHAR(10) NOT NULL DEFAULT 'info', is_active TINYINT(1) NOT NULL DEFAULT 1, "
-                    "expires_at DATETIME NULL, created_by_name VARCHAR(100) NULL, "
+                    "expires_at DATETIME NULL, maint_start DATETIME NULL, maint_end DATETIME NULL, created_by_name VARCHAR(100) NULL, "
                     "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
                 )

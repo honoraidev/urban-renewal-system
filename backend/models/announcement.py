@@ -18,5 +18,9 @@ class Announcement(Base):
     level: Mapped[str] = mapped_column(String(10), nullable=False, default="info")  # info / warning / urgent
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 系統維護(選填):maint_start 到了且公告仍上架 → 非系統管理員不能登入;maint_end 只是「預計」結束時間,
+    # 不會自動解除,要由管理員下架/刪除這則公告才恢復。
+    maint_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    maint_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

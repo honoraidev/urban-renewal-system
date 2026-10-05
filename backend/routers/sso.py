@@ -194,6 +194,11 @@ def sso_callback(request: Request, db: Session = Depends(get_db)):
         if id_claims.get("name"):
             user.display_name = id_claims["name"]
         user.is_active = True
+    if user.role != "sys_admin":
+        from routers.announcements import active_maintenance
+
+        if active_maintenance(db):
+            return _bounce("sso_error=maintenance")
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)

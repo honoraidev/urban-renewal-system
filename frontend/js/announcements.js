@@ -9,6 +9,15 @@ const ANN_LEVEL = {
 
 let _annGroupOpen = false;
 
+
+// 系統維護時間文字:「系統維護:2026/10/10 22:00 起,預計 23:00 結束(實際完成時間依狀況而定)」
+function annMaintText(a) {
+  if (!a || !a.maint_start) return "";
+  const st = fmtDateTime(a.maint_start);
+  const en = a.maint_end ? `,預計 ${fmtDateTime(a.maint_end)} 結束(實際完成時間依狀況而定)` : ",結束時間待通知";
+  return `系統維護:${st} 起${en}`;
+}
+
 async function loadAnnouncementBanner() {
   const box = document.getElementById("mywork-ann");
   if (!box) return;
@@ -53,6 +62,7 @@ function openAnnouncementDetail(a) {
         <div class="ann-d-card">
           <div class="ann-d-card-title">${escapeHtml(a.title)}</div>
           ${a.content ? `<div class="ann-d-card-content">${escapeHtml(a.content)}</div>` : ""}
+          ${a.maint_start ? `<div class="ann-d-maint">🛠️ ${escapeHtml(annMaintText(a))}</div>` : ""}
           <div class="ann-d-meta">
             <span>公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span><i></i>
             <span>發布時間:${escapeHtml(fmtDateTime(a.created_at))}</span>${a.expires_at ? `<i></i><span>顯示至:${escapeHtml(fmtDateTime(a.expires_at))}</span>` : ""}
@@ -95,6 +105,16 @@ async function openAnnouncementAdmin() {
       <form id="ann-form" class="ann-form">
         <div class="field"><label>標題</label><input id="ann-title" maxlength="120" placeholder="例如:伺服器維修通知" required autocomplete="off"></div>
         <div class="field"><label>內容(選填)</label><textarea id="ann-content" rows="3" maxlength="4000" placeholder="例如:10/10 22:00–23:00 進行伺服器維修,期間系統可能無法使用。"></textarea></div>
+        <div class="ann-maint">
+          <label class="ann-maint-toggle"><input type="checkbox" id="ann-maint-on"> 🛠️ 這是系統維護公告(選填)</label>
+          <div class="ann-maint-fields hidden" id="ann-maint-fields">
+            <div class="ann-form-row">
+              <div class="field"><label>維護開始</label><input type="datetime-local" id="ann-maint-start"></div>
+              <div class="field"><label>預計結束(選填,僅供參考)</label><input type="datetime-local" id="ann-maint-end"></div>
+            </div>
+            <div class="helper-text">維護開始後,<b>只有系統管理員能登入</b>,其他人登入時會看到維護通知;預計結束時間只是預估,不會自動恢復,要把這則公告「下架」或刪除才會開放登入。</div>
+          </div>
+        </div>
         <div class="ann-form-row">
           <div class="field"><label>類型</label>
             <select id="ann-level"><option value="info">📢 一般公告</option><option value="warning">⚠️ 注意</option><option value="urgent">🚨 緊急</option></select>
@@ -112,8 +132,10 @@ async function openAnnouncementAdmin() {
                 const live = isLive(a);
                 return `<div class="ann-row${live ? "" : " off"}">
                   <div class="ann-row-main">
-                    <div class="ann-row-title">${lv.icon} ${escapeHtml(a.title)} <span class="ann-state ${live ? "on" : ""}">${live ? "顯示中" : a.is_active ? "已過期" : "已下架"}</span></div>
-                    <div class="ann-row-meta">${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>
+                    <div class="ann-row-title">${lv.icon} ${escapeHtml(a.title)} <span class="ann-state ${live ? "on" : ""}">${live ? "顯示中" : a.is_active ? "已過期" : "已下架"}</span>${
+                      live && a.maint_start && parseApiDate(a.maint_start).getTime() <= now ? `<span class="ann-state maint">🛠️ 維護中・僅管理員可登入</span>` : a.maint_start ? `<span class="ann-state">🛠️ 維護</span>` : ""
+                    }</div>
+                    <div class="ann-row-meta">${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}${a.maint_start ? `<br>${escapeHtml(annMaintText(a))}` : ""}</div>
                   </div>
                   <button type="button" class="btn-secondary btn-sm" data-ann-toggle="${a.id}" data-active="${a.is_active ? 1 : 0}">${a.is_active ? "下架" : "重新上架"}</button>
                   <button type="button" class="btn-secondary btn-sm" data-ann-del="${a.id}">刪除</button>
@@ -122,9 +144,17 @@ async function openAnnouncementAdmin() {
               .join("")
           : `<div class="helper-text">還沒有發布過公告</div>`}
       </div>`;
+    body.querySelector("#ann-maint-on").onchange = (e) => {
+      body.querySelector("#ann-maint-fields").classList.toggle("hidden", !e.target.checked);
+    };
     body.querySelector("#ann-form").onsubmit = async (e) => {
       e.preventDefault();
       const exp = body.querySelector("#ann-exp").value;
+      const maintOn = body.querySelector("#ann-maint-on").checked;
+      const mStart = maintOn ? body.querySelector("#ann-maint-start").value : "";
+      const mEnd = maintOn ? body.querySelector("#ann-maint-end").value : "";
+      if (maintOn && !mStart) { toast("請設定維護開始時間", "error"); return; }
+      if (maintOn && mEnd && new Date(mEnd) <= new Date(mStart)) { toast("預計結束時間必須晚於維護開始時間", "error"); return; }
       try {
         await api("/announcements", {
           method: "POST",
@@ -134,6 +164,8 @@ async function openAnnouncementAdmin() {
             level: body.querySelector("#ann-level").value,
             // datetime-local 是使用者本地時間 → 轉成帶時區的 ISO,後端再轉 UTC
             expires_at: exp ? new Date(exp).toISOString() : null,
+            maint_start: mStart ? new Date(mStart).toISOString() : null,
+            maint_end: mEnd ? new Date(mEnd).toISOString() : null,
           },
         });
         toast("公告已發布", "success");
@@ -200,6 +232,7 @@ async function checkAnnouncementPopup() {
           .map((a, i) => `<div class="ann-card ann-card-${escapeHtml(a.level)}" data-ann-page="${i}"${i ? " hidden" : ""}>
             <div class="ann-card-title">${escapeHtml(a.title)}</div>
             ${a.content ? `<div class="ann-card-content">${escapeHtml(a.content)}</div>` : ""}
+            ${a.maint_start ? `<div class="ann-d-maint">🛠️ ${escapeHtml(annMaintText(a))}</div>` : ""}
             <div class="ann-card-meta">
               <span>發布者:${escapeHtml(a.created_by_name || "系統管理員")}</span><i></i>
               <span>發布時間:${escapeHtml(fmtDateTime(a.created_at))}</span>${a.expires_at ? `<i></i><span>顯示至:${escapeHtml(fmtDateTime(a.expires_at))}</span>` : ""}
@@ -288,4 +321,34 @@ function openAnnouncementList() {
   root.querySelectorAll("[data-ann-all]").forEach((el) => {
     el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annAll));
   });
+}
+
+// 登入時遇到系統維護(後端 503 + detail.maintenance):跳出維護通知視窗(登入畫面也能用,不依賴 modal-root)
+function showMaintenanceNotice(m) {
+  document.getElementById("maint-notice")?.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "maint-notice";
+  wrap.className = "ann-d-overlay ann-tone-amber";
+  const st = m.start ? fmtDateTime(m.start) : "";
+  const en = m.end ? fmtDateTime(m.end) : "";
+  wrap.innerHTML = `
+    <div class="ann-d-box" role="alertdialog" aria-modal="true">
+      <div class="ann-d-head"><span class="ann-d-title">系統維護中</span><button type="button" class="ann-d-x" aria-label="關閉">&times;</button></div>
+      <div class="ann-d-body">
+        <div class="ann-d-card">
+          <div class="ann-d-card-title">🛠️ ${escapeHtml(m.title || "系統維護")}</div>
+          ${m.message ? `<div class="ann-d-card-content">${escapeHtml(m.message)}</div>` : ""}
+          <div class="maint-times">
+            <div><span>維護開始</span><b>${escapeHtml(st)}</b></div>
+            <div><span>預計結束</span><b>${en ? escapeHtml(en) : "待通知"}</b></div>
+          </div>
+          <div class="ann-d-meta"><span>預計結束時間僅供參考,實際完成時間依維護狀況而定。維護期間僅系統管理員可登入,造成不便敬請見諒。</span></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px"><button type="button" class="btn-primary" id="maint-ok">我知道了</button></div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.querySelector(".ann-d-x").onclick = close;
+  wrap.querySelector("#maint-ok").onclick = close;
 }
