@@ -698,7 +698,7 @@ async function renderProjectOverviewTab(el) {
       <span class="ov-km-head-icon ov-mem-head-icon">${OV_KM_ICON.people}</span>
       <div class="ov-km-head-text">
         <div class="ov-km-head-title">相關人員</div>
-        <div class="ov-km-head-sub">管理此案件的相關人員與聯絡方式</div>
+        <div class="ov-km-head-sub">處理此案件的相關人員</div>
       </div>
       ${canEditMembers ? `<button type="button" class="ov-mem-add" id="ov-add-member-btn">＋ 新增人員</button>` : ""}
     </div>`;
@@ -809,7 +809,7 @@ async function renderProjectOverviewTab(el) {
       <span class="ov-km-head-icon ov-info2-head-icon">${OV_KM_ICON.infoSolid}</span>
       <div class="ov-km-head-text">
         <div class="ov-km-head-title">案件資訊</div>
-        <div class="ov-km-head-sub">此為案件的基本資料與重要資訊</div>
+        <div class="ov-km-head-sub">此為案件的基本資訊</div>
       </div>
     </div>`;
 
