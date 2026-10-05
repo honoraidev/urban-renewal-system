@@ -851,12 +851,17 @@ async function renderSopTab(el) {
     ? buildGenericChecklistConfig(stageRequirements)
     : (selectedStage.key && SOP_STAGE_CHECKLISTS[selectedStage.key]) || null;
   if (checklistConfig && checklistConfig.length) {
-    const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate || item.willingnessRatio || item.signedRatio);
+    const needsLandowners = checklistConfig.some((item) => item.countOf || item.contactRate || item.willingnessRatio || item.signedRatio || item.ratioGate);
     const needsRatio = checklistConfig.some((item) => item.ratioGate);
     const ratioData = needsRatio
       ? await api(`/projects/${pid}/consent-ratio`, { params: { stage: selected }, silent: true }).catch(() => null)
       : null;
     const landowners = needsLandowners ? await api(`/projects/${pid}/landowners`, { silent: true }).catch(() => []) : [];
+    // 同意率門檻列的下拉:最新一次拜訪結果還不是「同意」的地主(跟樓棟視圖同口徑,濾掉只有公設的人)
+    const lastResultById = needsRatio
+      ? new Map(((await api(`/projects/${pid}/contact-summary`, { silent: true }).catch(() => [])) || []).map((c) => [c.landowner_id, c.last_contact_result]))
+      : new Map();
+    const isSharedBld = (r) => (r.main_use || "").trim() === "共有部分" || (Array.isArray(r.common_part_shares) && r.common_part_shares.length > 0) || (r.address || "").includes("共同使用");
     // 各關卡分開認定:同一個 doc_type(例如 briefing_material)在第1/2/3輪說明會都會用到,
     // 只看「這一關自己上傳的」,不能被其他關卡上傳過同類型文件就誤判成這關也完成了。
     const latestByType = {};
@@ -946,6 +951,14 @@ async function renderSopTab(el) {
           wrAllDoneText = "所有地主都已聯絡 🎉";
         } else if (item.ratioGate) {
           const threshold = item.threshold ?? 0.8;
+          wrMissing = landowners.filter((o) => {
+            const brs = o.building_records || [];
+            const counted = brs.length === 0 || brs.some((r) => !isSharedBld(r));
+            return counted && lastResultById.get(o.id) !== "agreed";
+          });
+          wrMissingTitle = "還未同意(最新拜訪結果不是「同意」)";
+          wrToggleTip = "查看還未同意的地主";
+          wrAllDoneText = "所有地主都已同意 🎉";
           done = !!ratioData && ratioData.bv_headcount_ratio >= threshold && ratioData.bv_area_ratio >= threshold;
           sub = ratioData
             ? `人數 ${Math.round(ratioData.bv_headcount_ratio * 100)}%・面積 ${Math.round(ratioData.bv_area_ratio * 100)}%`
