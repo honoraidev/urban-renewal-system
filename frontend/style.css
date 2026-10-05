@@ -5132,4 +5132,12 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-compact .ann-title { font-size: 13.5px; }
 .ann-by, .ann-more { font-size: 12px; }
 .ann-count { font-size: 11px; padding: 0 8px; }
+/* 多則公告共用同一個外框:標題列 + 展開後的各則只用細線分隔 */
+.ann-group-box { --a: #2f7be0; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--a) 28%, transparent); background: color-mix(in srgb, var(--a) 9%, var(--surface)); overflow: hidden; }
+.ann-group-box.ann-warning { --a: #f59e0b; }
+.ann-group-box.ann-urgent { --a: #ef4444; }
+.ann-group-box .ann-banner { border: 0; border-radius: 0; background: transparent; }
+.ann-group-box .ann-group-list { gap: 0; padding-left: 0; border-top: 1px solid color-mix(in srgb, var(--a) 22%, transparent); }
+.ann-group-box .ann-group-list .ann-banner + .ann-banner { border-top: 1px solid color-mix(in srgb, var(--a) 14%, transparent); }
+.ann-group-box .ann-group-list .ann-banner { padding-left: 40px; }
 

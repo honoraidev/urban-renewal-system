@@ -30,12 +30,12 @@ async function loadAnnouncementBanner() {
   // 多則公告:收成一列「共 N 則」,點開才展開全部;單則直接顯示
   if (rows.length > 1) {
     const top = rows.reduce((m, r) => (r.level === "urgent" ? "urgent" : m === "urgent" ? m : r.level === "warning" ? "warning" : m), "info");
-    box.innerHTML = `<button type="button" class="ann-banner ann-compact ann-group ann-${top}" id="ann-group-toggle" aria-expanded="${_annGroupOpen}">
+    box.innerHTML = `<div class="ann-group-box ann-${top}"><button type="button" class="ann-banner ann-compact ann-group ann-${top}" id="ann-group-toggle" aria-expanded="${_annGroupOpen}">
         <span class="ann-ic">📢</span>
         <span class="ann-title">系統公告<span class="ann-count">共 ${rows.length} 則</span></span>
         <span class="ann-more">${_annGroupOpen ? "收合" : "展開"} <span class="ann-chev${_annGroupOpen ? " open" : ""}">▾</span></span>
       </button>
-      <div class="ann-group-list"${_annGroupOpen ? "" : " hidden"}>${rows.map(rowHtml).join("")}</div>`;
+      <div class="ann-group-list"${_annGroupOpen ? "" : " hidden"}>${rows.map(rowHtml).join("")}</div></div>`;
     box.querySelector("#ann-group-toggle").onclick = () => {
       _annGroupOpen = !_annGroupOpen;
       loadAnnouncementBanner();
