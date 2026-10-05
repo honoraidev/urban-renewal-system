@@ -40,16 +40,17 @@ function myWorkEnsureStyle() {
     .mw-left .mw-tile { flex:0 0 auto; margin-bottom:0; }
     .mw-left > .mw-card:first-child { flex:1; display:flex; flex-direction:column; }
     .mw-left .mw-cal { flex:1; grid-auto-rows:minmax(54px,1fr); }
-    .mw-right > .mw-follow-card { flex:1; }
+    .mw-right > .mw-pair { flex:1; display:flex; gap:14px; margin-top:16px; min-height:0; }
+    .mw-pair > .mw-card { flex:1 1 0; min-width:0; padding:12px 14px; display:flex; flex-direction:column; }
+    .mw-pair > .mw-card h3 { margin:0 0 8px; font-size:14px; }
+    @media (max-width:640px){ .mw-right > .mw-pair { flex-direction:column; } }
     .mw-right > .mw-scope-toggle { align-self:flex-end; }
     .mw-left > .mw-card:first-child { padding:12px 14px; }
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
     .mw-left .mw-cal-head .t { font-size:14px; }
     .mw-left .mw-ev { font-size:10.5px; }
-    .mw-follow-list { flex:1 1 0; min-height:150px; overflow-y:auto; padding-right:6px; line-height:1.55; font-size:13px; }
+    .mw-follow-list { flex:1 1 0; min-height:150px; overflow-y:auto; padding-right:6px; line-height:1.45; font-size:12.5px; }
     .mw-follow-list .helper-text { font-size:12px; }
-    .mw-right > .mw-follow-card, .mw-right > .mw-ann-card { padding:12px 14px; display:flex; flex-direction:column; }
-    .mw-right > .mw-follow-card h3, .mw-right > .mw-ann-card h3 { margin:0 0 8px; font-size:14px; }
     .mw-ann-card #mywork-ann { display:flex; flex-direction:column; gap:8px; }
     .mw-ann-card .ann-group-box, .mw-ann-card .ann-row-btn { width:100%; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
@@ -245,13 +246,15 @@ function renderMyWork() {
           </div>
           <div class="mw-board-body">${actList}</div>
         </div>
-        <div class="mw-card mw-follow-card" style="margin-top:16px">
+        <div class="mw-pair">
+        <div class="mw-card mw-follow-card">
           <h3>今日跟進名單</h3>
           <div class="mw-follow-list">${followList}</div>
         </div>
-        <div class="mw-card mw-ann-card" style="margin-top:16px">
+        <div class="mw-card mw-ann-card">
           <h3>📢 公告</h3>
           <div id="mywork-ann"></div>
+        </div>
         </div>
       </div>
     </div>`;

@@ -5508,4 +5508,12 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 #view-mywork .page-header h2 { font-size: 34px; font-weight: 900; line-height: 1.15; }
 #view-mywork .page-header .helper-text { font-size: 15px; }
 @media (max-width: 640px) { #view-mywork .page-header h2 { font-size: 28px; } }
+/* 公告卡(與跟進名單並排,較窄):收合列文字緊湊、「共 N 則」不被截掉 */
+.mw-ann-card button.ann-compact { padding: 7px 10px; gap: 6px; }
+.mw-ann-card .ann-compact .ann-title { overflow: visible; text-overflow: clip; font-size: 13px; }
+.mw-ann-card .ann-count { margin-left: 5px; white-space: nowrap; }
+.mw-ann-card .ann-compact .ann-ic { display: none; }
+.mw-ann-card .ann-more { white-space: nowrap; }
+.mw-ann-card .ann-by { display: none; }
+.mw-ann-card .ann-row-btn { padding-right: 8px; gap: 8px; }
 
