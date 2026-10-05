@@ -5188,4 +5188,16 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-card[hidden], .ann-read[hidden], .ann-pager[hidden], .ann-close[hidden] { display: none; }
 .ann-pager { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); font-weight: 700; margin-right: auto; }
 .ann-close.nudge { animation: annNudge .4s ease; }
+/* 公告必讀彈窗放大一號 */
+.ann-popup { width: min(600px, 100%); }
+.ann-popup-head { padding: 22px 28px 16px; }
+.ann-popup-h1 { font-size: 24px; }
+.ann-popup-h2 { font-size: 14px; }
+.ann-popup-body { padding: 20px 28px; min-height: 150px; }
+.ann-card { padding: 18px 22px; }
+.ann-card-title { font-size: 21px; }
+.ann-card-content { font-size: 16px; line-height: 1.7; min-height: 56px; }
+.ann-card-meta { font-size: 13px; }
+.ann-popup-foot { padding: 16px 28px 20px; }
+.ann-close { min-width: 108px; height: 44px; font-size: 16px; }
 
