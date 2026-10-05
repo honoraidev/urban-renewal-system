@@ -5027,3 +5027,8 @@ select option { color: var(--text); background: var(--surface); }
 .ov-kc-nobar { flex: 1 1 auto; min-height: clamp(10px, 2.4cqw, 16px); }
 .ov-kc-bar-row { margin-top: auto; }
 .ov-kc-nobar + .ov-kc-foot { margin-top: 0; }
+/* 下拉名單:多個門牌時各自一顆小標籤垂直排列,姓名固定靠右不換行 */
+.sop-wr-row { align-items: flex-start; }
+.sop-wr-door { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; font-weight: 700; }
+.sop-wr-chip { display: inline-block; padding: 1px 8px; border-radius: 7px; background: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent); color: var(--text); font-size: 13.5px; line-height: 1.5; white-space: nowrap; }
+.sop-wr-name { flex: 0 0 auto; white-space: nowrap; padding-top: 2px; }

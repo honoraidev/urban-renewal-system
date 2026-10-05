@@ -1164,7 +1164,7 @@ async function renderSopTab(el) {
                     .filter(Boolean)
                 ),
               ];
-              return { door: doors.join("、") || "—", name: o.name || "—" };
+              return { door: doors.join("、") || "—", doors, name: o.name || "—" };
             })
             .sort((a, b) => a.door.localeCompare(b.door, "zh-Hant", { numeric: true }));
           const wrKey = `${selected}:wr:${item.key}`;
@@ -1173,7 +1173,7 @@ async function renderSopTab(el) {
           wrPanel = `<div class="sop-wr-panel"${wrOpen ? "" : " hidden"}>
             <div class="sop-wr-title">${wrMissingTitle}(${rows.length} 位)</div>
             ${rows.length
-              ? `<div class="sop-wr-list">${rows.map((r) => `<div class="sop-wr-row"><span class="sop-wr-door">${escapeHtml(r.door)}</span><span class="sop-wr-name">${escapeHtml(r.name)}</span></div>`).join("")}</div>`
+              ? `<div class="sop-wr-list">${rows.map((r) => `<div class="sop-wr-row"><span class="sop-wr-door">${(r.doors && r.doors.length ? r.doors : ["—"]).map((d) => `<span class="sop-wr-chip">${escapeHtml(d)}</span>`).join("")}</span><span class="sop-wr-name">${escapeHtml(r.name)}</span></div>`).join("")}</div>`
               : `<div class="helper-text">${wrAllDoneText}</div>`}
           </div>`;
         }
