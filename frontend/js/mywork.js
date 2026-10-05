@@ -243,7 +243,6 @@ function renderMyWork() {
           <span class="mwd-tile-sep"></span>
           <div class="mwd-tile-txt"><b>今日跟進地主</b><small>${isTeam ? "今天團隊新增聯絡紀錄的地主人數" : "今天你新增聯絡紀錄的地主人數"}</small></div>
           <svg class="mwd-tile-art" viewBox="0 0 90 60" aria-hidden="true"><rect x="4" y="38" width="14" height="20" rx="3"/><rect x="26" y="26" width="14" height="32" rx="3"/><rect x="48" y="14" width="14" height="44" rx="3"/><rect x="70" y="2" width="14" height="56" rx="3"/></svg>
-          <button type="button" class="mwd-tile-go" id="mwd-tile-go" aria-label="查看今日跟進名單">${IC.arrow}</button>
         </div>
       </div>
       <div class="mwd-right">
@@ -259,12 +258,10 @@ function renderMyWork() {
           <div class="mwd-card mwd-follow-card" id="mwd-follow-card">
             <div class="mwd-ch"><span class="mwd-ch-ic teal">${IC.people}</span><h3>今日跟進名單</h3><span class="mwd-ch-meta">共 <b>${followRows.length}</b> 人</span></div>
             <div class="mwd-scroll mwd-follow-list">${followList}</div>
-            <button type="button" class="mwd-all" id="mwd-follow-all">查看全部 ${IC.arrow}</button>
           </div>
           <div class="mwd-card mwd-ann-card">
             <div class="mwd-ch"><span class="mwd-ch-ic orange">${IC.mega}</span><h3>公告</h3><span class="mwd-ch-meta chip" id="mwd-ann-count"></span></div>
             <div class="mwd-scroll" id="mywork-ann"></div>
-            <button type="button" class="mwd-all" id="mwd-ann-all">查看全部 ${IC.arrow}</button>
           </div>
         </div>
       </div>
@@ -300,20 +297,6 @@ function renderMyWork() {
   body.querySelectorAll("[data-mw-day]").forEach((el) => {
     el.addEventListener("click", () => openMyWorkDay(el.dataset.mwDay, eventsByDate[el.dataset.mwDay] || []));
   });
-  // 今日跟進地主卡的箭頭:捲到右邊的名單並閃一下
-  document.getElementById("mwd-tile-go").onclick = () => {
-    const card = document.getElementById("mwd-follow-card");
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
-    card.classList.remove("flash");
-    void card.offsetWidth;
-    card.classList.add("flash");
-  };
-  document.getElementById("mwd-follow-all").onclick = () => {
-    openModal(`今日跟進名單(${followRows.length} 人)`, `<div class="mwd-follow-list mwd-follow-full">${followList}</div>`, { width: "460px" });
-  };
-  document.getElementById("mwd-ann-all").onclick = () => {
-    if (typeof openAnnouncementList === "function") openAnnouncementList();
-  };
 }
 
 function openMyWorkDay(dateIso, events) {
