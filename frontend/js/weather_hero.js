@@ -57,6 +57,10 @@ function renderWorkHero() {
   const who = (state.user && (state.user.display_name || state.user.username)) || "";
   const dayByClock = hr >= 6 && hr < 18;
   _applyHeroTheme("clear", dayByClock);
+  // 公告列整合進橫幅:移到橫幅內第二列(全寬),共用同一個背景
+  const hero = document.querySelector("#view-mywork .page-header");
+  const ann = document.getElementById("mywork-ann");
+  if (hero && ann && ann.parentElement !== hero) hero.appendChild(ann);
   holder.innerHTML = `
     <div class="mw-hero-right">
       <div class="mw-hero-ic" id="mw-hero-ic">${dayByClock ? "☀️" : "🌙"}</div>
