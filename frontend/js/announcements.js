@@ -140,6 +140,8 @@ async function openAnnouncementAdmin() {
 // ===== 彈跳視窗:有尚未閱讀的有效公告就跳出,必須勾「我已閱讀」才能關閉 =====
 // 已閱讀的公告 id 存伺服器(user_prefs.annReadIds),換裝置 / 換網址也不會重複跳。
 async function checkAnnouncementPopup() {
+  // 發布公告的系統管理員自己不用被彈窗打擾(頂端公告列仍看得到)
+  if (isSystemAdmin()) return;
   if (document.getElementById("ann-popup")) return;
   let rows, readIds;
   try {
