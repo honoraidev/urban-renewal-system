@@ -18,13 +18,14 @@ async function loadAnnouncementBanner() {
   } catch (e) {
     return;
   }
-  const rowHtml = (a) => {
-    const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
-    return `<button type="button" class="ann-banner ann-compact ann-${escapeHtml(a.level)}" data-ann-id="${a.id}" title="點擊查看公告內容">
-      <span class="ann-ic">${lv.icon}</span>
-      <span class="ann-title">${escapeHtml(a.title)}</span>
+  // 單列:左側色條 + 標題 + 公告人 + 「查看」膠囊;沒特別等級的公告依序換色(藍/青/紫/橘)方便區分
+  const TONES = ["blue", "teal", "violet", "amber"];
+  const rowHtml = (a, i) => {
+    const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : TONES[i % TONES.length];
+    return `<button type="button" class="ann-row-btn ann-tone-${tone}" data-ann-id="${a.id}" title="點擊查看公告內容">
+      <span class="ann-row-title">${escapeHtml(a.title)}</span>
       <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
-      <span class="ann-more">查看 ›</span>
+      <span class="ann-pill">查看 ›</span>
     </button>`;
   };
   // 多則公告:收成一列「共 N 則」,點開才展開全部;單則直接顯示

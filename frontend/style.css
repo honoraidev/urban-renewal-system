@@ -5140,4 +5140,19 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-group-box .ann-group-list { gap: 0; padding-left: 0; border-top: 1px solid color-mix(in srgb, var(--a) 22%, transparent); }
 .ann-group-box .ann-group-list .ann-banner + .ann-banner { border-top: 1px solid color-mix(in srgb, var(--a) 14%, transparent); }
 .ann-group-box .ann-group-list .ann-banner { padding-left: 40px; }
+/* 公告單列(依設計稿):左側色條、淡色漸層底、右側「查看」膠囊 */
+.ann-row-btn { --t: #3b82f6; position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 14px 9px 22px; border: 1px solid color-mix(in srgb, var(--t) 14%, var(--border)); border-radius: 10px; font: inherit; text-align: left; color: var(--text); cursor: pointer; background: linear-gradient(90deg, color-mix(in srgb, var(--t) 7%, var(--surface)), var(--surface)); transition: filter .12s ease, transform .08s ease; }
+.ann-row-btn::before { content: ""; position: absolute; left: 8px; top: 9px; bottom: 9px; width: 4px; border-radius: 3px; background: var(--t); }
+.ann-row-btn:hover { filter: brightness(.98); border-color: var(--t); }
+.ann-row-btn:active { transform: scale(.998); }
+.ann-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 800; }
+.ann-pill { flex: 0 0 auto; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--t); background: color-mix(in srgb, var(--t) 13%, transparent); }
+.ann-tone-blue { --t: #3b82f6; }
+.ann-tone-teal { --t: #14b8a6; }
+.ann-tone-violet { --t: #8b5cf6; }
+.ann-tone-amber { --t: #f59e0b; }
+.ann-tone-red { --t: #ef4444; }
+#mywork-ann:not(:empty) { gap: 8px; }
+.ann-group-box .ann-group-list { gap: 8px; padding: 8px 10px 10px; }
+.ann-group-box .ann-group-list .ann-row-btn { padding-left: 22px; }
 
