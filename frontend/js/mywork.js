@@ -37,7 +37,9 @@ function myWorkEnsureStyle() {
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
     .mw-grid { align-items:stretch; }
     .mw-left, .mw-right { min-width:0; display:flex; flex-direction:column; }
-    .mw-left .mw-tile { flex:1; margin-bottom:0; }
+    .mw-left .mw-tile { flex:0 0 auto; margin-bottom:0; }
+    .mw-left > .mw-card:first-child { flex:1; display:flex; flex-direction:column; }
+    .mw-left .mw-cal { flex:1; grid-auto-rows:minmax(54px,1fr); }
     .mw-right > .mw-card:last-child { flex:1; }
     .mw-left > .mw-card:first-child { padding:12px 14px; }
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
