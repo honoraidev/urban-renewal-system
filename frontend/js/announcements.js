@@ -342,7 +342,7 @@ function showMaintenanceNotice(m) {
             <div><span>維護開始</span><b>${escapeHtml(st)}</b></div>
             <div><span>預計結束</span><b>${en ? escapeHtml(en) : "待通知"}</b></div>
           </div>
-          <div class="ann-d-meta"><span>預計結束時間僅供參考,實際完成時間依維護狀況而定。維護期間僅系統管理員可登入,造成不便敬請見諒。</span></div>
+          <div class="ann-d-meta"><span>預計完成維護時間僅供參考,實際完成時間依維護狀況而定,造成各位不便敬請見諒。</span></div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:14px"><button type="button" class="btn-primary" id="maint-ok">我知道了</button></div>
       </div>

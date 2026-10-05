@@ -25,6 +25,22 @@ OCR_ROLES = EDIT_ROLES
 LANDOWNER_ROLE = "landowner"
 
 
+_MAINT_CACHE: dict = {"t": 0.0, "v": None}
+
+
+def _maintenance_cached(db: Session):
+    """每個請求都會經過這裡,維護狀態快取 5 秒,避免每次都查 announcements。"""
+    import time
+
+    now = time.time()
+    if now - _MAINT_CACHE["t"] > 5:
+        from routers.announcements import active_maintenance
+
+        _MAINT_CACHE["v"] = active_maintenance(db)
+        _MAINT_CACHE["t"] = now
+    return _MAINT_CACHE["v"]
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
@@ -41,6 +57,13 @@ def get_current_user(
     user = db.get(User, int(user_id)) if user_id else None
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    # 系統維護期間(管理員在「發布公告」設定):已登入的非系統管理員下一次呼叫 API 就被擋(503 + 維護資訊),
+    # 前端收到會跳維護通知並強制登出。
+    if user.role != "sys_admin":
+        maint = _maintenance_cached(db)
+        if maint:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=maint)
 
     return user
 

@@ -35,6 +35,20 @@ async function api(path, { method = "GET", body, isForm = false, params, silent 
     throw new Error("unauthorized");
   }
 
+  // 系統維護:已登入的非管理員會收到 503 + {maintenance:true,...} → 跳維護通知並強制登出
+  if (res.status === 503 && path !== "/auth/login") {
+    try {
+      const data = await res.clone().json();
+      if (data && data.detail && data.detail.maintenance) {
+        if (typeof showMaintenanceNotice === "function") showMaintenanceNotice(data.detail);
+        doLogout();
+        throw new Error("maintenance");
+      }
+    } catch (e) {
+      if (e && e.message === "maintenance") throw e;
+    }
+  }
+
   if (!res.ok) {
     let detail = res.statusText;
     try {
