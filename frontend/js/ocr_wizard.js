@@ -1001,7 +1001,6 @@ function renderWizardStep0() {
       <div id="wizard-ocr-progress-label" class="wz0-progress-label"></div>
     </div>
     <div class="modal-footer wz0-footer">
-      <button type="button" class="btn-secondary wz0-cancel" onclick="wizardDiscardPendingJobs();closeModal()">取消</button>
       <button type="button" class="btn-primary wz0-start" id="wizard-start-ocr-btn">${WZ0_START_LABEL}</button>
     </div>`,
     { width: "720px" }

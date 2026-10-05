@@ -971,6 +971,11 @@ async function renderSopTab(el) {
               ? `已駁回・${fmtDate(confirmed.rejected_at)}:${confirmed.reason}`
               : "尚未確認";
         }
+        // 土地 / 建物謄本 PDF 這種有第一、二、三類子項目的列:在後面註記已經上傳了哪幾類
+        if (item.hasSubs) {
+          const uploaded = checklistConfig.filter((c) => c.parent === item.key && latestByType[c.docType]).map((c) => c.label.replace("謄本", ""));
+          if (uploaded.length) sub += `・已上傳 ${uploaded.join("、")}謄本`;
+        }
         // 選填項目(例如謄本類別)不算進進度、不擋「完成本階段」
         if (!(item.optional || (item.group && item.group.optional))) {
           checklistTotalCount++;

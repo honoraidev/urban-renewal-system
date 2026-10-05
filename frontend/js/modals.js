@@ -17,20 +17,20 @@ function openModal(title, bodyHtml, { width = "480px" } = {}) {
       </div>
     </div>`;
   root.querySelector("#modal-close-btn").onclick = async () => {
-    // The 謄本 import wizard has no 取消 button - the × is the only way out - so once
-    // OCR has produced data, confirm before discarding the un-created edits.
-    if (
-      title === "掃描謄本匯入" &&
-      typeof titleDeedWizard !== "undefined" &&
-      titleDeedWizard &&
-      titleDeedWizard.data
-    ) {
-      const ok = await confirmDialog("已辨識與編輯的內容還沒建立,關閉後就會遺失。", {
-        title: "關閉匯入精靈?",
-        confirmText: "關閉",
-        danger: true,
-      });
-      if (!ok) return;
+    // 謄本匯入精靈只剩右上角 × 可以離開:只要已經選了檔案、正在辨識,或已辨識出資料還沒建立,
+    // 關閉前一律先警示,避免誤按就把這次匯入丟掉。
+    if (title === "掃描謄本匯入" && typeof titleDeedWizard !== "undefined" && titleDeedWizard) {
+      const hasData = !!titleDeedWizard.data;
+      const hasFiles = Array.isArray(titleDeedWizard.files) && titleDeedWizard.files.length > 0;
+      if (hasData || hasFiles) {
+        const ok = await confirmDialog(
+          hasData
+            ? "已辨識與編輯的內容還沒建立,關閉後就會遺失。"
+            : "已選擇的謄本檔案還沒完成匯入,關閉後會取消這次匯入(辨識進行中也會中止)。",
+          { title: "確定要關閉匯入精靈?", confirmText: "關閉並取消匯入", danger: true }
+        );
+        if (!ok) return;
+      }
     }
     if (title === "掃描謄本匯入" && typeof wizardDiscardPendingJobs === "function") wizardDiscardPendingJobs();
     closeModal();
