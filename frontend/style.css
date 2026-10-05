@@ -5269,3 +5269,51 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   .ann-popup-foot .ann-pager #ann-page-no { display: none; }
 }
 
+/* ===== 手機版面修正 2(<=640px):表格橫向捲動、SOP 任務清單、統計卡、篩選列 ===== */
+@media (max-width: 640px) {
+  /* 表格:欄位多的清冊/聯絡簿/他項權利部不要硬擠進手機寬度(會一字一行),改成容器內橫向捲動 */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  .table-wrap > table { min-width: 760px; }
+  .table-wrap > table.integ-land-table, .table-wrap > table.integ-building-table { min-width: 900px; }
+  .table-wrap th, .table-wrap td { padding-left: 10px; padding-right: 10px; }
+
+  /* SOP:階段清單與詳細卡上下排,詳細卡不再有 300px 最小寬 */
+  .sop-panel-layout { gap: 16px; }
+  .sop-nav-list-wrap { width: 100%; }
+  .sop-nav-list { gap: 14px; }
+  .sop-detail-card { flex: 1 1 100%; min-width: 0; padding: 14px; box-sizing: border-box; }
+  .sop-detail-header { flex-wrap: wrap; }
+  .sop-detail-header h3 { font-size: 16px; }
+  .sop-detail-header-right { min-width: 0; width: 100%; text-align: left; }
+  .sop-todo-head { flex-wrap: wrap; gap: 8px 10px; }
+  .sop-todo-head-text { flex: 1 1 0; min-width: 160px; }
+  .sop-todo-head-title { font-size: 15px; }
+  .sop-todo-head .btn-primary, .sop-todo-head .btn-secondary, .sop-todo-head > button { flex: 0 0 auto; }
+  .sop-subcard { padding: 12px; }
+
+  /* 任務清單每一列:勾選+圖示+文字一行,狀態與按鈕換到下一行 */
+  .sop-checklist-item { flex-wrap: wrap; align-items: flex-start; gap: 8px 10px; padding: 12px; }
+  .sop-checklist-body { flex: 1 1 calc(100% - 100px); min-width: 120px; }
+  .sop-checklist-right { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 0; }
+  .sop-checklist-icon-box { width: 36px; height: 36px; font-size: 17px; }
+  .sop-checklist-label { font-size: 14.5px; }
+  .sop-checklist-actions { flex-wrap: wrap; }
+  .sop-wr-panel { padding: 12px; }
+
+  /* 整合清冊 / 聯絡簿:統計卡兩欄並排變矮 */
+  .enc-stat-row { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .enc-stat-tile { padding: 10px 12px !important; gap: 8px !important; }
+  .enc-stat-icon { width: 34px !important; height: 34px !important; font-size: 17px !important; }
+  .enc-stat-val { font-size: 20px !important; }
+  .integ-filter-panel { max-width: calc(100vw - 32px); }
+}
+@media (max-width: 640px) {
+  /* 固定欄寬比例的表格(整合清冊等)在手機改自動欄寬,文字不逐字折行,太寬就在容器內左右捲 */
+  .table-wrap table, #integ-roster .table-wrap > table { table-layout: auto !important; }
+  .table-wrap th, .table-wrap td { word-break: normal !important; overflow-wrap: normal !important; }
+  .table-wrap td { min-width: 3.5em; }
+  .table-wrap th { white-space: nowrap; }
+  .table-wrap > table.integ-land-table th, .table-wrap > table.integ-land-table td,
+  .table-wrap > table.integ-building-table th, .table-wrap > table.integ-building-table td { width: auto !important; }
+}
+
