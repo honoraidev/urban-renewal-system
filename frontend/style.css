@@ -5126,4 +5126,10 @@ button.ann-compact:active { transform: scale(.998); }
 .ann-chev.open { transform: rotate(180deg); }
 .ann-group-list { display: flex; flex-direction: column; gap: 8px; padding-left: 14px; }
 .ann-group-list[hidden] { display: none; }
+/* 頂端公告列字級縮小 */
+button.ann-compact { padding: 7px 14px; gap: 8px; }
+.ann-compact .ann-ic { font-size: 16px; }
+.ann-compact .ann-title { font-size: 13.5px; }
+.ann-by, .ann-more { font-size: 12px; }
+.ann-count { font-size: 11px; padding: 0 8px; }
 
