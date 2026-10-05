@@ -5121,4 +5121,9 @@ button.ann-compact:active { transform: scale(.998); }
 .ann-read b { font-size: 14.5px; }
 .ann-read small { font-size: 12px; }
 .ann-close { min-width: 92px; height: 40px; font-size: 14.5px; border-radius: 11px; }
+.ann-count { margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--a); background: color-mix(in srgb, var(--a) 14%, transparent); }
+.ann-chev { display: inline-block; transition: transform .15s ease; }
+.ann-chev.open { transform: rotate(180deg); }
+.ann-group-list { display: flex; flex-direction: column; gap: 8px; padding-left: 14px; }
+.ann-group-list[hidden] { display: none; }
 

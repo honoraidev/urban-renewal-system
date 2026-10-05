@@ -7,6 +7,8 @@ const ANN_LEVEL = {
   urgent: { label: "緊急", icon: "🚨" },
 };
 
+let _annGroupOpen = false;
+
 async function loadAnnouncementBanner() {
   const box = document.getElementById("mywork-ann");
   if (!box) return;
@@ -16,17 +18,31 @@ async function loadAnnouncementBanner() {
   } catch (e) {
     return;
   }
-  box.innerHTML = rows
-    .map((a) => {
-      const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
-      return `<button type="button" class="ann-banner ann-compact ann-${escapeHtml(a.level)}" data-ann-id="${a.id}" title="點擊查看公告內容">
-        <span class="ann-ic">${lv.icon}</span>
-        <span class="ann-title">${escapeHtml(a.title)}</span>
-        <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
-        <span class="ann-more">查看 ›</span>
-      </button>`;
-    })
-    .join("");
+  const rowHtml = (a) => {
+    const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
+    return `<button type="button" class="ann-banner ann-compact ann-${escapeHtml(a.level)}" data-ann-id="${a.id}" title="點擊查看公告內容">
+      <span class="ann-ic">${lv.icon}</span>
+      <span class="ann-title">${escapeHtml(a.title)}</span>
+      <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
+      <span class="ann-more">查看 ›</span>
+    </button>`;
+  };
+  // 多則公告:收成一列「共 N 則」,點開才展開全部;單則直接顯示
+  if (rows.length > 1) {
+    const top = rows.reduce((m, r) => (r.level === "urgent" ? "urgent" : m === "urgent" ? m : r.level === "warning" ? "warning" : m), "info");
+    box.innerHTML = `<button type="button" class="ann-banner ann-compact ann-group ann-${top}" id="ann-group-toggle" aria-expanded="${_annGroupOpen}">
+        <span class="ann-ic">📢</span>
+        <span class="ann-title">系統公告<span class="ann-count">共 ${rows.length} 則</span></span>
+        <span class="ann-more">${_annGroupOpen ? "收合" : "展開"} <span class="ann-chev${_annGroupOpen ? " open" : ""}">▾</span></span>
+      </button>
+      <div class="ann-group-list"${_annGroupOpen ? "" : " hidden"}>${rows.map(rowHtml).join("")}</div>`;
+    box.querySelector("#ann-group-toggle").onclick = () => {
+      _annGroupOpen = !_annGroupOpen;
+      loadAnnouncementBanner();
+    };
+  } else {
+    box.innerHTML = rows.map(rowHtml).join("");
+  }
   box.querySelectorAll("[data-ann-id]").forEach((el) => {
     el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annId));
   });
