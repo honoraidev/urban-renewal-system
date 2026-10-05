@@ -35,6 +35,7 @@ function myWorkEnsureStyle() {
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
+    .mw-left { min-width:0; }
     .mw-follow-list { max-height:260px; overflow-y:auto; padding-right:6px; line-height:1.7; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
     .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
@@ -192,7 +193,8 @@ function renderMyWork() {
 
   body.innerHTML = `
     <div class="mw-grid">
-      <div class="mw-card">
+      <div class="mw-left">
+      <div class="mw-card" style="margin-bottom:16px">
         <div class="mw-cal-head">
           <div class="t">${y} 年 ${m} 月</div>
           <div class="mw-cal-nav">
@@ -207,11 +209,7 @@ function renderMyWork() {
         </div>
         <p class="helper-text" style="margin:10px 0 0">點任一天新增/編輯待辦。<span style="color:#15803d">■</span> 案件共用 <span style="color:#075985">■</span> 個人</p>
       </div>
-      <div>
-        <div class="mw-scope-toggle" id="mw-scope-toggle">
-          <button type="button" data-scope="personal" class="${isTeam ? "" : "active"}">👤 個人</button>
-          <button type="button" data-scope="team" class="${isTeam ? "active" : ""}">👥 案件團隊</button>
-        </div>
+
         <div class="mw-tile">
           <div class="num">${d.today_followup_count}</div>
           <div>
@@ -222,6 +220,12 @@ function renderMyWork() {
         <div class="mw-card" style="margin-bottom:16px">
           <h3>今日跟進名單</h3>
           <div class="mw-follow-list">${followList}</div>
+        </div>
+      </div>
+      <div>
+        <div class="mw-scope-toggle" id="mw-scope-toggle">
+          <button type="button" data-scope="personal" class="${isTeam ? "" : "active"}">👤 個人</button>
+          <button type="button" data-scope="team" class="${isTeam ? "active" : ""}">👥 案件團隊</button>
         </div>
         <div class="mw-card mw-board">
           <div class="mw-board-head">
