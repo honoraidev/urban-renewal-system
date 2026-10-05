@@ -47,7 +47,7 @@ from security import verify_password
 from utils.consent_ratio import agreed_landowner_names, calculate_consent_ratio
 from utils.document_folders import seed_project_folders
 from utils.file_storage import build_upload_path
-from utils.visit_consent import compute_visit_activity, compute_visit_breakdown
+from utils.visit_consent import compute_visit_breakdown, week_activity_for_stage
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -190,9 +190,9 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
             **compute_visit_breakdown(db, p.id, last_week_end),
             "snapshot_date": last_sunday.isoformat(),
         }
-        week_activity = compute_visit_activity(db, p.id, last_week_end)
+        week_activity = week_activity_for_stage(db, p.id, p.current_stage, last_week_end)
         last_week_activity = {
-            **compute_visit_activity(db, p.id, last_week_end - timedelta(days=7), last_week_end),
+            **week_activity_for_stage(db, p.id, p.current_stage, last_week_end - timedelta(days=7), last_week_end),
             "snapshot_date": last_sunday.isoformat(),
         }
         project_items.append(
@@ -326,9 +326,9 @@ def get_weekly_compare(
     # 卡片的「本週 vs 上週」看的是每週的拜訪成果(該週有拜訪的地主人數),不是累計狀態;
     # 回傳的欄位名稱維持 breakdown / last_week_breakdown,前端不用改。
     return {
-        "breakdown": compute_visit_activity(db, project.id, week_start, week_end),
+        "breakdown": week_activity_for_stage(db, project.id, project.current_stage, week_start, week_end),
         "last_week_breakdown": {
-            **compute_visit_activity(db, project.id, week_start - timedelta(days=7), week_start),
+            **week_activity_for_stage(db, project.id, project.current_stage, week_start - timedelta(days=7), week_start),
             "snapshot_date": (week_monday - timedelta(days=1)).isoformat(),
         },
     }

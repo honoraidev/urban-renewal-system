@@ -86,6 +86,50 @@ def compute_visit_activity(db: Session, project_id: int, start: datetime, end: d
     }
 
 
+def phase_of_stage(current_stage: int) -> str:
+    """案件卡片 / 關鍵指標依目前關卡切換統計:第0~2關 = visit(地主拜訪)、第3~4關 = willingness
+    (第4關意願書簽署)、第5關起 = contract(第8關合約簽約)。"""
+    return "contract" if current_stage >= 5 else "willingness" if current_stage >= 3 else "visit"
+
+
+def compute_phase_activity(db: Session, project_id: int, phase: str, start: datetime, end: datetime | None = None) -> dict:
+    """意願書 / 合約階段的「某一週」統計(區間 [start, end),end=None 到現在):
+    new_signed = 這週新簽的人數、cum_signed = 到區間結束為止累計已簽、unsigned = 到區間結束為止還沒簽、total = 地主總數。
+    意願書:每位地主「第一份意願書的上傳時間」當作簽署時間。合約:SOP 第8關「簽約階段」同意記錄
+    (consent_records,sop_stage=8、狀態=agreed)的記錄時間當作簽約時間(地主資料頁直接改簽約狀態
+    不會留時間,所以不算在週統計裡)。"""
+    from models.consent_record import ConsentRecord
+    from models.document import Document
+
+    ids = set(db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all())
+    first: dict[int, datetime] = {}
+    if phase == "willingness":
+        rows = db.execute(
+            select(Document.landowner_id, func.min(Document.uploaded_at)).where(
+                Document.project_id == project_id, Document.doc_type == "willingness_form", Document.landowner_id.isnot(None)
+            ).group_by(Document.landowner_id)
+        ).all()
+    else:
+        rows = db.execute(
+            select(ConsentRecord.landowner_id, func.min(ConsentRecord.recorded_at)).where(
+                ConsentRecord.project_id == project_id, ConsentRecord.sop_stage == 8, ConsentRecord.consent_status == "agreed"
+            ).group_by(ConsentRecord.landowner_id)
+        ).all()
+    for lid, t in rows:
+        if lid in ids and t is not None:
+            first[lid] = t
+    new_signed = sum(1 for t in first.values() if t >= start and (end is None or t < end))
+    cum = sum(1 for t in first.values() if end is None or t < end)
+    return {"phase": phase, "new_signed": new_signed, "cum_signed": cum, "unsigned": len(ids) - cum, "total": len(ids)}
+
+
+def week_activity_for_stage(db: Session, project_id: int, current_stage: int, start: datetime, end: datetime | None = None) -> dict:
+    phase = phase_of_stage(current_stage)
+    if phase == "visit":
+        return {**compute_visit_activity(db, project_id, start, end), "phase": "visit"}
+    return compute_phase_activity(db, project_id, phase, start, end)
+
+
 def take_daily_consent_snapshots(db: Session) -> int:
     """替每個案件存一筆「今天」的拜訪同意快照,同一天同案件已經存過就跳過(idempotent,
     背景排程每天觸發、重跑或手動補跑都不會存出重複的一天)。給案件卡片「本週 vs

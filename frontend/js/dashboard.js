@@ -146,11 +146,25 @@ function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 
     if (key === "other") return Math.max(0, (b.headcount_total || 0) - (b.headcount_agreed || 0) - (b.headcount_opposed || 0));
     return b[key] || 0;
   };
-  const rows = [
-    { key: "headcount_agreed", label: "同意", icon: WK_ICON.check, tone: "agree" },
-    { key: "headcount_opposed", label: "反對", icon: WK_ICON.cross, tone: "oppose" },
-    { key: "other", label: "其他", icon: WK_ICON.people, tone: "other" },
-  ];
+  // 第3~4關(意願書)/第5關起(合約)改看簽署週報:新簽 / 累計已簽 / 未簽;第0~2關維持拜訪統計
+  const phase = (breakdown && breakdown.phase) || "visit";
+  const phaseWord = phase === "contract" ? "簽約" : "簽署";
+  const rows = phase === "visit"
+    ? [
+        { key: "headcount_agreed", label: "同意", icon: WK_ICON.check, tone: "agree" },
+        { key: "headcount_opposed", label: "反對", icon: WK_ICON.cross, tone: "oppose" },
+        { key: "other", label: "其他", icon: WK_ICON.people, tone: "other" },
+      ]
+    : [
+        { key: "new_signed", label: `新${phaseWord === "簽約" ? "簽約" : "簽"}`, icon: WK_ICON.check, tone: "agree" },
+        { key: "cum_signed", label: "累計已簽", icon: WK_ICON.people, tone: "other" },
+        { key: "unsigned", label: "未簽", icon: WK_ICON.cross, tone: "oppose" },
+      ];
+  const colTip = phase === "visit"
+    ? "該週內有拜訪紀錄的地主人數(每位地主依該週最後一次拜訪結果分類)"
+    : phase === "contract"
+      ? "新簽 = 該週新簽約人數;累計已簽 / 未簽 = 到該週結束為止(依 SOP 第8關簽約階段記錄)"
+      : "新簽 = 該週首次上傳意願書的人數;累計已簽 / 未簽 = 到該週結束為止";
   const arrow = `<span class="wkt-arrow" aria-hidden="true"></span>`;
   const rowHtml = (r) => {
     const prev = countOf(lastWeek, r.key);
@@ -178,11 +192,11 @@ function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 
       </div>
       <div class="wkt-grid">
         <div></div>
-        <div class="wkt-col-h" title="該週內有拜訪紀錄的地主人數(每位地主依該週最後一次拜訪結果分類)">上週<span>${md(prevStart)}-${md(prevEnd)}</span></div>
+        <div class="wkt-col-h" title="${colTip}">上週<span>${md(prevStart)}-${md(prevEnd)}</span></div>
         <div></div>
         <div class="wkt-col-h" title="本週人數 − 上週人數">變化</div>
         <div></div>
-        <div class="wkt-col-h" title="該週內有拜訪紀錄的地主人數(每位地主依該週最後一次拜訪結果分類)">本週<span>${md(weekStart)}-${md(weekEnd)}</span></div>
+        <div class="wkt-col-h" title="${colTip}">本週<span>${md(weekStart)}-${md(weekEnd)}</span></div>
         ${rows.map(rowHtml).join("")}
       </div>
     </div>`;
