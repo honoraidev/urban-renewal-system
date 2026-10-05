@@ -5504,4 +5504,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .mw-hero[data-day="0"] .mw-rain i { background: linear-gradient(to bottom, rgba(190, 210, 255, 0), rgba(190, 210, 255, .9)); }
 @keyframes mwDrop { from { transform: translate(0, 0) rotate(14deg); } to { transform: translate(-22px, 190px) rotate(14deg); } }
 @media (prefers-reduced-motion: reduce) { .mw-rain i { animation: none; } }
+/* 工作看板標題放大 */
+#view-mywork .page-header h2 { font-size: 34px; font-weight: 900; line-height: 1.15; }
+#view-mywork .page-header .helper-text { font-size: 15px; }
+@media (max-width: 640px) { #view-mywork .page-header h2 { font-size: 28px; } }
 
