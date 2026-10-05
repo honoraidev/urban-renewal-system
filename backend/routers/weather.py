@@ -40,10 +40,35 @@ def _classify(code: int) -> tuple[str, str]:
     return "cloudy", "多雲"
 
 
+def _place_name(lat: float, lon: float) -> str:
+    """經緯度 → 地名(例如「板橋區」),用 BigDataCloud 免金鑰反向地理編碼;失敗就叫「目前位置」。"""
+    try:
+        r = httpx.get(
+            "https://api.bigdatacloud.net/data/reverse-geocode-client",
+            params={"latitude": lat, "longitude": lon, "localityLanguage": "zh"},
+            timeout=5,
+        )
+        j = r.json()
+        return (j.get("locality") or j.get("city") or j.get("principalSubdivision") or "目前位置")[:12]
+    except Exception:
+        return "目前位置"
+
+
 @router.get("")
-def get_weather(city: str = "banqiao", _: User = Depends(get_current_user)):
-    c = CITIES.get(city, CITIES["banqiao"])
-    key = city if city in CITIES else "banqiao"
+def get_weather(
+    city: str = "banqiao",
+    lat: float | None = None,
+    lon: float | None = None,
+    _: User = Depends(get_current_user),
+):
+    """lat/lon 有帶(瀏覽器定位到登入裝置的位置)就用該位置,否則用預設城市(板橋)。"""
+    if lat is not None and lon is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+        lat, lon = round(lat, 2), round(lon, 2)  # 約 1km 格,也讓快取能共用
+        key = f"{lat},{lon}"
+        c = {"name": None, "lat": lat, "lon": lon}
+    else:
+        c = CITIES.get(city, CITIES["banqiao"])
+        key = city if city in CITIES else "banqiao"
     now = time.time()
     hit = _CACHE.get(key)
     if hit and now - hit[0] < _TTL:
@@ -68,7 +93,7 @@ def get_weather(city: str = "banqiao", _: User = Depends(get_current_user)):
         prob = (j.get("daily", {}).get("precipitation_probability_max") or [None])[0]
         data = {
             "ok": True,
-            "city": c["name"],
+            "city": c["name"] or _place_name(c["lat"], c["lon"]),
             "temp": round(float(cur["temperature_2m"])),
             "kind": kind,
             "label": label,
@@ -80,4 +105,7 @@ def get_weather(city: str = "banqiao", _: User = Depends(get_current_user)):
             return hit[1]
         return {"ok": False, "error": str(exc)[:120]}
     _CACHE[key] = (now, data)
+    if len(_CACHE) > 300:  # 避免不同位置無限累積
+        for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:100]:
+            _CACHE.pop(k, None)
     return data

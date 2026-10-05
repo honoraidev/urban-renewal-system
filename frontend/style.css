@@ -5492,4 +5492,16 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 }
 /* 天氣橫幅不要邊框 */
 #view-mywork .page-header.mw-hero, #view-mywork .page-header.mw-hero[data-day="0"] { border: none !important; box-shadow: none !important; }
+/* 雨:改用 JS 產生的稀疏雨滴,取消原本整片密集斜線 */
+.mw-hero[data-wx="rain"]::after, .mw-hero[data-wx="thunder"]::after,
+.mw-hero[data-day="0"][data-wx="rain"]::after, .mw-hero[data-day="0"][data-wx="thunder"]::after { background: none !important; animation: none !important; opacity: 0; }
+.mw-rain { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.mw-rain i {
+  position: absolute; top: -30px; width: 1.2px; border-radius: 1px; transform: rotate(14deg);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, .95));
+  animation: mwDrop 1.2s linear infinite;
+}
+.mw-hero[data-day="0"] .mw-rain i { background: linear-gradient(to bottom, rgba(190, 210, 255, 0), rgba(190, 210, 255, .9)); }
+@keyframes mwDrop { from { transform: translate(0, 0) rotate(14deg); } to { transform: translate(-22px, 190px) rotate(14deg); } }
+@media (prefers-reduced-motion: reduce) { .mw-rain i { animation: none; } }
 
