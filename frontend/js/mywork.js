@@ -41,6 +41,7 @@ function myWorkEnsureStyle() {
     .mw-left > .mw-card:first-child { flex:1; display:flex; flex-direction:column; }
     .mw-left .mw-cal { flex:1; grid-auto-rows:minmax(54px,1fr); }
     .mw-right > .mw-card:last-child { flex:1; }
+    .mw-right > .mw-scope-toggle { align-self:flex-end; }
     .mw-left > .mw-card:first-child { padding:12px 14px; }
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
     .mw-left .mw-cal-head .t { font-size:14px; }
