@@ -483,7 +483,7 @@ async function _ovOpenMetricDetail(pid, kind) {
         const f = typeof _floorLabelOf === "function" ? _floorLabelOf(r) : "";
         return d ? (f ? `${d} ${f}` : d) : "";
       }).filter(Boolean))].join("、");
-      return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls}" data-md-name="${escapeHtml(((o.name || "") + " " + doors).toLowerCase())}">
+      return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls === "no_response" ? (s?.last_contact_result === "no_answer" ? "no_answer" : "no_response") : cls}" data-md-name="${escapeHtml(((o.name || "") + " " + doors).toLowerCase())}">
         <div class="ov-md-avatar">${escapeHtml(initial)}</div>
         <div class="ov-md-main">
           <div class="ov-md-name">${escapeHtml(o.name || "(未命名)")}</div>
@@ -499,7 +499,7 @@ async function _ovOpenMetricDetail(pid, kind) {
   bodyEl.innerHTML = `
     <div class="ov-md-toolbar">
       <span class="ov-md-count tone-${isPh ? (kind === "ph_signed" ? "agreed" : "undecided") : kind}">共 <b>${matched.length}</b> 位</span>
-      ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
+      ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部</option><option value="undecided">只看未決定</option><option value="no_answer">只看未接聽</option><option value="no_response">只看未回覆(尚未聯絡)</option></select>` : ""}
       <input type="search" class="ov-md-search" placeholder="搜尋姓名 / 門牌…" autocomplete="off">
     </div>
     <div class="ov-md-list">${rowsHtml}</div>
