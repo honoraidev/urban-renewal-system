@@ -35,7 +35,10 @@ function myWorkEnsureStyle() {
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
-    .mw-left { min-width:0; }
+    .mw-grid { align-items:stretch; }
+    .mw-left, .mw-right { min-width:0; display:flex; flex-direction:column; }
+    .mw-left .mw-tile { flex:1; margin-bottom:0; }
+    .mw-right > .mw-card:last-child { flex:1; }
     .mw-left > .mw-card:first-child { padding:12px 14px; }
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
     .mw-left .mw-cal-head .t { font-size:14px; }
@@ -222,7 +225,7 @@ function renderMyWork() {
           </div>
         </div>
       </div>
-      <div>
+      <div class="mw-right">
         <div class="mw-scope-toggle" id="mw-scope-toggle">
           <button type="button" data-scope="personal" class="${isTeam ? "" : "active"}">👤 個人</button>
           <button type="button" data-scope="team" class="${isTeam ? "active" : ""}">👥 案件團隊</button>
