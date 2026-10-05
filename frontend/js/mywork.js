@@ -159,102 +159,113 @@ function renderMyWork() {
     `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 
   const dow = ["日", "一", "二", "三", "四", "五", "六"];
+  const ic = (inner, w = 2) =>
+    `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  const IC = {
+    bell: ic('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
+    people: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5a6 6 0 0 1 12 0M16 5.2a3.2 3.2 0 0 1 0 5.6M18.5 14a5.5 5.5 0 0 1 3 5"/>'),
+    mega: ic('<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a8 8 0 0 1 0 11"/>'),
+    chev: ic('<path d="M9 6l6 6-6 6"/>', 2.4),
+    arrow: ic('<path d="M5 12h14M13 6l6 6-6 6"/>', 2.4),
+    cal: ic('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'),
+    caret: ic('<path d="M6 9l6 6 6-6"/>', 2.4),
+    left: ic('<path d="M15 6l-6 6 6 6"/>', 2.4),
+  };
+
   const calCells = cells
     .map((c) => {
       const key = iso(c.date);
       const evs = eventsByDate[key] || [];
-      const shown = evs
-        .slice(0, 2)
-        .map(
-          (e) =>
-            `<div class="mw-ev ${e.project_id ? "proj" : ""}" title="${escapeHtml(e.project_name ? `${e.content}(${e.project_name})` : e.content)}">${e.is_important ? "⭐" : ""}${escapeHtml(
-              e.content
-            )}</div>`
-        )
-        .join("");
-      const more = evs.length > 2 ? `<div class="mw-more">+${evs.length - 2}</div>` : "";
-      return `<div class="mw-day ${c.other ? "other" : ""} ${key === todayIso ? "today" : ""}" data-mw-day="${key}">
-        <div class="dn">${c.date.getDate()}</div>${shown}${more}
+      const dots =
+        evs.slice(0, 4).map((e) => `<i class="mwd-dot ${e.is_important ? "imp" : e.project_id ? "proj" : "me"}"></i>`).join("") +
+        (evs.length > 4 ? `<b class="mwd-more">+${evs.length - 4}</b>` : "");
+      const tip = evs.map((e) => `${fmtEventTime(e.event_time) ? fmtEventTime(e.event_time) + " " : ""}${e.content}`).join("\n");
+      const dw = c.date.getDay();
+      return `<div class="mwd-day ${c.other ? "other" : ""} ${key === todayIso ? "today" : ""} ${dw === 0 ? "sun" : dw === 6 ? "sat" : ""}" data-mw-day="${key}"${tip ? ` title="${escapeHtml(tip)}"` : ""}>
+        <span class="mwd-dn">${c.date.getDate()}</span><span class="mwd-dots">${dots}</span>
       </div>`;
     })
     .join("");
 
   const isTeam = myWorkState.scope === "team";
-  const followList = (d.today_followups || [])
-    .map((f) => `<div>· ${escapeHtml(f.landowner_name)}<span class="helper-text"> — ${escapeHtml(f.project_name)}${
-      f.staff_name ? ` · ${escapeHtml(f.staff_name)}` : ""
-    }</span></div>`)
-    .join("") || `<div class="helper-text">${isTeam ? "今天團隊還沒有聯絡紀錄" : "今天還沒有聯絡紀錄"}</div>`;
+  const AV = ["#14b8a6", "#3b82f6", "#8b5cf6", "#f59e0b", "#22c55e", "#ec4899"];
+  const followRows = d.today_followups || [];
+  const followItem = (f, i) =>
+    `<div class="mwd-fi"><span class="mwd-av" style="--c:${AV[i % AV.length]}">${escapeHtml((f.landowner_name || "?").trim().charAt(0))}</span><span class="mwd-fi-name">${escapeHtml(f.landowner_name)}</span><span class="mwd-fi-sub">— ${escapeHtml(f.project_name)}${f.staff_name ? ` · ${escapeHtml(f.staff_name)}` : ""}</span></div>`;
+  const followList = followRows.map(followItem).join("") || `<div class="mwd-empty">${isTeam ? "今天團隊還沒有聯絡紀錄" : "今天還沒有聯絡紀錄"}</div>`;
 
-  // 「公告/進度通知」改成只顯示今天的行事曆待辦(不再是 activity_logs/project_notes
-  // 合併的操作紀錄時間軸)- 例如行事曆填了「9/22 須聯絡林屋主 14:00」,今天這裡就
-  // 顯示「14:00 聯絡林屋主」。要新增/編輯提醒一律到左邊行事曆點當天,這裡純顯示。
-  const _acts = d.today_activities || [];
-  const _actRow = (a) => {
+  // 提醒事項:今天的行事曆待辦 + 各階段未完成任務。「第N階段」的 N 當成左邊的編號徽章。
+  const acts = d.today_activities || [];
+  const actRow = (a) => {
+    const mm = /第\s*(\d+)\s*階段/.exec(a.action || "");
+    const isStage = !!mm;
     const timeText = fmtEventTime(a.event_time);
-    return `<div class="mw-act">
-      ${timeText ? `<span class="mw-act-time">${timeText}</span>` : ""}
-      <span class="mw-act-text">${a.is_important ? "⭐ " : ""}${escapeHtml(a.action)}${
-      a.project_name ? `<span class="helper-text"> · ${escapeHtml(a.project_name)}</span>` : ""
-    }</span>
-      <span class="mw-act-meta">${a.user_name ? escapeHtml(a.user_name) : ""}</span>
+    const tone = a.is_important || (isStage && mm[1] === "1") ? "red" : "blue";
+    return `<div class="mwd-ar">
+      <span class="mwd-ar-no ${tone}">${isStage ? mm[1] : timeText ? "⏰" : "•"}</span>
+      <div class="mwd-ar-main"><div class="mwd-ar-t">${a.is_important ? "⭐ " : ""}${escapeHtml(a.action)}</div>${
+      a.project_name || a.user_name || timeText
+        ? `<div class="mwd-ar-s">${timeText ? `${escapeHtml(timeText)} · ` : ""}${escapeHtml(a.project_name || "")}${a.user_name ? `${a.project_name ? " · " : ""}${escapeHtml(a.user_name)}` : ""}</div>`
+        : ""
+    }</div>
+      <span class="mwd-pill ${tone}">${isStage ? "待完成" : "待辦"}</span>
     </div>`;
   };
-  // 卷軸式:全部列出來、用捲動看更多,不用「展開全部」按鈕 — 捲動區下方用
-  // #mw-act-more 顯示「目前捲動位置以下還有幾則」,會隨捲動即時更新。
-  const actList = !_acts.length
-    ? `<div class="helper-text">今天沒有排定的提醒 —— 點左邊行事曆任一天新增</div>`
-    : `<div class="mw-act-scroll" id="mw-act-scroll">${_acts.map(_actRow).join("")}</div>
-       <div class="mw-act-more" id="mw-act-more"></div>`;
+  const actList = acts.length
+    ? `<div class="mwd-scroll mwd-act-scroll">${acts.map(actRow).join("")}</div>`
+    : `<div class="mwd-empty">今天沒有排定的提醒 —— 點左邊行事曆任一天新增</div>`;
 
   body.innerHTML = `
-    <div class="mw-grid">
-      <div class="mw-left">
-      <div class="mw-card" style="margin-bottom:16px">
-        <div class="mw-cal-head">
-          <div class="t">${y} 年 ${m} 月</div>
-          <div class="mw-cal-nav">
-            <button type="button" id="mw-prev">‹</button>
-            <button type="button" id="mw-today-btn" title="回到本月">今</button>
-            <button type="button" id="mw-next">›</button>
+    <div class="mwd-grid">
+      <div class="mwd-left">
+        <div class="mwd-card mwd-cal-card">
+          <div class="mwd-cal-head">
+            <div class="mwd-cal-title">${y} 年 ${m} 月</div>
+            <div class="mwd-cal-nav">
+              <button type="button" id="mw-prev" aria-label="上個月">${IC.left}</button>
+              <button type="button" id="mw-today-btn" title="回到本月">今天</button>
+              <button type="button" id="mw-next" aria-label="下個月">${IC.chev}</button>
+            </div>
+            <button type="button" class="mwd-month-pick" id="mw-month-pick">${IC.cal}<span>${y} 年 ${m} 月</span>${IC.caret}<input type="month" id="mw-month-input" value="${myWorkState.month}" tabindex="-1" aria-hidden="true"></button>
+          </div>
+          <div class="mwd-cal">
+            ${dow.map((x, i) => `<div class="mwd-dow ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${x}</div>`).join("")}
+            ${calCells}
+          </div>
+          <div class="mwd-legend">
+            <span><i class="mwd-dot proj"></i>案件共用</span><span><i class="mwd-dot me"></i>個人</span><span><i class="mwd-dot imp"></i>重要待辦</span><span><i class="mwd-dot none"></i>無事項</span>
+            <em class="mwd-tag">每一步,都是都更更近的一步<svg viewBox="0 0 160 10" aria-hidden="true"><path d="M2 7C40 1 100 1 158 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></em>
           </div>
         </div>
-        <div class="mw-cal">
-          ${dow.map((x) => `<div class="dow">${x}</div>`).join("")}
-          ${calCells}
-        </div>
-        <p class="helper-text" style="margin:10px 0 0">點任一天新增/編輯待辦。<span style="color:#15803d">■</span> 案件共用 <span style="color:#075985">■</span> 個人</p>
-      </div>
-
-        <div class="mw-tile">
-          <div class="num">${d.today_followup_count}</div>
-          <div>
-            <div style="font-weight:700">今日跟進地主</div>
-            <div class="helper-text">${isTeam ? "今天團隊新增聯絡紀錄的地主人數" : "今天你新增聯絡紀錄的地主人數"}</div>
-          </div>
+        <div class="mwd-card mwd-tile" id="mwd-tile">
+          <span class="mwd-tile-ic">${IC.people}</span>
+          <span class="mwd-tile-num">${d.today_followup_count}</span>
+          <span class="mwd-tile-sep"></span>
+          <div class="mwd-tile-txt"><b>今日跟進地主</b><small>${isTeam ? "今天團隊新增聯絡紀錄的地主人數" : "今天你新增聯絡紀錄的地主人數"}</small></div>
+          <svg class="mwd-tile-art" viewBox="0 0 90 60" aria-hidden="true"><rect x="4" y="38" width="14" height="20" rx="3"/><rect x="26" y="26" width="14" height="32" rx="3"/><rect x="48" y="14" width="14" height="44" rx="3"/><rect x="70" y="2" width="14" height="56" rx="3"/></svg>
+          <button type="button" class="mwd-tile-go" id="mwd-tile-go" aria-label="查看今日跟進名單">${IC.arrow}</button>
         </div>
       </div>
-      <div class="mw-right">
+      <div class="mwd-right">
         <div class="mw-scope-toggle" id="mw-scope-toggle">
           <button type="button" data-scope="personal" class="${isTeam ? "" : "active"}">👤 個人</button>
           <button type="button" data-scope="team" class="${isTeam ? "active" : ""}">👥 案件團隊</button>
         </div>
-        <div class="mw-card mw-board">
-          <div class="mw-board-head">
-            <h3>📋 提醒事項</h3>
-            <span class="helper-text">今日提醒</span>
+        <div class="mwd-card mwd-act-card">
+          <div class="mwd-ch"><span class="mwd-ch-ic teal">${IC.bell}</span><h3>提醒事項</h3><span class="mwd-ch-meta">今日提醒 <b>${acts.length}</b></span></div>
+          ${actList}
+        </div>
+        <div class="mwd-pair">
+          <div class="mwd-card mwd-follow-card" id="mwd-follow-card">
+            <div class="mwd-ch"><span class="mwd-ch-ic teal">${IC.people}</span><h3>今日跟進名單</h3><span class="mwd-ch-meta">共 <b>${followRows.length}</b> 人</span></div>
+            <div class="mwd-scroll mwd-follow-list">${followList}</div>
+            <button type="button" class="mwd-all" id="mwd-follow-all">查看全部 ${IC.arrow}</button>
           </div>
-          <div class="mw-board-body">${actList}</div>
-        </div>
-        <div class="mw-pair">
-        <div class="mw-card mw-follow-card">
-          <h3>今日跟進名單</h3>
-          <div class="mw-follow-list">${followList}</div>
-        </div>
-        <div class="mw-card mw-ann-card">
-          <h3>📢 公告</h3>
-          <div id="mywork-ann"></div>
-        </div>
+          <div class="mwd-card mwd-ann-card">
+            <div class="mwd-ch"><span class="mwd-ch-ic orange">${IC.mega}</span><h3>公告</h3><span class="mwd-ch-meta chip" id="mwd-ann-count"></span></div>
+            <div class="mwd-scroll" id="mywork-ann"></div>
+            <button type="button" class="mwd-all" id="mwd-ann-all">查看全部 ${IC.arrow}</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -275,28 +286,34 @@ function renderMyWork() {
     myWorkState.month = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
     loadMyWork();
   };
+  // 月份下拉:點整顆鈕就開原生月份選擇器
+  const monthInput = document.getElementById("mw-month-input");
+  document.getElementById("mw-month-pick").onclick = () => {
+    try { monthInput.showPicker(); } catch (e) { monthInput.focus(); monthInput.click(); }
+  };
+  monthInput.onchange = () => {
+    if (/^\d{4}-\d{2}$/.test(monthInput.value)) {
+      myWorkState.month = monthInput.value;
+      loadMyWork();
+    }
+  };
   body.querySelectorAll("[data-mw-day]").forEach((el) => {
     el.addEventListener("click", () => openMyWorkDay(el.dataset.mwDay, eventsByDate[el.dataset.mwDay] || []));
   });
-
-  const actScroll = document.getElementById("mw-act-scroll");
-  const actMore = document.getElementById("mw-act-more");
-  if (actScroll && actMore) {
-    const updateActMore = () => {
-      // 捲到底了就直接算 0 則 —— 逐列用 offsetTop 比對在小數縮放(125%/150% 等瀏覽器
-      // 縮放比例)下常常會因為 1px 內的誤差,捲到底了還是把最後一列算成「還沒看到」。
-      if (actScroll.scrollTop + actScroll.clientHeight >= actScroll.scrollHeight - 2) {
-        actMore.textContent = "";
-        return;
-      }
-      const bottom = actScroll.scrollTop + actScroll.clientHeight;
-      const remaining = [...actScroll.children].filter((row) => row.offsetTop + row.offsetHeight > bottom + 1).length;
-      actMore.textContent = remaining > 0 ? `↓ 以下還有 ${remaining} 則` : "";
-    };
-    actScroll.addEventListener("scroll", updateActMore);
-    updateActMore();
-  }
-
+  // 今日跟進地主卡的箭頭:捲到右邊的名單並閃一下
+  document.getElementById("mwd-tile-go").onclick = () => {
+    const card = document.getElementById("mwd-follow-card");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.remove("flash");
+    void card.offsetWidth;
+    card.classList.add("flash");
+  };
+  document.getElementById("mwd-follow-all").onclick = () => {
+    openModal(`今日跟進名單(${followRows.length} 人)`, `<div class="mwd-follow-list mwd-follow-full">${followList}</div>`, { width: "460px" });
+  };
+  document.getElementById("mwd-ann-all").onclick = () => {
+    if (typeof openAnnouncementList === "function") openAnnouncementList();
+  };
 }
 
 function openMyWorkDay(dateIso, events) {

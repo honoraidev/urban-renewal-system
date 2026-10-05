@@ -64,7 +64,7 @@ function renderWorkHero() {
         <div class="mw-hero-l1">${who ? `<b>${escapeHtml(who)}</b><i></i>` : ""}<span>${greet}</span></div>
         <div class="mw-hero-l2" id="mw-hero-wx">天氣載入中…</div>
       </div>
-      ${isSystemAdmin() ? `<button type="button" class="mw-hero-btn" id="ann-open-btn">📢 發布公告</button>` : ""}
+      ${isSystemAdmin() ? `<button type="button" class="mw-hero-btn" id="ann-open-btn"><span class="mw-hero-btn-ic"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a8 8 0 0 1 0 11"/></svg></span>發布公告</button>` : ""}
     </div>`;
   loadWorkHeroWeather(dayByClock);
 }

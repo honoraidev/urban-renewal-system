@@ -21,14 +21,16 @@ async function loadAnnouncementBanner() {
   // 單列:左側色條 + 標題 + 公告人 + 「查看」膠囊;顏色跟著公告類型走(一般=藍、注意=橘、緊急=紅)
   const rowHtml = (a) => {
     const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : "blue";
-    return `<button type="button" class="ann-row-btn ann-tone-${tone}" data-ann-id="${a.id}" title="點擊查看公告內容">
-      <span class="ann-row-title">${escapeHtml(a.title)}</span>
-      <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
-      <span class="ann-pill">查看 ›</span>
+    return `<button type="button" class="mwd-ann-item ann-tone-${tone}" data-ann-id="${a.id}" title="點擊查看公告內容">
+      <span class="mwd-ann-main"><div class="mwd-ann-t">${escapeHtml(a.title)}</div><div class="mwd-ann-d">${escapeHtml(fmtDateTime(a.created_at))}</div></span>
+      <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
     </button>`;
   };
+  window._annRows = rows;
+  const cnt = document.getElementById("mwd-ann-count");
+  if (cnt) cnt.textContent = rows.length ? `共 ${rows.length} 則` : "";
   // 公告卡空間夠,不再收合:有幾則就直接列幾則(太多時卡片內捲動)
-  box.innerHTML = rows.length ? rows.map(rowHtml).join("") : `<div class="helper-text">目前沒有公告</div>`;
+  box.innerHTML = rows.length ? rows.map(rowHtml).join("") : `<div class="mwd-empty">目前沒有公告</div>`;
   box.querySelectorAll("[data-ann-id]").forEach((el) => {
     el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annId));
   });
@@ -269,4 +271,21 @@ async function checkAnnouncementPopup() {
     wrap.remove();
   };
   if (cards.length === 1) chk.focus(); else nextBtn.focus();
+}
+
+// 「查看全部」:列出目前有效的全部公告,點一則看詳細內容
+function openAnnouncementList() {
+  const rows = window._annRows || [];
+  const html = rows.length
+    ? `<div class="mwd-ann-list-modal">${rows
+        .map((a) => {
+          const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : "blue";
+          return `<button type="button" class="mwd-ann-item ann-tone-${tone}" data-ann-all="${a.id}"><span class="mwd-ann-main"><div class="mwd-ann-t">${escapeHtml(a.title)}</div><div class="mwd-ann-d">${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}</div></span></button>`;
+        })
+        .join("")}</div>`
+    : `<div class="mwd-empty">目前沒有公告</div>`;
+  const root = openModal("公告", html, { width: "480px" });
+  root.querySelectorAll("[data-ann-all]").forEach((el) => {
+    el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annAll));
+  });
 }
