@@ -1523,12 +1523,7 @@ async function renderSopTab(el) {
 
 async function renderConsentPanel(el, stage) {
   const pid = state.currentProjectId;
-  const [ratio, records, landowners] = await Promise.all([
-    api(`/projects/${pid}/consent-ratio`, { params: { stage } }),
-    api(`/projects/${pid}/sop/${stage}/consent`),
-    api(`/projects/${pid}/landowners`),
-  ]);
-  const recordByLandowner = Object.fromEntries(records.map((r) => [r.landowner_id, r]));
+  const ratio = await api(`/projects/${pid}/consent-ratio`, { params: { stage } });
 
   el.innerHTML = `
     <div class="gate-bars">
@@ -1542,51 +1537,7 @@ async function renderConsentPanel(el, stage) {
       </div>
       <div class="helper-text">需人數與面積同意率皆 ≥ 80% 才能通過雙門檻${ratio.dual_gate_passed ? " · <strong style='color:var(--success)'>已達標</strong>" : ""}</div>
     </div>
-    ${isEditor()
-      ? `<p class="helper-text" style="margin:10px 0 6px">
-            ⓘ 下面這張「本輪同意狀態」是這一輪單獨的追蹤紀錄,跟上面「人數/面積同意率」
-            是兩套獨立資料——同意率是看地主聯絡簿「電訪同意」+「已簽約」狀態算出來的,
-            按這裡的同意/反對不會改變上面的比例;正式算進雙門檻請到地主聯絡簿更新
-            拜訪結果與簽約狀態。
-          </p>
-         <div class="table-wrap">
-            <table>
-              <thead><tr><th>地主</th><th>統一編號</th><th>本輪同意狀態</th><th>操作</th></tr></thead>
-              <tbody>
-                ${landowners
-                  .map((o) => {
-                    const rec = recordByLandowner[o.id];
-                    const status = rec ? rec.consent_status : "pending";
-                    return `<tr>
-                      <td>${escapeHtml(o.name)}</td>
-                      <td>${escapeHtml(o.id_number) || "-"}</td>
-                      <td><span class="consent-status-badge cs-${status}">${CONSENT_STATUS_LABEL[status]}</span></td>
-                      <td class="actions-cell">
-                        <button class="btn-secondary btn-sm" data-consent="${o.id}" data-status="agreed">同意</button>
-                        <button class="btn-secondary btn-sm" data-consent="${o.id}" data-status="opposed">反對</button>
-                      </td>
-                    </tr>`;
-                  })
-                  .join("")}
-              </tbody>
-            </table>
-          </div>`
-      : ""
-    }
   `;
-
-  el.querySelectorAll("[data-consent]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        await api(`/projects/${pid}/sop/${stage}/consent`, {
-          method: "POST",
-          body: { landowner_id: Number(btn.dataset.consent), consent_status: btn.dataset.status },
-        });
-        toast("已登記同意狀態", "success");
-        renderConsentPanel(el, stage);
-      } catch (err) { }
-    });
-  });
 }
 
 const STAGE_FORM_STATUS_OPTIONS = [
