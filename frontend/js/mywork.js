@@ -217,10 +217,6 @@ function renderMyWork() {
             <div class="helper-text">${isTeam ? "今天團隊新增聯絡紀錄的地主人數" : "今天你新增聯絡紀錄的地主人數"}</div>
           </div>
         </div>
-        <div class="mw-card" style="margin-bottom:16px">
-          <h3>今日跟進名單</h3>
-          <div class="mw-follow-list">${followList}</div>
-        </div>
       </div>
       <div>
         <div class="mw-scope-toggle" id="mw-scope-toggle">
@@ -233,6 +229,10 @@ function renderMyWork() {
             <span class="helper-text">今日提醒</span>
           </div>
           <div class="mw-board-body">${actList}</div>
+        </div>
+        <div class="mw-card" style="margin-top:16px">
+          <h3>今日跟進名單</h3>
+          <div class="mw-follow-list">${followList}</div>
         </div>
       </div>
     </div>`;
