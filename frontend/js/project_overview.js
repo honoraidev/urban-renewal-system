@@ -330,34 +330,62 @@ const OV_KM_ICON = {
   calendar: _ovKmSvg(`<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>`),
 };
 
-// 關鍵指標卡:圖示+標題+說明+趨勢 → 大數字 → 人數 → 進度條 → 底部「較上週」。
-// delta = 本週 - 上週(百分比卡是百分點差、總件數是件數差),prev == null 表示沒有上週資料。
-function _ovKmCard({ icon, label, tip, tone, big, sub, pct, delta, prev, unit, kind }) {
+// ===== 關鍵指標卡(依設計稿重做):漸層實心圖示 + 標題/副標 + 圓形箭頭鈕 → 大數字與人數(右側淡色插圖)→ 進度條 → 「較上週」底列(含狀態膠囊)=====
+const OV_KC_SUBTITLE = { agree: "已同意人數占比", oppose: "已反對人數占比", other: "未決定 / 未回覆", total: "本週新增案件數" };
+const _kcSvg = (inner, w = 2.4) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+// 圖示磚裡的白色符號
+const OV_KC_ICON = {
+  agree: _kcSvg('<circle cx="9" cy="8.5" r="3.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.6a3.3 3.3 0 0 1 0 6.2M18 14.4a5.6 5.6 0 0 1 3.4 5.2"/>', 2.2),
+  oppose: _kcSvg('<path d="M6 6l12 12M18 6L6 18"/>', 3.2),
+  other: _kcSvg('<path d="M9 9a3 3 0 1 1 4.3 2.7c-.9.5-1.3 1.1-1.3 2V15M12 19v.01"/>', 3),
+  total: _kcSvg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>', 2.2),
+};
+// 右側淡色插圖(人群 + 勾選徽章 / 對話框叉叉 / 文件 + 問號徽章 / 成長長條 + 箭頭)
+const OV_KC_ART = {
+  agree: `<svg viewBox="0 0 200 130" aria-hidden="true"><defs><linearGradient id="kcf1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".85" stop-color="#fff" stop-opacity=".95"/></linearGradient></defs><g fill="#16a34a"><circle cx="40" cy="50" r="12" opacity=".2"/><path d="M18 108a22 26 0 0 1 44 0v14H18z" opacity=".16"/><circle cx="160" cy="52" r="12" opacity=".2"/><path d="M138 108a22 26 0 0 1 44 0v14h-44z" opacity=".16"/><circle cx="100" cy="34" r="17" opacity=".26"/><path d="M62 112a38 42 0 0 1 76 0v12H62z" opacity=".22"/><circle cx="168" cy="26" r="21" opacity=".34"/></g><path d="M158 27l7 8 13-15" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><rect y="88" width="200" height="42" fill="url(#kcf1)"/></svg>`,
+  oppose: `<svg viewBox="0 0 200 130" aria-hidden="true"><path d="M100 8c46 0 84 24 84 56s-38 52-84 52c-12 0-23-2-33-6L36 124l10-28C28 86 16 76 16 64 16 32 54 8 100 8z" fill="#ef4444" opacity=".26"/><path d="M80 44l40 40M120 44L80 84" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg>`,
+  other: `<svg viewBox="0 0 200 130" aria-hidden="true"><rect x="36" y="12" width="104" height="104" rx="14" fill="#f59e0b" opacity=".24"/><g fill="#fff" opacity=".85"><rect x="54" y="36" width="68" height="10" rx="5"/><rect x="54" y="58" width="68" height="10" rx="5"/><rect x="54" y="80" width="42" height="10" rx="5"/></g><circle cx="140" cy="94" r="27" fill="#f59e0b" opacity=".5"/><path d="M130 86a10 10 0 1 1 14 9c-4 2-5 4-5 9" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="139" cy="116" r="3.4" fill="#fff"/></svg>`,
+  total: `<svg viewBox="0 0 200 130" aria-hidden="true"><g fill="#2f7be0"><rect x="20" y="88" width="24" height="34" rx="5" opacity=".2"/><rect x="62" y="68" width="24" height="54" rx="5" opacity=".24"/><rect x="104" y="46" width="24" height="76" rx="5" opacity=".28"/><rect x="146" y="20" width="24" height="102" rx="5" opacity=".32"/></g><path d="M14 78C60 72 112 52 170 14M150 10h22v22" fill="none" stroke="#2f7be0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity=".4"/></svg>`,
+};
+const OV_KC_FOOT_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="1.5" fill="currentColor"/><rect x="10" y="8" width="5" height="13" rx="1.5" fill="currentColor"/><rect x="17" y="3" width="5" height="18" rx="1.5" fill="currentColor"/></svg>`;
+
+function _ovKmCard({ label, tip, tone, big, sub, pct, delta, prev, unit, kind }) {
   const hasPrev = prev != null && delta != null;
   const dir = !hasPrev || delta === 0 ? "flat" : delta > 0 ? "up" : "down";
-  const trend = dir === "up" ? OV_KM_ICON.trendUp : dir === "down" ? OV_KM_ICON.trendDown : OV_KM_ICON.trendFlat;
-  const arrow = dir === "up" ? OV_KM_ICON.up : dir === "down" ? OV_KM_ICON.down : OV_KM_ICON.right;
+  const footArrow = dir === "up" ? OV_KM_ICON.up : dir === "down" ? OV_KM_ICON.down : OV_KM_ICON.right;
+  const go = tone === "total" ? _kcSvg('<path d="M7 17L17 7M8 7h9v9"/>', 2.6) : _kcSvg('<path d="M5 12h14M13 6l6 6-6 6"/>', 2.6);
   const sign = hasPrev && delta > 0 ? "+" : "";
+  const pill = dir === "up" ? "成長中" : dir === "down" ? "下降" : "持平";
   const click = kind ? ` ov-metric-clickable" data-ov-metric="${kind}" data-ov-metric-label="${escapeHtml(label)}" tabindex="0" role="button` : "";
   return `
-    <div class="ov-km-card ov-km-${tone}${click}">
-      <div class="ov-km-top">
-        <span class="ov-km-icon">${icon}</span>
-        <span class="ov-km-label">${label}</span>
-        <span class="ov-km-tip" title="${escapeHtml(tip)}">${OV_KM_ICON.info}</span>
-        <span class="ov-km-trend ov-km-dir-${dir}">${trend}</span>
+    <div class="ov-kc ov-kc-${tone}${click}">
+      <div class="ov-kc-head">
+        <span class="ov-kc-icon">${OV_KC_ICON[tone] || ""}</span>
+        <div class="ov-kc-titles">
+          <div class="ov-kc-title">${label}<span class="ov-kc-tip" title="${escapeHtml(tip)}">${OV_KM_ICON.info}</span></div>
+          <div class="ov-kc-subtitle">${OV_KC_SUBTITLE[tone] || ""}</div>
+        </div>
+        <span class="ov-kc-go">${go}</span>
       </div>
-      <div class="ov-km-big">${big}</div>
-      <div class="ov-km-sub">${sub}</div>
-      ${pct == null ? "" : `<div class="ov-km-bar-row"><div class="ov-km-bar"><i style="width:${Math.min(100, Math.max(0, pct))}%"></i></div><span>${pct}%</span></div>`}
-      <div class="ov-km-spacer"></div>
-      <div class="ov-km-foot">
-        <span class="ov-km-foot-label">較上週</span>
-        <span class="ov-km-foot-arrow ov-km-dir-${dir}">${arrow}</span>
-        <span class="ov-km-foot-val">
+      <div class="ov-kc-body">
+        <div class="ov-kc-figures">
+          <div class="ov-kc-big">${big}</div>
+          <div class="ov-kc-sub">${sub}</div>
+        </div>
+        <div class="ov-kc-art">${OV_KC_ART[tone] || ""}</div>
+      </div>
+      ${pct == null ? `<div class="ov-kc-nobar"></div>` : `<div class="ov-kc-bar-row"><div class="ov-kc-bar"><i style="width:${Math.min(100, Math.max(0, pct))}%"></i></div><span>${pct}%</span></div>`}
+      <div class="ov-kc-foot">
+        <span class="ov-kc-foot-ic">${OV_KC_FOOT_ICON}</span>
+        <span class="ov-kc-foot-label">較上週</span>
+        <span class="ov-kc-sep"></span>
+        <span class="ov-kc-foot-arrow ov-kc-dir-${dir}">${footArrow}</span>
+        <span class="ov-kc-foot-val">
           <b>${hasPrev ? `${sign}${delta}${unit}` : "—"}</b>
           <small>${hasPrev ? `上週 ${prev}${unit}` : "尚無上週資料"}</small>
         </span>
+        <span class="ov-kc-pill">${pill}</span>
       </div>
     </div>`;
 }
