@@ -4846,3 +4846,8 @@ select option { color: var(--text); background: var(--surface); }
   .fqai-panel { right: 8px; left: 8px; width: auto; bottom: 76px; height: min(70vh, 560px); }
 }
 
+
+/* 案件資訊卡:欄位變窄後文字不要被「…」截掉 - 位置、名稱等長內容改成自動換行,項目寬度不夠就往下排 */
+.ov-info2-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ov-info2-value { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.35; }
+.ov-info2-wide { grid-column: 1 / -1; }
