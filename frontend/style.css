@@ -5032,3 +5032,6 @@ select option { color: var(--text); background: var(--surface); }
 .sop-wr-door { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; font-weight: 700; }
 .sop-wr-chip { display: inline-block; padding: 1px 8px; border-radius: 7px; background: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent); color: var(--text); font-size: 13.5px; line-height: 1.5; white-space: nowrap; }
 .sop-wr-name { flex: 0 0 auto; white-space: nowrap; padding-top: 2px; }
+/* 公司名稱很長時姓名欄自己換行、靠右,不再蓋到門牌標籤 */
+.sop-wr-door { flex: 0 0 auto; }
+.sop-wr-name { flex: 1 1 0; min-width: 0; white-space: normal; word-break: break-all; text-align: right; line-height: 1.4; }
