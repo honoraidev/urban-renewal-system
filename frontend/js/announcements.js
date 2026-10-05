@@ -159,31 +159,48 @@ async function checkAnnouncementPopup() {
   wrap.setAttribute("aria-modal", "true");
   wrap.innerHTML = `
     <div class="ann-popup">
-      <div class="ann-popup-head">📢 系統公告</div>
+      <div class="ann-popup-head">
+        <div>
+          <div class="ann-popup-h1">系統公告</div>
+          <div class="ann-popup-h2">重要資訊,請留意最新消息</div>
+        </div>
+        <button type="button" class="ann-popup-x" id="ann-x-btn" aria-label="關閉" title="請先勾選「我已閱讀」">&times;</button>
+      </div>
       <div class="ann-popup-body">
         ${unread
-          .map((a) => {
-            const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
-            return `<div class="ann-banner ann-${escapeHtml(a.level)}">
-              <span class="ann-ic">${lv.icon}</span>
-              <div class="ann-main">
-                <div class="ann-title">${escapeHtml(a.title)}</div>
-                ${a.content ? `<div class="ann-content">${escapeHtml(a.content)}</div>` : ""}
-                <div class="ann-meta">${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・顯示至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>
-              </div>
-            </div>`;
-          })
+          .map((a) => `<div class="ann-card ann-card-${escapeHtml(a.level)}">
+            <div class="ann-card-title">${escapeHtml(a.title)}</div>
+            ${a.content ? `<div class="ann-card-content">${escapeHtml(a.content)}</div>` : ""}
+            <div class="ann-card-meta">
+              <span>發布者:${escapeHtml(a.created_by_name || "系統管理員")}</span><i></i>
+              <span>發布時間:${escapeHtml(fmtDateTime(a.created_at))}</span>${a.expires_at ? `<i></i><span>顯示至:${escapeHtml(fmtDateTime(a.expires_at))}</span>` : ""}
+            </div>
+          </div>`)
           .join("")}
       </div>
       <div class="ann-popup-foot">
-        <label class="ann-read"><input type="checkbox" id="ann-read-chk"> 我已閱讀${unread.length > 1 ? "以上公告" : "此公告"}</label>
-        <button type="button" class="btn-primary" id="ann-close-btn" disabled>關閉</button>
+        <label class="ann-read">
+          <input type="checkbox" id="ann-read-chk">
+          <span><b>我已閱讀${unread.length > 1 ? "以上公告" : "此公告"}</b><small>下次將不再自動顯示${unread.length > 1 ? "這些公告" : "此公告"}</small></span>
+        </label>
+        <button type="button" class="btn-primary ann-close" id="ann-close-btn" disabled>關閉</button>
       </div>
     </div>`;
   document.body.appendChild(wrap);
   const chk = wrap.querySelector("#ann-read-chk");
   const btn = wrap.querySelector("#ann-close-btn");
+  const xBtn = wrap.querySelector("#ann-x-btn");
   chk.onchange = () => { btn.disabled = !chk.checked; };
+  xBtn.onclick = () => {
+    if (chk.checked) btn.click();
+    else {
+      const lab = chk.closest(".ann-read");
+      lab.classList.remove("nudge");
+      void lab.offsetWidth;
+      lab.classList.add("nudge");
+      chk.focus();
+    }
+  };
   // 沒勾之前不能關:點遮罩、按 Esc 都沒反應
   const onKey = (e) => { if (e.key === "Escape") e.preventDefault(); };
   document.addEventListener("keydown", onKey, true);
