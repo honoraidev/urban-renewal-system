@@ -41,7 +41,7 @@ async function loadAnnouncementBanner() {
       loadAnnouncementBanner();
     };
   } else {
-    box.innerHTML = rows.map(rowHtml).join("");
+    box.innerHTML = rows.length ? rows.map(rowHtml).join("") : `<div class="helper-text">目前沒有公告</div>`;
   }
   box.querySelectorAll("[data-ann-id]").forEach((el) => {
     el.onclick = () => openAnnouncementDetail(rows.find((r) => String(r.id) === el.dataset.annId));

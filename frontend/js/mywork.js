@@ -40,7 +40,7 @@ function myWorkEnsureStyle() {
     .mw-left .mw-tile { flex:0 0 auto; margin-bottom:0; }
     .mw-left > .mw-card:first-child { flex:1; display:flex; flex-direction:column; }
     .mw-left .mw-cal { flex:1; grid-auto-rows:minmax(54px,1fr); }
-    .mw-right > .mw-card:last-child { flex:1; }
+    .mw-right > .mw-follow-card { flex:1; }
     .mw-right > .mw-scope-toggle { align-self:flex-end; }
     .mw-left > .mw-card:first-child { padding:12px 14px; }
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
@@ -48,8 +48,10 @@ function myWorkEnsureStyle() {
     .mw-left .mw-ev { font-size:10.5px; }
     .mw-follow-list { flex:1 1 0; min-height:150px; overflow-y:auto; padding-right:6px; line-height:1.55; font-size:13px; }
     .mw-follow-list .helper-text { font-size:12px; }
-    .mw-right > .mw-card:last-child { padding:12px 14px; display:flex; flex-direction:column; }
-    .mw-right > .mw-card:last-child h3 { margin:0 0 8px; font-size:14px; }
+    .mw-right > .mw-follow-card, .mw-right > .mw-ann-card { padding:12px 14px; display:flex; flex-direction:column; }
+    .mw-right > .mw-follow-card h3, .mw-right > .mw-ann-card h3 { margin:0 0 8px; font-size:14px; }
+    .mw-ann-card #mywork-ann { display:flex; flex-direction:column; gap:8px; }
+    .mw-ann-card .ann-group-box, .mw-ann-card .ann-row-btn { width:100%; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
     .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
     .mw-scope-toggle button.active { background:var(--surface); color:var(--brand,#0d9488); box-shadow:0 1px 3px rgba(0,0,0,.1); }
@@ -243,12 +245,17 @@ function renderMyWork() {
           </div>
           <div class="mw-board-body">${actList}</div>
         </div>
-        <div class="mw-card" style="margin-top:16px">
+        <div class="mw-card mw-follow-card" style="margin-top:16px">
           <h3>今日跟進名單</h3>
           <div class="mw-follow-list">${followList}</div>
         </div>
+        <div class="mw-card mw-ann-card" style="margin-top:16px">
+          <h3>📢 公告</h3>
+          <div id="mywork-ann"></div>
+        </div>
       </div>
     </div>`;
+  if (typeof loadAnnouncementBanner === "function") loadAnnouncementBanner();
 
   document.getElementById("mw-scope-toggle").querySelectorAll("button").forEach((btn) => {
     btn.addEventListener("click", () => {
