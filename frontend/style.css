@@ -5317,3 +5317,28 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   .table-wrap > table.integ-building-table th, .table-wrap > table.integ-building-table td { width: auto !important; }
 }
 
+/* ===== 手機版面修正 3:案件總覽頂部橫幅、階段時間軸 ===== */
+@media (max-width: 640px) {
+  .pov-header-banner { padding: 14px 14px 12px; margin-bottom: 16px; background-position: right top; }
+  #view-project-overview .pd-top-grid { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+  #view-project-overview .pd-top-left > div:first-child { transform: none !important; }
+  #view-project-overview .pd-top-right { flex-direction: column !important; align-items: stretch !important; margin-top: 0 !important; width: 100%; }
+  #view-project-overview .pd-top-right > div:first-child, #view-project-overview .pd-top-right > #pov-progress-card { transform: none !important; }
+  #pov-name { font-size: 20px; }
+  .ov-meta-row { flex-wrap: wrap !important; white-space: normal !important; gap: 6px 14px !important; overflow-x: visible !important; margin-top: 8px; font-size: 13px; }
+  .ov-meta-item { white-space: normal !important; flex-shrink: 1 !important; }
+  /* 10 個階段圓點在手機放不下:時間軸在橫幅內左右捲動 */
+  #view-project-overview .ov-stage-band { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px !important; }
+  #view-project-overview .ov-step-timeline { min-width: 640px; }
+}
+@media (max-width: 1100px) {
+  /* grid 的 1fr 預設 min-content 會被長內容撐寬到超出螢幕 → 改 minmax(0,1fr),子項可縮 */
+  #view-project-overview .ov-row.ov-row-r2, #view-project-overview .ov-row.ov-row-r3 { grid-template-columns: minmax(0, 1fr) !important; }
+  #view-project-overview .ov-row > *, #view-project-overview .ov-side-stack > * { min-width: 0; }
+}
+@media (max-width: 640px) {
+  #view-project-overview .ov-km-head { flex-wrap: wrap; }
+  #view-project-overview .ov-km-head .ov-rec-count, #view-project-overview .ov-km-head .ov-mem-add, #view-project-overview .ov-km-head .ov-title-link { margin-left: auto; }
+  #view-project-overview .ov-rec-list { min-width: 0; }
+}
+
