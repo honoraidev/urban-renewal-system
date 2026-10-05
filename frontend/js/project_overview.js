@@ -474,7 +474,11 @@ async function _ovOpenMetricDetail(pid, kind) {
       const phone = o.phone_mobile || o.phone_landline || o.phone || "";
       const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "";
       const initial = (o.name || "").trim().charAt(0) || "?";
-      const doors = [...new Set((o.building_records || []).map((r) => (typeof _shortDoorAddr === "function" ? _shortDoorAddr(r.address) : r.address)).filter(Boolean))].join("、");
+      const doors = [...new Set((o.building_records || []).map((r) => {
+        const d = typeof _shortDoorAddr === "function" ? _shortDoorAddr(r.address) : r.address;
+        const f = typeof _floorLabelOf === "function" ? _floorLabelOf(r) : "";
+        return d ? (f ? `${d} ${f}` : d) : "";
+      }).filter(Boolean))].join("、");
       return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls}" data-md-name="${escapeHtml(((o.name || "") + " " + doors).toLowerCase())}">
         <div class="ov-md-avatar">${escapeHtml(initial)}</div>
         <div class="ov-md-main">
