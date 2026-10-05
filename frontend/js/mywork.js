@@ -85,6 +85,8 @@ async function goToMyWork() {
     const d = new Date();
     myWorkState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }
+  setupAnnouncementButton();
+  loadAnnouncementBanner();
   await loadMyWork();
   myWorkStartPolling();
 }

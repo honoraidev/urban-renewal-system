@@ -25,6 +25,7 @@ from models.faq_item import FaqItem
 from models.inventory_item import InventoryItem
 from models.project_note import ProjectNote
 from models.user_pref import UserPref
+from models.announcement import Announcement
 
 __all__ = [
     "User",
@@ -57,4 +58,5 @@ __all__ = [
     "InventoryItem",
     "ProjectNote",
     "UserPref",
+    "Announcement",
 ]
