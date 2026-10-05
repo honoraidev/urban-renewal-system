@@ -178,11 +178,11 @@ function projectWeeklyCompareHtml(breakdown, lastWeek, pid = null, weekOffset = 
       </div>
       <div class="wkt-grid">
         <div></div>
-        <div class="wkt-col-h" title="每位地主「截至該日為止最近一次拜訪結果」的人數,不是該週新增的筆數">上週<span>累計至 ${md(prevEnd)}</span></div>
+        <div class="wkt-col-h" title="該週內有拜訪紀錄的地主人數(每位地主依該週最後一次拜訪結果分類)">上週<span>${md(prevStart)}-${md(prevEnd)}</span></div>
         <div></div>
-        <div class="wkt-col-h" title="本週累計人數 − 上週累計人數;這週沒有新的拜訪結果就是 0">變化</div>
+        <div class="wkt-col-h" title="本週人數 − 上週人數">變化</div>
         <div></div>
-        <div class="wkt-col-h" title="每位地主「截至該日為止最近一次拜訪結果」的人數,不是該週新增的筆數">本週<span>${weekOffset === 0 ? "目前累計" : "累計至 " + md(weekEnd)}</span></div>
+        <div class="wkt-col-h" title="該週內有拜訪紀錄的地主人數(每位地主依該週最後一次拜訪結果分類)">本週<span>${md(weekStart)}-${md(weekEnd)}</span></div>
         ${rows.map(rowHtml).join("")}
       </div>
     </div>`;
@@ -649,7 +649,7 @@ async function loadDashboard() {
               <div class="helper-text">第${p.current_stage}階段 · ${escapeHtml(sopStageLabel(p.current_stage))}</div>
             </div>
             ${projectConsentBreakdownHtml(p.visit_breakdown, p.agreed_landowner_names)}
-            ${projectWeeklyCompareHtml(p.visit_breakdown, p.last_week_breakdown, p.id)}
+            ${projectWeeklyCompareHtml(p.week_activity || p.visit_breakdown, p.last_week_activity || p.last_week_breakdown, p.id)}
             ${p.case_handler_name || p.case_manager_name
               ? `<div class="project-card-footer">
                   ${p.case_handler_name ? `<span>👤 ${escapeHtml(p.case_handler_name)}</span>` : ""}

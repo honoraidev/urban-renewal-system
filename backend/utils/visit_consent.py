@@ -63,6 +63,29 @@ def compute_visit_breakdown(db: Session, project_id: int, before: datetime | Non
     }
 
 
+def compute_visit_activity(db: Session, project_id: int, start: datetime, end: datetime | None = None) -> dict:
+    """某一週區間 [start, end)(end 為 None = 到現在)「有拜訪紀錄的地主」人數:每位地主只算他在這個
+    區間內最後一次的拜訪結果,分成同意 / 反對 / 其他。案件卡片「本週 vs 上週」用這個 - 看的是每週的
+    拜訪成果,不是累計狀態(累計狀態是 compute_visit_breakdown,圓餅圖用);這週沒有新拜訪就是 0。
+    headcount_total = 該區間內有被拜訪的地主數,其他 = total - 同意 - 反對。"""
+    from models.contact_log import ContactLog
+
+    stmt = select(ContactLog).where(ContactLog.project_id == project_id, ContactLog.contact_date >= start)
+    if end is not None:
+        stmt = stmt.where(ContactLog.contact_date < end)
+    logs = db.scalars(stmt.order_by(ContactLog.contact_date.asc(), ContactLog.id.asc())).all()
+    landowner_ids = set(db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all())
+    latest: dict[int, str] = {}
+    for log in logs:
+        if log.landowner_id in landowner_ids:
+            latest[log.landowner_id] = log.contact_result
+    return {
+        "headcount_total": len(latest),
+        "headcount_agreed": sum(1 for r in latest.values() if r == "agreed"),
+        "headcount_opposed": sum(1 for r in latest.values() if r == "opposed"),
+    }
+
+
 def take_daily_consent_snapshots(db: Session) -> int:
     """替每個案件存一筆「今天」的拜訪同意快照,同一天同案件已經存過就跳過(idempotent,
     背景排程每天觸發、重跑或手動補跑都不會存出重複的一天)。給案件卡片「本週 vs

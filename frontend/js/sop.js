@@ -1235,18 +1235,6 @@ async function renderSopTab(el) {
           ${checklistHtml || `<div class="empty-state">這一關沒有設定需求,可直接人工完成</div>`}
         </div>
 
-        <div class="card sop-subcard">
-          <div class="sop-todo-head">
-            <span class="sop-todo-head-icon">📌</span>
-            <div class="sop-todo-head-text">
-              <div class="sop-todo-head-title">待辦提醒</div>
-              <div class="sop-todo-head-sub">請依流程上傳相關文件,完成後系統將自動更新進度</div>
-            </div>
-            ${pendingItems.length ? `<span class="sop-todo-count">還剩 <b>${pendingItems.length}</b> 項</span>` : ""}
-          </div>
-          <div class="sop-todo-list">${pendingTodosHtml}</div>
-        </div>
-
         ${isDualGate && !isLandowner() ? `<div id="sop-tab-consent-panel" style="margin-top:14px"></div>` : ""}
 
         ${selectedIsCurrent && isEditor()

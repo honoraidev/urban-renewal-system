@@ -114,6 +114,8 @@ class DashboardProjectItem(BaseModel):
     # 7 天前最接近的一筆快照,沒有資料(還沒累積滿一週)就是 None,前端顯示「尚無
     # 上週資料」,不用假數字湊。
     last_week_breakdown: dict | None = None
+    week_activity: dict | None = None
+    last_week_activity: dict | None = None
 
 
 class DashboardSummary(BaseModel):
