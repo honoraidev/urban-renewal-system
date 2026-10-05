@@ -1910,8 +1910,20 @@ async function faqAiSyncFromServer() {
   }
 }
 
+// 把 AI 回答裡常見的 Markdown 符號轉成好讀的樣子:**粗體** → 粗體、「- 」「* 」開頭 → 「• 」、「# 標題」→ 粗體,
+// 其餘多餘的 * 和反引號直接拿掉;先 escape 再轉換,不會讓回答內容變成可執行的 HTML。
+function faqAiFormat(text) {
+  let t = escapeHtml(text || "");
+  t = t.replace(/^[ \t]*#{1,6}[ \t]+(.+)$/gm, "<strong>$1</strong>");
+  t = t.replace(/^[ \t]*[-*][ \t]+/gm, "• ");
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  t = t.replace(/\*([^*\n]+)\*/g, "$1");
+  t = t.replace(/\*{2,}/g, "").replace(/`/g, "");
+  return t.replace(/\n/g, "<br>");
+}
+
 function faqAiBubbleHtml(role, text, sources, extraCls = "") {
-  const body = escapeHtml(text).replace(/\n/g, "<br>");
+  const body = role === "assistant" ? faqAiFormat(text) : escapeHtml(text).replace(/\n/g, "<br>");
   const src = sources && sources.length
     ? `<div class="fqai-src">${sources.map((s) => `<span class="fqai-chip" title="${escapeHtml(s.question)}">Q${s.index}・${escapeHtml(s.question)}</span>`).join("")}</div>`
     : "";
