@@ -5387,4 +5387,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .mw-greet-text { font-size: 16px; color: var(--text-muted); white-space: nowrap; }
 .mw-greet-text b { color: var(--text); font-weight: 800; }
 @media (max-width: 640px) { .mw-greet { width: 100%; justify-content: space-between; } .mw-greet-text { font-size: 15px; } }
+.mw-greet-text { font-size: 24px; font-weight: 700; }
+.mw-greet-text b { font-weight: 900; }
+.mw-greet #ann-open-btn { height: 46px; padding: 0 20px; font-size: 16px; }
+@media (max-width: 640px) { .mw-greet-text { font-size: 20px; } .mw-greet #ann-open-btn { height: 42px; font-size: 15px; } }
 
