@@ -5202,4 +5202,9 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-close { min-width: 108px; height: 44px; font-size: 16px; }
 /* 上一筆 / 下一筆 / 關閉 三顆鈕同尺寸 */
 .ann-popup-foot .ann-pager .btn-secondary, .ann-popup-foot .ann-close { box-sizing: border-box; min-width: 108px; height: 44px; padding: 0 20px; border-radius: 12px; font-size: 16px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+/* 公告彈窗標題區縮小 */
+.ann-popup-head { padding: 12px 24px 10px; }
+.ann-popup-h1 { font-size: 20px; }
+.ann-popup-h2 { margin-top: 2px; font-size: 12.5px; }
+.ann-popup-x { font-size: 24px; }
 
