@@ -4951,7 +4951,7 @@ select option { color: var(--text); background: var(--surface); }
     radial-gradient(120% 70% at 30% 62%, color-mix(in srgb, var(--km) 8%, transparent) 0%, transparent 60%),
     linear-gradient(160deg, color-mix(in srgb, var(--km) 5%, #fff) 0%, #fff 70%); }
 .ov-metrics-group .ov-km-big, .ov-metrics-group .ov-km-sub { text-align: right; }
-.ov-md-filter { margin-left: auto; min-height: 36px; font-size: 14px; padding: 0 34px 0 12px; border-radius: 10px; }
+.ov-md-toolbar .ov-md-filter { flex: 0 0 auto; width: 118px !important; min-width: 0; margin-left: 0; height: 34px !important; min-height: 34px !important; font-size: 13px !important; padding: 0 28px 0 10px !important; border-radius: 9px !important; background-position: right 8px center !important; }
 
 
 /* ===== 關鍵指標卡(依設計稿重做,ov-kc):尺寸一律用卡片寬度換算(container query),欄寬變了比例也不會跑掉 ===== */

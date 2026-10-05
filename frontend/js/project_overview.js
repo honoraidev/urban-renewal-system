@@ -489,7 +489,7 @@ async function _ovOpenMetricDetail(pid, kind) {
   bodyEl.innerHTML = `
     <div class="ov-md-toolbar">
       <span class="ov-md-count tone-${kind}">共 <b>${matched.length}</b> 位</span>
-      ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部(未決定 + 未回覆)</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
+      ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
       ${matched.length > 8 ? `<input type="search" class="ov-md-search" placeholder="搜尋姓名…" autocomplete="off">` : ""}
     </div>
     <div class="ov-md-list">${rowsHtml}</div>
