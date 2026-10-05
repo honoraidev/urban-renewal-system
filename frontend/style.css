@@ -5063,3 +5063,13 @@ select option { color: var(--text); background: var(--surface); }
 .fqai-form { align-items: center; }
 .fqai-form textarea { box-sizing: border-box; height: 48px; min-height: 48px; max-height: 48px; padding: 12px 14px; line-height: 22px; overflow-y: auto; }
 .fqai-form button { box-sizing: border-box; height: 48px; padding: 0 24px; }
+
+/* 公告彈跳視窗(必須勾「我已閱讀」才能關閉) */
+.ann-popup-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); backdrop-filter: blur(2px); }
+.ann-popup { width: min(520px, 100%); max-height: 86vh; display: flex; flex-direction: column; background: var(--surface); border-radius: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); overflow: hidden; }
+.ann-popup-head { padding: 16px 22px; font-size: 18px; font-weight: 900; border-bottom: 1px solid var(--border); }
+.ann-popup-body { padding: 16px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.ann-popup-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); }
+.ann-read { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+.ann-read input { width: 18px; height: 18px; }
+

@@ -12,7 +12,7 @@ from models.user_pref import UserPref
 router = APIRouter(prefix="/me/prefs", tags=["prefs"])
 
 # 只允許這幾個 key,避免被拿來當任意儲存空間
-ALLOWED_KEYS = {"bellReadIds", "bellHiddenIds", "faqAiHistory"}
+ALLOWED_KEYS = {"bellReadIds", "bellHiddenIds", "faqAiHistory", "annReadIds"}
 MAX_BYTES = 300_000
 
 

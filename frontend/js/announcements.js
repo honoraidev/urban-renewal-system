@@ -124,3 +124,66 @@ async function openAnnouncementAdmin() {
   };
   await render();
 }
+
+// ===== 彈跳視窗:有尚未閱讀的有效公告就跳出,必須勾「我已閱讀」才能關閉 =====
+// 已閱讀的公告 id 存伺服器(user_prefs.annReadIds),換裝置 / 換網址也不會重複跳。
+async function checkAnnouncementPopup() {
+  if (document.getElementById("ann-popup")) return;
+  let rows, readIds;
+  try {
+    rows = await api("/announcements", { silent: true });
+    const pref = await api("/me/prefs/annReadIds", { silent: true });
+    readIds = Array.isArray(pref && pref.value) ? pref.value : [];
+  } catch (e) {
+    return;
+  }
+  const unread = rows.filter((a) => !readIds.includes(a.id));
+  if (!unread.length || document.getElementById("ann-popup")) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "ann-popup";
+  wrap.className = "ann-popup-overlay";
+  wrap.setAttribute("role", "alertdialog");
+  wrap.setAttribute("aria-modal", "true");
+  wrap.innerHTML = `
+    <div class="ann-popup">
+      <div class="ann-popup-head">📢 系統公告</div>
+      <div class="ann-popup-body">
+        ${unread
+          .map((a) => {
+            const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
+            return `<div class="ann-banner ann-${escapeHtml(a.level)}">
+              <span class="ann-ic">${lv.icon}</span>
+              <div class="ann-main">
+                <div class="ann-title">${escapeHtml(a.title)}</div>
+                ${a.content ? `<div class="ann-content">${escapeHtml(a.content)}</div>` : ""}
+                <div class="ann-meta">${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・顯示至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>
+              </div>
+            </div>`;
+          })
+          .join("")}
+      </div>
+      <div class="ann-popup-foot">
+        <label class="ann-read"><input type="checkbox" id="ann-read-chk"> 我已閱讀${unread.length > 1 ? "以上公告" : "此公告"}</label>
+        <button type="button" class="btn-primary" id="ann-close-btn" disabled>關閉</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const chk = wrap.querySelector("#ann-read-chk");
+  const btn = wrap.querySelector("#ann-close-btn");
+  chk.onchange = () => { btn.disabled = !chk.checked; };
+  // 沒勾之前不能關:點遮罩、按 Esc 都沒反應
+  const onKey = (e) => { if (e.key === "Escape") e.preventDefault(); };
+  document.addEventListener("keydown", onKey, true);
+  btn.onclick = async () => {
+    if (!chk.checked) return;
+    btn.disabled = true;
+    const merged = [...new Set([...readIds, ...unread.map((a) => a.id)])].slice(-200);
+    try {
+      await api("/me/prefs/annReadIds", { method: "PUT", body: { value: merged }, silent: true });
+    } catch (e) {}
+    document.removeEventListener("keydown", onKey, true);
+    wrap.remove();
+  };
+  chk.focus();
+}

@@ -432,12 +432,18 @@ function startReminderPolling() {
   refreshReminderBell();
   _syncBellSetsFromServer();
   remindersState.pollTimer = setInterval(refreshReminderBell, 60000);
+  if (typeof checkAnnouncementPopup === "function") {
+    checkAnnouncementPopup();
+    remindersState.annTimer = setInterval(checkAnnouncementPopup, 120000);
+  }
 }
 function stopReminderPolling() {
   if (remindersState.pollTimer) {
     clearInterval(remindersState.pollTimer);
     remindersState.pollTimer = null;
   }
+  if (remindersState.annTimer) { clearInterval(remindersState.annTimer); remindersState.annTimer = null; }
+  document.getElementById("ann-popup")?.remove();
   remindersState.items = [];
   document.getElementById("nav-bell-badge")?.classList.add("hidden");
 }
