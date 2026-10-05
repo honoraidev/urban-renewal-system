@@ -5517,4 +5517,11 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .mw-ann-card .ann-by { display: none; }
 .mw-ann-card .ann-row-btn { padding-right: 8px; gap: 8px; }
 .mw-ann-card #mywork-ann { max-height: 260px; overflow-y: auto; padding-right: 4px; }
+/* 今日跟進名單 / 公告 卡:文字放大 */
+.mw-pair > .mw-card h3 { font-size: 18px !important; margin-bottom: 10px !important; }
+.mw-follow-list { font-size: 15.5px !important; line-height: 1.7 !important; }
+.mw-follow-list .helper-text { font-size: 13.5px !important; }
+.mw-ann-card .ann-row-title { font-size: 15px; }
+.mw-ann-card .ann-pill { font-size: 13px; }
+.mw-ann-card .helper-text { font-size: 14px; }
 
