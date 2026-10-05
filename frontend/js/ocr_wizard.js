@@ -2884,6 +2884,16 @@ async function submitTitleDeedWizardInner() {
     }
 
     const hadParcels = d.parcels.length > 0;
+    // 依選的「第幾類謄本」把這次匯入的原檔同步到 SOP「第一/二/三類謄本」子項目(失敗不影響匯入本身)
+    for (const jid of sourceOcrJobIds) {
+      try {
+        await api(`/projects/${pid}/ocr-jobs/${jid}/mirror-transcript`, {
+          method: "POST",
+          body: { deed_category: d.deed_category || "", kind: titleDeedWizard && (titleDeedWizard.recordType === "building" || titleDeedWizard.recordType === "land") ? titleDeedWizard.recordType : "" },
+          silent: true,
+        });
+      } catch (e) { }
+    }
     progress.finish(doneUnits, "謄本資料建立完成");
     toast("謄本資料已匯入", "success");
     // 建立期間可能已切到別的案件:只有還停在同一案件時才刷新清冊 / 詢問匯入建物。

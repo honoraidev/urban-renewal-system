@@ -1,9 +1,10 @@
 import base64
 import os
+import shutil
 import threading
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import func, select, text as _sql_text
 from sqlalchemy.orm import Session
 
@@ -87,6 +88,63 @@ def discard_ocr_job(
     if job.status != "processing":
         db.delete(job)
     db.commit()
+
+
+@router.post("/ocr-jobs/{job_id}/mirror-transcript")
+def mirror_transcript_to_category_slot(
+    job_id: int,
+    deed_category: str = Body("", embed=True),
+    kind: str = Body("", embed=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_ocr_editor),
+):
+    """謄本匯入完成後,依「第幾類謄本」把這次匯入的原檔同步一份到 SOP「第一/二/三類謄本」子項目
+    (doc_type = land_/building_transcript_type1~3)。原本的 property_register / building_register
+    文件不動;同步出來的是獨立複本(各自一個實體檔案,刪掉一邊不會影響另一邊)。已經同步過的不重複建。"""
+    job = get_ocr_job_or_404(db, project.id, job_id)
+    n = 1 if "第一類" in deed_category else 2 if "第二類" in deed_category else 3 if "第三類" in deed_category else 0
+    if n == 0:
+        return {"created": 0, "reason": "category_unknown"}
+    if kind not in ("land", "building"):
+        kind = "building" if "建物" in deed_category else "land"
+    doc_type = f"{kind}_transcript_type{n}"
+
+    docs = db.scalars(
+        select(Document)
+        .join(OcrJobDocument, OcrJobDocument.document_id == Document.id)
+        .where(OcrJobDocument.ocr_job_id == job.id)
+        .order_by(OcrJobDocument.page_order)
+    ).all()
+    created = 0
+    for doc in docs:
+        marker_desc = f"謄本掃描匯入(同步自文件 #{doc.id})"
+        exists = db.scalar(
+            select(Document.id).where(
+                Document.project_id == project.id, Document.doc_type == doc_type, Document.description == marker_desc
+            )
+        )
+        if exists or not os.path.exists(doc.file_path):
+            continue
+        disk_path, _stored = build_upload_path(project.project_code, doc.file_name)
+        shutil.copyfile(doc.file_path, disk_path)
+        db.add(
+            Document(
+                project_id=project.id,
+                doc_type=doc_type,
+                file_name=doc.file_name,
+                file_path=disk_path,
+                file_size_bytes=doc.file_size_bytes,
+                mime_type=doc.mime_type,
+                uploaded_by=current_user.id,
+                description=marker_desc,
+                sop_stage=doc.sop_stage,
+                folder_id=doc.folder_id,
+            )
+        )
+        created += 1
+    db.commit()
+    return {"created": created, "doc_type": doc_type}
 
 
 @router.get("/ocr-jobs/{job_id}", response_model=OcrJobDetail)
