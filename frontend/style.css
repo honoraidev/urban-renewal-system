@@ -5185,4 +5185,7 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-d-card-content { margin-top: 10px; font-size: 15.5px; line-height: 1.75; color: var(--text); white-space: pre-wrap; word-break: break-word; }
 .ann-d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-muted); }
 .ann-d-meta i { width: 1px; height: 16px; background: var(--border); }
+.ann-card[hidden], .ann-read[hidden], .ann-pager[hidden], .ann-close[hidden] { display: none; }
+.ann-pager { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); font-weight: 700; margin-right: auto; }
+.ann-close.nudge { animation: annNudge .4s ease; }
 

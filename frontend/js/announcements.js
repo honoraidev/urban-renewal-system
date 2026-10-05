@@ -206,11 +206,11 @@ async function checkAnnouncementPopup() {
           <div class="ann-popup-h1">系統公告</div>
           <div class="ann-popup-h2">重要資訊,請留意最新消息</div>
         </div>
-        <button type="button" class="ann-popup-x" id="ann-x-btn" aria-label="關閉" title="請先勾選「我已閱讀」">&times;</button>
+        <button type="button" class="ann-popup-x" id="ann-x-btn" aria-label="關閉" title="請先看完公告並勾選「我已閱讀」">&times;</button>
       </div>
       <div class="ann-popup-body">
         ${unread
-          .map((a) => `<div class="ann-card ann-card-${escapeHtml(a.level)}">
+          .map((a, i) => `<div class="ann-card ann-card-${escapeHtml(a.level)}" data-ann-page="${i}"${i ? " hidden" : ""}>
             <div class="ann-card-title">${escapeHtml(a.title)}</div>
             ${a.content ? `<div class="ann-card-content">${escapeHtml(a.content)}</div>` : ""}
             <div class="ann-card-meta">
@@ -221,11 +221,13 @@ async function checkAnnouncementPopup() {
           .join("")}
       </div>
       <div class="ann-popup-foot">
-        <label class="ann-read">
+        <label class="ann-read"${unread.length > 1 ? " hidden" : ""}>
           <input type="checkbox" id="ann-read-chk">
           <span><b>我已閱讀${unread.length > 1 ? "以上公告" : "此公告"}</b><small>下次將不再自動顯示${unread.length > 1 ? "這些公告" : "此公告"}</small></span>
         </label>
-        <button type="button" class="btn-primary ann-close" id="ann-close-btn" disabled>關閉</button>
+        <div class="ann-pager"${unread.length > 1 ? "" : " hidden"}><button type="button" class="btn-secondary btn-sm" id="ann-prev-btn" disabled>‹ 上一筆</button><span id="ann-page-no">1 / ${unread.length}</span></div>
+        <button type="button" class="btn-primary ann-close" id="ann-next-btn"${unread.length > 1 ? "" : " hidden"}>下一筆 ›</button>
+        <button type="button" class="btn-primary ann-close" id="ann-close-btn" disabled${unread.length > 1 ? " hidden" : ""}>關閉</button>
       </div>
     </div>`;
   document.body.appendChild(wrap);
@@ -233,8 +235,33 @@ async function checkAnnouncementPopup() {
   const btn = wrap.querySelector("#ann-close-btn");
   const xBtn = wrap.querySelector("#ann-x-btn");
   chk.onchange = () => { btn.disabled = !chk.checked; };
+  // 多則公告:一次顯示一則,按「下一筆」逐則看;看到最後一則才出現「我已閱讀」勾選與關閉
+  const cards = [...wrap.querySelectorAll("[data-ann-page]")];
+  const prevBtn = wrap.querySelector("#ann-prev-btn");
+  const nextBtn = wrap.querySelector("#ann-next-btn");
+  const pageNo = wrap.querySelector("#ann-page-no");
+  let page = 0;
+  const showPage = (n) => {
+    page = Math.max(0, Math.min(cards.length - 1, n));
+    cards.forEach((c, i) => { c.hidden = i !== page; });
+    const last = page === cards.length - 1;
+    prevBtn.disabled = page === 0;
+    pageNo.textContent = `${page + 1} / ${cards.length}`;
+    if (cards.length > 1) {
+      nextBtn.hidden = last;
+      btn.hidden = !last;
+      chk.closest(".ann-read").hidden = !last;
+    }
+    wrap.querySelector(".ann-popup-body").scrollTop = 0;
+  };
+  prevBtn.onclick = () => showPage(page - 1);
+  nextBtn.onclick = () => showPage(page + 1);
   xBtn.onclick = () => {
-    if (chk.checked) btn.click();
+    if (cards.length > 1 && page < cards.length - 1) {
+      nextBtn.classList.remove("nudge");
+      void nextBtn.offsetWidth;
+      nextBtn.classList.add("nudge");
+    } else if (chk.checked) btn.click();
     else {
       const lab = chk.closest(".ann-read");
       lab.classList.remove("nudge");
@@ -256,5 +283,5 @@ async function checkAnnouncementPopup() {
     document.removeEventListener("keydown", onKey, true);
     wrap.remove();
   };
-  chk.focus();
+  if (cards.length === 1) chk.focus(); else nextBtn.focus();
 }
