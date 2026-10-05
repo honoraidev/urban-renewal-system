@@ -23,6 +23,8 @@ function overviewEnsureStyle() {
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
     .ov-row.ov-row-r2 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
+    /* 列高只看左邊「關鍵指標」;右邊「待辦事項」跟著等高,內容多就在卡片內捲動,左卡不再被撐出一片空白 */
+    @media (min-width:1101px) { .ov-row.ov-row-r2 > .ov-card:last-child { box-sizing:border-box; height:0; min-height:100%; overflow-y:auto; } }
     .ov-row.ov-row-r3 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
     @media (max-width:1100px) { .ov-row.ov-row-r2, .ov-row.ov-row-r3 { grid-template-columns: 1fr; } }
 
@@ -188,6 +190,7 @@ function overviewEnsureStyle() {
 
     /* Members & Info Cards */
     .ov-side-stack { display:flex; flex-direction:column; gap:22px; min-width:0; }
+    .ov-side-stack > .ov-card:last-child { flex:1 1 auto; } /* 右欄最後一張卡撐滿,底部跟左欄對齊 */
     .ov-member-row { display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border, #e2e8f0); font-size:13.5px; position:relative; }
     .ov-member-row:last-child { border-bottom:none; }
     .ov-member-avatar { width:34px; height:34px; border-radius:50%; background:#0d9488; color:#ffffff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13.5px; flex:0 0 auto; }
@@ -443,7 +446,7 @@ async function _ovOpenMetricDetail(pid, kind) {
       const phone = o.phone_mobile || o.phone_landline || o.phone || "";
       const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "";
       const initial = (o.name || "").trim().charAt(0) || "?";
-      return `<div class="ov-md-row tone-${cls}" data-md-name="${escapeHtml((o.name || "").toLowerCase())}">
+      return `<div class="ov-md-row tone-${cls}" data-md-cls="${cls}" data-md-name="${escapeHtml((o.name || "").toLowerCase())}">
         <div class="ov-md-avatar">${escapeHtml(initial)}</div>
         <div class="ov-md-main">
           <div class="ov-md-name">${escapeHtml(o.name || "(未命名)")}</div>
@@ -458,23 +461,29 @@ async function _ovOpenMetricDetail(pid, kind) {
   bodyEl.innerHTML = `
     <div class="ov-md-toolbar">
       <span class="ov-md-count tone-${kind}">共 <b>${matched.length}</b> 位</span>
+      ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部(未決定 + 未回覆)</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
       ${matched.length > 8 ? `<input type="search" class="ov-md-search" placeholder="搜尋姓名…" autocomplete="off">` : ""}
     </div>
     <div class="ov-md-list">${rowsHtml}</div>
     <div class="ov-md-empty hidden">找不到符合的地主</div>`;
   const search = bodyEl.querySelector(".ov-md-search");
-  if (search) {
-    search.addEventListener("input", () => {
-      const q = search.value.trim().toLowerCase();
-      let shown = 0;
-      bodyEl.querySelectorAll(".ov-md-row").forEach((r) => {
-        const hit = !q || r.dataset.mdName.includes(q);
-        r.classList.toggle("hidden", !hit);
-        if (hit) shown++;
-      });
-      bodyEl.querySelector(".ov-md-empty").classList.toggle("hidden", shown > 0);
+  const filterSel = bodyEl.querySelector(".ov-md-filter");
+  const countEl = bodyEl.querySelector(".ov-md-count b");
+  // 搜尋姓名 + 未決定/未回覆篩選一起套用,上面的「共 N 位」跟著變
+  const applyFilters = () => {
+    const q = search ? search.value.trim().toLowerCase() : "";
+    const f = filterSel ? filterSel.value : "";
+    let shown = 0;
+    bodyEl.querySelectorAll(".ov-md-row").forEach((r) => {
+      const hit = (!q || r.dataset.mdName.includes(q)) && (!f || r.dataset.mdCls === f);
+      r.classList.toggle("hidden", !hit);
+      if (hit) shown++;
     });
-  }
+    if (countEl) countEl.textContent = shown;
+    bodyEl.querySelector(".ov-md-empty").classList.toggle("hidden", shown > 0);
+  };
+  if (search) search.addEventListener("input", applyFilters);
+  if (filterSel) filterSel.addEventListener("change", applyFilters);
 }
 
 function _ovCardTitle(icon, label, rightBadge, rightHtml) {

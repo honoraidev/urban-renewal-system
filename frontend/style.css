@@ -4851,3 +4851,105 @@ select option { color: var(--text); background: var(--surface); }
 .ov-info2-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .ov-info2-value { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.35; }
 .ov-info2-wide { grid-column: 1 / -1; }
+
+/* 案件總覽「關鍵指標」四張卡固定兩兩一排 (2026-10-05) */
+.ov-metrics-group .ov-km-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 關鍵指標兩欄後格子縮小一點 (2026-10-05) */
+.ov-metrics-group .ov-km-grid { gap: 10px; }
+.ov-metrics-group .ov-km-top { padding: 10px 12px 0; gap: 6px; }
+.ov-metrics-group .ov-km-icon { width: 32px; height: 32px; border-radius: 9px; font-size: 17px; }
+.ov-metrics-group .ov-km-label { font-size: 13.5px; }
+.ov-metrics-group .ov-km-trend { font-size: 18px; }
+.ov-metrics-group .ov-km-big { padding: 6px 12px 0; font-size: 24px; }
+.ov-metrics-group .ov-km-sub { padding: 1px 12px 0; font-size: 12.5px; }
+.ov-metrics-group .ov-km-bar-row { padding: 6px 12px 8px; font-size: 11px; }
+.ov-metrics-group .ov-km-bar { height: 6px; }
+.ov-metrics-group .ov-km-foot { padding: 6px 12px; gap: 8px; }
+.ov-metrics-group .ov-km-foot-label { font-size: 11.5px; }
+.ov-metrics-group .ov-km-foot-arrow { font-size: 16px; }
+.ov-metrics-group .ov-km-foot-val b { font-size: 14.5px; }
+.ov-metrics-group .ov-km-foot-val small { font-size: 10.5px; }
+
+/* ===== 關鍵指標卡 v2(2026-10-05):副標、淡色插圖、圓形箭頭、內嵌式「較上週」===== */
+.ov-metrics-group .ov-km-grid { gap: 14px; }
+.ov-metrics-group .ov-km-card {
+  position: relative; border-radius: 18px;
+  background:
+    var(--km-art, none) no-repeat right 22px top 44px / 96px auto,
+    radial-gradient(120% 70% at 70% 62%, color-mix(in srgb, var(--km) 9%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--km) 5%, #fff) 0%, #fff 70%);
+  border: 1px solid color-mix(in srgb, var(--km) 16%, var(--border));
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+}
+.ov-metrics-group .ov-km-top {
+  display: grid; grid-template-columns: auto auto 1fr auto; grid-template-rows: auto auto;
+  column-gap: 12px; row-gap: 2px; align-items: center; padding: 16px 16px 0;
+}
+.ov-metrics-group .ov-km-icon {
+  grid-row: 1 / span 2; width: 48px; height: 48px; border-radius: 14px; font-size: 24px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--km) 18%, #fff), color-mix(in srgb, var(--km) 28%, #fff));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 4px 10px color-mix(in srgb, var(--km) 18%, transparent);
+}
+.ov-metrics-group .ov-km-label { grid-column: 2; grid-row: 1; font-size: 16px; font-weight: 900; align-self: end; }
+.ov-metrics-group .ov-km-tip { grid-column: 3; grid-row: 1; align-self: end; margin-left: -4px; }
+.ov-metrics-group .ov-km-trend {
+  grid-column: 4; grid-row: 1 / span 2; width: 38px; height: 38px; border-radius: 50%; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 18px;
+  color: var(--km); opacity: 1; background: color-mix(in srgb, var(--km) 12%, #fff);
+}
+.ov-metrics-group .ov-km-top::after {
+  grid-column: 2 / 4; grid-row: 2; align-self: start; font-size: 12.5px; color: var(--text-muted); white-space: nowrap;
+}
+.ov-metrics-group .ov-km-agree .ov-km-top::after { content: "已同意人數占比"; }
+.ov-metrics-group .ov-km-oppose .ov-km-top::after { content: "已反對人數占比"; }
+.ov-metrics-group .ov-km-other .ov-km-top::after { content: "未決定 / 未回覆"; }
+.ov-metrics-group .ov-km-total .ov-km-top::after { content: "本週新增案件數"; }
+.ov-metrics-group .ov-km-big { padding: 12px 16px 0; font-size: 34px; font-weight: 900; letter-spacing: -.5px; }
+.ov-metrics-group .ov-km-sub { padding: 2px 16px 0; font-size: 14px; letter-spacing: .5px; }
+.ov-metrics-group .ov-km-bar-row { padding: 10px 16px 12px; font-size: 12px; }
+.ov-metrics-group .ov-km-bar { height: 8px; background: color-mix(in srgb, var(--text-muted) 13%, transparent); }
+.ov-metrics-group .ov-km-foot {
+  margin: 0 10px 10px; padding: 9px 14px; gap: 10px; border-radius: 13px;
+  background: color-mix(in srgb, var(--km) 9%, #fff);
+}
+.ov-metrics-group .ov-km-foot-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+.ov-metrics-group .ov-km-foot-label::before {
+  content: ""; width: 15px; height: 14px; background: var(--km); opacity: .85;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 14'%3E%3Crect x='0' y='8' width='3.4' height='6' rx='1'/%3E%3Crect x='5.8' y='4' width='3.4' height='10' rx='1'/%3E%3Crect x='11.6' y='0' width='3.4' height='14' rx='1'/%3E%3C/svg%3E") no-repeat center / contain;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 14'%3E%3Crect x='0' y='8' width='3.4' height='6' rx='1'/%3E%3Crect x='5.8' y='4' width='3.4' height='10' rx='1'/%3E%3Crect x='11.6' y='0' width='3.4' height='14' rx='1'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.ov-metrics-group .ov-km-foot-arrow { font-size: 18px; }
+.ov-metrics-group .ov-km-foot-val b { font-size: 16px; }
+.ov-metrics-group .ov-km-foot-val small { font-size: 11.5px; }
+/* 右側淡色插圖(人群 / 對話框叉叉 / 文件 / 長條圖) */
+.ov-metrics-group .ov-km-agree { --km-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 70' fill='%2316a34a' opacity='.16'%3E%3Ccircle cx='50' cy='14' r='12'/%3E%3Ccircle cx='20' cy='24' r='9'/%3E%3Ccircle cx='80' cy='24' r='9'/%3E%3Cpath d='M26 70c0-17 11-30 24-30s24 13 24 30z'/%3E%3Cpath d='M2 70c0-13 8-23 18-23 5 0 9 2 12 6-5 5-8 11-9 17z'/%3E%3Cpath d='M98 70c0-13-8-23-18-23-5 0-9 2-12 6 5 5 8 11 9 17z'/%3E%3C/svg%3E"); }
+.ov-metrics-group .ov-km-oppose { --km-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 76'%3E%3Cpath d='M50 2C24 2 4 18 4 38c0 11 6 21 16 28l-4 10 16-7c5 2 11 3 18 3 26 0 46-16 46-34S76 2 50 2z' fill='%23e5484d' opacity='.12'/%3E%3Cpath d='M38 26l24 24M62 26L38 50' stroke='%23e5484d' stroke-width='7' stroke-linecap='round' opacity='.3'/%3E%3C/svg%3E"); }
+.ov-metrics-group .ov-km-other { --km-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90'%3E%3Crect x='4' y='4' width='82' height='82' rx='12' fill='%23f59e0b' opacity='.14'/%3E%3Cg stroke='%23f59e0b' stroke-width='7' stroke-linecap='round' opacity='.3'%3E%3Cpath d='M24 30h42M24 46h42M24 62h28'/%3E%3C/g%3E%3C/svg%3E"); }
+.ov-metrics-group .ov-km-total { --km-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 80' fill='%232f7be0'%3E%3Crect x='6' y='58' width='13' height='22' rx='3' opacity='.14'/%3E%3Crect x='28' y='44' width='13' height='36' rx='3' opacity='.17'/%3E%3Crect x='50' y='30' width='13' height='50' rx='3' opacity='.2'/%3E%3Crect x='72' y='12' width='13' height='68' rx='3' opacity='.24'/%3E%3Cpath d='M8 46C30 40 48 28 66 8' fill='none' stroke='%232f7be0' stroke-width='4' stroke-linecap='round' opacity='.35'/%3E%3Cpath d='M58 6l10-2-2 10' fill='none' stroke='%232f7be0' stroke-width='4' stroke-linecap='round' stroke-linejoin='round' opacity='.35'/%3E%3C/svg%3E"); }
+
+/* 關鍵指標卡 v3 排版微調 (2026-10-05) */
+.ov-metrics-group .ov-km-card {
+  background:
+    var(--km-art, none) no-repeat right 20px top 70px / 66px auto,
+    radial-gradient(120% 70% at 70% 62%, color-mix(in srgb, var(--km) 8%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--km) 5%, #fff) 0%, #fff 70%);
+}
+.ov-metrics-group .ov-km-top { padding: 14px 14px 0 16px; column-gap: 10px; }
+.ov-metrics-group .ov-km-icon { width: 44px; height: 44px; font-size: 22px; }
+.ov-metrics-group .ov-km-trend { width: 34px; height: 34px; font-size: 16px; align-self: start; }
+.ov-metrics-group .ov-km-big { padding: 14px 16px 0; font-size: 32px; line-height: 1.05; }
+.ov-metrics-group .ov-km-sub { padding: 4px 16px 0; font-size: 13.5px; color: var(--text-muted); }
+.ov-metrics-group .ov-km-bar-row { padding: 12px 16px 14px; }
+.ov-metrics-group .ov-km-spacer { flex: 1 1 0; min-height: 0; }
+.ov-metrics-group .ov-km-total .ov-km-sub { padding-bottom: 14px; }
+.ov-metrics-group .ov-km-foot { margin: 0 12px 12px; padding: 8px 14px; }
+
+/* 關鍵指標卡:大數字與「13 / 63 人」靠右,背景的淡色插圖改放左邊避免互相壓住 */
+.ov-metrics-group .ov-km-card { background:
+    var(--km-art, none) no-repeat left 22px top 70px / 66px auto,
+    radial-gradient(120% 70% at 30% 62%, color-mix(in srgb, var(--km) 8%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--km) 5%, #fff) 0%, #fff 70%); }
+.ov-metrics-group .ov-km-big, .ov-metrics-group .ov-km-sub { text-align: right; }
+.ov-md-filter { margin-left: auto; min-height: 36px; font-size: 14px; padding: 0 34px 0 12px; border-radius: 10px; }
+
