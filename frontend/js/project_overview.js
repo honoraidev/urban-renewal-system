@@ -350,7 +350,7 @@ const OV_KC_ART = {
 };
 const OV_KC_FOOT_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="1.5" fill="currentColor"/><rect x="10" y="8" width="5" height="13" rx="1.5" fill="currentColor"/><rect x="17" y="3" width="5" height="18" rx="1.5" fill="currentColor"/></svg>`;
 
-function _ovKmCard({ label, tip, tone, big, sub, pct, delta, prev, unit, kind }) {
+function _ovKmCard({ label, subtitle, tip, tone, big, sub, pct, delta, prev, unit, kind }) {
   const hasPrev = prev != null && delta != null;
   const dir = !hasPrev || delta === 0 ? "flat" : delta > 0 ? "up" : "down";
   const footArrow = dir === "up" ? OV_KM_ICON.up : dir === "down" ? OV_KM_ICON.down : OV_KM_ICON.right;
@@ -364,7 +364,7 @@ function _ovKmCard({ label, tip, tone, big, sub, pct, delta, prev, unit, kind })
         <span class="ov-kc-icon">${OV_KC_ICON[tone] || ""}</span>
         <div class="ov-kc-titles">
           <div class="ov-kc-title">${label}<span class="ov-kc-tip" title="${escapeHtml(tip)}">${OV_KM_ICON.info}</span></div>
-          <div class="ov-kc-subtitle">${OV_KC_SUBTITLE[tone] || ""}</div>
+          <div class="ov-kc-subtitle">${subtitle || OV_KC_SUBTITLE[tone] || ""}</div>
         </div>
         <span class="ov-kc-go">${go}</span>
       </div>
@@ -440,10 +440,13 @@ function _ovClassifyContactResult(result) {
   return "no_response";
 }
 
+// 第3關起關鍵指標改看「意願書 / 合約」簽署統計時,名單要用的資料(render 時更新)
+let _ovPhaseCtx = { phase: "visit", signedIds: new Set(), signedLabel: "已簽", unsignedLabel: "未簽" };
 const OV_METRIC_KIND_LABEL = { agreed: "同意", opposed: "反對", undecided: "未決定", no_response: "未回覆", other: "其他(未決定/未回覆)" };
 
 async function _ovOpenMetricDetail(pid, kind) {
-  const title = `${OV_METRIC_KIND_LABEL[kind] || kind} 名單`;
+  const isPh = kind === "ph_signed" || kind === "ph_unsigned";
+  const title = `${isPh ? (kind === "ph_signed" ? _ovPhaseCtx.signedLabel : _ovPhaseCtx.unsignedLabel) : OV_METRIC_KIND_LABEL[kind] || kind} 名單`;
   const panel = openModal(title, `<div class="empty-state">載入中...</div>`, { width: "460px" });
   let landowners, summary;
   try {
@@ -457,6 +460,7 @@ async function _ovOpenMetricDetail(pid, kind) {
   }
   const resultBy = new Map(summary.map((s) => [s.landowner_id, s]));
   const matched = landowners.filter((o) => {
+    if (isPh) return _ovPhaseCtx.signedIds.has(o.id) === (kind === "ph_signed");
     const cls = _ovClassifyContactResult(resultBy.get(o.id)?.last_contact_result);
     return kind === "other" ? cls === "undecided" || cls === "no_response" : cls === kind;
   });
@@ -470,7 +474,7 @@ async function _ovOpenMetricDetail(pid, kind) {
   const rowsHtml = matched
     .map((o) => {
       const s = resultBy.get(o.id);
-      const cls = _ovClassifyContactResult(s?.last_contact_result);
+      const cls = isPh ? (kind === "ph_signed" ? "agreed" : "undecided") : _ovClassifyContactResult(s?.last_contact_result);
       const phone = o.phone_mobile || o.phone_landline || o.phone || "";
       const lastDate = s?.last_contact_date ? fmtDate(s.last_contact_date) : "";
       const initial = (o.name || "").trim().charAt(0) || "?";
@@ -494,7 +498,7 @@ async function _ovOpenMetricDetail(pid, kind) {
     .join("");
   bodyEl.innerHTML = `
     <div class="ov-md-toolbar">
-      <span class="ov-md-count tone-${kind}">共 <b>${matched.length}</b> 位</span>
+      <span class="ov-md-count tone-${isPh ? (kind === "ph_signed" ? "agreed" : "undecided") : kind}">共 <b>${matched.length}</b> 位</span>
       ${kind === "other" ? `<select class="ov-md-filter" aria-label="篩選未決定 / 未回覆"><option value="">全部</option><option value="undecided">只看未決定</option><option value="no_response">只看未回覆</option></select>` : ""}
       <input type="search" class="ov-md-search" placeholder="搜尋姓名 / 門牌…" autocomplete="off">
     </div>
@@ -817,6 +821,50 @@ async function renderProjectOverviewTab(el) {
       </div>
     </div>`;
 
+  // ===== 依案件目前關卡切換關鍵指標:第0~2關 地主拜訪、第3~4關 意願書簽署、第5關起 合約簽約 =====
+  const pm = km.phase_metrics;
+  const pmPrev = km.phase_metrics_last_week;
+  let phaseCardsHtml = "";
+  if (pm && pm.phase !== "visit") {
+    const isContract = pm.phase === "contract";
+    const word = isContract ? "合約" : "意願書";
+    const signedLabel = isContract ? "已簽約" : "已簽意願書";
+    const unsignedLabel = isContract ? "未簽約" : "未簽意願書";
+    const threshold = 0.8;
+    const total = pm.total || 0;
+    const signed = pm.signed || 0;
+    const unsigned = total - signed;
+    const pctNow = _ovPctOf(signed, total) ?? 0;
+    const hasPrevPm = pmPrev && pmPrev.signed != null;
+    const pctPrev = hasPrevPm ? _ovPctOf(pmPrev.signed, pmPrev.total) ?? 0 : null;
+    const unsPrev = hasPrevPm ? _ovPctOf(pmPrev.total - pmPrev.signed, pmPrev.total) ?? 0 : null;
+    const need = Math.max(0, Math.ceil(total * threshold) - signed);
+    const reached = total > 0 && signed / total >= threshold;
+    _ovPhaseCtx = { phase: pm.phase, signedIds: new Set(pm.signed_ids || []), signedLabel, unsignedLabel };
+    const stageNo = isContract ? 8 : 4;
+    phaseCardsHtml = [
+      _ovKmCard({ icon: OV_KM_ICON.people, label: signedLabel, subtitle: `第${stageNo}階段${word}已簽人數占比`, tip: `第${stageNo}階段:${isContract ? "已簽約(簽約狀態為已簽)" : "已上傳意願書"}的地主人數比例`, tone: "agree", big: `${pctNow}%`, sub: `${signed} / ${total} 人`, pct: pctNow, delta: hasPrevPm ? pctNow - pctPrev : null, prev: pctPrev, unit: "%", kind: "ph_signed" }),
+      _ovKmCard({ icon: OV_KM_ICON.question, label: unsignedLabel, subtitle: `第${stageNo}階段${word}未簽人數占比`, tip: `第${stageNo}階段:還沒${isContract ? "簽約" : "上傳意願書"}的地主人數比例`, tone: "other", big: `${_ovPctOf(unsigned, total) ?? 0}%`, sub: `${unsigned} / ${total} 人`, pct: _ovPctOf(unsigned, total) ?? 0, delta: hasPrevPm ? (_ovPctOf(unsigned, total) ?? 0) - unsPrev : null, prev: unsPrev, unit: "%", kind: "ph_unsigned" }),
+      _ovKmCard({ icon: OV_KM_ICON.cross, label: "過關門檻", subtitle: `需達 ${Math.round(threshold * 100)}%(約 ${Math.ceil(total * threshold)} 人)`, tip: `第${stageNo}階段過關需${word}${isContract ? "簽約" : "簽署"}人數達 ${Math.round(threshold * 100)}%`, tone: reached ? "agree" : "oppose", big: reached ? "已達標" : `差 ${need} 人`, sub: `目前 ${signed} / ${Math.ceil(total * threshold)} 人`, pct: Math.min(100, Math.round((signed / Math.max(1, Math.ceil(total * threshold))) * 100)), delta: null, prev: null, unit: "" }),
+    ].join("");
+  }
+  const visitCardsHtml = pm && pm.phase !== "visit" ? phaseCardsHtml : [
+              (() => {
+                const a = kmPct("agreed");
+                const agreedCount = cur ? cur.agreed : km.headcount_agreed;
+                const total = cur ? cur.total : km.headcount_total;
+                return _ovKmCard({ icon: OV_KM_ICON.people, label: "人數同意", tip: "最新一次拜訪結果為「同意」的地主人數比例", tone: "agree", big: `${a.pct}%`, sub: `${agreedCount} / ${total} 人`, pct: a.pct, delta: a.delta, prev: a.prev, unit: "%", kind: "agreed" });
+              })(),
+              (() => {
+                const o = kmPct("opposed");
+                return _ovKmCard({ icon: OV_KM_ICON.cross, label: "反對", tip: "最新一次拜訪結果為「反對」的地主人數比例", tone: "oppose", big: `${o.pct}%`, sub: `${cur?.opposed || 0} / ${cur?.total || 0} 人`, pct: o.pct, delta: o.delta, prev: o.prev, unit: "%", kind: "opposed" });
+              })(),
+              (() => {
+                const t = kmPct("other");
+                return _ovKmCard({ icon: OV_KM_ICON.question, label: "其他", tip: "未決定+未回覆(含尚未拜訪)的地主人數比例", tone: "other", big: `${t.pct}%`, sub: `${_ovDetailOther(cur)} / ${cur?.total || 0} 人`, pct: t.pct, delta: t.delta, prev: t.prev, unit: "%", kind: "other" });
+              })(),
+  ].join("");
+
   const stageTasks = overview.stage_tasks || null;
   const pendingTaskCount = stageTasks ? (stageTasks.current?.tasks.filter(t => !t.done).length || 0) + (stageTasks.next?.tasks.filter(t => !t.done).length || 0) : 0;
   const todoBadge = pendingTaskCount > 0 ? `<span class="ov-title-pill">共 ${pendingTaskCount} 項</span>` : "";
@@ -835,20 +883,7 @@ async function renderProjectOverviewTab(el) {
           </div>
           <div class="ov-metrics-group">
             <div class="ov-km-grid">
-              ${(() => {
-                const a = kmPct("agreed");
-                const agreedCount = cur ? cur.agreed : km.headcount_agreed;
-                const total = cur ? cur.total : km.headcount_total;
-                return _ovKmCard({ icon: OV_KM_ICON.people, label: "人數同意", tip: "最新一次拜訪結果為「同意」的地主人數比例", tone: "agree", big: `${a.pct}%`, sub: `${agreedCount} / ${total} 人`, pct: a.pct, delta: a.delta, prev: a.prev, unit: "%", kind: "agreed" });
-              })()}
-              ${(() => {
-                const o = kmPct("opposed");
-                return _ovKmCard({ icon: OV_KM_ICON.cross, label: "反對", tip: "最新一次拜訪結果為「反對」的地主人數比例", tone: "oppose", big: `${o.pct}%`, sub: `${cur?.opposed || 0} / ${cur?.total || 0} 人`, pct: o.pct, delta: o.delta, prev: o.prev, unit: "%", kind: "opposed" });
-              })()}
-              ${(() => {
-                const t = kmPct("other");
-                return _ovKmCard({ icon: OV_KM_ICON.question, label: "其他", tip: "未決定+未回覆(含尚未拜訪)的地主人數比例", tone: "other", big: `${t.pct}%`, sub: `${_ovDetailOther(cur)} / ${cur?.total || 0} 人`, pct: t.pct, delta: t.delta, prev: t.prev, unit: "%", kind: "other" });
-              })()}
+              ${visitCardsHtml}
               ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "總件數", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "" })}
             </div>
           </div>

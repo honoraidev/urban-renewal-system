@@ -271,6 +271,38 @@ def _headcount_detail(db: Session, project_id: int, before: datetime | None = No
     }
 
 
+def _phase_metrics(db: Session, project_id: int, current_stage: int, all_done: bool, before: datetime | None = None) -> dict:
+    """關鍵指標依案件目前所在關卡切換成不同統計:第0~2關 = 地主拜訪(前端自己用 headcount_detail 畫)、
+    第3~4關(過了地主拜訪)= 第4關意願書簽署(已簽=該地主有上傳意願書)、第5關起(過了意願書)
+    = 第8關合約簽約(已簽=地主.agreement_status=signed)。before 有值 = 還原那個時間點的「已簽」人數
+    (意願書看上傳時間;合約沒有簽約時間紀錄,算不出來回傳 None)。"""
+    from models.document import Document
+
+    phase = "contract" if (all_done or current_stage >= 5) else "willingness" if current_stage >= 3 else "visit"
+    ids = db.scalars(select(Landowner.id).where(Landowner.project_id == project_id)).all()
+    out = {"phase": phase, "total": len(ids), "signed": None, "signed_ids": []}
+    if phase == "willingness":
+        q = select(func.distinct(Document.landowner_id)).where(
+            Document.project_id == project_id, Document.doc_type == "willingness_form", Document.landowner_id.isnot(None)
+        )
+        if before is not None:
+            q = q.where(Document.uploaded_at < before)
+        signed = set(db.scalars(q).all()) & set(ids)
+    elif phase == "contract":
+        if before is not None:
+            return {**out, "signed": None}
+        signed = set(
+            db.scalars(
+                select(Landowner.id).where(Landowner.project_id == project_id, Landowner.agreement_status == "signed")
+            ).all()
+        )
+    else:
+        return out
+    out["signed"] = len(signed)
+    out["signed_ids"] = sorted(signed)
+    return out
+
+
 def _stage_progress_pct(db: Session, project_id: int, idx_str: str, entry: dict) -> int:
     """單一關卡的進度%,不編假數字 —— 已完成/強制結案的關卡算 100%,還沒輪到的關卡
     算 0%,「進行中」的那一關則盡量沿用它自己既有的自動門檻邏輯反推一個真實比例
@@ -400,6 +432,8 @@ def get_project_overview(
             "headcount_detail": _headcount_detail(db, project_id),
             "headcount_detail_last_week": _headcount_detail(db, project_id, last_week_end),
             "last_week_date": (this_monday - timedelta(days=1)).isoformat(),
+            "phase_metrics": _phase_metrics(db, project_id, sop.current_stage, all_done),
+            "phase_metrics_last_week": _phase_metrics(db, project_id, sop.current_stage, all_done, last_week_end),
             "land_share_ratio": consent["land_share_ratio"],
             "land_share_agreed_sqm": consent["land_share_agreed_sqm"],
             "land_share_total_sqm": consent["land_share_total_sqm"],
