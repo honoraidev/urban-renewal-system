@@ -7,11 +7,11 @@ function myWorkEnsureStyle() {
   const s = document.createElement("style");
   s.id = "mywork-style";
   s.textContent = `
-    .mw-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap:20px; align-items:start; }
+    .mw-grid { display:grid; grid-template-columns: 1.15fr 1fr; gap:20px; align-items:start; }
     @media (max-width: 980px){ .mw-grid { grid-template-columns: 1fr; } }
     .mw-card { background:var(--surface); border:1px solid var(--border,#e5e7eb); border-radius:14px; padding:16px; }
     .mw-card h3 { margin:0 0 12px; font-size:15px; }
-    .mw-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .mw-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
     .mw-cal-head .t { font-weight:700; font-size:15px; }
     .mw-cal-nav { display:flex; align-items:center; gap:6px; }
     .mw-cal-nav button {
@@ -25,17 +25,21 @@ function myWorkEnsureStyle() {
     .mw-cal-nav button:active { transform:scale(.92); }
     #mw-today-btn { font-size:12.5px; font-weight:800; color:var(--brand,#0d9488); border-color:rgba(13,148,136,.35); }
     #mw-today-btn:hover { background:rgba(13,148,136,.1); }
-    .mw-cal { display:grid; grid-template-columns: repeat(7,1fr); gap:4px; }
-    .mw-cal .dow { text-align:center; font-size:12px; color:var(--text-muted,#6b7280); padding:4px 0; }
-    .mw-day { min-height:74px; border:1px solid var(--border,#eee); border-radius:8px; padding:4px 5px; cursor:pointer; background:var(--bg,#fff); overflow:hidden; }
+    .mw-cal { display:grid; grid-template-columns: repeat(7,1fr); gap:3px; }
+    .mw-cal .dow { text-align:center; font-size:11.5px; color:var(--text-muted,#6b7280); padding:2px 0; }
+    .mw-day { min-height:54px; border:1px solid var(--border,#eee); border-radius:8px; padding:4px 5px; cursor:pointer; background:var(--bg,#fff); overflow:hidden; }
     .mw-day:hover { border-color:var(--brand,#0d9488); }
     .mw-day.other { opacity:.35; }
     .mw-day.today { border-color:var(--brand,#0d9488); box-shadow:0 0 0 1px var(--brand,#0d9488) inset; }
-    .mw-day .dn { font-size:12px; font-weight:600; }
+    .mw-day .dn { font-size:11.5px; font-weight:600; }
     .mw-ev { font-size:11px; line-height:1.35; margin-top:2px; padding:1px 4px; border-radius:4px; background:#e0f2fe; color:#075985; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mw-ev.proj { background:#dcfce7; color:#15803d; }
     .mw-more { font-size:10px; color:var(--text-muted,#6b7280); margin-top:1px; }
     .mw-left { min-width:0; }
+    .mw-left > .mw-card:first-child { padding:12px 14px; }
+    .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
+    .mw-left .mw-cal-head .t { font-size:14px; }
+    .mw-left .mw-ev { font-size:10.5px; }
     .mw-follow-list { max-height:260px; overflow-y:auto; padding-right:6px; line-height:1.7; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
     .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
