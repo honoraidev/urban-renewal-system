@@ -141,4 +141,11 @@ class ConsentRatio(BaseModel):
     building_share_total_sqm: float
     building_share_agreed_sqm: float
     building_share_ratio: float
+    # 樓棟視圖口徑(濾掉公設):SOP 同意率面板與雙門檻實際使用
+    bv_headcount_total: int = 0
+    bv_headcount_agreed: int = 0
+    bv_headcount_ratio: float = 0.0
+    bv_area_total_sqm: float = 0.0
+    bv_area_agreed_sqm: float = 0.0
+    bv_area_ratio: float = 0.0
     dual_gate_passed: bool
