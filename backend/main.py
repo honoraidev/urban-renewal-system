@@ -12,7 +12,7 @@ from config import settings
 from database import SessionLocal, engine, wait_for_db
 import models  # noqa: F401 - ensures all models are registered with SQLAlchemy
 from models.activity_log import ActivityLog
-from routers import announcements, auth, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, events, expenses, landowners, ocr, ocr_intake, project_notes, prefs, project_overview, projects, resources, sop, sso, users
+from routers import announcements, auth, weather, building_view, case_lookup, contacts, dashboard, development, documents, encumbrances, events, expenses, landowners, ocr, ocr_intake, project_notes, prefs, project_overview, projects, resources, sop, sso, users
 from seed import ensure_admin_account
 from security import decode_access_token
 from utils.activity import describe_request
@@ -945,6 +945,7 @@ app.include_router(expenses.category_router)
 app.include_router(users.router)
 app.include_router(prefs.router)
 app.include_router(announcements.router)
+app.include_router(weather.router)
 app.include_router(ocr.router)
 app.include_router(ocr_intake.router)
 app.include_router(encumbrances.router)
