@@ -5155,4 +5155,10 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 #mywork-ann:not(:empty) { gap: 8px; }
 .ann-group-box .ann-group-list { gap: 8px; padding: 8px 10px 10px; }
 .ann-group-box .ann-group-list .ann-row-btn { padding-left: 22px; }
+/* 展開後的各則:拿掉各自的外框,全部收在同一個外框裡,只用細線分隔 */
+.ann-group-box .ann-group-list { gap: 0; padding: 0; }
+.ann-group-box .ann-group-list .ann-row-btn { border: 0; border-radius: 0; }
+.ann-group-box .ann-group-list .ann-row-btn + .ann-row-btn { border-top: 1px solid color-mix(in srgb, var(--a) 16%, transparent); }
+.ann-group-box .ann-group-list .ann-row-btn::before { top: 10px; bottom: 10px; left: 12px; }
+.ann-group-box .ann-group-list .ann-row-btn { padding-left: 28px; }
 
