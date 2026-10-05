@@ -5490,3 +5490,6 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .mw-hero::before, .mw-hero::after { animation: none !important; }
 }
+/* 天氣橫幅不要邊框 */
+#view-mywork .page-header.mw-hero, #view-mywork .page-header.mw-hero[data-day="0"] { border: none !important; box-shadow: none !important; }
+
