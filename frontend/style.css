@@ -5161,4 +5161,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-group-box .ann-group-list .ann-row-btn + .ann-row-btn { border-top: 1px solid color-mix(in srgb, var(--a) 16%, transparent); }
 .ann-group-box .ann-group-list .ann-row-btn::before { top: 10px; bottom: 10px; left: 12px; }
 .ann-group-box .ann-group-list .ann-row-btn { padding-left: 28px; }
+.sop-wr-ratios { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.sop-wr-ratio + .sop-wr-ratio { margin-top: 10px; }
+.sop-wr-ratios .gate-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; font-weight: 700; }
+.sop-wr-ratios .helper-text { margin-top: 8px; }
 

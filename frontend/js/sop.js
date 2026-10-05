@@ -837,7 +837,9 @@ async function renderSopTab(el) {
       : "未解鎖";
   const statusBadgeCls = selectedIsDone || selectedIsCurrent ? "status-active" : "status-closed";
   const stageRequirements = (selectedStage.data && selectedStage.data.requirements) || null;
-  const isDualGate = selectedIsCurrent && !stageRequirements && DUAL_GATE_KEYS.includes(selectedStage.key);
+  // 清單裡已經有「人數與面積同意率」那一列時,同意率長條放在那一列的下拉裡,不再另外顯示面板
+  const hasRatioItem = !!(selectedStage.key && (SOP_STAGE_CHECKLISTS[selectedStage.key] || []).some((i) => i.ratioGate));
+  const isDualGate = selectedIsCurrent && !stageRequirements && !hasRatioItem && DUAL_GATE_KEYS.includes(selectedStage.key);
   const stageMeta = (selectedStage.data && selectedStage.data.meta) || {};
   const userById = Object.fromEntries(assignableUsers.map((u) => [u.id, u]));
   let checklistHtml = "";
@@ -892,6 +894,7 @@ async function renderSopTab(el) {
         let wrMissingTitle = "還未上傳意願書";
         let wrToggleTip = "查看還未上傳意願書的地主";
         let wrAllDoneText = "所有地主都已上傳意願書 🎉";
+        let wrExtraHtml = "";
         let sub = item.sub || "";
         let rejected = false;
         if (item.docType) {
@@ -956,6 +959,16 @@ async function renderSopTab(el) {
             const counted = brs.length === 0 || brs.some((r) => !isSharedBld(r));
             return counted && lastResultById.get(o.id) !== "agreed";
           });
+          if (ratioData) {
+            const pct = (r) => `${(r * 100).toFixed(1)}%`;
+            const bar = (label, ratio, detail, tip = "") =>
+              `<div class="sop-wr-ratio"><div class="gate-bar-label"><span title="${tip}">${label}</span><span>${pct(ratio)} (${detail})</span></div><div class="progress-bar-track"><div class="progress-bar-fill" style="width:${Math.min(ratio * 100, 100)}%"></div></div></div>`;
+            wrExtraHtml = `<div class="sop-wr-ratios">
+              ${bar("人數同意率", ratioData.bv_headcount_ratio, `${ratioData.bv_headcount_agreed}/${ratioData.bv_headcount_total}`)}
+              ${bar("面積同意率", ratioData.bv_area_ratio, `${ratioData.bv_area_agreed_sqm.toFixed(1)}/${ratioData.bv_area_total_sqm.toFixed(1)} m²`, "依樓棟視圖計算:只算非公設建物的持分樓地板面積")}
+              <div class="helper-text">需人數與面積同意率皆 ≥ ${Math.round(threshold * 100)}% 才能通過雙門檻</div>
+            </div>`;
+          }
           wrMissingTitle = "還未同意(最新拜訪結果不是「同意」)";
           wrToggleTip = "查看還未同意的地主";
           wrAllDoneText = "所有地主都已同意 🎉";
@@ -1186,6 +1199,7 @@ async function renderSopTab(el) {
           const wrOpen = _sopOpenDropdowns.has(wrKey);
           wrToggleBtn = `<button type="button" class="btn-secondary btn-sm doc-icon-btn${wrOpen ? " sop-wr-open" : ""}" data-wr-toggle="${wrKey}" title="${wrToggleTip}" aria-label="${wrToggleTip}" aria-expanded="${wrOpen}"><span class="sop-wr-chev">▾</span></button>`;
           wrPanel = `<div class="sop-wr-panel"${wrOpen ? "" : " hidden"}>
+            ${wrExtraHtml}
             <div class="sop-wr-title">${wrMissingTitle}(${rows.length} 位)</div>
             ${rows.length
               ? `<div class="sop-wr-list">${rows.map((r) => `<div class="sop-wr-row"><span class="sop-wr-door">${(r.doors && r.doors.length ? r.doors : ["—"]).map((d) => `<span class="sop-wr-chip">${escapeHtml(d)}</span>`).join("")}</span><span class="sop-wr-name">${escapeHtml(r.name)}</span></div>`).join("")}</div>`
