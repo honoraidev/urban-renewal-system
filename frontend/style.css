@@ -5374,3 +5374,11 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   #project-grid { margin-top: 8px; }
 }
 
+/* ===== 手機版面修正 5:物品管制表工具列換行 ===== */
+@media (max-width: 640px) {
+  .iv-card-head { flex-wrap: wrap; gap: 10px; }
+  .iv-toolbar { flex-wrap: wrap !important; flex: 1 1 100% !important; gap: 8px; }
+  .iv-toolbar .iv-sort-select { flex: 1 1 100%; min-width: 0; }
+  .iv-toolbar #new-inventory-btn { flex: 1 1 auto; }
+}
+
