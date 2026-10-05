@@ -46,7 +46,10 @@ function myWorkEnsureStyle() {
     .mw-left .mw-cal-nav button { width:26px; height:26px; font-size:13px; }
     .mw-left .mw-cal-head .t { font-size:14px; }
     .mw-left .mw-ev { font-size:10.5px; }
-    .mw-follow-list { max-height:260px; overflow-y:auto; padding-right:6px; line-height:1.7; }
+    .mw-follow-list { max-height:190px; overflow-y:auto; padding-right:6px; line-height:1.55; font-size:13px; }
+    .mw-follow-list .helper-text { font-size:12px; }
+    .mw-right > .mw-card:last-child { padding:12px 14px; }
+    .mw-right > .mw-card:last-child h3 { margin:0 0 8px; font-size:14px; }
     .mw-scope-toggle { display:inline-flex; padding:3px; background:var(--surface-2); border-radius:10px; margin-bottom:12px; gap:2px; }
     .mw-scope-toggle button { border:none; background:transparent; padding:6px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text-muted); }
     .mw-scope-toggle button.active { background:var(--surface); color:var(--brand,#0d9488); box-shadow:0 1px 3px rgba(0,0,0,.1); }
