@@ -51,13 +51,37 @@ async function loadAnnouncementBanner() {
 
 function openAnnouncementDetail(a) {
   if (!a) return;
-  const lv = ANN_LEVEL[a.level] || ANN_LEVEL.info;
-  openModal(
-    `${lv.icon} ${escapeHtml(a.title)}`,
-    `<div class="ann-detail-content">${a.content ? escapeHtml(a.content) : '<span class="helper-text">(沒有補充內容)</span>'}</div>
-     <div class="ann-meta" style="margin-top:14px">公告人:${escapeHtml(a.created_by_name || "系統管理員")}・${escapeHtml(fmtDateTime(a.created_at))}${a.expires_at ? `・顯示至 ${escapeHtml(fmtDateTime(a.expires_at))}` : ""}</div>`,
-    { width: "520px" }
-  );
+  document.getElementById("ann-detail")?.remove();
+  const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : "blue";
+  const wrap = document.createElement("div");
+  wrap.id = "ann-detail";
+  wrap.className = `ann-d-overlay ann-tone-${tone}`;
+  wrap.innerHTML = `
+    <div class="ann-d-box" role="dialog" aria-modal="true">
+      <div class="ann-d-head">
+        <span class="ann-d-title">公告內容</span>
+        <button type="button" class="ann-d-x" aria-label="關閉">&times;</button>
+      </div>
+      <div class="ann-d-body">
+        <div class="ann-d-card">
+          <div class="ann-d-card-title">${escapeHtml(a.title)}</div>
+          ${a.content ? `<div class="ann-d-card-content">${escapeHtml(a.content)}</div>` : ""}
+          <div class="ann-d-meta">
+            <span>公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span><i></i>
+            <span>發布時間:${escapeHtml(fmtDateTime(a.created_at))}</span>${a.expires_at ? `<i></i><span>顯示至:${escapeHtml(fmtDateTime(a.expires_at))}</span>` : ""}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => {
+    document.removeEventListener("keydown", onKey, true);
+    wrap.remove();
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey, true);
+  wrap.querySelector(".ann-d-x").onclick = close;
+  wrap.addEventListener("mousedown", (e) => { if (e.target === wrap) close(); });
 }
 
 function setupAnnouncementButton() {

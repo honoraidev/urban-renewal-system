@@ -5166,3 +5166,23 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .sop-wr-ratios .gate-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; font-weight: 700; }
 .sop-wr-ratios .helper-text { margin-top: 8px; }
 
+/* 公告內容視窗(依設計稿):左側色條標題、波浪淡色底、色塊卡片 + 發布者 | 時間 */
+.ann-d-overlay { --t: #3b82f6; position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .5); backdrop-filter: blur(2px); }
+.ann-d-box { width: min(520px, 100%); max-height: 88vh; display: flex; flex-direction: column; background: var(--surface); border-radius: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, .3); overflow: hidden; }
+.ann-d-head {
+  display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--border);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 520 70' preserveAspectRatio='none'%3E%3Cpath d='M200 70C280 8 380 0 520 22V70z' fill='%23888' fill-opacity='.06'/%3E%3C/svg%3E") right bottom / 100% 100% no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--t) 5%, var(--surface)), var(--surface));
+}
+.ann-d-title { display: inline-flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 900; color: var(--text); }
+.ann-d-title::before { content: ""; width: 6px; height: 24px; border-radius: 3px; background: var(--t); }
+.ann-d-x { border: 0; background: transparent; color: var(--text-muted); font-size: 28px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.ann-d-x:hover { color: var(--text); }
+.ann-d-body { padding: 16px 22px 20px; overflow-y: auto; }
+.ann-d-card { padding: 18px 22px; border-radius: 14px; background: color-mix(in srgb, var(--t) 8%, var(--surface)); }
+.ann-d-card-title { font-size: 22px; font-weight: 900; color: var(--text); word-break: break-word; }
+.ann-d-card-content { margin-top: 10px; font-size: 15.5px; line-height: 1.75; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.ann-d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-muted); }
+.ann-d-meta i { width: 1px; height: 16px; background: var(--border); }
+
