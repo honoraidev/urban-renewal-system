@@ -5207,4 +5207,10 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ann-popup-h1 { font-size: 20px; }
 .ann-popup-h2 { margin-top: 2px; font-size: 12.5px; }
 .ann-popup-x { font-size: 24px; }
+/* [hidden] 要壓過上面 display:inline-flex 的規則;頁碼不換行 */
+.ann-popup-foot .ann-close[hidden], .ann-popup-foot .ann-pager[hidden], .ann-popup-foot .ann-read[hidden] { display: none; }
+.ann-pager { flex: 0 0 auto; white-space: nowrap; }
+.ann-pager #ann-page-no { white-space: nowrap; }
+.ann-popup-foot { flex-wrap: wrap; row-gap: 10px; }
+.ann-popup-foot .ann-read { flex: 1 1 auto; min-width: 0; }
 
