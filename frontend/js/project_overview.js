@@ -23,7 +23,7 @@ function overviewEnsureStyle() {
     .ov-grid { display:flex; flex-direction:column; gap:22px; }
     .ov-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:22px; align-items:stretch; }
     .ov-row.ov-row-r2 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
-    .ov-row.ov-row-r3 { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); }
+    .ov-row.ov-row-r3 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
     @media (max-width:1100px) { .ov-row.ov-row-r2, .ov-row.ov-row-r3 { grid-template-columns: 1fr; } }
 
     /* Unified Header Banner using User Uploaded Background Image */
