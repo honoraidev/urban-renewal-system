@@ -18,10 +18,9 @@ async function loadAnnouncementBanner() {
   } catch (e) {
     return;
   }
-  // 單列:左側色條 + 標題 + 公告人 + 「查看」膠囊;沒特別等級的公告依序換色(藍/青/紫/橘)方便區分
-  const TONES = ["blue", "teal", "violet", "amber"];
-  const rowHtml = (a, i) => {
-    const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : TONES[i % TONES.length];
+  // 單列:左側色條 + 標題 + 公告人 + 「查看」膠囊;顏色跟著公告類型走(一般=藍、注意=橘、緊急=紅)
+  const rowHtml = (a) => {
+    const tone = a.level === "urgent" ? "red" : a.level === "warning" ? "amber" : "blue";
     return `<button type="button" class="ann-row-btn ann-tone-${tone}" data-ann-id="${a.id}" title="點擊查看公告內容">
       <span class="ann-row-title">${escapeHtml(a.title)}</span>
       <span class="ann-by">公告人:${escapeHtml(a.created_by_name || "系統管理員")}</span>
