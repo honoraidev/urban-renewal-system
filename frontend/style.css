@@ -5105,3 +5105,20 @@ button.ann-compact:active { transform: scale(.998); }
 .ann-by { flex: 0 0 auto; font-size: 13px; color: var(--text-muted); }
 .ann-more { flex: 0 0 auto; font-size: 13px; font-weight: 800; color: var(--a); }
 .ann-detail-content { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.7; }
+/* 公告彈窗縮小一號 */
+.ann-popup { width: min(480px, 100%); border-radius: 18px; }
+.ann-popup-head { padding: 16px 22px 12px; }
+.ann-popup-h1 { font-size: 21px; }
+.ann-popup-h2 { margin-top: 3px; font-size: 13px; }
+.ann-popup-x { font-size: 26px; }
+.ann-popup-body { padding: 14px 22px; gap: 10px; }
+.ann-card { padding: 12px 16px; border-radius: 13px; }
+.ann-card-title { font-size: 17px; }
+.ann-card-content { margin-top: 5px; font-size: 14.5px; line-height: 1.6; }
+.ann-card-meta { margin-top: 10px; padding-top: 8px; font-size: 12px; }
+.ann-popup-foot { padding: 12px 22px 16px; }
+.ann-read input { width: 19px; height: 19px; }
+.ann-read b { font-size: 14.5px; }
+.ann-read small { font-size: 12px; }
+.ann-close { min-width: 92px; height: 40px; font-size: 14.5px; border-radius: 11px; }
+
