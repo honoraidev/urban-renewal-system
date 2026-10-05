@@ -5342,3 +5342,35 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   #view-project-overview .ov-rec-list { min-width: 0; }
 }
 
+/* ===== 手機版面修正 4:案件一覽(標題、篩選列、案件卡週比較) ===== */
+@media (max-width: 640px) {
+  #view-dashboard .page-header { gap: 10px; margin-bottom: 12px; align-items: stretch; }
+  #view-dashboard .page-header > div:first-child { text-align: left; }
+  #view-dashboard .dash-filters { width: 100%; flex: 1 1 100%; gap: 8px; margin: 0; }
+  #view-dashboard .dash-search { flex: 1 1 100%; max-width: none; }
+  #view-dashboard .dash-filters select { flex: 1 1 calc(50% - 4px); min-width: 0; width: auto; }
+  #view-dashboard #dash-owner { flex-basis: 100%; }
+  #view-dashboard .page-header > div:last-child { width: 100%; }
+  #view-dashboard #new-project-btn { flex: 1 1 100%; }
+  .project-grid { gap: 14px; }
+
+  /* 案件卡「本週 vs 上週」:欄位縮小,數字與箭頭不再互相壓到 */
+  .wkt-grid { grid-template-columns: auto minmax(0, 1fr) 10px minmax(0, 1.35fr) 10px minmax(0, 1fr); column-gap: 2px; }
+  .wkt-label { font-size: 12px; gap: 5px; }
+  .wkt-val, .wkt-delta { height: 30px; font-size: 13px; }
+  .wkt-delta { font-size: 12px; }
+  .wkt-delta .wkt-pct { font-size: 9.5px; margin-left: 1px; }
+  .wkt-val small, .wkt-delta small { font-size: 9.5px; }
+  .wkt-col-h { font-size: 11px; }
+  .wkt-col-h span { font-size: 9px; }
+  .wkt-arrow { transform: scale(.7); }
+}
+@media (max-width: 640px) {
+  #view-dashboard .dash-search { flex: 1 1 100% !important; }
+  #view-dashboard .dash-filters select { min-width: 0 !important; width: auto !important; flex: 1 1 calc(50% - 4px) !important; }
+  #view-dashboard #dash-owner { flex: 1 1 100% !important; }
+  #view-dashboard #dash-count:empty { display: none; }
+  #view-dashboard .page-header { margin-bottom: 4px; }
+  #project-grid { margin-top: 8px; }
+}
+
