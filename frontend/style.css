@@ -5216,3 +5216,56 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 /* 上一筆 + 頁碼靠右,緊貼下一筆/關閉 */
 .ann-popup-foot .ann-pager { margin-left: auto; margin-right: 0; }
 
+/* ===== 手機版面優化(<=640px):工作看板、案件總覽、公告、SOP 下拉名單 ===== */
+@media (max-width: 640px) {
+  /* 案件總覽:關鍵指標卡一欄顯示(兩欄每張只剩 ~160px 放不下),標題列的週區間換行 */
+  .ov-card { padding: 14px !important; }
+  .ov-metrics-group .ov-km-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ov-km-head { flex-wrap: wrap; gap: 8px 10px; }
+  .ov-km-range { margin-left: 0; width: 100%; justify-content: center; font-size: 13px; }
+  .ov-km-head-title { font-size: 16px; }
+  .ov-info2-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-mem-add { height: 36px; padding: 0 14px; }
+
+  /* 工作看板:行事曆格縮小、待辦文字只留一行小字,右欄卡片全寬 */
+  #view-mywork .mw-grid { gap: 14px; }
+  #view-mywork .mw-day { min-height: 44px; padding: 3px 3px; }
+  #view-mywork .mw-day .dn { font-size: 11px; }
+  #view-mywork .mw-ev { font-size: 10px; padding: 0 3px; }
+  #view-mywork .mw-cal { gap: 2px; }
+  #view-mywork .mw-left > .mw-card:first-child { padding: 10px; }
+  #view-mywork .page-header { flex-wrap: wrap; gap: 8px; }
+  #view-mywork .mw-follow-list { min-height: 120px; max-height: 220px; }
+  #view-mywork .mw-scope-toggle { align-self: stretch; justify-content: center; }
+  #view-mywork .mw-scope-toggle button { flex: 1; }
+
+  /* 公告:頂端列精簡、彈窗幾乎全寬、底部按鈕上下堆疊 */
+  .ann-by { display: none; }
+  button.ann-compact, .ann-row-btn { padding-right: 10px; }
+  .ann-popup-overlay, .ann-d-overlay { padding: 10px; align-items: flex-end; }
+  .ann-popup, .ann-d-box { width: 100%; max-height: 90vh; border-radius: 16px; }
+  .ann-popup-head { padding: 12px 16px 10px; }
+  .ann-popup-body { padding: 14px 16px; min-height: 0; }
+  .ann-card { padding: 14px 16px; }
+  .ann-card-title { font-size: 18px; }
+  .ann-card-content { font-size: 15px; min-height: 0; }
+  .ann-popup-foot { padding: 12px 16px 16px; gap: 10px; }
+  .ann-popup-foot .ann-read { flex: 1 1 100%; }
+  .ann-popup-foot .ann-pager { margin-left: 0; margin-right: auto; }
+  .ann-popup-foot .ann-pager .btn-secondary, .ann-popup-foot .ann-close { min-width: 0; height: 42px; padding: 0 16px; font-size: 15px; }
+  .ann-popup-foot .ann-close { flex: 1 1 auto; }
+  .ann-d-head { padding: 12px 16px; }
+  .ann-d-body { padding: 12px 16px 16px; }
+
+  /* SOP 下拉名單 / 關鍵指標名單:一欄、工具列換行 */
+  .sop-wr-list { grid-template-columns: minmax(0, 1fr); max-height: 300px; }
+  .sop-wr-ratios .gate-bar-label { font-size: 13px; }
+  .ov-md-toolbar { flex-wrap: wrap; }
+  .ov-md-toolbar .ov-md-search { flex: 1 1 100%; order: 3; }
+  .ov-md-row { padding: 9px 10px; gap: 10px; }
+  .ov-md-date { font-size: 11.5px; }
+}
+@media (max-width: 400px) {
+  .ann-popup-foot .ann-pager #ann-page-no { display: none; }
+}
+
