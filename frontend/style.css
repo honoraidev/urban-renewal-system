@@ -5382,3 +5382,9 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   .iv-toolbar #new-inventory-btn { flex: 1 1 auto; }
 }
 
+/* 工作看板問候語(在「發布公告」左邊) */
+.mw-greet { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.mw-greet-text { font-size: 16px; color: var(--text-muted); white-space: nowrap; }
+.mw-greet-text b { color: var(--text); font-weight: 800; }
+@media (max-width: 640px) { .mw-greet { width: 100%; justify-content: space-between; } .mw-greet-text { font-size: 15px; } }
+

@@ -86,7 +86,13 @@ function openAnnouncementDetail(a) {
 function setupAnnouncementButton() {
   const holder = document.getElementById("mywork-actions");
   if (!holder) return;
-  holder.innerHTML = isSystemAdmin() ? `<button type="button" class="btn-secondary" id="ann-open-btn">📢 發布公告</button>` : "";
+  // 問候語:依現在時間顯示「XXX 早安 / 午安 / 晚安」
+  const hr = new Date().getHours();
+  const [greet, ic] = hr < 5 ? ["夜深了,注意休息", "🌙"] : hr < 11 ? ["早安", "☀️"] : hr < 18 ? ["午安", "🌤️"] : ["晚安", "🌙"];
+  const who = (state.user && (state.user.display_name || state.user.username)) || "";
+  holder.innerHTML = `<div class="mw-greet"><span class="mw-greet-text">${ic} ${who ? `<b>${escapeHtml(who)}</b> ` : ""}${greet}</span>${
+    isSystemAdmin() ? `<button type="button" class="btn-secondary" id="ann-open-btn">📢 發布公告</button>` : ""
+  }</div>`;
   const btn = document.getElementById("ann-open-btn");
   if (btn) btn.onclick = openAnnouncementAdmin;
 }
