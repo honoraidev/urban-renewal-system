@@ -225,7 +225,8 @@ def _auto_migrate() -> None:
         "'architecture_drawing','appraisal_result','chairman_approved_roi','unit_area_split','invitation_letter',"
         "'consultant_contract','site_briefing','common_burden','arch_standard_floor','arch_floor_1',"
         "'arch_basement_1','arch_basement_2plus','architect_contract','appraisal_contract','id_copy',"
-        "'land_title','building_title','renewal_consent','demolition_consent','seal_consent')"
+        "'land_title','building_title','renewal_consent','demolition_consent','seal_consent',"
+        "'transcript_type1','transcript_type2','transcript_type3')"
     )
     try:
         with engine.connect() as _conn:

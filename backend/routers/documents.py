@@ -68,6 +68,9 @@ VALID_DOC_TYPES = {
     "renewal_consent",
     "demolition_consent",
     "seal_consent",
+    "transcript_type1",
+    "transcript_type2",
+    "transcript_type3",
 }
 
 DOC_TYPE_LABELS_MAP = {
@@ -103,6 +106,9 @@ DOC_TYPE_LABELS_MAP = {
     "renewal_consent": "都市更新事業計劃同意書",
     "demolition_consent": "建物拆除同意書",
     "seal_consent": "代刻印章同意書",
+    "transcript_type1": "第一類謄本",
+    "transcript_type2": "第二類謄本",
+    "transcript_type3": "第三類謄本",
     "photo": "照片",
     "other": "其他",
 }
@@ -532,6 +538,9 @@ STANDARD_UPLOAD_NAME_LABELS = {
     "renewal_consent": "都市更新事業計劃同意書",
     "demolition_consent": "建物拆除同意書",
     "seal_consent": "代刻印章同意書",
+    "transcript_type1": "第一類謄本",
+    "transcript_type2": "第二類謄本",
+    "transcript_type3": "第三類謄本",
 }
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 

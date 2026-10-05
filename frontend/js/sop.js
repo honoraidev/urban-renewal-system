@@ -40,6 +40,7 @@ const SOP_GROUPS = {
   consultant: { key: "consultant", label: "顧問文件", sub: "顧問文件、顧問合約、基地簡報、共同負擔", icon: "📄", theme: "theme-blue" },
   architect: { key: "architect", label: "建築師文件", sub: "各樓層圖面、建築師合約", icon: "🏢", theme: "theme-green" },
   appraiser: { key: "appraiser", label: "估價師文件", sub: "估價報告、估價合約", icon: "📊", theme: "theme-orange" },
+  transcripts: { key: "transcripts", label: "謄本文件", sub: "第一、二、三類謄本(選填,不影響完成本階段)", icon: "📄", theme: "theme-blue", optional: true },
   contract: { key: "contract", label: "合約", sub: "合約與地主身分、權狀、同意書等文件", icon: "✍️", theme: "theme-blue" },
 };
 
@@ -102,10 +103,10 @@ function buildSopChecklistHtml(results, stageNo) {
         <div class="sop-checklist-icon-box ${g.theme}"><span class="sop-icon-emoji">${sopIconHtml(g.icon)}</span></div>
         <div class="sop-checklist-body">
           <div class="sop-checklist-label">${escapeHtml(g.label)}</div>
-          <div class="sop-checklist-sub">已完成 ${doneN}/${members.length} 項・${escapeHtml(g.sub)}</div>
+          <div class="sop-checklist-sub">${g.optional ? "已上傳" : "已完成"} ${doneN}/${members.length} 項・${escapeHtml(g.sub)}</div>
         </div>
         <div class="sop-checklist-right">
-          <div class="sop-status-pill ${allDone ? "done" : "pending"}"><span class="sop-status-icon">${allDone ? "✓" : "🕒"}</span><span>${allDone ? "已完成" : "尚未完成"}</span></div>
+          <div class="sop-status-pill ${allDone ? "done" : "pending"}"><span class="sop-status-icon">${allDone ? "✓" : g.optional ? "◦" : "🕒"}</span><span>${allDone ? "已完成" : g.optional ? "選填" : "尚未完成"}</span></div>
           <div class="sop-checklist-actions">
             <button type="button" class="btn-secondary btn-sm doc-icon-btn${isOpen ? " sop-wr-open" : ""}" data-sop-group-toggle="${ddKey}" title="展開 / 收合" aria-label="展開 / 收合" aria-expanded="${isOpen}"><span class="sop-wr-chev">▾</span></button>
           </div>
@@ -125,6 +126,9 @@ const SOP_STAGE_CHECKLISTS = {
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
     { key: "land_deed", label: "上傳土地謄本PDF", countOf: "land", action: "land" },
     { key: "building_deed", label: "上傳建物謄本PDF", countOf: "building", action: "building" },
+    { key: "transcript_type1", label: "第一類謄本", docType: "transcript_type1", icon: "📄", group: SOP_GROUPS.transcripts },
+    { key: "transcript_type2", label: "第二類謄本", docType: "transcript_type2", icon: "checkdoc", group: SOP_GROUPS.transcripts },
+    { key: "transcript_type3", label: "第三類謄本", docType: "transcript_type3", icon: "title", group: SOP_GROUPS.transcripts },
     { key: "landowner_roster_confirmed", label: "確認地主清冊正確", manual: true },
   ],
   contact_rate: [
@@ -952,11 +956,14 @@ async function renderSopTab(el) {
               ? `已駁回・${fmtDate(confirmed.rejected_at)}:${confirmed.reason}`
               : "尚未確認";
         }
-        checklistTotalCount++;
-        if (done) checklistDoneCount++;
-        else {
-          checklistAllDone = false;
-          pendingItems.push({ label: item.label, sub, key: item.key || item.docType || item.action || item.label });
+        // 選填項目(例如謄本類別)不算進進度、不擋「完成本階段」
+        if (!(item.group && item.group.optional)) {
+          checklistTotalCount++;
+          if (done) checklistDoneCount++;
+          else {
+            checklistAllDone = false;
+            pendingItems.push({ label: item.label, sub, key: item.key || item.docType || item.action || item.label });
+          }
         }
         const canConfirmThis = item.managerOnly ? isManager() : isEditor();
         const ITEM_DEFAULT_SUBS = {
