@@ -808,9 +808,6 @@ async function renderProjectOverviewTab(el) {
               })()}
               ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "總件數", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "" })}
             </div>
-            <div class="ov-metrics">
-              ${_ovHeadcountDetailHtml(cur, prev)}
-            </div>
           </div>
         </div>
         <div class="ov-card">
