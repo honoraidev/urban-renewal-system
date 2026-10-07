@@ -321,7 +321,32 @@ def pending_manager_review_bell_items(db: Session, projects: list[Project]) -> l
             )
             if latest_upload is None:
                 continue
+            # 這關「相關文件 + 門檻」要全部完成,只剩主管審核這一項時才通知主管:
+            # 必備文件每一種都要上傳過、需要的土地/建物資料要有、其他(非主管)確認項目都已確認。
+            uploaded_types = set(
+                db.scalars(
+                    select(Document.doc_type)
+                    .where(
+                        Document.project_id == p.id,
+                        Document.doc_type.in_(doc_types),
+                        Document.sop_stage == stage_idx,
+                    )
+                    .distinct()
+                ).all()
+            )
+            if uploaded_types != set(doc_types):
+                continue
+            if req.get("needs_land") and not db.scalar(select(LandRecord.id).where(LandRecord.project_id == p.id).limit(1)):
+                continue
+            if req.get("needs_building") and not db.scalar(
+                select(BuildingRecord.id).where(BuildingRecord.project_id == p.id).limit(1)
+            ):
+                continue
             checklist = (stage_entry.get("data") or {}).get("checklist") or {}
+            if any(
+                ck not in MANAGER_ONLY_CHECKLIST_KEYS and ck not in checklist for ck in req.get("checklist_keys", [])
+            ):
+                continue
             for ck in req.get("checklist_keys", []):
                 if ck not in MANAGER_ONLY_CHECKLIST_KEYS:
                     continue
@@ -333,7 +358,7 @@ def pending_manager_review_bell_items(db: Session, projects: list[Project]) -> l
                 items.append(
                     {
                         "id": -(p.id * 2000 + stage_idx + 1),
-                        "content": f"第{stage_idx}關「{stage_entry.get('name', '')}」文件已上傳,待審核",
+                        "content": f"第{stage_idx}關「{stage_entry.get('name', '')}」文件與門檻皆已完成,待主管審核",
                         "project_id": p.id,
                         "project_name": p.name,
                         "kind": "sop_pending_review",
