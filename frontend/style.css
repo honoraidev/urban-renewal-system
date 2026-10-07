@@ -5659,4 +5659,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .maint-times span { font-size: 12.5px; color: var(--text-muted); }
 .maint-times b { font-size: 16px; color: var(--text); }
 @media (max-width: 480px) { .maint-times { grid-template-columns: 1fr; } }
+/* 「本週 vs 上週」欄位標題:星期標題與日期區間置中對齊,日期不換行、太窄時左右對稱溢出而不是偏向右邊 */
+.wkt-col-h { display: flex; flex-direction: column; align-items: center; min-width: 0; white-space: nowrap; }
+.wkt-col-h span { display: block; text-align: center; white-space: nowrap; font-size: 10px; letter-spacing: -.2px; }
+@media (max-width: 1500px) { .wkt-col-h span { font-size: 9.5px; letter-spacing: -.3px; } }
 
