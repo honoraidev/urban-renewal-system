@@ -331,7 +331,7 @@ const OV_KM_ICON = {
 };
 
 // ===== 關鍵指標卡(依設計稿重做):漸層實心圖示 + 標題/副標 + 圓形箭頭鈕 → 大數字與人數(右側淡色插圖)→ 進度條 → 「較上週」底列(含狀態膠囊)=====
-const OV_KC_SUBTITLE = { agree: "已同意人數占比", oppose: "已反對人數占比", other: "未決定 / 未回覆", total: "本週新增案件數" };
+const OV_KC_SUBTITLE = { agree: "已同意人數占比", oppose: "已反對人數占比", other: "未決定 / 未回覆", total: "本週新增文件數" };
 const _kcSvg = (inner, w = 2.4) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 // 圖示磚裡的白色符號
@@ -890,7 +890,7 @@ async function renderProjectOverviewTab(el) {
           <div class="ov-metrics-group">
             <div class="ov-km-grid">
               ${visitCardsHtml}
-              ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "總件數", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "", kind: "docs" })}
+              ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "文件檔案", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "", kind: "docs" })}
             </div>
           </div>
         </div>
