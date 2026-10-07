@@ -445,6 +445,12 @@ let _ovPhaseCtx = { phase: "visit", signedIds: new Set(), signedLabel: "已簽",
 const OV_METRIC_KIND_LABEL = { agreed: "同意", opposed: "反對", undecided: "未決定", no_response: "未回覆", other: "其他(未決定/未回覆)" };
 
 async function _ovOpenMetricDetail(pid, kind) {
+  // 總件數 → 直接到該案件的「文件」分頁;過關門檻 → 列出還沒達標(未簽)的名單
+  if (kind === "docs") {
+    await openProject(pid, "documents");
+    return;
+  }
+  if (kind === "ph_gate") kind = "ph_unsigned";
   const isPh = kind === "ph_signed" || kind === "ph_unsigned";
   const title = `${isPh ? (kind === "ph_signed" ? _ovPhaseCtx.signedLabel : _ovPhaseCtx.unsignedLabel) : OV_METRIC_KIND_LABEL[kind] || kind} 名單`;
   const panel = openModal(title, `<div class="empty-state">載入中...</div>`, { width: "460px" });
@@ -845,7 +851,7 @@ async function renderProjectOverviewTab(el) {
     phaseCardsHtml = [
       _ovKmCard({ icon: OV_KM_ICON.people, label: signedLabel, subtitle: `第${stageNo}階段${word}已簽人數占比`, tip: `第${stageNo}階段:${isContract ? "已簽約(簽約狀態為已簽)" : "已上傳意願書"}的地主人數比例`, tone: "agree", big: `${pctNow}%`, sub: `${signed} / ${total} 人`, pct: pctNow, delta: hasPrevPm ? pctNow - pctPrev : null, prev: pctPrev, unit: "%", kind: "ph_signed" }),
       _ovKmCard({ icon: OV_KM_ICON.question, label: unsignedLabel, subtitle: `第${stageNo}階段${word}未簽人數占比`, tip: `第${stageNo}階段:還沒${isContract ? "簽約" : "上傳意願書"}的地主人數比例`, tone: "other", big: `${_ovPctOf(unsigned, total) ?? 0}%`, sub: `${unsigned} / ${total} 人`, pct: _ovPctOf(unsigned, total) ?? 0, delta: hasPrevPm ? (_ovPctOf(unsigned, total) ?? 0) - unsPrev : null, prev: unsPrev, unit: "%", kind: "ph_unsigned" }),
-      _ovKmCard({ icon: OV_KM_ICON.cross, label: "過關門檻", subtitle: `需達 ${Math.round(threshold * 100)}%(約 ${Math.ceil(total * threshold)} 人)`, tip: `第${stageNo}階段過關需${word}${isContract ? "簽約" : "簽署"}人數達 ${Math.round(threshold * 100)}%`, tone: reached ? "agree" : "oppose", big: reached ? "已達標" : `差 ${need} 人`, sub: `目前 ${signed} / ${Math.ceil(total * threshold)} 人`, pct: Math.min(100, Math.round((signed / Math.max(1, Math.ceil(total * threshold))) * 100)), delta: null, prev: null, unit: "" }),
+      _ovKmCard({ icon: OV_KM_ICON.cross, label: "過關門檻", subtitle: `需達 ${Math.round(threshold * 100)}%(約 ${Math.ceil(total * threshold)} 人)`, tip: `第${stageNo}階段過關需${word}${isContract ? "簽約" : "簽署"}人數達 ${Math.round(threshold * 100)}%`, tone: reached ? "agree" : "oppose", big: reached ? "已達標" : `差 ${need} 人`, sub: `目前 ${signed} / ${Math.ceil(total * threshold)} 人`, pct: Math.min(100, Math.round((signed / Math.max(1, Math.ceil(total * threshold))) * 100)), delta: null, prev: null, unit: "", kind: "ph_gate" }),
     ].join("");
   }
   const visitCardsHtml = pm && pm.phase !== "visit" ? phaseCardsHtml : [
@@ -884,7 +890,7 @@ async function renderProjectOverviewTab(el) {
           <div class="ov-metrics-group">
             <div class="ov-km-grid">
               ${visitCardsHtml}
-              ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "總件數", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "" })}
+              ${_ovKmCard({ icon: OV_KM_ICON.doc, label: "總件數", tip: "本案件的文件總數;較上週 = 近 7 天新上傳的件數", tone: "total", big: docTotal, sub: `本週新增 ${docThisWeek} 件`, pct: null, delta: docTotal - docLastWeekTotal, prev: docLastWeekTotal, unit: "", kind: "docs" })}
             </div>
           </div>
         </div>
