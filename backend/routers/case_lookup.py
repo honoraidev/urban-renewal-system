@@ -39,7 +39,16 @@ def _employee_user(db: Session, employee_no: str) -> User:
 
 def _visible_projects_stmt(user: User):
     if user.role in MANAGE_ROLES:
-        return select(Project).order_by(Project.created_at.desc())
+        from sqlalchemy import or_
+
+        from utils.branch import branch_clause
+
+        stmt = select(Project).order_by(Project.created_at.desc())
+        clause = branch_clause(Project.branch, user)
+        if clause is not None:
+            member_ids = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
+            stmt = stmt.where(or_(clause, Project.id.in_(member_ids)))
+        return stmt
     return (
         select(Project)
         .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)

@@ -49,14 +49,7 @@ router = APIRouter(tags=["resources"])
 BRANCHES = {"all", "taoyuan", "taipei"}
 
 
-def user_branches(user: User) -> set[str]:
-    out: set[str] = set()
-    for d in user.departments or []:
-        name = str(d or "")
-        if not name.strip():
-            continue
-        out.add("taoyuan" if "桃園" in name else "taipei")
-    return out
+from utils.branch import user_branches  # noqa: E402  (分部判斷規則與案件共用)
 
 
 def _doc_visible(doc: CompanyDocument, user: User) -> bool:
@@ -101,13 +94,42 @@ def list_company_documents(db: Session = Depends(get_db), current_user: User = D
         .order_by(CompanyDocument.uploaded_at.desc())
     ).all()
     results = []
+    hist_counts: dict[str, int] = {}
+    for doc, _ in rows:
+        if not doc.is_latest:
+            hist_counts[doc.file_name] = hist_counts.get(doc.file_name, 0) + 1
     for doc, uploader_name in rows:
-        if not _doc_visible(doc, current_user):
+        if not doc.is_latest or not _doc_visible(doc, current_user):
             continue
         item = CompanyDocumentRead.model_validate(doc)
         item.uploaded_by_name = uploader_name
+        item.history_count = hist_counts.get(doc.file_name, 0)
         results.append(item)
     return results
+
+
+@router.get("/company-documents/{doc_id}/history", response_model=list[CompanyDocumentRead])
+def company_document_history(
+    doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """同一個檔名(分部-分類名稱)的全部版本,新的在前(含目前版本)。"""
+    doc = _get_company_document_or_404(db, doc_id)
+    if not _doc_visible(doc, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    rows = db.execute(
+        select(CompanyDocument, User.display_name)
+        .join(User, User.id == CompanyDocument.uploaded_by, isouter=True)
+        .where(CompanyDocument.file_name == doc.file_name)
+        .order_by(CompanyDocument.version.desc(), CompanyDocument.id.desc())
+    ).all()
+    out = []
+    for d, uploader_name in rows:
+        if not _doc_visible(d, current_user):
+            continue
+        item = CompanyDocumentRead.model_validate(d)
+        item.uploaded_by_name = uploader_name
+        out.append(item)
+    return out
 
 
 @router.post("/company-documents", response_model=CompanyDocumentRead, status_code=status.HTTP_201_CREATED)
@@ -126,16 +148,16 @@ def upload_company_document(
     with open(disk_path, "wb") as out:
         out.write(content)
 
-    # 檔名自動改成「分部-分類名稱」(例如:台北-意願書範本.docx);同名已存在就加 (2)、(3)…;副檔名保留
+    # 檔名自動改成「分部-分類名稱」(例如:台北-意願書範本.docx);同名再上傳 = 直接覆蓋成新版本,舊版本保留在歷史版本;副檔名保留
     label = {"taoyuan": "桃園", "taipei": "台北"}.get(branch, "共用")
     cat_name = (category or "").strip() or "未分類"
     ext = os.path.splitext(file.filename or stored_name)[1]
     base = f"{label}-{cat_name}"
-    taken = set(db.scalars(select(CompanyDocument.file_name).where(CompanyDocument.file_name.like(f"{base}%"))).all())
-    final_name, n = f"{base}{ext}", 1
-    while final_name in taken:
-        n += 1
-        final_name = f"{base} ({n}){ext}"
+    final_name = f"{base}{ext}"
+    prev = db.scalars(select(CompanyDocument).where(CompanyDocument.file_name == final_name)).all()
+    next_version = max([p.version for p in prev], default=0) + 1
+    for p in prev:  # 同名舊檔不刪,降級為歷史版本
+        p.is_latest = False
 
     document = CompanyDocument(
         category=category,
@@ -146,6 +168,8 @@ def upload_company_document(
         uploaded_by=current_user.id,
         description=description,
         branch=branch,
+        version=next_version,
+        is_latest=True,
     )
     db.add(document)
     db.commit()
@@ -229,9 +253,18 @@ def delete_company_document(
     document = _get_company_document_or_404(db, doc_id)
     if not _doc_visible(document, current_user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    was_latest = document.is_latest
+    name = document.file_name
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
     db.delete(document)
+    db.flush()
+    if was_latest:  # 刪掉目前版本 → 上一個歷史版本自動成為目前版本
+        prev = db.scalars(
+            select(CompanyDocument).where(CompanyDocument.file_name == name).order_by(CompanyDocument.version.desc())
+        ).first()
+        if prev is not None:
+            prev.is_latest = True
     db.commit()
 
 

@@ -35,7 +35,14 @@ def _visible_project_ids(db: Session, user: User) -> list[int]:
     if user.role == LANDOWNER_ROLE:
         return []
     if user.role in MANAGE_ROLES:
-        return list(db.scalars(select(Project.id)))
+        from utils.branch import branch_clause
+
+        stmt = select(Project.id)
+        clause = branch_clause(Project.branch, user)
+        if clause is not None:
+            member_ids = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
+            stmt = stmt.where(or_(clause, Project.id.in_(member_ids)))
+        return list(db.scalars(stmt))
     return list(
         db.scalars(
             select(Project.id)

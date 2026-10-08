@@ -63,8 +63,13 @@ def assert_project_visible(db: Session, project: Project, user: User) -> None:
     """Kept for other routers that already fetch `project` themselves and just need the
     check inline - logic mirrors deps.require_project_viewer, which new/updated
     endpoints should prefer instead since it also handles the 404."""
-    if user.role in MANAGE_ROLES:
+    if user.role == "sys_admin":
         return
+    if user.role in MANAGE_ROLES:
+        from utils.branch import branch_visible
+
+        if branch_visible(project.branch, user):
+            return
     is_member = db.scalar(
         select(ProjectMember).where(
             ProjectMember.project_id == project.id, ProjectMember.user_id == user.id
@@ -116,6 +121,19 @@ def _case_handler_names(db: Session, project_id: int) -> tuple[str | None, str |
     return names(("case_staff", "case_owner")), names(("manager", "sys_admin"))
 
 
+def _apply_branch_scope(stmt, db: Session, user: User):
+    """L1/L2 的案件清單:分部可見 OR 自己是成員。L0 不過濾。"""
+    from sqlalchemy import or_
+
+    from utils.branch import branch_clause
+
+    clause = branch_clause(Project.branch, user)
+    if clause is None:
+        return stmt
+    member_ids = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
+    return stmt.where(or_(clause, Project.id.in_(member_ids)))
+
+
 @router.get("/dashboard-summary", response_model=DashboardSummary)
 def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role == "landowner":
@@ -124,8 +142,9 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
         ).all()
         projects_stmt = select(Project).where(Project.id.in_(lo_project_ids)).order_by(Project.created_at.desc())
     elif current_user.role in MANAGE_ROLES:
-        # L0~L2:全站可見,不限自己是不是 ProjectMember。
+        # L0 全站可見;L1/L2 只看自己分部(或共用)的案件,加上被明確加為成員的案件。
         projects_stmt = select(Project).order_by(Project.created_at.desc())
+        projects_stmt = _apply_branch_scope(projects_stmt, db, current_user)
     else:
         # L3~L5:只看得到被加入成員名單的案件(見 deps._has_project_access
         # 同一套規則)。
@@ -250,8 +269,9 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
             .order_by(Project.created_at.desc())
         )
     elif current_user.role in MANAGE_ROLES:
-        # L0~L2:全站可見。
+        # L0 全站可見;L1/L2 只看自己分部(或共用)的案件,加上被明確加為成員的案件。
         stmt = select(Project).order_by(Project.created_at.desc())
+        stmt = _apply_branch_scope(stmt, db, current_user)
     else:
         # L3~L5:只看得到被加入成員名單的案件(同 deps._has_project_access)。
         stmt = (
@@ -278,7 +298,11 @@ def create_project(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="project_code already exists")
 
-    project = Project(**payload.model_dump(), created_by=current_user.id, current_stage=0)
+    from utils.branch import branch_for_new_record
+
+    project = Project(
+        **payload.model_dump(), created_by=current_user.id, current_stage=0, branch=branch_for_new_record(current_user)
+    )
     db.add(project)
     db.flush()
 

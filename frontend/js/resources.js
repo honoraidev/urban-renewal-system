@@ -86,6 +86,16 @@ function _cdBranchBadge(d) {
   return b === "all" ? "" : `<span class="cd-branch-badge cd-b-${b}">${CD_BRANCH_LABEL[b]}</span>`;
 }
 
+function _cdVerBadge(d) {
+  return d.version > 1 || d.history_count ? `<span class="cd-ver-badge" title="目前版本 v${d.version}">v${d.version}</span>` : "";
+}
+function _cdHistoryBtn(d) {
+  return d.history_count
+    ? `<button class="btn-secondary btn-sm doc-icon-btn" data-history-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="歷史版本(${d.history_count})" aria-label="歷史版本">${DOC_HISTORY_ICON}</button>`
+    : "";
+}
+const DOC_HISTORY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>`;
+
 function _cdMetaLine(d) {
   return [
     fmtDate(d.uploaded_at),
@@ -140,12 +150,13 @@ function _cdListHtml(rows) {
         <div class="doc-row cd-doc-row">
           <div class="doc-row-icon">${companyDocIcon(d.mime_type)}</div>
           <div style="flex:1;min-width:0">
-            <div class="doc-row-name">${escapeHtml(d.file_name)} ${_cdBranchBadge(d)}</div>
+            <div class="doc-row-name">${escapeHtml(d.file_name)} ${_cdBranchBadge(d)}${_cdVerBadge(d)}</div>
             <div class="helper-text">
               ${_cdMetaLine(d)}${d.category ? ` · ${escapeHtml(d.category)}` : ""}${d.description ? ` · ${escapeHtml(d.description)}` : ""}
             </div>
           </div>
           <div class="actions-cell">
+            ${_cdHistoryBtn(d)}
             <button class="btn-secondary btn-sm doc-icon-btn" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
             <button class="btn-secondary btn-sm doc-icon-btn" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
             ${isManager() ? `<button class="btn-danger btn-sm doc-icon-btn" data-delete-companydoc="${d.id}" title="刪除" aria-label="刪除">${DOC_TRASH_ICON}</button>` : ""}
@@ -162,13 +173,14 @@ function _cdGridHtml(rows) {
       <div class="cd-item-card">
         <div class="cd-item-card-head">
           <span class="cd-item-icon">${companyDocIcon(d.mime_type)}</span>
-          <div class="cd-item-name">${escapeHtml(d.file_name)} ${_cdBranchBadge(d)}</div>
+          <div class="cd-item-name">${escapeHtml(d.file_name)} ${_cdBranchBadge(d)}${_cdVerBadge(d)}</div>
         </div>
         ${d.category ? `<div class="cd-item-row"><b>分類</b>${escapeHtml(d.category)}</div>` : ""}
         <div class="cd-item-row"><b>更新</b>${_cdMetaLine(d)}</div>
         ${d.description ? `<div class="cd-item-desc">${escapeHtml(d.description)}</div>` : ""}
         <div class="cd-item-actions">
-          <button class="btn-secondary btn-sm doc-icon-btn" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
+          ${_cdHistoryBtn(d)}
+            <button class="btn-secondary btn-sm doc-icon-btn" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
             <button class="btn-secondary btn-sm doc-icon-btn" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
           ${isManager() ? `<button class="btn-danger btn-sm doc-icon-btn" data-delete-companydoc="${d.id}" title="刪除" aria-label="刪除">${DOC_TRASH_ICON}</button>` : ""}
         </div>
@@ -178,6 +190,54 @@ function _cdGridHtml(rows) {
 }
 
 const DOC_TRASH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>`;
+// 歷史版本視窗:同檔名(分部-分類名稱)所有版本,新的在前;每版可預覽/下載
+async function openCompanyDocHistory(id, fileName) {
+  openModal(`歷史版本・${fileName || ""}`, `<div class="doc-preview-loading">載入中…</div>`, { width: "560px" });
+  let rows = [];
+  try {
+    rows = await api(`/company-documents/${id}/history`);
+  } catch (err) {
+    document.querySelector("#modal-root .modal-body").textContent = "載入失敗";
+    return;
+  }
+  const body = document.querySelector("#modal-root .modal-body");
+  if (!body) return;
+  const ext = (fileName || "").includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : "";
+  const stem = ext ? fileName.slice(0, fileName.lastIndexOf(".")) : fileName;
+  body.innerHTML = `<div class="cd-hist-list">${rows
+    .map(
+      (d) => `<div class="cd-hist-row">
+        <span class="cd-ver-badge">v${d.version}</span>
+        <div class="cd-hist-main">
+          <div class="cd-hist-t">${d.is_latest ? "目前版本" : "歷史版本"}${d.description ? ` · ${escapeHtml(d.description)}` : ""}</div>
+          <div class="helper-text">${fmtDateTime(d.uploaded_at)}${d.uploaded_by_name ? ` · ${escapeHtml(d.uploaded_by_name)}` : ""}</div>
+        </div>
+        <button class="btn-secondary btn-sm doc-icon-btn" data-hist-preview="${d.id}" data-filename="${escapeHtml(stem)}_v${d.version}${escapeHtml(ext)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
+        <button class="btn-secondary btn-sm doc-icon-btn" data-hist-download="${d.id}" data-filename="${escapeHtml(stem)}_v${d.version}${escapeHtml(ext)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
+      </div>`
+    )
+    .join("")}</div>`;
+  body.querySelectorAll("[data-hist-preview]").forEach((b) =>
+    b.addEventListener("click", () => previewCompanyDoc(b.dataset.histPreview, b.dataset.filename))
+  );
+  body.querySelectorAll("[data-hist-download]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      try {
+        const res = await api(`/company-documents/${b.dataset.histDownload}/download`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = b.dataset.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) { }
+    })
+  );
+}
+
 let _cdPreviewUrl = null;
 // 公版文件預覽:圖片直接顯示、PDF / 文字用內嵌框、Word/Excel/PowerPoint 由後端轉 PDF;其他類型提示改用下載
 async function previewCompanyDoc(id, fileName) {
@@ -209,6 +269,9 @@ async function previewCompanyDoc(id, fileName) {
 }
 
 function _cdBindRowActions(wrap) {
+  wrap.querySelectorAll("[data-history-companydoc]").forEach((btn) => {
+    btn.addEventListener("click", () => openCompanyDocHistory(btn.dataset.historyCompanydoc, btn.dataset.filename));
+  });
   wrap.querySelectorAll("[data-preview-companydoc]").forEach((btn) => {
     btn.addEventListener("click", () => previewCompanyDoc(btn.dataset.previewCompanydoc, btn.dataset.filename));
   });

@@ -32,6 +32,8 @@ class Project(Base):
     # 估一個日期,供進度報表的簡化時程進度條跟「預計完成日」欄位使用。
     expected_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # 所屬分部:all / taoyuan / taipei。建立案件時依建立者部門自動決定;桃園的人只看得到桃園的案件(L0 例外)。
+    branch: Mapped[str | None] = mapped_column(String(10), nullable=True, default="all")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

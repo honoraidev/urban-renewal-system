@@ -5925,4 +5925,11 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .cd-b-taoyuan { color: #b45309; background: #fef3c7; }
 .cd-b-taipei { color: #1d4ed8; background: #dbeafe; }
 .cd-branch-sel { height: 30px; padding: 0 28px 0 10px !important; font-size: 13px !important; width: auto !important; min-width: 0; border-radius: 9px !important; }
+/* 公版文件版本 */
+.cd-ver-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #0f766e; background: #ccfbf1; vertical-align: middle; }
+.cd-hist-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.cd-hist-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cd-hist-row .cd-ver-badge { margin-left: 0; }
+.cd-hist-main { flex: 1; min-width: 0; }
+.cd-hist-t { font-weight: 700; font-size: 14px; }
 

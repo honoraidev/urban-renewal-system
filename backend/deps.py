@@ -133,8 +133,13 @@ def _has_project_access(db: Session, project: Project, user: User) -> bool:
     """L0~L2(MANAGE_ROLES)一律全站可見/可寫,不需要是 ProjectMember。
     L3 案件負責人 / L4 案件工作人員 / L5 檢視者只能碰被 L0~L2 加進 ProjectMember
     名單的案件(L3 不能自行開案,所以不再有「自己建立的案件」這條路)。"""
-    if user.role in MANAGE_ROLES:
+    if user.role == "sys_admin":
         return True
+    if user.role in MANAGE_ROLES:
+        # L1/L2 受分部限制:只能碰自己分部(或共用)的案件;被明確加為成員的案件不受限
+        from utils.branch import branch_visible
+
+        return branch_visible(project.branch, user) or _is_project_member(db, project.id, user.id)
     return _is_project_member(db, project.id, user.id)
 
 

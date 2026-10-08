@@ -14,6 +14,9 @@ class CompanyDocumentRead(BaseModel):
     uploaded_at: datetime
     description: str | None = None
     branch: str | None = "all"
+    version: int = 1
+    is_latest: bool = True
+    history_count: int = 0
 
     model_config = {"from_attributes": True}
 
