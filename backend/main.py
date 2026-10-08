@@ -109,6 +109,7 @@ def _auto_migrate() -> None:
         ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
         ("websites", "tags", "VARCHAR(255) NULL"),
+        ("calendar_events", "notify", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("company_documents", "version", "INT NOT NULL DEFAULT 1"),
         ("company_documents", "is_latest", "TINYINT(1) NOT NULL DEFAULT 1"),
         ("projects", "branch", "VARCHAR(10) NULL DEFAULT 'all'"),
@@ -249,6 +250,21 @@ def _auto_migrate() -> None:
                 print(f"[auto_migrate] projects branch recomputed: {_changed}", flush=True)
     except Exception as exc:
         print(f"[auto_migrate] projects branch recompute skipped: {exc}", flush=True)
+
+    # line_push_log:LINE 推播「只推一次」的紀錄(待主管審核:每人每項一次;待辦:每筆每天一次 / 每天彙整一次)
+    try:
+        with engine.connect() as _conn:
+            _conn.execute(_sql_text("SET SESSION innodb_lock_wait_timeout = 5"))
+            _conn.execute(
+                _sql_text(
+                    "CREATE TABLE IF NOT EXISTS line_push_log ("
+                    "dedupe_key VARCHAR(190) NOT NULL PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+            )
+            _conn.commit()
+    except Exception as exc:
+        print(f"[auto_migrate] line_push_log create skipped: {exc}", flush=True)
 
     # news_sync_state:記錄「每日新聞抓取」上次執行時間的單列表(給新聞頁面右上角
     # 顯示同步時間用),舊資料庫沒有這張表,補建起來。
@@ -616,7 +632,7 @@ async def _bell_notify_loop() -> None:
     只推一次),不用自己另外存一張「已推播」紀錄表。單次失敗只印警告,不能讓
     迴圈掛掉 - 掛掉就永遠不會再排下一次。"""
     while True:
-        await asyncio.sleep(300)
+        await asyncio.sleep(120)
         try:
             from utils.sso_notify import enabled as _sso_enabled
 
@@ -638,105 +654,128 @@ async def _bell_notify_loop() -> None:
 
 
 def _bell_notify_pass(db) -> None:
-    from sqlalchemy import select
+    """LINE 推播(經 company-sso /api/notify),只做兩件事:
+    1) 待辦(勾了「需要 LINE 推播」)—— 每天早上 9 點彙整推當天待辦;9 點後才新增的,在設定時間前 2 小時推(沒設時間就立刻推)。
+    2) 待主管審核(SOP 該階段文件與門檻都完成、只剩主管審核)—— 只推給「該案件成員裡的主管」,而且要「目前已登入」才推,
+       離線的等登入後再推;每人每項只推一次。
+    其他鈴鐺項目(SOP 逾期彙整、審核被駁回)不推 LINE。"""
+    from datetime import time as _time
+
+    from sqlalchemy import select, text as _t
+
     from deps import MANAGE_ROLES
     from models.calendar_event import CalendarEvent
     from models.project import Project, ProjectMember
     from models.user import User
-    from routers.project_overview import urgent_sop_bell_items
-    from routers.sop import pending_manager_review_bell_items, rejected_checklist_bell_items
+    from routers.sop import pending_manager_review_bell_items
+    from utils.presence import online_ids
     from utils.sso_notify import send as _sso_send
 
-    today = datetime.utcnow().date()
     link_base = settings.NOTIFY_LINK_BASE.rstrip("/") if settings.NOTIFY_LINK_BASE else None
 
-    def _project_employee_nos(project_id: int, manager_only: bool = False) -> list[str]:
-        q = (
-            select(User.username)
-            .join(ProjectMember, ProjectMember.user_id == User.id)
-            .where(ProjectMember.project_id == project_id, User.is_active.is_(True))
-        )
-        if manager_only:
-            q = q.where(User.role.in_(MANAGE_ROLES))
-        return [u for (u,) in db.execute(q).all() if u]
+    def _already(key: str) -> bool:
+        return db.execute(_t("SELECT 1 FROM line_push_log WHERE dedupe_key = :k"), {"k": key}).first() is not None
 
-    # 1) 個人行事曆提醒(只推重要、且已到推播時機的)—— 只推給備註的建立人。
-    # 推播時機規則(使用者 2026-09-23 指定):
-    #   - 已逾期(event_date < 今天):隨時補推,不用等特定時間。
-    #   - 到期日就是今天、而且是「今天才臨時新增」的(created_at 也是今天):
-    #     有設時間就提前 2 小時推,沒設時間就馬上推(沒有基準時間可以往前推)。
-    #   - 到期日是今天、但是提早排好的(建立日早於今天):固定等到今天早上 9 點才推,
-    #     不用等真的到期時刻,免得一早就漏推。
-    from datetime import time as _time
+    def _mark(key: str) -> None:
+        db.execute(_t("INSERT IGNORE INTO line_push_log (dedupe_key) VALUES (:k)"), {"k": key})
+        db.commit()
 
     now_tw = datetime.now(TAIWAN_TZ)
     today_tw = now_tw.date()
+    nine = _time(9, 0)
+
+    # ---- 1) 待辦推播 ----
     events = db.scalars(
-        select(CalendarEvent).where(
-            CalendarEvent.event_date >= today_tw - timedelta(days=30),
-            CalendarEvent.event_date <= today_tw,
-        )
+        select(CalendarEvent).where(CalendarEvent.event_date == today_tw, CalendarEvent.notify.is_(True))
     ).all()
+
+    def _created_tw(e):
+        c = e.created_at
+        if c is None:
+            return None
+        return c.replace(tzinfo=timezone.utc).astimezone(TAIWAN_TZ) if c.tzinfo is None else c.astimezone(TAIWAN_TZ)
+
+    digest: dict[int, list] = {}
     for e in events:
-        if not e.is_important or not e.created_by:
+        if not e.created_by:
             continue
-        if e.event_date < today_tw:
-            ready = True
+        created = _created_tw(e)
+        added_late = created is not None and created.date() == today_tw and created.time() >= nine
+        if added_late:
+            # 9 點後才新增:有時間 → 時間前 2 小時推;沒時間 → 立刻推
+            if e.event_time is not None:
+                event_dt = datetime.combine(e.event_date, e.event_time, tzinfo=TAIWAN_TZ)
+                if now_tw < event_dt - timedelta(hours=2):
+                    continue
+            key = f"todo:{e.id}:{today_tw.isoformat()}"
+            if _already(key):
+                continue
+            owner = db.get(User, e.created_by)
+            if owner and owner.username and owner.is_active:
+                hhmm = e.event_time.strftime("%H:%M") if e.event_time else ""
+                _sso_send({
+                    "employee_nos": [owner.username],
+                    "text": f"【待辦提醒】{(hhmm + ' ') if hhmm else ''}{e.content}"[:300],
+                    "link": f"{link_base}/projects/{e.project_id}" if link_base and e.project_id else link_base,
+                    "dedupe_key": f"urn:{key}",
+                    "action_icon": "⏰",
+                    "title": "待辦提醒",
+                    "dedupe_ttl": 90000,
+                })
+            _mark(key)
         else:
-            created_today = e.created_at is not None and e.created_at.date() == today_tw
-            if created_today:
-                if e.event_time is None:
-                    ready = True
-                else:
-                    event_dt = datetime.combine(e.event_date, e.event_time, tzinfo=TAIWAN_TZ)
-                    ready = now_tw >= event_dt - timedelta(hours=2)
-            else:
-                ready = now_tw.time() >= _time(9, 0)
-        if not ready:
-            continue
-        owner = db.get(User, e.created_by)
-        if not owner or not owner.username or not owner.is_active:
-            continue
-        _sso_send({
-            "employee_nos": [owner.username],
-            "text": f"【待辦提醒】{e.content}"[:300],
-            "link": f"{link_base}/projects/{e.project_id}" if link_base and e.project_id else link_base,
-            "dedupe_key": f"urn:bell:calendar:{e.id}:{today_tw.isoformat()}",
-            "action_icon": "⏰",
-            "title": "待辦提醒",
-            "dedupe_ttl": 90000,
-        })
+            digest.setdefault(e.created_by, []).append(e)
 
-    # 2) 案件層級鈴鐺(SOP 逾期彙整、被駁回的審核項)—— 案件成員都推
-    projects = list(db.scalars(select(Project)))
-    for item in urgent_sop_bell_items(db, projects) + rejected_checklist_bell_items(db, projects):
-        emps = _project_employee_nos(item["project_id"])
-        if not emps:
-            continue
-        _sso_send({
-            "employee_nos": emps,
-            "text": f"【{item.get('project_name') or ''}】{item['content']}"[:300],
-            "link": f"{link_base}/projects/{item['project_id']}" if link_base else None,
-            "dedupe_key": f"urn:bell:project:{item['project_id']}:{item['id']}:{today.isoformat()}",
-            "action_icon": "🔔",
-            "title": "待辦提醒",
-            "dedupe_ttl": 90000,
-        })
+    if now_tw.time() >= nine:
+        for uid, evs in digest.items():
+            key = f"todo-digest:{uid}:{today_tw.isoformat()}"
+            if _already(key):
+                continue
+            owner = db.get(User, uid)
+            if owner and owner.username and owner.is_active:
+                evs.sort(key=lambda x: (x.event_time is None, x.event_time or _time.min, x.id))
+                lines = [f"{(x.event_time.strftime('%H:%M') + ' ') if x.event_time else ''}{x.content}" for x in evs]
+                _sso_send({
+                    "employee_nos": [owner.username],
+                    "text": ("【今日待辦】共 %d 項\n" % len(lines) + "\n".join(f"• {l}" for l in lines))[:900],
+                    "link": link_base,
+                    "dedupe_key": f"urn:{key}",
+                    "action_icon": "📅",
+                    "title": "今日待辦",
+                    "dedupe_ttl": 90000,
+                })
+            _mark(key)
 
-    # 3) 待主管審核 —— 只推管理層(跟鈴鐺前端的可見規則一致)
-    for item in pending_manager_review_bell_items(db, projects):
-        emps = _project_employee_nos(item["project_id"], manager_only=True)
-        if not emps:
-            continue
-        _sso_send({
-            "employee_nos": emps,
-            "text": f"【{item.get('project_name') or ''}】{item['content']}"[:300],
-            "link": f"{link_base}/projects/{item['project_id']}" if link_base else None,
-            "dedupe_key": f"urn:bell:review:{item['project_id']}:{item['id']}:{today.isoformat()}",
-            "action_icon": "📋",
-            "title": "待辦提醒",
-            "dedupe_ttl": 90000,
-        })
+    # ---- 2) 待主管審核(只推已登入的案件成員主管,每人每項一次)----
+    online = online_ids()
+    if online:
+        projects = list(db.scalars(select(Project)))
+        for item in pending_manager_review_bell_items(db, projects):
+            rows = db.execute(
+                select(User.id, User.username)
+                .join(ProjectMember, ProjectMember.user_id == User.id)
+                .where(
+                    ProjectMember.project_id == item["project_id"],
+                    User.is_active.is_(True),
+                    User.role.in_(MANAGE_ROLES),
+                )
+            ).all()
+            for uid, username in rows:
+                if not username or uid not in online:
+                    continue
+                key = f"review:{item['project_id']}:{item.get('stage')}:{uid}"
+                if _already(key):
+                    continue
+                _sso_send({
+                    "employee_nos": [username],
+                    "text": f"【{item.get('project_name') or ''}】{item['content']}"[:300],
+                    "link": f"{link_base}/projects/{item['project_id']}" if link_base else None,
+                    "dedupe_key": f"urn:{key}",
+                    "action_icon": "📋",
+                    "title": "待主管審核",
+                    "dedupe_ttl": 86400 * 365,
+                })
+                _mark(key)
 
 
 @asynccontextmanager
@@ -783,11 +822,13 @@ async def lifespan(app: FastAPI):
     # memory pressure on limited RAM systems while preserving optimal inference speed.
     news_task = asyncio.create_task(_daily_news_fetch_loop())
     consent_snapshot_task = asyncio.create_task(_daily_consent_snapshot_loop())
-    # 待辦 / 鈴鐺 LINE 推播已停用(使用者 2026-09 要求只保留登入登出通知),
-    # _bell_notify_loop 不再啟動。
+    # LINE 推播:只做「勾選推播的待辦」與「待主管審核(已登入才推、只推一次)」兩種,
+    # 其餘鈴鐺項目不推(見 _bell_notify_pass)。
+    bell_notify_task = asyncio.create_task(_bell_notify_loop())
     yield
     news_task.cancel()
     consent_snapshot_task.cancel()
+    bell_notify_task.cancel()
 
 
 app = FastAPI(title="Urban Renewal Management System API", version="0.1.0", lifespan=lifespan)

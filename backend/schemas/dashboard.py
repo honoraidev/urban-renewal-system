@@ -34,6 +34,7 @@ class CalendarEventItem(BaseModel):
     event_time: time | None = None
     content: str
     is_important: bool = False
+    notify: bool = False
     project_id: int | None = None
     project_name: str | None = None
     created_by: int | None = None
@@ -62,6 +63,7 @@ class CalendarEventCreate(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
     is_important: bool = False
+    notify: bool = False
     sop_stage: int | None = Field(default=None, ge=0, le=99)
 
 
@@ -69,6 +71,7 @@ class CalendarEventUpdate(BaseModel):
     content: str | None = Field(default=None, min_length=1, max_length=2000)
     event_date: date | None = None
     is_important: bool | None = None
+    notify: bool | None = None
     event_time: time | None = None
     # event_time 要能「清空」(選填欄位,使用者填了又想清掉),用 exclude_unset 分辨
     # 「沒傳這個欄位」跟「傳了 null 要清空」——沒傳就不動,傳了 null 就真的清成 NULL。

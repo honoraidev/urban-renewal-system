@@ -227,6 +227,7 @@ def get_my_work(
             event_time=normalize_event_time(e.event_time),
             content=e.content,
             is_important=e.is_important,
+            notify=e.notify,
             project_id=e.project_id,
             project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
             created_by=e.created_by,
@@ -355,20 +356,21 @@ def create_calendar_event(
         event_time=payload.event_time,
         content=payload.content.strip(),
         is_important=payload.is_important,
+        notify=payload.notify,
         sop_stage=payload.sop_stage if payload.project_id is not None else None,
     )
     db.add(ev)
     db.commit()
     db.refresh(ev)
-    if ev.is_important:
-        # 新增當下立刻補跑一次鈴鐺推播,不用等背景迴圈下一次 5 分鐘輪詢
-        # (使用者要求「有新項目出現就立即發」)。best-effort,失敗不影響建立備註本身。
+    if ev.notify:
+        # 勾了「需要 LINE 推播」:新增當下立刻跑一次推播判斷(當天 9 點後才新增、沒設時間 → 立刻推;
+        # 有設時間 → 到「時間前 2 小時」才推,由背景迴圈處理)。best-effort,失敗不影響建立待辦本身。
         try:
             from main import _bell_notify_pass
 
             _bell_notify_pass(db)
         except Exception as exc:
-            print(f"[calendar_event] immediate bell notify failed (ignored): {exc!r}", flush=True)
+            print(f"[calendar_event] immediate notify failed (ignored): {exc!r}", flush=True)
     project_name = None
     if ev.project_id:
         p = db.get(Project, ev.project_id)
@@ -379,6 +381,7 @@ def create_calendar_event(
         event_time=normalize_event_time(ev.event_time),
         content=ev.content,
         is_important=ev.is_important,
+        notify=ev.notify,
         project_id=ev.project_id,
         project_name=project_name,
         created_by=ev.created_by,
@@ -403,6 +406,8 @@ def update_calendar_event(
         ev.event_date = payload.event_date
     if payload.is_important is not None:
         ev.is_important = payload.is_important
+    if payload.notify is not None:
+        ev.notify = payload.notify
     if payload.clear_event_time:
         ev.event_time = None
     elif payload.event_time is not None:
@@ -420,6 +425,7 @@ def update_calendar_event(
         event_time=normalize_event_time(ev.event_time),
         content=ev.content,
         is_important=ev.is_important,
+        notify=ev.notify,
         project_id=ev.project_id,
         project_name=project_name,
         created_by=ev.created_by,

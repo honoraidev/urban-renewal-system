@@ -9,6 +9,7 @@ from database import SessionLocal
 from models.user import User
 from security import decode_access_token
 from utils.live_events import subscribe, unsubscribe
+from utils.presence import mark_offline, mark_online
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -31,6 +32,7 @@ async def stream_events(token: str = Query(...)):
 
     async def event_stream():
         q = subscribe()
+        mark_online(user_id)
         try:
             while True:
                 try:
@@ -40,6 +42,7 @@ async def stream_events(token: str = Query(...)):
                     yield ": ping\n\n"  # 保持連線,避免中間的 proxy 因為太久沒資料就斷開
         finally:
             unsubscribe(q)
+            mark_offline(user_id)
 
     return StreamingResponse(
         event_stream(),
