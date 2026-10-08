@@ -5783,4 +5783,22 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .manual-body::before { left: auto !important; right: 0 !important; top: 0 !important; bottom: 0 !important; width: auto !important; height: auto !important; aspect-ratio: 2 / 3;
   background: url("manual_bg.jpg") center / 100% 100% no-repeat !important; opacity: .55 !important;
   -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%) !important; mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%) !important; }
+/* 左右兩張卡同高:取兩者較高的那個,另一張拉長補齊;標語固定在目錄卡底部 */
+@media (min-width: 1120px) {
+  .manual-layout { align-items: stretch !important; }
+  .manual-side { display: flex; flex-direction: column; position: static !important; }
+  .manual-side .manual-toc { flex: 1 1 auto !important; display: flex; flex-direction: column; }
+  .manual-body { min-height: 0 !important; }
+  .manual-toc-slogan { margin-top: auto !important; padding-top: 18px; }
+}
 
+@media (min-width: 1120px) { .manual-side .manual-toc { margin-bottom: 0 !important; } .manual-side .manual-head-card { margin-bottom: 14px; } }
+/* 目錄卡不要 sticky 位移(造成與右卡底部差 16px) */
+.manual-toc { position: relative !important; top: 0 !important; }
+/* 背景圖固定大小、固定在內容卡右上角:切換任何章節(卡片高度不同)位置與大小都不變;內容卡最低高度=圖高,底部淡出 */
+.manual-body::before { top: 0 !important; bottom: auto !important; right: 0 !important; left: auto !important; width: 480px !important; height: 720px !important; aspect-ratio: auto !important;
+  background: url("manual_bg.jpg") center / 100% 100% no-repeat !important;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important;
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important; mask-composite: intersect; }
+@media (min-width: 1120px) { .manual-body { min-height: 720px !important; } }
+@media (max-width: 1119px) { .manual-body::before { width: 300px !important; height: 450px !important; opacity: .3; } }
