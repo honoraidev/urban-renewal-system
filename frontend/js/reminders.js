@@ -54,18 +54,30 @@ async function _syncBellSetsFromServer() {
   _renderBellBadge();
   if (typeof _renderBellDropdown === "function") _renderBellDropdown();
 }
+// 一般(行事曆備註)項目:id + 內容,內容改了才當成新提醒。
+// SOP 類項目(kind 以 sop 開頭,內容是系統自動組出來的,例如「還有 K 項未完成」「待審核」,
+// 文字會隨進度或改版變動):只用 案件 + 類型 + 階段 當 key,按了刪除 / 已讀就不會因為文字變了
+// 隔天又自己冒出來;換到下一個階段才算新的提醒。
 function _bellKey(it) {
+  if (it.kind && String(it.kind).startsWith("sop")) return `${it.id}|${it.kind}|${it.stage ?? ""}`;
   return `${it.id}|${it.content || ""}`;
+}
+// 舊版 key(id|內容):升級前已刪除 / 已讀的紀錄仍然有效
+function _bellLegacyKey(it) {
+  return `${it.id}|${it.content || ""}`;
+}
+function _bellHas(set, it) {
+  return set.has(_bellKey(it)) || set.has(_bellLegacyKey(it));
 }
 function _bellKeyById(id) {
   const it = remindersState.items.find((x) => x.id === id);
   return it ? _bellKey(it) : String(id);
 }
 function _bellVisibleItems() {
-  return remindersState.items.filter((it) => !remindersState.hiddenIds.has(_bellKey(it)));
+  return remindersState.items.filter((it) => !_bellHas(remindersState.hiddenIds, it));
 }
 function _bellUnreadCount() {
-  return _bellVisibleItems().filter((it) => !remindersState.readIds.has(_bellKey(it))).length;
+  return _bellVisibleItems().filter((it) => !_bellHas(remindersState.readIds, it)).length;
 }
 
 function remindersEnsureStyle() {
