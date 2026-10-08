@@ -163,6 +163,28 @@ def download_company_document(
     return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
 
 
+@router.get("/company-documents/{doc_id}/preview")
+def preview_company_document(
+    doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """預覽用:PDF/圖片/文字瀏覽器本來就看得懂,直接回原檔;Word/Excel/PowerPoint 先轉成 PDF 再回(下載仍是原檔)。"""
+    from utils.office_preview import CONVERTIBLE_EXTS, convert_to_pdf
+
+    document = _get_company_document_or_404(db, doc_id)
+    if not _doc_visible(document, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if not os.path.exists(document.file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
+    ext = os.path.splitext(document.file_name)[1].lower()
+    if ext not in CONVERTIBLE_EXTS:
+        return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
+    try:
+        pdf_path = convert_to_pdf(document.file_path)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"文件轉PDF預覽失敗:{exc}")
+    return FileResponse(pdf_path, filename=os.path.splitext(document.file_name)[0] + ".pdf", media_type="application/pdf")
+
+
 @router.patch("/company-documents/{doc_id}", response_model=CompanyDocumentRead)
 def update_company_document(
     doc_id: int,

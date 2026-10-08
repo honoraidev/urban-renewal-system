@@ -146,6 +146,7 @@ function _cdListHtml(rows) {
             </div>
           </div>
           <div class="actions-cell">
+            <button class="btn-secondary btn-sm" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">👁 預覽</button>
             <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
             ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
           </div>
@@ -167,7 +168,8 @@ function _cdGridHtml(rows) {
         <div class="cd-item-row"><b>更新</b>${_cdMetaLine(d)}</div>
         ${d.description ? `<div class="cd-item-desc">${escapeHtml(d.description)}</div>` : ""}
         <div class="cd-item-actions">
-          <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
+          <button class="btn-secondary btn-sm" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">👁 預覽</button>
+            <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
           ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
         </div>
       </div>`
@@ -175,7 +177,40 @@ function _cdGridHtml(rows) {
     .join("")}</div>`;
 }
 
+let _cdPreviewUrl = null;
+// 公版文件預覽:圖片直接顯示、PDF / 文字用內嵌框、Word/Excel/PowerPoint 由後端轉 PDF;其他類型提示改用下載
+async function previewCompanyDoc(id, fileName) {
+  openModal(fileName || "文件預覽", `<div id="cd-preview-body" class="doc-preview-loading">準備預覽中,請稍候…</div>`, { width: "min(1100px, 92vw)" });
+  const setBody = (html, text) => {
+    const body = document.getElementById("cd-preview-body");
+    if (!body) return; // 使用者在載入完成前就關掉視窗了
+    body.classList.remove("doc-preview-loading");
+    if (text !== undefined) body.textContent = text;
+    else body.innerHTML = html;
+  };
+  try {
+    const res = await api(`/company-documents/${id}/preview`);
+    const blob = await res.blob();
+    if (_cdPreviewUrl) URL.revokeObjectURL(_cdPreviewUrl);
+    const t = blob.type || "";
+    if (t.startsWith("image/")) {
+      _cdPreviewUrl = URL.createObjectURL(blob);
+      setBody(`<img src="${_cdPreviewUrl}" class="doc-preview-image">`);
+    } else if (t === "application/pdf" || t.startsWith("text/")) {
+      _cdPreviewUrl = URL.createObjectURL(blob);
+      setBody(`<iframe src="${_cdPreviewUrl}" class="doc-preview-frame"></iframe>`);
+    } else {
+      setBody("", "這個檔案類型無法預覽,請改用下載查看。");
+    }
+  } catch (err) {
+    setBody("", "預覽失敗,請改用下載查看。");
+  }
+}
+
 function _cdBindRowActions(wrap) {
+  wrap.querySelectorAll("[data-preview-companydoc]").forEach((btn) => {
+    btn.addEventListener("click", () => previewCompanyDoc(btn.dataset.previewCompanydoc, btn.dataset.filename));
+  });
   wrap.querySelectorAll("[data-download-companydoc]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       try {
@@ -556,7 +591,14 @@ async function loadNews() {
   if (!el) return;
   el.innerHTML = `<div class="empty-state">載入中...</div>`;
   loadNewsSyncTime();
-  const items = await api("/news");
+  let items;
+  try {
+    items = await api("/news");
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state">新聞載入失敗(${escapeHtml(err && err.message ? err.message : "未知錯誤")})<br><button type="button" class="btn-secondary btn-sm" id="news-retry-btn" style="margin-top:10px">重新載入</button></div>`;
+    document.getElementById("news-retry-btn")?.addEventListener("click", loadNews);
+    return;
+  }
   currentLoadedNews = items || [];
   renderNewsList();
 }
