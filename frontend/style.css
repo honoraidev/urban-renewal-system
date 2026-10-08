@@ -5861,3 +5861,13 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .ws-card-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
 .ws-card-actions .btn-sm { height: 30px; padding: 0 12px; font-size: 13px; line-height: 1; }
 
+/* 目錄字樣的實際字形與右側章節標題同一水平(字形比方塊低約 8px,往上補齊) */
+@media (min-width: 1120px) { .manual-toc-title { position: relative; top: -8px; } }
+/* 內容不再用內部捲軸:右側卡片隨內容長高,整頁捲動;左側目錄卡固定高度並跟著頁面黏在上方 */
+@media (min-width: 1120px) {
+  .manual-layout { align-items: stretch !important; }
+  .manual-side { height: auto !important; }
+  .manual-side .manual-toc { flex: 0 0 auto !important; height: 748px; position: sticky !important; top: 16px !important; }
+  .manual-body { height: auto !important; min-height: 748px !important; display: block !important; }
+  .manual-body > .manual-sec { overflow: visible !important; flex: none; padding-right: 0; margin-right: 0; }
+}
