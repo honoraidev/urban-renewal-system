@@ -354,9 +354,9 @@ function openMyWorkDay(dateIso, events) {
         <div class="mwn-date">${dateIso} 待辦</div>
         <div class="mwn-time">
           <span class="mwn-ic">${MWN_ICON.clock}</span>
-          <select id="mw-ev-start" class="mwn-sel">${MWN_TIME_OPTS}</select>
+          <input type="time" id="mw-ev-start" class="mwn-sel" step="60">
           <span class="mwn-dash">-</span>
-          <select id="mw-ev-end" class="mwn-sel">${MWN_TIME_OPTS}</select>
+          <input type="time" id="mw-ev-end" class="mwn-sel" step="60">
           <label class="mwn-allday"><input type="checkbox" id="mw-ev-allday"> 全天</label>
         </div>
         <div class="mwn-label">標題</div>
@@ -396,7 +396,7 @@ function openMyWorkDay(dateIso, events) {
     // 結束時間跟著往後排(開始 + 1 小時),避免結束早於開始
     if (endSel.value <= startSel.value) {
       const [h, m] = startSel.value.split(":").map(Number);
-      const t = Math.min(h * 60 + m + 60, 23 * 60 + 45);
+      const t = Math.min(h * 60 + m + 60, 23 * 60 + 59);
       endSel.value = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
     }
   };
@@ -412,6 +412,7 @@ function openMyWorkDay(dateIso, events) {
     const pidRaw = document.getElementById("mw-ev-project").value;
     const isImportant = mwImportant;
     const wantNotify = document.getElementById("mw-ev-notify").checked;
+    if (!allDay.checked && (!startSel.value || !endSel.value)) { toast("請選擇開始與結束時間,或勾選全天", "error"); return; }
     const eventTime = allDay.checked ? null : startSel.value;
     const eventEndTime = allDay.checked ? null : endSel.value;
     if (eventTime && eventEndTime && eventEndTime <= eventTime) {
