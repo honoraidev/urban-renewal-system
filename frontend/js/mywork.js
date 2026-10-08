@@ -1,6 +1,8 @@
 "use strict";
 
 const MWN_ICON = {
+  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>`,
   cal: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="3" fill="currentColor"/><rect x="2" y="6" width="20" height="16" rx="1" fill="currentColor"/><g fill="#fff"><rect x="4" y="9" width="3" height="3"/><rect x="8.5" y="9" width="3" height="3"/><rect x="13" y="9" width="3" height="3"/><rect x="17.5" y="9" width="2.5" height="3"/><rect x="4" y="13.5" width="3" height="3"/><rect x="8.5" y="13.5" width="3" height="3"/><rect x="13" y="13.5" width="3" height="3"/><rect x="17.5" y="13.5" width="2.5" height="3"/><rect x="4" y="18" width="3" height="2.5"/><rect x="8.5" y="18" width="3" height="2.5"/><rect x="13" y="18" width="3" height="2.5"/></g></svg>`,
   clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
   person: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M3.5 21a8.5 6.5 0 0 1 17 0z"/></svg>`,
@@ -322,6 +324,12 @@ function openMyWorkDay(dateIso, events) {
   const WD = ["日", "一", "二", "三", "四", "五", "六"];
   const dow = WD[new Date(`${dateIso}T00:00:00`).getDay()];
   const p2 = (n) => String(n).padStart(2, "0");
+  // 新增 / 編輯 / 刪除完不關閉:重新抓資料(背後的工作看板一起更新),再重開「當日行事曆」顯示最新清單
+  const reopenDay = async () => {
+    await loadMyWork();
+    const fresh = ((myWorkState.data && myWorkState.data.calendar_events) || []).filter((x) => x.event_date === dateIso);
+    openMyWorkDay(dateIso, fresh);
+  };
 
   const cardHtml = (e) => {
     const t = fmtEventTime(e.event_time);
@@ -337,10 +345,11 @@ function openMyWorkDay(dateIso, events) {
         </div>
         <span class="mwd2-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
       </div>
-      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}<span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span></div>
-      <div class="mwd2-foot">
-        ${e.can_edit ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}">編輯</a><a href="#" class="del" data-mw-del="${e.id}">刪除</a></span>` : ""}
-      </div>
+      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}<span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span>${
+        e.can_edit
+          ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}" title="編輯" aria-label="編輯">${MWN_ICON.edit}</a><a href="#" class="del" data-mw-del="${e.id}" title="刪除" aria-label="刪除">${MWN_ICON.trash}</a></span>`
+          : ""
+      }</div>
     </div>`;
   };
 
@@ -469,8 +478,7 @@ function openMyWorkDay(dateIso, events) {
           });
           toast("已新增", "success");
         }
-        closeModal();
-        await loadMyWork();
+        await reopenDay();
         if (typeof refreshReminderBell === "function") refreshReminderBell();
       } catch (e) {}
     };
@@ -493,8 +501,7 @@ function openMyWorkDay(dateIso, events) {
       try {
         await api(`/dashboard/calendar/${a.dataset.mwDel}`, { method: "DELETE" });
         toast("已刪除", "success");
-        closeModal();
-        await loadMyWork();
+        await reopenDay();
         if (typeof refreshReminderBell === "function") refreshReminderBell();
       } catch (err) {}
     });
