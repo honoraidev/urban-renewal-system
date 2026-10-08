@@ -43,3 +43,24 @@ def branch_clause(column, user: User):
     if mine:
         conds.append(column.in_(mine))
     return or_(*conds)
+
+
+def recompute_project_branch(db, project_id: int) -> str | None:
+    """案件所屬分部 = 依「案件人員」的部門自動判斷:成員(不含沒有部門的人,如 L0)只涵蓋一個分部 → 那個分部;
+    涵蓋兩個分部或沒有任何成員有部門 → all。成員增減時、啟動時都會重算,所以把某人移出案件人員,分部也會跟著變。
+    回傳新的分部;案件不存在回傳 None。"""
+    from sqlalchemy import select
+
+    from models.project import Project, ProjectMember
+
+    project = db.get(Project, project_id)
+    if project is None:
+        return None
+    users = db.scalars(select(User).join(ProjectMember, ProjectMember.user_id == User.id).where(ProjectMember.project_id == project_id)).all()
+    seen: set[str] = set()
+    for u in users:
+        seen |= user_branches(u)
+    new = next(iter(seen)) if len(seen) == 1 else "all"
+    if (project.branch or "all") != new:
+        project.branch = new
+    return new

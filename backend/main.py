@@ -233,26 +233,22 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] company_documents branch backfill skipped: {exc}", flush=True)
 
-    # 案件所屬分部:舊案件依建立者部門自動歸類(只動 branch=all 且建立者只屬一個分部的)
+    # 案件所屬分部:依「案件人員」的部門重算(成員只涵蓋一個分部 → 該分部;兩邊或都沒有 → 共用)
     try:
         from database import SessionLocal as _SL2
         from models.project import Project as _P
-        from models.user import User as _U
-        from utils.branch import branch_for_new_record
+        from utils.branch import recompute_project_branch
 
         with _SL2() as _db2:
-            _n2 = 0
-            for _p in _db2.query(_P).filter((_P.branch == "all") | (_P.branch.is_(None))).all():
-                _u = _db2.get(_U, _p.created_by) if _p.created_by else None
-                _b = branch_for_new_record(_u) if _u else "all"
-                if _b != (_p.branch or "all"):
-                    _p.branch = _b
-                    _n2 += 1
-            if _n2:
-                _db2.commit()
-                print(f"[auto_migrate] projects branch backfilled: {_n2}", flush=True)
+            _before = {p.id: p.branch for p in _db2.query(_P).all()}
+            for _pid in list(_before):
+                recompute_project_branch(_db2, _pid)
+            _changed = sum(1 for p in _db2.query(_P).all() if (p.branch or "all") != (_before.get(p.id) or "all"))
+            _db2.commit()
+            if _changed:
+                print(f"[auto_migrate] projects branch recomputed: {_changed}", flush=True)
     except Exception as exc:
-        print(f"[auto_migrate] projects branch backfill skipped: {exc}", flush=True)
+        print(f"[auto_migrate] projects branch recompute skipped: {exc}", flush=True)
 
     # news_sync_state:記錄「每日新聞抓取」上次執行時間的單列表(給新聞頁面右上角
     # 顯示同步時間用),舊資料庫沒有這張表,補建起來。

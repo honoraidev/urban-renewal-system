@@ -636,6 +636,10 @@ def add_project_member(
 
     member = ProjectMember(project_id=project.id, user_id=user.id, role_in_project=user.role)
     db.add(member)
+    db.flush()
+    from utils.branch import recompute_project_branch
+
+    recompute_project_branch(db, project.id)
     db.commit()
     db.refresh(member)
     return ProjectMemberRead(
@@ -663,6 +667,10 @@ def remove_project_member(
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
     db.delete(member)
+    db.flush()
+    from utils.branch import recompute_project_branch
+
+    recompute_project_branch(db, project.id)
     db.commit()
 
 
