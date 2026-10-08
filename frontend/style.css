@@ -5816,3 +5816,16 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); -webkit-mask-composite: source-in;
   mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); mask-composite: intersect; }
 @media (max-width: 1119px) { .manual-body::after { width: 300px; height: 450px; opacity: .3; } }
+/* 外框對齊:右側內容卡與左側目錄卡上緣同一高度(使用手冊標題卡獨立在上方);目錄字樣與章節標題同一水平線 */
+@media (min-width: 1120px) {
+  .manual-body { margin-top: 104px; padding-top: 30px !important; }
+  .manual-toc { padding-top: 40px !important; }
+  .manual-slogan { top: 104px; }
+  .manual-body::before, .manual-body::after { top: 0; }
+}
+/* 中間不要出現建築:左份只露出頂部的葉子(約上 38%),右份只露出右側 45% 的建築;標語回到卡片上緣不壓到文字 */
+.manual-body::before { -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.6) 45%, #000 100%), linear-gradient(to bottom, #000 18%, transparent 38%) !important;
+  mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.6) 45%, #000 100%), linear-gradient(to bottom, #000 18%, transparent 38%) !important; }
+.manual-body::after { -webkit-mask-image: linear-gradient(to right, transparent 45%, #000 78%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 45%, #000 78%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); }
+@media (min-width: 1120px) { .manual-slogan { top: 20px !important; } }
