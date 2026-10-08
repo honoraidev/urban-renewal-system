@@ -5832,8 +5832,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 /* 左右兩張卡高度固定(切換章節不變):內容太長時,在右側卡片內捲動 */
 @media (min-width: 1120px) {
   .manual-layout { align-items: start !important; }
-  .manual-side { height: calc(max(842px, 100vh - 130px)); }
-  .manual-body { height: calc(max(842px, 100vh - 130px) - 104px); min-height: 0 !important; display: flex; flex-direction: column; margin-top: 104px; }
+  .manual-side { height: calc(max(852px, 100vh - 130px)); }
+  .manual-body { height: calc(max(852px, 100vh - 130px) - 104px); min-height: 0 !important; display: flex; flex-direction: column; margin-top: 104px; }
   .manual-body > .manual-sec { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 10px; margin-right: -4px; }
   .manual-body > .manual-sec::-webkit-scrollbar { width: 8px; }
   .manual-body > .manual-sec::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 30%, transparent); border-radius: 8px; }
@@ -5851,3 +5851,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .nw-title-icon, .fq-title-icon { font-size: 28px !important; line-height: 1; }
 .tl-title .tl-title-bar { height: 28px; }
 .nw-sub, .fq-sub, .tl-sub { margin: 0 !important; font-size: 14.5px !important; color: var(--text-muted); }
+/* 「目錄」字樣大小與右側章節標題一致 */
+.manual-toc-title { font-size: 28px; font-weight: 900; line-height: 52px; margin: 0 6px 6px; color: var(--text); }
+@media (min-width: 1120px) { .manual-toc { padding-top: 30px !important; } }
+.fq-sub { margin: 0 0 20px !important; }
+@media (min-width: 1120px) { .manual-toc { padding-top: 37px !important; } }
