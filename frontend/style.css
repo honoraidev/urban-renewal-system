@@ -5845,3 +5845,9 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 
 .manual-nwhead .nw-title { color: var(--text); }
 .manual-nwhead .nw-sub { color: var(--text-muted); }
+
+/* 工具與資源 / 系統指南 各頁的標題與副標題,統一成「公版文件」的大小(標題 30px、圖示 28px、副標 14.5px) */
+.nw-title, .fq-title, .tl-title { margin: 0 0 6px !important; font-size: 30px !important; font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 10px !important; }
+.nw-title-icon, .fq-title-icon { font-size: 28px !important; line-height: 1; }
+.tl-title .tl-title-bar { height: 28px; }
+.nw-sub, .fq-sub, .tl-sub { margin: 0 !important; font-size: 14.5px !important; color: var(--text-muted); }
