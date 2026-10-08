@@ -5802,3 +5802,7 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important; mask-composite: intersect; }
 @media (min-width: 1120px) { .manual-body { min-height: 720px !important; } }
 @media (max-width: 1119px) { .manual-body::before { width: 300px !important; height: 450px !important; opacity: .3; } }
+/* 背景圖(綠葉在左上)改靠左:葉子在卡片左側,往右淡出 */
+.manual-body::before { left: 0 !important; right: auto !important;
+  -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important;
+  mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important; }
