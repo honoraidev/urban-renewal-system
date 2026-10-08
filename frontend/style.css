@@ -5808,3 +5808,11 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important; }
 /* 章節標題與左側「目錄」字樣同一水平線(電腦版) */
 @media (min-width: 1120px) { .manual-body { padding-top: 112px !important; } .manual-slogan { top: 70px; } }
+/* 背景:綠葉在左側、建築物在右側(同一張圖左右各放一份:左份顯示葉子、右份顯示建築,各自淡出);固定大小貼上緣,切換章節不變 */
+.manual-body::before { -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.5) 45%, #000 100%), linear-gradient(to bottom, #000 45%, transparent 75%) !important;
+  mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.5) 45%, #000 100%), linear-gradient(to bottom, #000 45%, transparent 75%) !important; }
+.manual-body::after { content: ""; position: absolute; z-index: 0; top: 0; right: 0; left: auto; width: 480px; height: 720px; pointer-events: none; opacity: .55;
+  background: url("manual_bg.jpg") center / 100% 100% no-repeat;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); mask-composite: intersect; }
+@media (max-width: 1119px) { .manual-body::after { width: 300px; height: 450px; opacity: .3; } }
