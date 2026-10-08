@@ -109,6 +109,7 @@ def _auto_migrate() -> None:
         ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
         ("websites", "tags", "VARCHAR(255) NULL"),
+        ("calendar_events", "event_end_time", "TIME NULL"),
         ("calendar_events", "notify", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("company_documents", "version", "INT NOT NULL DEFAULT 1"),
         ("company_documents", "is_latest", "TINYINT(1) NOT NULL DEFAULT 1"),

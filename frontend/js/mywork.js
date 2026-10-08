@@ -1,5 +1,21 @@
 "use strict";
 
+const MWN_ICON = {
+  cal: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="3" fill="currentColor"/><rect x="2" y="6" width="20" height="16" rx="1" fill="currentColor"/><g fill="#fff"><rect x="4" y="9" width="3" height="3"/><rect x="8.5" y="9" width="3" height="3"/><rect x="13" y="9" width="3" height="3"/><rect x="17.5" y="9" width="2.5" height="3"/><rect x="4" y="13.5" width="3" height="3"/><rect x="8.5" y="13.5" width="3" height="3"/><rect x="13" y="13.5" width="3" height="3"/><rect x="17.5" y="13.5" width="2.5" height="3"/><rect x="4" y="18" width="3" height="2.5"/><rect x="8.5" y="18" width="3" height="2.5"/><rect x="13" y="18" width="3" height="2.5"/></g></svg>`,
+  clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+  person: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M3.5 21a8.5 6.5 0 0 1 17 0z"/></svg>`,
+  star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.2 6.1L12 17l-5.5 2.9 1.2-6.1-4.5-4.2 6.1-.8z"/></svg>`,
+};
+const MWN_TIME_OPTS = (() => {
+  let h = "";
+  for (let i = 0; i < 48; i++) {
+    const hh = Math.floor(i / 2), mm = i % 2 ? "30" : "00";
+    const label = `${hh < 12 ? "上午" : "下午"} ${String(hh % 12 === 0 ? 12 : hh % 12).padStart(2, "0")}:${mm}`;
+    h += `<option value="${String(hh).padStart(2, "0")}:${mm}">${label}</option>`;
+  }
+  return h;
+})();
+
 const myWorkState = { month: null, data: null, scope: "personal", pollTimer: null };
 
 function myWorkEnsureStyle() {
@@ -311,7 +327,7 @@ function openMyWorkDay(dateIso, events) {
     .map(
       (e) => `
     <div class="mw-daydetail-ev" data-ev-id="${e.id}">
-      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}</span> ` : ""}${e.is_important ? "⭐ " : ""}${e.notify ? "📲 " : ""}${escapeHtml(e.content)}</div>
+      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}${e.event_end_time ? "–" + fmtEventTime(e.event_end_time) : ""}</span> ` : ""}${e.is_important ? "⭐ " : ""}${e.notify ? "📲 " : ""}${escapeHtml(e.content)}</div>
       <div class="meta">
         <div class="mw-ev-tag-group">
           <span class="mw-ev-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
@@ -327,48 +343,84 @@ function openMyWorkDay(dateIso, events) {
     )
     .join("");
 
-  openModal(
-    `${dateIso} 待辦`,
+  const root = openModal(
+    `<span class="mwn-title"><span class="mwn-title-ic">${MWN_ICON.cal}</span>新增行事曆活動</span>`,
     `
     <div>
       ${existing || `<p class="helper-text" style="margin-top:0">這天還沒有待辦</p>`}
-      <hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:12px 0">
-      <div class="field">
-        <label>新增待辦</label>
-        <div class="mw-add-row">
-          ${projectSelect}
-          <input type="time" id="mw-ev-time" title="時間(選填)">
+      ${existing ? `<hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:12px 0">` : ""}
+      <div class="mwn">
+        <div class="mwn-date">${dateIso} 待辦</div>
+        <div class="mwn-time">
+          <span class="mwn-ic">${MWN_ICON.clock}</span>
+          <select id="mw-ev-start" class="mwn-sel">${MWN_TIME_OPTS}</select>
+          <span class="mwn-dash">-</span>
+          <select id="mw-ev-end" class="mwn-sel">${MWN_TIME_OPTS}</select>
+          <label class="mwn-allday"><input type="checkbox" id="mw-ev-allday"> 全天</label>
         </div>
-        <textarea id="mw-ev-text" rows="3" placeholder="這天要做什麼..."></textarea>
-        <label class="mw-ev-important-row">
-          <input type="checkbox" id="mw-ev-important">
-          <span>標記為重要 <span class="helper-text">(會出現在今日重要待辦鈴鐺提醒)</span></span>
-        </label>
-        <label class="mw-ev-important-row">
+        <div class="mwn-label">這天要做什麼</div>
+        <textarea id="mw-ev-text" rows="4" placeholder="請輸入內容..."></textarea>
+        <div class="mwn-proj"><span class="mwn-ic">${MWN_ICON.person}</span>${projectSelect}</div>
+        <label class="mwn-notify">
           <input type="checkbox" id="mw-ev-notify">
-          <span>需要 LINE 推播 <span class="helper-text">(每天早上 9 點推播今日待辦;當天才新增的,在設定時間前 2 小時推播)</span></span>
+          <span>需要 <b>官方LINE</b> 推播 <small>(每天早上 9 點推播今日待辦;當天才新增的,在設定時間前 2 小時推播)</small></span>
         </label>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">關閉</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="button" class="btn-primary" id="mw-ev-add">新增</button>
       </div>
     </div>`
   );
 
+  // 右上角的叉叉改成「重要」星號(原本的「標記為重要」);關閉靠下方「取消」或點視窗外
+  let mwImportant = false;
+  const closeBtn = document.getElementById("modal-close-btn");
+  if (closeBtn) {
+    closeBtn.outerHTML = `<button type="button" class="mwn-star" id="mw-ev-star" aria-pressed="false" title="標記為重要(會出現在今日重要待辦鈴鐺提醒)">${MWN_ICON.star}</button>`;
+    document.getElementById("mw-ev-star").onclick = (e) => {
+      mwImportant = !mwImportant;
+      e.currentTarget.classList.toggle("on", mwImportant);
+      e.currentTarget.setAttribute("aria-pressed", String(mwImportant));
+    };
+  }
+  const startSel = document.getElementById("mw-ev-start");
+  const endSel = document.getElementById("mw-ev-end");
+  const allDay = document.getElementById("mw-ev-allday");
+  startSel.value = "09:00";
+  endSel.value = "10:00";
+  startSel.onchange = () => {
+    // 結束時間跟著往後排(開始 + 1 小時),避免結束早於開始
+    if (endSel.value <= startSel.value) {
+      const [h, m] = startSel.value.split(":").map(Number);
+      const t = Math.min(h * 60 + m + 60, 23 * 60 + 30);
+      endSel.value = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    }
+  };
+  allDay.onchange = () => {
+    startSel.disabled = endSel.disabled = allDay.checked;
+    document.querySelector(".mwn-time").classList.toggle("off", allDay.checked);
+  };
+
   document.getElementById("mw-ev-add").onclick = async () => {
     const content = document.getElementById("mw-ev-text").value.trim();
     if (!content) return;
     const pidRaw = document.getElementById("mw-ev-project").value;
-    const isImportant = document.getElementById("mw-ev-important").checked;
+    const isImportant = mwImportant;
     const wantNotify = document.getElementById("mw-ev-notify").checked;
-    const eventTime = document.getElementById("mw-ev-time").value || null;
+    const eventTime = allDay.checked ? null : startSel.value;
+    const eventEndTime = allDay.checked ? null : endSel.value;
+    if (eventTime && eventEndTime && eventEndTime <= eventTime) {
+      toast("結束時間必須晚於開始時間", "error");
+      return;
+    }
     try {
       await api("/dashboard/calendar", {
         method: "POST",
         body: {
           event_date: dateIso,
           event_time: eventTime,
+          event_end_time: eventEndTime,
           content,
           project_id: pidRaw ? Number(pidRaw) : null,
           is_important: isImportant,
@@ -402,7 +454,7 @@ function openMyWorkDay(dateIso, events) {
       const wrap = a.closest(".mw-daydetail-ev");
       const cur = events.find((x) => String(x.id) === a.dataset.mwEdit);
       const box = wrap.querySelector(".mw-ev-content");
-      box.innerHTML = `<input type="time" class="mw-ev-edit-time" style="margin-bottom:6px" value="${fmtEventTime(cur.event_time)}" title="時間(選填)">
+      box.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input type="time" class="mw-ev-edit-time" value="${fmtEventTime(cur.event_time)}" title="開始時間(選填)"><span>–</span><input type="time" class="mw-ev-edit-end" value="${fmtEventTime(cur.event_end_time)}" title="結束時間(選填)"></div>
         <textarea rows="3" style="width:100%">${escapeHtml(cur.content)}</textarea>
         <label class="mw-ev-important-row"><input type="checkbox" class="mw-ev-edit-notify" ${cur.notify ? "checked" : ""}><span>需要 LINE 推播</span></label>
         <div style="margin-top:6px;display:flex;gap:8px">
@@ -418,7 +470,9 @@ function openMyWorkDay(dateIso, events) {
             body: {
               content: val,
               notify: box.querySelector(".mw-ev-edit-notify").checked,
-              ...(timeVal ? { event_time: timeVal } : { clear_event_time: true }),
+              ...(timeVal
+                ? { event_time: timeVal, event_end_time: box.querySelector(".mw-ev-edit-end").value || null }
+                : { clear_event_time: true }),
             },
           });
           toast("已更新", "success");

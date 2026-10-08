@@ -38,6 +38,8 @@ class CalendarEvent(Base):
     # 一律是 NULL。案件的「公告/進度通知」卡片改成顯示當天行事曆提醒後,有時間的
     # 排前面、依時間排序,沒填時間的排最後。
     event_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # 選填的結束時間(例如 09:00–10:00);NULL = 只有開始時間或全天
+    event_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # 標記「重要」的待辦才會出現在全站頂端的鈴鐺提醒(見 routers/dashboard.py
     # get_today_important) - 一般行事曆備註太多了,全部推播會沒人想看。

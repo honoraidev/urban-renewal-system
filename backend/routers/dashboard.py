@@ -225,6 +225,7 @@ def get_my_work(
             id=e.id,
             event_date=e.event_date,
             event_time=normalize_event_time(e.event_time),
+            event_end_time=normalize_event_time(e.event_end_time),
             content=e.content,
             is_important=e.is_important,
             notify=e.notify,
@@ -354,6 +355,7 @@ def create_calendar_event(
         project_id=payload.project_id,
         event_date=payload.event_date,
         event_time=payload.event_time,
+        event_end_time=payload.event_end_time if payload.event_time is not None else None,
         content=payload.content.strip(),
         is_important=payload.is_important,
         notify=payload.notify,
@@ -379,6 +381,7 @@ def create_calendar_event(
         id=ev.id,
         event_date=ev.event_date,
         event_time=normalize_event_time(ev.event_time),
+        event_end_time=normalize_event_time(ev.event_end_time),
         content=ev.content,
         is_important=ev.is_important,
         notify=ev.notify,
@@ -410,8 +413,12 @@ def update_calendar_event(
         ev.notify = payload.notify
     if payload.clear_event_time:
         ev.event_time = None
-    elif payload.event_time is not None:
-        ev.event_time = payload.event_time
+        ev.event_end_time = None
+    else:
+        if payload.event_time is not None:
+            ev.event_time = payload.event_time
+        if payload.event_end_time is not None:
+            ev.event_end_time = payload.event_end_time
     db.commit()
     db.refresh(ev)
     project_name = None
@@ -423,6 +430,7 @@ def update_calendar_event(
         id=ev.id,
         event_date=ev.event_date,
         event_time=normalize_event_time(ev.event_time),
+        event_end_time=normalize_event_time(ev.event_end_time),
         content=ev.content,
         is_important=ev.is_important,
         notify=ev.notify,
