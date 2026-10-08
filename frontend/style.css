@@ -6005,4 +6005,15 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .modal-side-panel .mwn-star { margin-left: auto; margin-right: 4px; }
 .mwd2-time .mwd2-by { margin-left: auto; color: var(--text-muted); font-size: 13px; }
 .mwd2-foot { justify-content: flex-end; }
+.mwd2-time .mwd2-act { display: inline-flex; gap: 6px; margin-left: 10px; }
+.mwd2-time .mwd2-act a { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, #14b8a6 14%, var(--surface)); color: #0f9d93; }
+.mwd2-time .mwd2-act a svg { width: 17px; height: 17px; }
+.mwd2-time .mwd2-act a.del { background: color-mix(in srgb, #ef4444 13%, var(--surface)); color: #e5484d; }
+.mwd2-time .mwd2-act a:hover { filter: brightness(.94); }
+.mwd2-foot { display: none; }
+/* 時間列放不下時換行,建立人 + 編輯/刪除圖示一組靠右,不會被擠出卡片外 */
+.mwd2-time { flex-wrap: wrap; row-gap: 8px; }
+.mwd2-time .mwd2-right { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
+.mwd2-time .mwd2-right .mwd2-by { margin-left: 0; }
+.mwd2-time .mwd2-act { margin-left: 0; }
 
