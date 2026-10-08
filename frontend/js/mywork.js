@@ -393,6 +393,7 @@ function openMyWorkDay(dateIso, events) {
     // 「重要」星號放在視窗標題列、叉叉左邊(原本的「標記為重要」)
     let important = editing ? !!cur.is_important : false;
     const x = panel.querySelector("#modal-side-close-btn");
+    x.style.display = "none"; // 右側表單視窗不要叉叉,關閉只靠下方「取消」
     x.insertAdjacentHTML("beforebegin", `<button type="button" class="mwn-star${important ? " on" : ""}" id="mw-ev-star" aria-pressed="${important}" title="標記為重要(會出現在今日重要待辦鈴鐺提醒)">${MWN_ICON.star}</button>`);
     panel.querySelector("#mw-ev-star").onclick = (e) => {
       important = !important;
