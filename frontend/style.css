@@ -6031,3 +6031,6 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .mwd2-top { align-items: center; }
 .mwd2-time .mwd2-by { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border); color: var(--text-muted); font-size: 13px; }
 
+/* 公同共有膠囊 */
+.mini-badge-pool { margin-left: 6px; background: #fef3c7; color: #b45309; border: 0; font-weight: 800; }
+

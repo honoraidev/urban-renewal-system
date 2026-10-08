@@ -38,6 +38,15 @@ async function _refreshBackgroundIfBuilding() {
 }
 
 // 「整合清冊」:一列 = 一位地主,土地 + 建物資料合併呈現。純檢視。
+// 公同共有:DB 存折算後個人持分(謄本分數 ÷ 共有人數),畫面照謄本顯示原分數 + 「公同共有」膠囊
+const landShareText = (r) => {
+  const pool = Number(r.pooled_size) || 1;
+  const den = r.is_pooled && pool > 1 && r.ownership_denominator % pool === 0 ? r.ownership_denominator / pool : r.ownership_denominator;
+  return `${r.ownership_numerator}/${den}`;
+};
+const poolCapsule = (r) => (r.is_pooled ? '<span class="mini-badge mini-badge-pool" title="公同共有:共同持有這一份,面積已依共有人數折算">公同共有</span>' : "");
+const landShareHtml = (r) => `${escapeHtml(landShareText(r))}${poolCapsule(r)}`;
+
 function _shortDoorAddr(addr) {
   if (!addr) return "";
   const s = String(addr).trim().replace(/[０-９]/g, (d) => "０１２３４５６７８９".indexOf(d));
@@ -396,7 +405,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
     const hay = `${o.name} ${o.id_number || ""} ${lr.map((r) => r.parcel_number).join(" ")} ${br.map((r) => r.address).join(" ")} ${br.map(_floorLabelOf).join(" ")}`.toLowerCase();
     const visitTok = contactTokens(o).join(" ");
     const sectionInfo = uniqJoin(lr.map((r) => `${r.section || ""}${r.subsection || ""}`));
-    const landShare = uniqJoin(lr.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
+    const landShare = [...new Set(lr.map(landShareHtml))].join("、");
     const bldShare = uniqJoin(br.map((r) => `${r.ownership_numerator}/${r.ownership_denominator}`));
     const sub = (s) => (s ? `<div class="cell-sub">${escapeHtml(s)}</div>` : "");
     return `<tr data-hay="${escapeHtml(hay)}" data-visit-tok="${visitTok}" data-owner-id="${o.id}">
@@ -424,7 +433,7 @@ async function renderIntegratedCombinedView(el, titleText = "整合清冊") {
             <td class="col-nowrap">${escapeHtml(uniqJoin(lr.map((r) => r.parcel_number))) || "-"}${sub(sectionInfo)}</td>
             <td class="col-name">${escapeHtml(o.name)}</td>
             <td class="num">${fmt2(landSqm)}</td>
-            <td class="num">${fmt2(landSqm * 0.3025)}${sub(landShare)}</td>
+            <td class="num">${fmt2(landSqm * 0.3025)}${landShare ? `<div class="cell-sub">${landShare}</div>` : ""}</td>
             <td class="num">${fmt2(bldSqm)}</td>
             <td class="num">${fmt2(bldSqm * 0.3025)}${sub(bldShare)}</td>
             <td class="row-actions">
@@ -592,7 +601,7 @@ function ownerDetailRowHtml(o, colspan, contact) {
                     <td>${escapeHtml(lr.parcel_number)}</td>
                     <td>${escapeHtml(lr.section) || "-"}</td>
                     <td>${fmtArea(lr.total_area_sqm)}</td>
-                    <td>${lr.ownership_numerator}/${lr.ownership_denominator}</td>
+                    <td>${landShareHtml(lr)}</td>
                     <td>${fmtArea(lr.owned_area_sqm)}</td>
                     <td>${lr.ownership_share_pct == null ? "-" : `${fmtPct(lr.ownership_share_pct)}%`}</td>
                     ${isEditor()
@@ -765,7 +774,7 @@ async function renderLandownersTypeTab(el, type, titleText = "") {
       .map((o, rowIdx) => {
         const records = isLand ? o.land_records : o.building_records;
         const shareLabel = records.length
-          ? `${records[0].ownership_numerator}/${records[0].ownership_denominator}${records.length > 1 ? ` 等${records.length}筆` : ""}`
+          ? `${isLand ? landShareHtml(records[0]) : `${records[0].ownership_numerator}/${records[0].ownership_denominator}`}${records.length > 1 ? ` 等${records.length}筆` : ""}`
           : "-";
         return `
             <tr data-row-owner="${o.id}">
