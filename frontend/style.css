@@ -6016,4 +6016,10 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .mwd2-time .mwd2-right { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
 .mwd2-time .mwd2-right .mwd2-by { margin-left: 0; }
 .mwd2-time .mwd2-act { margin-left: 0; }
+/* 當日行事曆:日期與筆數放在標題列左邊,顯著標示 */
+.mwd2-htitle { gap: 12px; flex-wrap: wrap; }
+.mwd2-hdate { font-size: 22px; font-weight: 900; color: var(--text); letter-spacing: .01em; }
+.mwd2-hcount { padding: 3px 12px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #2fbfae, #12a39e); box-shadow: 0 4px 10px -4px rgba(18, 163, 158, .7); }
+.mwd2-hname { font-size: 15px; font-weight: 700; color: var(--text-muted); padding-left: 12px; border-left: 2px solid var(--border); }
+.mwd2-list { min-height: 220px; }
 

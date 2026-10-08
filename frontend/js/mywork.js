@@ -353,13 +353,12 @@ function openMyWorkDay(dateIso, events) {
   };
 
   openModal(
-    `<span class="mwn-title"><span class="mwn-title-ic">${MWN_ICON.cal}</span>當日行事曆</span>`,
+    `<span class="mwn-title mwd2-htitle"><span class="mwn-title-ic">${MWN_ICON.cal}</span><span class="mwd2-hdate">${dateIso} (${dow})</span><span class="mwd2-hcount">${events.length} 筆事項</span><span class="mwd2-hname">當日行事曆</span></span>`,
     `<div class="mwd2">
-      <div class="mwd2-head"><span class="mwd2-date">${dateIso} (${dow})</span><span class="mwd2-count">${events.length} 筆事項</span></div>
       <div class="mwd2-list">${events.length ? events.map(cardHtml).join("") : '<div class="mwd2-empty">這天還沒有待辦</div>'}</div>
       <button type="button" class="mwd2-add" id="mw-day-add"><span>＋</span> 新增行事曆活動</button>
     </div>`,
-    { width: "440px" }
+    { width: "560px" }
   );
 
   // ---- 右側表單視窗(新增 / 編輯共用)----
