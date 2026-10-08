@@ -48,6 +48,8 @@ class CalendarEvent(Base):
     is_important: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 勾選「需要 LINE 推播」:每天早上 9 點推今日待辦;當天 9 點後才新增的,在設定時間前 2 小時推(沒設時間就立刻推)
     notify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 公開待辦:taipei / taoyuan = 該分部所有人都看得到(project_id 為 NULL);NULL = 個人或案件共用
+    public_branch: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # 案件總覽「待辦事項」歸在哪一關(SOP 關卡編號,絕對值) - NULL = 沒指定,歸在「這階段」。
     sop_stage: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

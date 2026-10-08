@@ -39,6 +39,7 @@ class CalendarEventItem(BaseModel):
     notify: bool = False
     project_id: int | None = None
     project_name: str | None = None
+    public_branch: str | None = None
     created_by: int | None = None
     created_by_name: str | None = None
     can_edit: bool
@@ -66,6 +67,7 @@ class CalendarEventCreate(BaseModel):
     title: str | None = Field(default=None, max_length=120)
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
+    public_branch: str | None = Field(default=None, pattern="^(taipei|taoyuan)$")
     is_important: bool = False
     notify: bool = False
     sop_stage: int | None = Field(default=None, ge=0, le=99)

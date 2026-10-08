@@ -14,6 +14,7 @@ from models.sop import SopStage
 from models.user import User
 from routers.project_overview import _stage_task_block, urgent_sop_bell_items
 from routers.sop import _resolved_stages, pending_manager_review_bell_items, rejected_checklist_bell_items
+from utils.branch import user_branches
 from utils.todo_priority import DUE_URGENT_DAYS, todo_priority
 from schemas.dashboard import (
     CalendarEventCreate,
@@ -126,9 +127,13 @@ def get_my_work(
     today_date = now.date()
     calendar_today_query = select(CalendarEvent).where(CalendarEvent.event_date == today_date)
     if is_team:
-        calendar_today_query = calendar_today_query.where(CalendarEvent.project_id.in_(project_ids))
+        calendar_today_query = calendar_today_query.where(
+            CalendarEvent.project_id.in_(project_ids) | _public_filter(current_user)
+        )
     else:
-        calendar_today_query = calendar_today_query.where(CalendarEvent.created_by == current_user.id)
+        calendar_today_query = calendar_today_query.where(
+            (CalendarEvent.created_by == current_user.id) | _public_filter(current_user)
+        )
     today_events = [(e, normalize_event_time(e.event_time)) for e in db.scalars(calendar_today_query).all()]
     today_events.sort(key=lambda pair: (pair[1] is None, pair[1] or time.min, pair[0].id))
 
@@ -145,7 +150,7 @@ def get_my_work(
             event_time=et,
             is_important=e.is_important,
             project_id=e.project_id,
-            project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
+            project_name=_event_label(e, project_name_by_id),
             created_at=datetime.combine(e.event_date, et or time.min),
             user_name=feed_user_names.get(e.created_by),
         )
@@ -201,6 +206,7 @@ def get_my_work(
     # --- 行事曆 (this month) ---
     norm_month, first_day, next_month = _month_bounds(month)
     ev_filter = CalendarEvent.created_by == current_user.id
+    ev_filter = ev_filter | _public_filter(current_user)
     if project_ids:
         ev_filter = ev_filter | CalendarEvent.project_id.in_(project_ids)
     events = db.scalars(
@@ -231,7 +237,8 @@ def get_my_work(
             is_important=e.is_important,
             notify=e.notify,
             project_id=e.project_id,
-            project_name=project_name_by_id.get(e.project_id) if e.project_id else None,
+            project_name=_event_label(e, project_name_by_id),
+            public_branch=e.public_branch,
             created_by=e.created_by,
             created_by_name=creator_names.get(e.created_by),
             can_edit=is_manager or e.created_by == current_user.id,
@@ -320,6 +327,23 @@ def get_today_important(
     return items
 
 
+PUBLIC_LABEL = {"taipei": "台北分部公開", "taoyuan": "桃園分部公開"}
+
+
+def _public_filter(user: User):
+    """該使用者看得到的「公開待辦」:L0 看全部分部,其他人只看自己所屬分部。"""
+    if user.role == "sys_admin":
+        return CalendarEvent.public_branch.in_(["taipei", "taoyuan"])
+    mine = list(user_branches(user))
+    return CalendarEvent.public_branch.in_(mine) if mine else CalendarEvent.id < 0
+
+
+def _event_label(ev: CalendarEvent, project_name_by_id: dict) -> str | None:
+    if ev.project_id:
+        return project_name_by_id.get(ev.project_id)
+    return PUBLIC_LABEL.get(ev.public_branch or "")
+
+
 def _get_event_or_404(db: Session, event_id: int) -> CalendarEvent:
     ev = db.get(CalendarEvent, event_id)
     if ev is None:
@@ -351,9 +375,12 @@ def create_calendar_event(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="地主帳號不可使用")
     if payload.project_id is not None:
         _assert_can_use_project(db, current_user, payload.project_id)
+    elif payload.public_branch and current_user.role != "sys_admin" and payload.public_branch not in user_branches(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能對自己所屬分部發布公開待辦")
     ev = CalendarEvent(
         created_by=current_user.id,
         project_id=payload.project_id,
+        public_branch=payload.public_branch if payload.project_id is None else None,
         event_date=payload.event_date,
         event_time=payload.event_time,
         event_end_time=payload.event_end_time if payload.event_time is not None else None,
@@ -375,7 +402,7 @@ def create_calendar_event(
             _bell_notify_pass(db)
         except Exception as exc:
             print(f"[calendar_event] immediate notify failed (ignored): {exc!r}", flush=True)
-    project_name = None
+    project_name = PUBLIC_LABEL.get(ev.public_branch or "")
     if ev.project_id:
         p = db.get(Project, ev.project_id)
         project_name = p.name if p else None
@@ -390,6 +417,7 @@ def create_calendar_event(
         notify=ev.notify,
         project_id=ev.project_id,
         project_name=project_name,
+        public_branch=ev.public_branch,
         created_by=ev.created_by,
         created_by_name=current_user.display_name,
         can_edit=True,
@@ -426,7 +454,7 @@ def update_calendar_event(
             ev.event_end_time = payload.event_end_time
     db.commit()
     db.refresh(ev)
-    project_name = None
+    project_name = PUBLIC_LABEL.get(ev.public_branch or "")
     if ev.project_id:
         p = db.get(Project, ev.project_id)
         project_name = p.name if p else None
@@ -442,6 +470,7 @@ def update_calendar_event(
         notify=ev.notify,
         project_id=ev.project_id,
         project_name=project_name,
+        public_branch=ev.public_branch,
         created_by=ev.created_by,
         created_by_name=creator.display_name if creator else None,
         can_edit=True,

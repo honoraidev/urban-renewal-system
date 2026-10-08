@@ -112,6 +112,7 @@ def _auto_migrate() -> None:
         ("calendar_events", "title", "VARCHAR(120) NULL"),
         ("calendar_events", "event_end_time", "TIME NULL"),
         ("calendar_events", "notify", "TINYINT(1) NOT NULL DEFAULT 0"),
+        ("calendar_events", "public_branch", "VARCHAR(16) NULL"),
         ("company_documents", "version", "INT NOT NULL DEFAULT 1"),
         ("company_documents", "is_latest", "TINYINT(1) NOT NULL DEFAULT 1"),
         ("projects", "branch", "VARCHAR(10) NULL DEFAULT 'all'"),

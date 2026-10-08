@@ -361,8 +361,13 @@ function openMyWorkDay(dateIso, events) {
   // ---- 右側表單視窗(新增 / 編輯共用)----
   const openForm = (cur) => {
     const editing = !!cur;
+    // 公開待辦:台北 / 桃園分部分開,只能對自己所屬分部發布(L0 兩邊都可以)
+    const myDepts = (state.user && state.user.departments) || [];
+    const mineBr = new Set(myDepts.filter((d) => String(d).trim()).map((d) => (String(d).includes("桃園") ? "taoyuan" : "taipei")));
+    const pubBranches = state.user && state.user.role === "sys_admin" ? ["taipei", "taoyuan"] : ["taipei", "taoyuan"].filter((b) => mineBr.has(b));
     const projectSelect = `<select id="mw-ev-project" ${editing ? "disabled" : ""}>
       <option value="">個人（只有自己看得到）</option>
+      ${pubBranches.map((b) => `<option value="pub:${b}" ${editing && cur.public_branch === b ? "selected" : ""}>公開（${b === "taoyuan" ? "桃園" : "台北"}分部所有人都看得到）</option>`).join("")}
       ${opts.map((p) => `<option value="${p.id}" ${editing && cur.project_id === p.id ? "selected" : ""}>${escapeHtml(p.name)}（案件成員共用）</option>`).join("")}
     </select>`;
     const panel = openSidePanel(
@@ -466,7 +471,8 @@ function openMyWorkDay(dateIso, events) {
               event_end_time: eventEndTime,
               title: evTitle || null,
               content,
-              project_id: pidRaw ? Number(pidRaw) : null,
+              project_id: pidRaw && !pidRaw.startsWith("pub:") ? Number(pidRaw) : null,
+              public_branch: pidRaw.startsWith("pub:") ? pidRaw.slice(4) : null,
               is_important: important,
               notify: wantNotify,
             },
