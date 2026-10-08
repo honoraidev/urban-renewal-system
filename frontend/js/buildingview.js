@@ -172,7 +172,7 @@ function buildingViewSummaryHtml(stats) {
       <div class="bv-chips">
         ${chip("agreed", BV_ICON.check, "同意 (已整合)", stats.agreed)}
         ${chip("opposed", BV_ICON.alert, "反對", stats.opposed)}
-        ${chip("other", BV_ICON.dots, "其他 (未決定/需回電/未接聽/未聯絡)", stats.other)}
+        ${chip("other", BV_ICON.dots, "其他 (未決定/未接聽/未聯絡)", stats.other)}
         ${chip("shared", BV_ICON.users, "多位共有", stats.shared, "多位共同持分的地下層戶(常見於依持分比例登記的地下室/車位建號),紫色格子,人數獨立統計不併入同意/反對/其他")}
       </div>
       <div class="bv-tip">💡點格子開地主編輯視窗 · 統計以「人」為單位,同一戶意見不一時同意/反對的人分別計算</div>
@@ -282,7 +282,7 @@ function buildingViewGroupCardHtml(g) {
           <div class="bv-stat-title">人員狀態統計</div>
           ${statRow("agreed", "同意 (已整合)", st.agreed)}
           ${statRow("opposed", "反對", st.opposed)}
-          ${statRow("other", "其他 (未決定/需回電/未接聽/未聯絡)", st.other)}
+          ${statRow("other", "其他 (未決定/未接聽/未聯絡)", st.other)}
           ${statRow("shared", "多位共有(地下層,獨立統計)", st.shared)}
           <div class="bv-stat-total"><span>總人數</span><b>${st.total}</b></div>
         </aside>

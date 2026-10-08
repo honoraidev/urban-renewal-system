@@ -45,7 +45,7 @@ const landShareText = (r) => {
   return `${r.ownership_numerator}/${den}`;
 };
 const poolCapsule = (r) => (r.is_pooled ? '<span class="mini-badge mini-badge-pool" title="公同共有:共同持有這一份,面積已依共有人數折算">公同共有</span>' : "");
-const landShareHtml = (r) => `${escapeHtml(landShareText(r))}${poolCapsule(r)}`;
+const landShareHtml = (r) => `${poolCapsule(r)}${escapeHtml(landShareText(r))}`;
 
 function _shortDoorAddr(addr) {
   if (!addr) return "";
