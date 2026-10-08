@@ -126,9 +126,20 @@ def upload_company_document(
     with open(disk_path, "wb") as out:
         out.write(content)
 
+    # 檔名自動改成「分部-分類名稱」(例如:台北-意願書範本.docx);同名已存在就加 (2)、(3)…;副檔名保留
+    label = {"taoyuan": "桃園", "taipei": "台北"}.get(branch, "共用")
+    cat_name = (category or "").strip() or "未分類"
+    ext = os.path.splitext(file.filename or stored_name)[1]
+    base = f"{label}-{cat_name}"
+    taken = set(db.scalars(select(CompanyDocument.file_name).where(CompanyDocument.file_name.like(f"{base}%"))).all())
+    final_name, n = f"{base}{ext}", 1
+    while final_name in taken:
+        n += 1
+        final_name = f"{base} ({n}){ext}"
+
     document = CompanyDocument(
         category=category,
-        file_name=file.filename or stored_name,
+        file_name=final_name,
         file_path=disk_path,
         file_size_bytes=len(content),
         mime_type=file.content_type,

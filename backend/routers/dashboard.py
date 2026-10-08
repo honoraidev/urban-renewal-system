@@ -298,7 +298,12 @@ def get_today_important(
     items += [TodayImportantItem(**it) for it in urgent_sop_bell_items(db, projects)]
     items += [TodayImportantItem(**it) for it in rejected_checklist_bell_items(db, projects)]
     if current_user.role in MANAGE_ROLES:
-        items += [TodayImportantItem(**it) for it in pending_manager_review_bell_items(db, projects)]
+        # 待主管審核:只通知「該案件的相關人員裡的主管」—— 管理層但不是這個案件成員的人收不到
+        my_pids = set(
+            db.scalars(select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)).all()
+        )
+        review_projects = [p for p in projects if p.id in my_pids]
+        items += [TodayImportantItem(**it) for it in pending_manager_review_bell_items(db, review_projects)]
     for e in events:
         if e.event_date == today and e.is_important and e.id not in seen:
             items.append(_todo_item(e, "今天標為重要"))
