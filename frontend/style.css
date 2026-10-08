@@ -5806,3 +5806,5 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .manual-body::before { left: 0 !important; right: auto !important;
   -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important;
   mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,.7) 40%, #000 100%), linear-gradient(to bottom, #000 80%, transparent 100%) !important; }
+/* 章節標題與左側「目錄」字樣同一水平線(電腦版) */
+@media (min-width: 1120px) { .manual-body { padding-top: 112px !important; } .manual-slogan { top: 70px; } }
