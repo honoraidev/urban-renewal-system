@@ -343,12 +343,9 @@ function openMyWorkDay(dateIso, events) {
           ${body ? `<div class="mwd2-b">${escapeHtml(body)}</div>` : ""}
         </div>
         <span class="mwd2-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
+        ${e.can_edit ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}" title="編輯" aria-label="編輯">${MWN_ICON.edit}</a><a href="#" class="del" data-mw-del="${e.id}" title="刪除" aria-label="刪除">${MWN_ICON.trash}</a></span>` : ""}
       </div>
-      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}<span class="mwd2-right"><span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span>${
-        e.can_edit
-          ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}" title="編輯" aria-label="編輯">${MWN_ICON.edit}</a><a href="#" class="del" data-mw-del="${e.id}" title="刪除" aria-label="刪除">${MWN_ICON.trash}</a></span>`
-          : ""
-      }</span></div>
+      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}<span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span></div>
     </div>`;
   };
 
