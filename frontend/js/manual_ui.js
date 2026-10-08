@@ -21,6 +21,8 @@
       }
       cur.appendChild(el);
     });
+    // 章節編號寫成 data-n(CSS counter 遇到 display:none 的章節不會計數,會全部變成 1)
+    sections.forEach((sec, i) => { const h = sec.querySelector("h3"); if (h) h.dataset.n = String(i + 1); });
     const show = (id) => {
       const target = "sec-" + id;
       let found = false;

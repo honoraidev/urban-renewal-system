@@ -5741,3 +5741,28 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   .manual-layout { grid-template-columns: 330px minmax(0, 1fr); gap: 22px; }
   .manual-side { position: sticky; top: 16px; }
 }
+
+/* 使用手冊內容:專有名詞 / 頁面名稱要醒目 */
+.manual-body .manual-term { color: #0b7d76; font-weight: 800; background: linear-gradient(transparent 62%, color-mix(in srgb, #14b8a6 28%, transparent) 62%); padding: 0 2px; }
+.manual-body .manual-path { color: #0b6a64; font-weight: 800; background: color-mix(in srgb, #14b8a6 14%, var(--surface)); border: 1px solid color-mix(in srgb, #14b8a6 38%, transparent); border-radius: 8px; padding: 1px 9px; margin: 0 2px; font-size: .95em; }
+.manual-body h4 { font-size: 17px; margin: 26px 0 8px; padding-left: 12px; border-left: 4px solid var(--brand); }
+.manual-purpose { padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, #14b8a6 8%, var(--surface)); color: var(--text); }
+.manual-warn { max-width: 1000px; }
+.manual-q { margin: 22px 0 4px !important; font-size: 16px; color: var(--text); }
+.manual-q .manual-term { background: none; color: #0b7d76; font-size: 16px; }
+.manual-foot-co { margin-top: 36px !important; text-align: right; color: var(--text); font-size: 16px; }
+.manual-foot { text-align: right; font-size: 12.5px; color: var(--text-muted); }
+.manual-sec ol { max-width: 800px; }
+
+/* 使用手冊:左上標題卡透明、卡片高度填滿頁面、章節標題往下移 */
+#view-manual .manual-head-card { background: transparent !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none; padding-left: 4px; }
+@media (min-width: 1120px) {
+  .manual-layout { align-items: stretch; }
+  .manual-side { position: static; display: flex; flex-direction: column; }
+  .manual-side .manual-toc { flex: 1; }
+  .manual-body { min-height: calc(100vh - 120px); }
+}
+.manual-body { padding-top: 64px; }
+@media (max-width: 1119px) { .manual-body { padding-top: 24px; } }
+.manual-body h3::before { content: attr(data-n) !important; }
+

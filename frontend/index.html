@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261008_1">
+  <link rel="stylesheet" href="style.css?v=20261008_4">
 </head>
 
 <body>
@@ -757,151 +757,237 @@
 
                   <div class="manual-slogan">讓建築管理<br>更簡單、更高效<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 11C50 2 120 2 198 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
 
-                  <h3 id="manual-overview">系統是什麼</h3>
-                  <p>本系統把都市更新案件從<strong>籌備立案</strong>到<strong>雙門檻同意達標</strong>的作業集中管理,主要涵蓋:</p>
+                  <h3 id="manual-overview">系統介紹</h3>
+                  <p>丞石建築都更管理系統是公司內部的都市更新案件管理平台，將案件進度、地主資料、土地及建物謄本、文件、費用與作業工具集中管理。</p>
+                  <p>主要功能包含：</p>
                   <ul>
-                    <li data-ic="📄">謄本檔案匯入 → 土地／建物登記、地主資料的建立與校正</li>
-                    <li data-ic="👥">地主聯絡紀錄、聯絡率統計</li>
-                    <li data-ic="🥧">同意書管理、同意度(人數 + 土地持分雙門檻)試算</li>
-                    <li data-ic="📋">SOP進度與檢核清單</li>
-                    <li data-ic="📁">案件文件庫、費用登錄(可用OCR掃描)、土地增值稅試算</li>
-                    <li data-ic="📊">地主清冊 Excel 匯出</li>
+                  <li data-ic="📅"><strong class="manual-term">工作看板</strong>：查看行事曆、地主跟進事項及案件待辦。</li>
+                  <li data-ic="📁"><strong class="manual-term">案件管理</strong>：建立案件、管理進度及執行 SOP。</li>
+                  <li data-ic="📄"><strong class="manual-term">謄本辨識</strong>：擷取土地與建物謄本資料，輔助建立登記清冊。</li>
+                  <li data-ic="👥"><strong class="manual-term">地主資料管理</strong>：管理所有權人資料、聯絡紀錄及同意狀態。</li>
+                  <li data-ic="🧾"><strong class="manual-term">文件與費用</strong>：管理案件文件、登錄費用及掃描發票。</li>
+                  <li data-ic="🧮"><strong class="manual-term">計算工具</strong>：製作清冊及試算土地增值稅。</li>
+                  <li data-ic="📚"><strong class="manual-term">公司資源</strong>：查詢公版文件、法規、新聞、相關網站及知識庫。</li>
                   </ul>
-                  <div class="manual-tw">
-                    <table class="manual-table">
-                      <thead><tr><th>角色</th><th>可做的事</th></tr></thead>
-                      <tbody>
-                        <tr><td>👤 管理者 / 主管</td><td>建立／刪除案件、指派案件人員、使用者管理、看登入紀錄,所有資料可編輯</td></tr>
-                        <tr><td>✏️ 承辦 / 編輯者</td><td>被指派案件的登記資料、聯絡紀錄、文件、費用、SOP 操作</td></tr>
-                        <tr><td>👁️ 檢視者</td><td>唯讀</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <p class="manual-note">看不到某個頁籤或按鈕,通常是角色權限,或「不是這個案件的成員」。請管理者調整。</p>
-
+                  <p>系統依使用者角色與案件成員身分提供不同的操作權限。</p>
                   <h3 id="manual-start">登入與介面導覽</h3>
-                  <p>以帳號密碼登入,若忘記帳號與密碼請聯絡管理員。左側選單分區:</p>
+                  <h4>2.1 登入系統</h4>
+                  <ol>
+                  <li>開啟都更管理系統網站。</li>
+                  <li>輸入公司提供的帳號與密碼。</li>
+                  <li>點擊<span class="manual-path">登入</span>。</li>
+                  <li>登入成功後，進入系統操作介面。</li>
+                  </ol>
+                  <p>若忘記帳號或密碼，請聯絡系統管理員協助處理。</p>
+                  <h4>2.2 左側功能選單</h4>
+                  <p><strong class="manual-term">總覽</strong></p>
                   <ul>
-                    <li><strong>總覽</strong> — <em>工作看板</em>(左側行事曆、今日要跟進的地主、提醒事項:今天的行事曆事項 + 各案件這階段還沒完成的 SOP 待辦)、<em>案件總覽</em>(所有案件的關卡狀態一覽)。</li>
-                    <li><strong>案件管理</strong> — 依縣市分組的案件清單,點案件名稱進入該案件。</li>
-                    <li><strong>工具與資源</strong> — 公版文件、新聞、相關法規、相關網站、Q&amp;A 知識庫、部門物品管制表。</li>
-                    <li><strong>系統指南</strong> — 本使用手冊、功能區。</li>
+                  <li><span class="manual-path">工作看板</span>：查看行事曆、提醒事項與待辦工作。</li>
+                  <li><span class="manual-path">案件總覽</span>：查看各案件的 SOP 進度。</li>
                   </ul>
-                  <p>側邊欄可點側邊欄頂端的收合按鈕收合;收合狀態下點「案件管理」「工具與資源」「系統指南」的圖示,會在圖示旁邊彈出小浮窗顯示裡面的項目,不用整條展開側邊欄。各頁面最上方有「首頁 › ...」麵包屑,點「首頁」統一回到工作看板。</p>
-                  <p>右上角頭像:編輯個人資料、切換深／淺色、登出;管理者另有「使用者管理」「登入紀錄」。手機版左上角 ☰ 開合側欄。</p>
-
-                  <h3 id="manual-quickstart">快速上手</h3>
+                  <p><strong class="manual-term">案件管理</strong></p>
+                  <ul>
+                  <li>查看公司案件清單。</li>
+                  <li>搜尋指定案件。</li>
+                  <li>進入案件操作介面。</li>
+                  </ul>
+                  <p><strong class="manual-term">工具與資源</strong></p>
+                  <ul>
+                  <li><span class="manual-path">公版文件</span></li>
+                  <li><span class="manual-path">新聞</span></li>
+                  <li><span class="manual-path">相關法規</span></li>
+                  <li><span class="manual-path">相關網站</span></li>
+                  <li><span class="manual-path">Q&amp;A 知識庫</span></li>
+                  <li><span class="manual-path">部門物品管制表</span></li>
+                  </ul>
+                  <p><strong class="manual-term">系統指南</strong></p>
+                  <ul>
+                  <li><span class="manual-path">使用手冊</span></li>
+                  <li><span class="manual-path">功能區</span></li>
+                  </ul>
+                  <h4>2.3 個人設定</h4>
+                  <p>點擊右上角個人頭像，可依權限使用個人資料編輯、深色／淺色模式切換及登出功能。</p>
+                  <p>管理者另可使用<span class="manual-path">使用者管理</span>與<span class="manual-path">登入紀錄</span>功能。</p>
+                  <h4>2.4 介面操作</h4>
+                  <ul>
+                  <li>點擊左側選單可切換不同功能。</li>
+                  <li>點擊側邊欄收合按鈕，可縮小導覽列。</li>
+                  <li>點擊頁面上方<span class="manual-path">首頁</span>，可返回<span class="manual-path">工作看板</span>。</li>
+                  <li>手機版可使用左上角選單按鈕開啟導覽列。</li>
+                  </ul>
+                  <h3 id="manual-quickstart">新手快速上手</h3>
+                  <p>建議第一次操作系統的同仁依照下列順序建立案件。</p>
+                  <h4>步驟一：建立新案件</h4>
                   <ol>
-                    <li>總覽頁右上 <strong>「+ 新增案件」</strong>,填案件名稱、縣市等基本資料。</li>
-                    <li>從左側「案件管理」點進該案件,在 <span class="manual-path">SOP 進度</span> 頁籤。</li>
-                    <li>展開 <strong>第0關「初始核定立案」</strong>,上傳投報表,確認後完成本關。</li>
-                    <li>展開 <strong>第1關「籌備階段」</strong>,上傳地籍圖;上傳土地登記／建物謄本,兩者逐筆對照謄本校正(地號、建號、所有權人、持分分子／分母、面積、他項權利、戶籍地址),確認無誤後一鍵匯入,再點 <strong>「確認地主清冊正確」</strong>,系統會自動下載檔名為「<em>案件名稱</em>清冊.xlsx」的清冊。</li>
+                  <li>進入總覽頁面。</li>
+                  <li>點擊<span class="manual-path">+ 新增案件</span>。</li>
+                  <li>填寫案件名稱、縣市等基本資料。</li>
+                  <li>儲存後，至<span class="manual-path">案件管理</span>找到該案件。</li>
                   </ol>
-                  <p class="manual-note">若後續須修地主資料,可至<span class="manual-path">整合清冊</span>與<span class="manual-path">樓棟視圖</span>修改。</p>
-                  <p>之後依序推進第2關以後:在<span class="manual-path">樓棟視圖</span>頁面可記錄各地主的聯絡狀況、文件頁維護同意書、系統即時算聯絡率與同意度。</p>
-
-                  <h3 id="manual-sop">SOP逐關說明</h3>
-                  <p>在 <span class="manual-path">SOP 進度</span> 頁籤逐關推進。每關展開後有檢核清單,必要文件／資料補齊並勾選確認後,才能按「完成本關卡」;已完成的關卡不可退回。管理者可以在 SOP 頁點<strong>「自訂關卡流程」</strong>調整關卡順序、名稱與門檻條件 —— 只能調整<strong>還沒跑到的未來關卡</strong>,已完成或正在進行的關卡不受影響。</p>
-                  <p class="manual-note">「不可退回」指的是<strong>整關</strong>完成後不能重來;關卡進行中,檢核清單裡的個別項目還是可以重新操作 —— 例如第1關的「上傳土地／建物謄本」可以重新上傳,「確認地主清冊正確」也可以先取消確認、修正資料後再重新確認,不受影響。</p>
-                  <div class="manual-tw">
-                    <table class="manual-table">
-                      <thead><tr><th>預設關卡</th><th>檢核清單重點</th></tr></thead>
-                      <tbody>
-                        <tr><td>第0關 · 初始核定立案</td><td>上傳投報表</td></tr>
-                        <tr><td>第1關 · 籌備階段</td><td>上傳地籍圖;匯入並校正土地與建物謄本;確認地主清冊正確、產出 Excel</td></tr>
-                        <tr><td>第2關 · 地主拜訪</td><td>建立地主聯絡方式,聯絡率達 95% 門檻</td></tr>
-                        <tr><td>第3關 · 都更說明會</td><td>上傳說明會簡報,主管審核通過</td></tr>
-                        <tr><td>第4關 · 意願書簽署</td><td>雙門檻同意度:人數同意率、土地持分同意率兩者都要 ≥ 80%</td></tr>
-                        <tr><td>第5關 · 圖面規劃與估價</td><td>上傳顧問文件、建築圖面、估價結果,主管審核通過</td></tr>
-                        <tr><td>第6關 · 第2次都更說明會</td><td>上傳說明會簡報、同意書、合約、董事長簽核之投報表、分坪、邀請函,主管審核通過</td></tr>
-                        <tr><td>第7關 · 合約說明會</td><td>上傳說明會簡報,主管審核通過</td></tr>
-                        <tr><td>第8關 · 簽約會</td><td>雙門檻同意度再次確認 ≥ 80%</td></tr>
-                        <tr><td>第9關 · 送件審查</td><td>雙門檻同意度最終確認 ≥ 80%</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <p class="manual-note">同意度與聯絡率是由「登記資料」「地主聯絡紀錄」「文件(同意書狀態)」的資料<strong>即時彙算</strong>的,不用手動填百分比;「主管審核通過」這類項目只有管理層(L0~L2)可以確認。</p>
-
-                  <h3 id="manual-tabs">案件內各頁籤</h3>
-                  <div class="manual-tw">
-                    <table class="manual-table">
-                      <thead><tr><th>頁籤</th><th>做什麼</th></tr></thead>
-                      <tbody>
-                        <tr><td>SOP 進度</td><td>關卡進度、檢核清單、關卡文件上傳、完成／退回關卡</td></tr>
-                        <tr><td>整合清冊</td><td>土地 × 建物 × 地主的整合檢視;可依聯絡結果、持分類型、地號段別、樓層範圍篩選、透過前次移轉現值或原規定地價計算土增稅</td></tr>
-                        <tr><td>樓棟視圖</td><td>依門牌／樓層排的棟別格狀圖,格內顏色 = 同意狀態,角標數字 = 該戶共有人數;共有部分／純地下室建號不列入;點格子開「編輯地主」視窗可查看/新增聯絡紀錄</td></tr>
-                        <tr><td>地主聯絡簿</td><td>純聯絡資訊清單(姓名、建物門牌、電話、戶籍地址),外出拜訪前快速核對用;詳細的拜訪/聯絡紀錄仍在「編輯地主」視窗管理</td></tr>
-                        <tr><td>文件</td><td>案件文件庫,含同意書狀態(影響同意度)</td></tr>
-                        <tr><td>他項權利部</td><td>抵押權、地上權等他項權利登記</td></tr>
-                        <tr><td>費用</td><td>案件支出登錄;可用「發票掃描」拍照／上傳自動回填金額</td></tr>
-                        <tr><td>土增稅</td><td>自用／一般稅率同時試算。「原規定地價／前次移轉現值」在整合清冊(土地登記檢視)改、此頁唯讀;此頁只填「本月申報移轉現值」</td></tr>
-                        <tr><td>人員</td><td>案件成員名單,地主以外所有角色都看得到;新增／移除限 L0~L3(系統管理員／管理層／都更主管／案件負責人),L4 案件工作人員與 L5 檢視者唯讀</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <h3 id="manual-tools">功能區工具操作</h3>
-                  <p><span class="manual-path">系統指南 › 功能區</span> 集中列出跨案件工具,每張卡片有「立即使用」,點下去直接跳到該功能所在的案件分頁(需先從左側選一個案件)。</p>
-                  <h4>謄本辨識</h4>
+                  <p>新增案件功能依帳號權限開放。</p>
+                  <h4>步驟二：啟動 SOP 流程</h4>
                   <ol>
-                    <li>進入案件 → <span class="manual-path">SOP 進度 › 第1階段・籌備階段</span> › 上傳土地跟建物謄本。</li>
-                    <li>電子謄本直接抽文字;掃描件或抽不到的欄位,系統自動 OCR 補掃再用 AI 校正比對還原地址與欄位。</li>
-                    <li>檢視辨識結果確認無誤 → 一鍵匯入,產出初版登記清冊。</li>
+                  <li>進入指定案件。</li>
+                  <li>開啟<span class="manual-path">SOP 進度</span>頁籤。</li>
+                  <li>展開第 0 關<span class="manual-path">初始核定立案</span>。</li>
+                  <li>上傳投報表。</li>
+                  <li>確認檢核項目完成後，完成本關卡。</li>
                   </ol>
-                  <h4>清冊製作</h4>
+                  <h4>步驟三：匯入土地及建物謄本</h4>
                   <ol>
-                    <li>SOP 第1關展開,先完成上傳地籍圖與土地／建物謄本、逐筆校正。</li>
-                    <li>在「確認地主清冊正確」步驟點 <strong>「確認」</strong>,自動產生 Excel 清冊檔案。</li>
-                    <li>「層次面積」欄依各案件實際樓層動態產生;「建物總面積 = Σ 層次各格 + 附屬」「權狀面積 = 建物總面積 + 共有持分」。面積欄一律計算到小數點後 2 位。</li>
+                  <li>展開第 1 關<span class="manual-path">籌備階段</span>。</li>
+                  <li>上傳地籍圖。</li>
+                  <li>上傳土地及建物謄本。</li>
+                  <li>等待系統解析登記資料。</li>
+                  <li>核對土地地號、建號、所有權人、面積、持分及其他登記資訊。</li>
+                  <li>修正辨識錯誤後執行匯入。</li>
                   </ol>
-                  <h4>發票掃描</h4>
+                  <p class="manual-note"><strong class="manual-term">注意：</strong> AI 與 OCR 辨識結果僅供輔助，匯入前仍須由操作人員與原始謄本逐筆核對。</p>
+                  <h4>步驟四：建立地主清冊</h4>
                   <ol>
-                    <li>案件 → <span class="manual-path">費用</span> 頁新增支出時,拍照或上傳電子發票證明聯。</li>
-                    <li>優先讀 QR code 精準取值;讀不到再用 OCR。</li>
-                    <li>自動互算未稅金額、營業稅、總計並回填表單,確認後儲存。</li>
+                  <li>確認匯入後的登記資料正確。</li>
+                  <li>返回 SOP 第 1 關。</li>
+                  <li>點擊<span class="manual-path">確認地主清冊正確</span>。</li>
+                  <li>系統自動產生 Excel 清冊。</li>
+                  <li>下載並檢查清冊內容。</li>
                   </ol>
-                  <h4>計算土地增值稅</h4>
+                  <p>後續需要調整登記或地主資料時，可透過<span class="manual-path">整合清冊</span>與<span class="manual-path">樓棟視圖</span>操作。</p>
+                  <h4>步驟五：開始地主聯絡與同意管理</h4>
+                  <p>完成前期資料整理後，即可依案件進度進行地主聯絡、說明會及同意書管理，系統會依相關紀錄計算聯絡率與同意度。</p>
+                  <h3 id="manual-sop">案件 SOP 操作說明</h3>
+                  <p>SOP 用於管理都市更新案件各階段的檢核事項。</p>
+                  <p>每個關卡均有對應的文件、資料或完成條件。確認所有必要項目符合要求後，才可完成該關卡。</p>
+                  <h4>預設 SOP 流程</h4>
+                  <div class="manual-tw"><table class="manual-table"><thead><tr><th>關卡</th><th>階段名稱</th><th>主要工作</th></tr></thead><tbody><tr><td><strong class="manual-term">0</strong></td><td>初始核定立案</td><td>上傳投報表</td></tr><tr><td><strong class="manual-term">1</strong></td><td>籌備階段</td><td>地籍圖、謄本匯入、資料校正及清冊確認</td></tr><tr><td><strong class="manual-term">2</strong></td><td>地主拜訪</td><td>建立聯絡紀錄，聯絡率達 95%</td></tr><tr><td><strong class="manual-term">3</strong></td><td>都更說明會</td><td>上傳說明會簡報並完成主管審核</td></tr><tr><td><strong class="manual-term">4</strong></td><td>意願書簽署</td><td>人數與土地持分同意率均達 80%</td></tr><tr><td><strong class="manual-term">5</strong></td><td>圖面規劃與估價</td><td>上傳規劃圖面、顧問及估價文件</td></tr><tr><td><strong class="manual-term">6</strong></td><td>第 2 次都更說明會</td><td>上傳說明會、同意書、合約及相關簽核文件</td></tr><tr><td><strong class="manual-term">7</strong></td><td>合約說明會</td><td>上傳說明會簡報並完成主管審核</td></tr><tr><td><strong class="manual-term">8</strong></td><td>簽約會</td><td>再次確認雙門檻同意度</td></tr><tr><td><strong class="manual-term">9</strong></td><td>送件審查</td><td>最終確認雙門檻同意度及送件條件</td></tr></tbody></table></div>
+                  <h4>關卡操作規則</h4>
+                  <ul>
+                  <li>關卡進行中，可修正或重新上傳尚未完成的資料。</li>
+                  <li>所有必要檢核項目完成後，才可完成關卡。</li>
+                  <li>已完成的整個關卡不可退回。</li>
+                  <li>管理者可透過<span class="manual-path">自訂關卡流程</span>調整尚未開始的未來關卡。</li>
+                  <li>需要主管審核的檢核項目，須由具備對應權限的管理層確認。</li>
+                  </ul>
+                  <p>表中的聯絡率與同意度數值為目前系統預設 SOP 條件，不應直接視為所有都市更新案件通用的法定門檻。</p>
+                  <h3 id="manual-tabs">案件內功能介紹</h3>
+                  <h4>5.1 SOP 進度</h4>
+                  <p>集中管理案件各階段的執行進度、檢核項目、文件上傳及關卡完成狀態。</p>
+                  <h4>5.2 整合清冊</h4>
+                  <p>提供土地、建物與所有權人的整合資料，可依聯絡結果、持分類型、地號段別及樓層等條件篩選。</p>
+                  <p>亦可編輯土地登記中供土地增值稅試算使用的原規定地價或前次移轉現值。</p>
+                  <h4>5.3 樓棟視圖</h4>
+                  <p>以建物門牌及樓層呈現案件內各戶資料。</p>
+                  <ul>
+                  <li>格內顏色表示同意狀態。</li>
+                  <li>角標數字表示該戶共有人數。</li>
+                  <li>點擊格子，可查看或編輯地主資料。</li>
+                  <li>可新增及管理地主聯絡紀錄。</li>
+                  </ul>
+                  <p>共有部分與純地下室建號不作為一般獨立戶顯示。</p>
+                  <h4>5.4 地主聯絡簿</h4>
+                  <p>集中查閱地主姓名、門牌、電話及戶籍地址，方便外出拜訪及聯絡前快速核對。</p>
+                  <p>詳細聯絡紀錄須至地主編輯視窗查看或管理。</p>
+                  <h4>5.5 文件</h4>
+                  <p>集中管理案件相關文件及同意書狀態。</p>
+                  <p>同意書狀態會影響系統的同意度統計，因此修改時應確認紀錄正確。</p>
+                  <h4>5.6 他項權利部</h4>
+                  <p>查看及管理土地或建物登記相關的抵押權、地上權等他項權利資料。</p>
+                  <h4>5.7 費用</h4>
+                  <p>登錄案件支出及相關費用資訊，可搭配發票掃描工具輔助輸入。</p>
+                  <h4>5.8 土增稅</h4>
+                  <p>針對案件內土地資料進行土地增值稅概算，並顯示不同稅率試算結果。</p>
+                  <h4>5.9 人員</h4>
+                  <p>查看案件參與人員，具備管理權限的使用者可新增或移除案件成員。</p>
+                  <h3 id="manual-tools">功能區工具使用教學</h3>
+                  <h4>6.1 謄本辨識</h4>
+                  <p class="manual-purpose"><strong class="manual-term">功能用途：</strong> 將土地及建物謄本轉換成可供案件管理使用的結構化資料。</p>
+                  <p>操作流程：</p>
                   <ol>
-                    <li>案件 → <span class="manual-path">土增稅</span> 頁,系統自動帶入該案地主與地號。</li>
-                    <li>「原規定地價／前次移轉現值」到 <span class="manual-path">整合清冊</span> 上編輯(土增稅頁唯讀)。</li>
-                    <li>在土增稅頁填「本月申報移轉現值」→ 儲存,自動同時試算自用／一般稅率的應納稅額。</li>
+                  <li>開啟案件的<span class="manual-path">SOP 進度</span>。</li>
+                  <li>進入第 1 關<span class="manual-path">籌備階段</span>。</li>
+                  <li>選擇上傳土地及建物謄本。</li>
+                  <li>系統優先擷取電子謄本的文字內容。</li>
+                  <li>對無法擷取的部分使用 OCR 補充辨識。</li>
+                  <li>使用 AI 輔助校正、比對欄位。</li>
+                  <li>人工確認辨識結果。</li>
+                  <li>執行資料匯入。</li>
                   </ol>
-                  <p class="manual-warn">土增稅為概算,未套用持有年限減徵、自用住宅優惠稅率、物價指數調整、土地改良費用等,正式稅額以地方稅捐稽徵機關核算為準。</p>
-
+                  <p>應特別檢查所有權人、土地持分、建物面積及他項權利等重要資料。</p>
+                  <h4>6.2 清冊製作</h4>
+                  <p class="manual-purpose"><strong class="manual-term">功能用途：</strong> 依案件登記資料產生 Excel 清冊。</p>
+                  <p>操作流程：</p>
+                  <ol>
+                  <li>完成土地及建物謄本匯入。</li>
+                  <li>核對整合資料。</li>
+                  <li>於 SOP 第 1 關執行清冊確認。</li>
+                  <li>系統產生 Excel 檔案。</li>
+                  <li>下載並確認輸出結果。</li>
+                  </ol>
+                  <p>匯出檔案名稱為<span class="manual-path">案件名稱清冊.xlsx</span>。</p>
+                  <h4>6.3 發票掃描</h4>
+                  <p class="manual-purpose"><strong class="manual-term">功能用途：</strong> 透過發票 QR code 或 OCR 辨識，減少案件費用輸入作業。</p>
+                  <p>操作流程：</p>
+                  <ol>
+                  <li>進入案件的<span class="manual-path">費用</span>頁籤。</li>
+                  <li>新增支出紀錄。</li>
+                  <li>拍照或上傳電子發票證明聯。</li>
+                  <li>系統優先辨識 QR code，無法讀取時再使用 OCR。</li>
+                  <li>檢查未稅金額、營業稅及總金額。</li>
+                  <li>確認資料回填正確後儲存。</li>
+                  </ol>
+                  <h4>6.4 計算土地增值稅</h4>
+                  <p class="manual-purpose"><strong class="manual-term">功能用途：</strong> 根據案件土地登記資料，進行土地增值稅初步估算。</p>
+                  <p>操作流程：</p>
+                  <ol>
+                  <li>進入案件<span class="manual-path">整合清冊</span>，確認原規定地價或前次移轉現值。</li>
+                  <li>開啟<span class="manual-path">土增稅</span>頁籤。</li>
+                  <li>選擇要試算的地主及土地資料。</li>
+                  <li>輸入本月申報移轉現值。</li>
+                  <li>儲存後查看試算結果。</li>
+                  </ol>
+                  <p class="manual-warn"><strong class="manual-term">重要提醒：</strong> 系統提供的是概算。持有年限減徵、物價指數調整、土地改良費用及相關租稅優惠等因素未完整納入，正式稅額以稅捐稽徵機關核定為準。</p>
+                  <h4>6.5 製作同意書</h4>
+                  <p>目前功能區標示為<span class="manual-path">即將推出</span>。</p>
+                  <p>預定用途為依地主、土地及建物資料輔助製作都市更新事業計畫同意書。正式開放前，不應將此功能列為已可操作的步驟。</p>
                   <h3 id="manual-resources">工具與資源</h3>
-                  <ul>
-                    <li><strong>公版文件</strong> — 發函、意願書、同意書、合約等範本下載。</li>
-                    <li><strong>新聞</strong> / <strong>相關法規</strong> / <strong>相關網站</strong> — 都更相關新聞、法令與常用外部連結。</li>
-                    <li><strong>知識庫</strong> — 常見問答。</li>
-                    <li><strong>部門物品管制表</strong> — 部門物品借還與盤點。</li>
-                  </ul>
-
-                  <h3 id="manual-glossary">名詞說明</h3>
-                  <div class="manual-tw">
-                    <table class="manual-table">
-                      <thead><tr><th>名詞</th><th>說明</th></tr></thead>
-                      <tbody>
-                        <tr><td>雙門檻同意度</td><td>同意的「人數比例」與「土地持分比例」兩個都要達標(第4／8／9關為 80%)</td></tr>
-                        <tr><td>聯絡率</td><td>已成功聯絡到的地主佔全體比例(第2關門檻 95%)</td></tr>
-                        <tr><td>共有部分建號</td><td>地下停車場、樓梯間等由全體區分所有權人共同持有的建號;不算單一戶,樓棟視圖與清冊會另外處理</td></tr>
-                        <tr><td>層次面積</td><td>建物標示部各樓層的面積;清冊裡依案件最高／最深樓層動態開欄</td></tr>
-                        <tr><td>權狀面積</td><td>建物總面積 + 共有部分持分面積</td></tr>
-                        <tr><td>前次移轉現值／原規定地價</td><td>土增稅計算的起算基準,填在土地登記,單位元/㎡</td></tr>
-                        <tr><td>投報表</td><td>第0關「初始核定立案」要上傳的投資報酬評估文件</td></tr>
-                        <tr><td>自訂關卡流程</td><td>管理者可調整 SOP 十關的順序、名稱與門檻條件,只能改還沒跑到的未來關卡</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
+                  <h4>公版文件</h4>
+                  <p>提供公司常用文件及標準範本，支援關鍵字查詢與下載。</p>
+                  <p>目前頁面標示僅主管以上可修改文件內容。</p>
+                  <h4>新聞</h4>
+                  <p>查看都市更新相關新聞、政策及產業資訊，可使用今日新聞、本週新聞與關鍵字搜尋。</p>
+                  <h4>相關法規</h4>
+                  <p>集中查詢中央與地方都市更新相關法令及解釋函。</p>
+                  <p>法規內容應以主管機關最新公布版本為準。</p>
+                  <h4>相關網站</h4>
+                  <p>提供政府機關、地籍、GIS、電子地圖及其他作業資源的快速連結。</p>
+                  <h4>Q&amp;A 知識庫</h4>
+                  <p>依關鍵字查詢都市更新常見問題，並可使用頁面提供的 AI 問答入口。</p>
+                  <h4>部門物品管制表</h4>
+                  <p>管理部門物品、保管人及財產編號，支援搜尋、篩選、清單匯出與新增物品操作。</p>
+                  <h3 id="manual-glossary">常用名詞說明</h3>
+                  <div class="manual-tw"><table class="manual-table"><thead><tr><th>名詞</th><th>說明</th></tr></thead><tbody><tr><td><strong class="manual-term">SOP</strong></td><td>案件標準作業流程</td></tr><tr><td><strong class="manual-term">地主聯絡率</strong></td><td>成功聯絡的地主占統計對象的比例</td></tr><tr><td><strong class="manual-term">雙門檻同意度</strong></td><td>分別確認人數及土地持分同意比例</td></tr><tr><td><strong class="manual-term">建號</strong></td><td>建物登記使用的編號</td></tr><tr><td><strong class="manual-term">地號</strong></td><td>土地登記使用的編號</td></tr><tr><td><strong class="manual-term">共有部分</strong></td><td>由多位所有權人共同持有的建物部分</td></tr><tr><td><strong class="manual-term">持分</strong></td><td>所有權人在土地或建物中的權利比例</td></tr><tr><td><strong class="manual-term">層次面積</strong></td><td>建物不同樓層的登記面積</td></tr><tr><td><strong class="manual-term">權狀面積</strong></td><td>系統清冊依建物總面積及共有持分計算的面積</td></tr><tr><td><strong class="manual-term">OCR</strong></td><td>將圖片中的文字轉換為可編輯文字的辨識技術</td></tr></tbody></table></div>
                   <h3 id="manual-faq">常見問題</h3>
-                  <ul>
-                    <li><strong>OCR 匯入後數字怪怪的?</strong> 到「整合清冊」逐筆對照謄本校正;OCR 是輔助,一切以謄本為準。</li>
-                    <li><strong>舊案件缺共有建號／共有持分資料?</strong> 該功能是後來加的,舊案要重新用 OCR 匯入該案謄本才會帶入。</li>
-                    <li><strong>關卡按不了「完成」?</strong> 展開該關檢核清單,把必要文件與確認項目補齊。</li>
-                    <li><strong>清冊的建物總面積和各欄加起來不一樣?</strong> 新版已修正(含地下層);若還有請重新產生清冊,並確認整合清冊的樓層明細正確。</li>
-                    <li><strong>畫面沒更新?</strong> 重新整理瀏覽器;系統會復原你剛剛看的頁面。</li>
-                    <li><strong>下載的 Excel 開啟亂碼?</strong> 用 Excel 開啟(非文字編輯器);檔名為「案件名稱清冊.xlsx」。</li>
-                  </ul>
+                  <p class="manual-q"><strong class="manual-term">Q1：忘記登入密碼怎麼辦？</strong></p>
+                  <p>請聯絡系統管理員協助處理帳號或密碼問題。</p>
+                  <p class="manual-q"><strong class="manual-term">Q2：為什麼看不到某個案件？</strong></p>
+                  <p>請確認是否已被加入該案件的成員名單，以及目前帳號是否具備查看權限。</p>
+                  <p class="manual-q"><strong class="manual-term">Q3：謄本辨識資料錯誤怎麼辦？</strong></p>
+                  <p>請先核對原始謄本，再於匯入確認或相關登記資料編輯位置修正。若屬舊案件缺少共有部分資料的情況，可能需要重新匯入謄本。</p>
+                  <p class="manual-q"><strong class="manual-term">Q4：為什麼無法完成 SOP 關卡？</strong></p>
+                  <p>確認該關所有必要文件、資料及審核項目是否已完成。</p>
+                  <p class="manual-q"><strong class="manual-term">Q5：地主聯絡率與同意度需要手動計算嗎？</strong></p>
+                  <p>不需要。系統會依登記資料、聯絡紀錄及同意書狀態進行彙算，但前提是來源紀錄正確。</p>
+                  <p class="manual-q"><strong class="manual-term">Q6：為什麼無法新增或編輯資料？</strong></p>
+                  <p>可能受到帳號角色、案件成員身分或功能權限限制。請向管理者確認。</p>
+                  <p class="manual-q"><strong class="manual-term">Q7：發票辨識後的金額錯誤怎麼辦？</strong></p>
+                  <p>請核對原始發票與辨識欄位，修正後再儲存費用紀錄。</p>
+                  <p class="manual-q"><strong class="manual-term">Q8：清冊資料修改後，已下載的 Excel 會同步更新嗎？</strong></p>
+                  <p>已下載的檔案不會自動同步。請重新產生及下載最新清冊。</p>
+                  <p class="manual-q"><strong class="manual-term">Q9：系統畫面未更新怎麼辦？</strong></p>
+                  <p>可先重新整理瀏覽器，再確認資料是否已成功儲存。</p>
+                  <p class="manual-q"><strong class="manual-term">Q10：土地增值稅試算結果可直接用於正式申報嗎？</strong></p>
+                  <p>不可以。系統結果僅供初步估算，正式稅額仍應由主管稅捐機關核算。</p>
+                  <p class="manual-foot-co"><strong class="manual-term">丞石建築開發股份有限公司</strong></p>
+                  <p class="manual-foot">本手冊依系統目前公開功能整理。實際操作項目與可用權限，以系統正式部署版本及公司設定為準。</p>
 
                 </div>
               </div>
@@ -970,7 +1056,7 @@
   <script src="js/api.js?v=20261005_2"></script>
   <script src="js/modals.js?v=20261005_1"></script>
   <script src="js/auth.js?v=20261005_2"></script>
-  <script src="js/manual_ui.js?v=20261008_1"></script>
+  <script src="js/manual_ui.js?v=20261008_2"></script>
   <script src="js/dashboard.js?v=20261005_2"></script>
   <script src="js/weather_hero.js?v=20261005_6"></script>
   <script src="js/announcements.js?v=20261005_18"></script>
