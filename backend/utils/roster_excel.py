@@ -489,12 +489,19 @@ def build_roster_workbook(
         owned = _num(lr.owned_area_sqm)
         if owned is None:
             owned = round((float(lr.total_area_sqm or 0) * num) / den, 2)
+        # 公同共有:DB 存的是折算後個人持分(謄本分數 ÷ 共有人數),清冊「權利範圍」欄照謄本
+        # 印法顯示原分數,分母後面加「*」表示公同共有;持分面積仍用折算後的(才不會重複加總)。
+        pool = int(getattr(lr, "pooled_size", None) or 1)
+        if getattr(lr, "is_pooled", False) and pool > 1 and den % pool == 0:
+            den_cell = f"{den // pool}*"
+        else:
+            den_cell = den
         return [
             lr.registration_order or "",
             o.name if o else "",
             (o.id_number if o else "") or "",
             num,
-            den,
+            den_cell,
             owned,
             _ping(owned),
             (o.address if o else "") or "",
