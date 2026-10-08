@@ -5765,4 +5765,6 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .manual-body { padding-top: 64px; }
 @media (max-width: 1119px) { .manual-body { padding-top: 24px; } }
 .manual-body h3::before { content: attr(data-n) !important; }
+.manual-body { padding-top: 38px; }
+@media (max-width: 1119px) { .manual-body { padding-top: 22px; } }
 
