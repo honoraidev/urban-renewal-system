@@ -65,6 +65,10 @@ async function liveFlushUpdate() {
   // 也不要打斷正在輸入的人。
   if (document.getElementById("modal-overlay")) return;
 
+  // 謄本資料建立中:每新增一筆都會廣播一次異動,若每次都重繪畫面會一直閃跳;
+  // 建立完成時 submitTitleDeedWizardInner 會自己刷新一次,這段期間略過。
+  if (typeof wizardSubmitInFlight !== "undefined" && wizardSubmitInFlight) return;
+
   const affectsCurrentProject = state.currentProjectId != null && (isGlobal || projectIds.has(state.currentProjectId));
 
   try {
