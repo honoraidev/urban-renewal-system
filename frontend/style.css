@@ -5894,3 +5894,11 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .sb.collapsed .nav-user { gap: 10px; }
 .sb.collapsed .avatar-menu { flex: 0 0 auto; min-width: 0; }
 .sb.collapsed .nav-user-name { display: none; }
+
+/* 所有頁面標題前加青綠色直線條(同「功能區」) */
+.cd-title::before, .nw-title::before, .reg-title::before, .ws-title::before, .fq-title::before, .iv-title::before,
+#view-dashboard .page-header h2::before, #view-mywork .page-header h2::before, #view-users .page-header h2::before, #view-loginlogs .page-header h2::before {
+  content: ""; flex: 0 0 auto; width: 6px; height: 30px; border-radius: 4px; background: var(--brand); display: inline-block;
+}
+#view-dashboard .page-header h2, #view-mywork .page-header h2, #view-users .page-header h2, #view-loginlogs .page-header h2 { display: flex; align-items: center; gap: 10px; }
+#view-mywork .page-header h2::before { height: 34px; }
