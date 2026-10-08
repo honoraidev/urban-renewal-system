@@ -454,14 +454,33 @@ def build_roster_workbook(
         lst.sort(key=lambda b: (b.building_number or "", b.id))
     used_building_ids: set[int] = set()
 
-    def _take_building_for(lr):
+    # 配對分兩輪:第一輪只配「同一所有權人」的建物(土地列依序、各自挑自己名下的建物),
+    # 第二輪才把剩下的建物照順序補給還沒配到的土地列。舊寫法一列一列貪婪地配,前面
+    # 沒有自己建物的土地列會先把後面某人名下的建物搶走,造成土地與建物所有權人錯位。
+    def _same_owner(lr, x):
+        if x.landowner_id == lr.landowner_id:
+            return True
+        lo, bo = landowners_by_id.get(lr.landowner_id), landowners_by_id.get(x.landowner_id)
+        return bool(lo and bo and lo.id_number and lo.id_number == bo.id_number)
+
+    assigned: dict[int, object] = {}  # land_record.id -> building
+    for lr in land_records:
         pool = bld_by_parcel.get(_digits(lr.parcel_number), [])
-        avail = [x for x in pool if x.id not in used_building_ids]
-        if not avail:
-            return None
-        pick = next((x for x in avail if x.landowner_id == lr.landowner_id), avail[0])
-        used_building_ids.add(pick.id)
-        return pick
+        pick = next((x for x in pool if x.id not in used_building_ids and _same_owner(lr, x)), None)
+        if pick is not None:
+            assigned[lr.id] = pick
+            used_building_ids.add(pick.id)
+    for lr in land_records:
+        if lr.id in assigned:
+            continue
+        pool = bld_by_parcel.get(_digits(lr.parcel_number), [])
+        pick = next((x for x in pool if x.id not in used_building_ids), None)
+        if pick is not None:
+            assigned[lr.id] = pick
+            used_building_ids.add(pick.id)
+
+    def _take_building_for(lr):
+        return assigned.get(lr.id)
 
     def _land_owner_cells(lr):
         o = landowners_by_id.get(lr.landowner_id)
