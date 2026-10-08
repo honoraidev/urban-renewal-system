@@ -5767,4 +5767,8 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .manual-body h3::before { content: attr(data-n) !important; }
 .manual-body { padding-top: 38px; }
 @media (max-width: 1119px) { .manual-body { padding-top: 22px; } }
+/* 背景圖鋪滿整張內容卡(左側淡出,避免壓到文字) */
+.manual-body::before { inset: 0; width: auto; height: auto; right: 0; bottom: 0; opacity: .5; background: url("manual_bg.jpg") center center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,.25) 0%, rgba(0,0,0,.55) 45%, #000 100%); mask-image: linear-gradient(to right, rgba(0,0,0,.25) 0%, rgba(0,0,0,.55) 45%, #000 100%); }
+@media (max-width: 1119px) { .manual-body::before { opacity: .3; width: auto; } }
 
