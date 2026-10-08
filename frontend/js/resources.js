@@ -146,9 +146,9 @@ function _cdListHtml(rows) {
             </div>
           </div>
           <div class="actions-cell">
-            <button class="btn-secondary btn-sm" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">👁 預覽</button>
-            <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
-            ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
+            <button class="btn-secondary btn-sm doc-icon-btn" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
+            <button class="btn-secondary btn-sm doc-icon-btn" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
+            ${isManager() ? `<button class="btn-danger btn-sm doc-icon-btn" data-delete-companydoc="${d.id}" title="刪除" aria-label="刪除">${DOC_TRASH_ICON}</button>` : ""}
           </div>
         </div>`
     )
@@ -168,15 +168,16 @@ function _cdGridHtml(rows) {
         <div class="cd-item-row"><b>更新</b>${_cdMetaLine(d)}</div>
         ${d.description ? `<div class="cd-item-desc">${escapeHtml(d.description)}</div>` : ""}
         <div class="cd-item-actions">
-          <button class="btn-secondary btn-sm" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">👁 預覽</button>
-            <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
-          ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
+          <button class="btn-secondary btn-sm doc-icon-btn" data-preview-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="預覽" aria-label="預覽">${DOC_EYE_ICON}</button>
+            <button class="btn-secondary btn-sm doc-icon-btn" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}" title="下載" aria-label="下載">${DOC_DOWNLOAD_ICON}</button>
+          ${isManager() ? `<button class="btn-danger btn-sm doc-icon-btn" data-delete-companydoc="${d.id}" title="刪除" aria-label="刪除">${DOC_TRASH_ICON}</button>` : ""}
         </div>
       </div>`
     )
     .join("")}</div>`;
 }
 
+const DOC_TRASH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>`;
 let _cdPreviewUrl = null;
 // 公版文件預覽:圖片直接顯示、PDF / 文字用內嵌框、Word/Excel/PowerPoint 由後端轉 PDF;其他類型提示改用下載
 async function previewCompanyDoc(id, fileName) {
