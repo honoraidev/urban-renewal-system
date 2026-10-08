@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompanyDocumentRead(BaseModel):
@@ -88,6 +88,7 @@ class WebsiteCreate(BaseModel):
     name: str
     url: str
     description: str | None = None
+    tags: str | None = Field(default=None, max_length=255)
 
 
 class WebsiteUpdate(BaseModel):
@@ -95,6 +96,7 @@ class WebsiteUpdate(BaseModel):
     name: str | None = None
     url: str | None = None
     description: str | None = None
+    tags: str | None = Field(default=None, max_length=255)
 
 
 class WebsiteRead(BaseModel):
@@ -103,6 +105,7 @@ class WebsiteRead(BaseModel):
     name: str
     url: str
     description: str | None = None
+    tags: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

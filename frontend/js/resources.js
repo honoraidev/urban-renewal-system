@@ -426,6 +426,7 @@ function openLinkFormModal(title, endpoint, item, onSaved) {
       <div class="field"><label>名稱</label><input name="name" required value="${item ? escapeHtml(item.name) : ""}"></div>
       <div class="field"><label>網址</label><input name="url" type="url" required value="${item ? escapeHtml(item.url) : ""}"></div>
       <div class="field"><label>說明(選填)</label><textarea name="description" rows="2">${item ? escapeHtml(item.description) || "" : ""}</textarea></div>
+      ${isWebsite ? `<div class="field"><label>標籤(選填,卡片上的小膠囊)</label><input name="tags" maxlength="255" placeholder="用逗號分隔,例如:電子地圖,航照圖" autocomplete="off" value="${item ? escapeHtml(_wsTagsOf(item).join(",")) : ""}"><div class="helper-text" style="margin-top:4px">不填或全部刪除就不顯示標籤;沒設定過的連結會依名稱自動產生。</div></div>` : ""}
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
         <button type="submit" class="btn-primary">儲存</button>
@@ -464,6 +465,10 @@ function openLinkFormModal(title, endpoint, item, onSaved) {
     }
 
     if (!payload.description) delete payload.description;
+    if (isWebsite && "tags" in payload) {
+      // 逗號(中英文)/頓號分隔 → 去空白、去重,最多 6 個
+      payload.tags = [...new Set(String(payload.tags).split(/[,，、]/).map((t) => t.trim()).filter(Boolean))].slice(0, 6).join(",");
+    }
 
     try {
       if (item) {
@@ -1075,6 +1080,8 @@ const WS_CITY_RE = /(台北|臺北|新北|桃園|台中|臺中|台南|臺南|高
 const WS_COUNTY_BASES = ["苗栗", "彰化", "南投", "雲林", "屏東", "宜蘭", "花蓮", "台東"];
 
 function _wsTagsOf(r) {
+  // 手動設定過標籤(含空字串 = 不顯示)就用手動的;沒設定(null)才依名稱/說明自動產生
+  if (r.tags !== null && r.tags !== undefined) return String(r.tags).split(",").map((t) => t.trim()).filter(Boolean);
   if (r._wsTags) return r._wsTags;
   const text = `${r.name || ""} ${r.description || ""}`;
   const tags = WS_TAG_RULES.filter(([, re]) => re.test(text)).map(([t]) => t).slice(0, 2);
@@ -1110,14 +1117,14 @@ function _wsItemHtml(r, cat, editable) {
       </div>
       <div class="ws-card-foot">
         <span class="ws-card-tags">${tags.map((t) => `<span class="ws-tag">${escapeHtml(t)}</span>`).join("")}</span>
-      </div>
-      ${editable
-      ? `<div class="news-card-actions" style="padding:0 16px 14px">
+        ${editable
+      ? `<span class="ws-card-actions">
              <button class="btn-secondary btn-sm" data-edit-link="${r.id}">編輯</button>
              <button class="btn-danger btn-sm" data-delete-link="${r.id}">刪除</button>
-           </div>`
+           </span>`
       : ""
     }
+      </div>
     </div>`;
 }
 
