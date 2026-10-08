@@ -2767,6 +2767,14 @@ async function submitTitleDeedWizardInner() {
     for (const p of d.parcels) {
       const sub = `地號 ${p.parcel_number}`;
       progress.update(doneUnits, sub);
+      // 公同共有:同一地號、同一個謄本分數的公同共有人,是「共同」持有那一份,不是每人各一份。
+      // 算出每組的共有人數,下面存檔時把個人持分折算成 分數÷人數,面積/同意比例才不會重複加總。
+      const poolCount = new Map();
+      for (const o of p.owners) {
+        if (!o.owner_name || !o._pooled) continue;
+        const k = `${o.ownership_numerator || 1}/${o.ownership_denominator || 1}`;
+        poolCount.set(k, (poolCount.get(k) || 0) + 1);
+      }
       for (const owner of p.owners) {
         if (!owner.owner_name) continue;
         const landownerId = await findOrCreateLandownerByOwner(owner, createdCache, pid);
@@ -2774,8 +2782,11 @@ async function submitTitleDeedWizardInner() {
         // 這一步就乘上持分面積換算成總額 - 這兩個欄位是「照謄本資料」的忠實副本,土增稅
         // 試算需要的總額由「土增稅」頁自己拿單價 × owned_area_sqm 現算(見 land_value_tax.js
         // 的 landValueTaxRowResult),兩件事分開,基礎資料欄位才不會跟著稅務邏輯的假設綁死。
-        const numerator = owner.ownership_numerator || 1;
-        const denominator = owner.ownership_denominator || 1;
+        const rawNumerator = owner.ownership_numerator || 1;
+        const rawDenominator = owner.ownership_denominator || 1;
+        const poolSize = owner._pooled ? poolCount.get(`${rawNumerator}/${rawDenominator}`) || 1 : 1;
+        const numerator = rawNumerator;
+        const denominator = rawDenominator * poolSize;
         const declaredValuePerSqm = Number(owner.declared_value_per_sqm) || 0;
         const announcedPerSqm = Number(p.announced_value_per_sqm) || 0;
         const lttHistory =
@@ -2798,6 +2809,8 @@ async function submitTitleDeedWizardInner() {
             ownership_numerator: numerator,
             ownership_denominator: denominator,
             source_ocr_job_id: p._sourceOcrJobId || null,
+            is_pooled: !!owner._pooled,
+            pooled_size: owner._pooled ? poolSize : null,
             ltt_original_value: declaredValuePerSqm || null,
             ltt_original_value_period: owner.declared_value_period || null,
             ltt_original_value_history: lttHistory,

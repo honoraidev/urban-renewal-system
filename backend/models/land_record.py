@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -64,6 +64,11 @@ class LandRecord(Base):
     # 改良土地費用、工程受益費等土地稅法第31條規定可從漲價總數額扣除的項目,總金額 -
     # 沒有自動來源,要由承辦人依實際單據手動輸入,沒有單據就留空(視為0)。
     ltt_deductible_cost: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # 公同共有:謄本上「公同共有 X分之Y」是這群人「共同」持有那一份,不是每人各一份。
+    # is_pooled=True 時 ownership_numerator/denominator 存的是「個人折算後」的持分
+    # (= 謄本分數 ÷ 共有人數 pooled_size),這樣面積/同意比例加總才不會重複計算。
+    is_pooled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    pooled_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

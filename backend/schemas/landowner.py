@@ -22,6 +22,8 @@ class LandRecordCreate(BaseModel):
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
     ltt_deductible_cost: float | None = None
+    is_pooled: bool = False
+    pooled_size: int | None = Field(default=None, ge=1)
 
 
 class LandRecordUpdate(BaseModel):
@@ -67,6 +69,8 @@ class LandRecordRead(BaseModel):
     ltt_holding_years: int | None = None
     ltt_cpi_index: float | None = None
     ltt_deductible_cost: float | None = None
+    is_pooled: bool = False
+    pooled_size: int | None = None
 
     model_config = {"from_attributes": True}
 

@@ -101,6 +101,8 @@ def _auto_migrate() -> None:
         ("land_records", "ltt_original_value_history", "JSON NULL"),
         ("land_records", "ltt_current_value_period", "VARCHAR(50) NULL"),
         ("land_records", "ltt_deductible_cost", "DECIMAL(14,2) NULL"),
+        ("land_records", "is_pooled", "TINYINT(1) NOT NULL DEFAULT 0"),
+        ("land_records", "pooled_size", "INT NULL"),
         ("news_items", "published_at", "DATETIME NULL"),
         ("news_items", "image_url", "VARCHAR(1000) NULL"),
         ("news_items", "summary", "TEXT NULL"),
