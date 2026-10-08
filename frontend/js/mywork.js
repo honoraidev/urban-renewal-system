@@ -316,42 +316,57 @@ function renderMyWork() {
   });
 }
 
+// 當日行事曆:左邊視窗列出當天事項 + 「新增行事曆活動」鈕;按新增 / 編輯 → 右邊並排開表單視窗
 function openMyWorkDay(dateIso, events) {
   const opts = myWorkState.data.project_options || [];
-  const projectSelect = `
-    <select id="mw-ev-project">
-      <option value="">個人（只有自己看得到）</option>
-      ${opts.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}（案件成員共用）</option>`).join("")}
-    </select>`;
+  const WD = ["日", "一", "二", "三", "四", "五", "六"];
+  const dow = WD[new Date(`${dateIso}T00:00:00`).getDay()];
+  const p2 = (n) => String(n).padStart(2, "0");
 
-  const existing = events
-    .map(
-      (e) => `
-    <div class="mw-daydetail-ev" data-ev-id="${e.id}">
-      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}${e.event_end_time ? "–" + fmtEventTime(e.event_end_time) : ""}</span> ` : ""}${e.is_important ? "⭐ " : ""}${e.notify ? "📲 " : ""}${e.title ? `<b>${escapeHtml(e.title)}</b>${e.content && e.content !== e.title ? "<br>" + escapeHtml(e.content) : ""}` : escapeHtml(e.content)}</div>
-      <div class="meta">
-        <div class="mw-ev-tag-group">
-          <span class="mw-ev-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
-          ${e.created_by_name ? `<span class="mw-ev-creator">${escapeHtml(e.created_by_name)}</span>` : ""}
+  const cardHtml = (e) => {
+    const t = fmtEventTime(e.event_time);
+    const range = t ? `${t}${e.event_end_time ? " - " + fmtEventTime(e.event_end_time) : ""}` : "全天";
+    const head = e.title || e.content;
+    const body = e.title && e.content && e.content !== e.title ? e.content : "";
+    return `<div class="mwd2-card" data-ev-id="${e.id}">
+      <div class="mwd2-top">
+        <span class="mwd2-ico">${MWN_ICON.cal}</span>
+        <div class="mwd2-main">
+          <div class="mwd2-t">${e.is_important ? "⭐ " : ""}${escapeHtml(head)}</div>
+          ${body ? `<div class="mwd2-b">${escapeHtml(body)}</div>` : ""}
         </div>
-        ${
-          e.can_edit
-            ? `<div class="mw-ev-actions"><a href="#" class="btn-link" data-mw-edit="${e.id}">編輯</a><a href="#" class="btn-link mw-ev-del" data-mw-del="${e.id}">刪除</a></div>`
-            : ""
-        }
+        <span class="mwd2-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
       </div>
-    </div>`
-    )
-    .join("");
+      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}</div>
+      <div class="mwd2-foot">
+        <span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span>
+        ${e.can_edit ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}">編輯</a><a href="#" class="del" data-mw-del="${e.id}">刪除</a></span>` : ""}
+      </div>
+    </div>`;
+  };
 
-  const root = openModal(
-    `<span class="mwn-title"><span class="mwn-title-ic">${MWN_ICON.cal}</span>新增行事曆活動</span>`,
-    `
-    <div>
-      ${existing || `<p class="helper-text" style="margin-top:0">這天還沒有待辦</p>`}
-      ${existing ? `<hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:12px 0">` : ""}
-      <div class="mwn">
-        <div class="mwn-date">${dateIso} 待辦</div>
+  openModal(
+    `<span class="mwn-title"><span class="mwn-title-ic">${MWN_ICON.cal}</span>當日行事曆</span>`,
+    `<div class="mwd2">
+      <div class="mwd2-head"><span class="mwd2-date">${dateIso} (${dow})</span><span class="mwd2-count">${events.length} 筆事項</span></div>
+      <div class="mwd2-list">${events.length ? events.map(cardHtml).join("") : '<div class="mwd2-empty">這天還沒有待辦</div>'}</div>
+      <button type="button" class="mwd2-add" id="mw-day-add"><span>＋</span> 新增行事曆活動</button>
+      <div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">關閉</button></div>
+    </div>`,
+    { width: "440px" }
+  );
+
+  // ---- 右側表單視窗(新增 / 編輯共用)----
+  const openForm = (cur) => {
+    const editing = !!cur;
+    const projectSelect = `<select id="mw-ev-project" ${editing ? "disabled" : ""}>
+      <option value="">個人（只有自己看得到）</option>
+      ${opts.map((p) => `<option value="${p.id}" ${editing && cur.project_id === p.id ? "selected" : ""}>${escapeHtml(p.name)}（案件成員共用）</option>`).join("")}
+    </select>`;
+    const panel = openSidePanel(
+      `<span class="mwn-title"><span class="mwn-title-ic">${MWN_ICON.cal}</span>${editing ? "編輯行事曆活動" : "新增行事曆活動"}</span>`,
+      `<div class="mwn">
+        <div class="mwn-date">${dateIso} (${dow})</div>
         <div class="mwn-time">
           <span class="mwn-ic">${MWN_ICON.clock}</span>
           <input type="time" id="mw-ev-start" class="mwn-sel" step="60">
@@ -360,90 +375,117 @@ function openMyWorkDay(dateIso, events) {
           <label class="mwn-allday"><input type="checkbox" id="mw-ev-allday"> 全天</label>
         </div>
         <div class="mwn-label">標題</div>
-        <input id="mw-ev-title" class="mwn-title-in" maxlength="120" placeholder="請輸入標題..." autocomplete="off">
+        <input id="mw-ev-title" class="mwn-title-in" maxlength="120" placeholder="請輸入標題..." autocomplete="off" value="${editing ? escapeHtml(cur.title || "") : ""}">
         <div class="mwn-label">這天要做什麼</div>
-        <textarea id="mw-ev-text" rows="4" placeholder="請輸入內容..."></textarea>
+        <textarea id="mw-ev-text" rows="4" placeholder="請輸入內容...">${editing ? escapeHtml(cur.content && cur.content !== cur.title ? cur.content : cur.title ? "" : cur.content) : ""}</textarea>
         <div class="mwn-proj"><span class="mwn-ic">${MWN_ICON.person}</span>${projectSelect}</div>
         <label class="mwn-notify">
-          <input type="checkbox" id="mw-ev-notify">
+          <input type="checkbox" id="mw-ev-notify" ${editing && cur.notify ? "checked" : ""}>
           <span>需要 <b>官方LINE</b> 推播 <small>(每天早上 9 點推播今日待辦;當天才新增的,在設定時間前 2 小時推播)</small></span>
         </label>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="button" class="btn-primary" id="mw-ev-add">新增</button>
-      </div>
-    </div>`
-  );
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="mw-ev-cancel">取消</button>
+          <button type="button" class="btn-primary" id="mw-ev-save">${editing ? "儲存" : "新增"}</button>
+        </div>
+      </div>`,
+      { width: "460px" }
+    );
 
-  // 右上角的叉叉改成「重要」星號(原本的「標記為重要」);關閉靠下方「取消」或點視窗外
-  let mwImportant = false;
-  const closeBtn = document.getElementById("modal-close-btn");
-  if (closeBtn) {
-    closeBtn.outerHTML = `<button type="button" class="mwn-star" id="mw-ev-star" aria-pressed="false" title="標記為重要(會出現在今日重要待辦鈴鐺提醒)">${MWN_ICON.star}</button>`;
-    document.getElementById("mw-ev-star").onclick = (e) => {
-      mwImportant = !mwImportant;
-      e.currentTarget.classList.toggle("on", mwImportant);
-      e.currentTarget.setAttribute("aria-pressed", String(mwImportant));
+    // 「重要」星號放在視窗標題列、叉叉左邊(原本的「標記為重要」)
+    let important = editing ? !!cur.is_important : false;
+    const x = panel.querySelector("#modal-side-close-btn");
+    x.insertAdjacentHTML("beforebegin", `<button type="button" class="mwn-star${important ? " on" : ""}" id="mw-ev-star" aria-pressed="${important}" title="標記為重要(會出現在今日重要待辦鈴鐺提醒)">${MWN_ICON.star}</button>`);
+    panel.querySelector("#mw-ev-star").onclick = (e) => {
+      important = !important;
+      e.currentTarget.classList.toggle("on", important);
+      e.currentTarget.setAttribute("aria-pressed", String(important));
     };
-  }
-  const startSel = document.getElementById("mw-ev-start");
-  const endSel = document.getElementById("mw-ev-end");
-  const allDay = document.getElementById("mw-ev-allday");
-  // 預設帶入「現在時間」當開始,結束 = 開始 + 1 小時(最晚 23:59)
-  const _now = new Date();
-  const _p2 = (n) => String(n).padStart(2, "0");
-  const _startMin = _now.getHours() * 60 + _now.getMinutes();
-  const _endMin = Math.min(_startMin + 60, 23 * 60 + 59);
-  startSel.value = `${_p2(Math.floor(_startMin / 60))}:${_p2(_startMin % 60)}`;
-  endSel.value = `${_p2(Math.floor(_endMin / 60))}:${_p2(_endMin % 60)}`;
-  startSel.onchange = () => {
-    // 結束時間跟著往後排(開始 + 1 小時),避免結束早於開始
-    if (endSel.value <= startSel.value) {
-      const [h, m] = startSel.value.split(":").map(Number);
-      const t = Math.min(h * 60 + m + 60, 23 * 60 + 59);
-      endSel.value = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    panel.querySelector("#mw-ev-cancel").onclick = () => closeSidePanel();
+
+    const startSel = panel.querySelector("#mw-ev-start");
+    const endSel = panel.querySelector("#mw-ev-end");
+    const allDay = panel.querySelector("#mw-ev-allday");
+    const hhmm = (m) => `${p2(Math.floor(m / 60))}:${p2(m % 60)}`;
+    if (editing) {
+      if (cur.event_time) {
+        startSel.value = fmtEventTime(cur.event_time);
+        endSel.value = cur.event_end_time ? fmtEventTime(cur.event_end_time) : "";
+      } else allDay.checked = true;
+    } else {
+      // 預設帶入「現在時間」當開始,結束 = 開始 + 1 小時(最晚 23:59)
+      const n = new Date();
+      const s = n.getHours() * 60 + n.getMinutes();
+      startSel.value = hhmm(s);
+      endSel.value = hhmm(Math.min(s + 60, 23 * 60 + 59));
     }
-  };
-  allDay.onchange = () => {
-    startSel.disabled = endSel.disabled = allDay.checked;
-    document.querySelector(".mwn-time").classList.toggle("off", allDay.checked);
+    const syncAllDay = () => {
+      startSel.disabled = endSel.disabled = allDay.checked;
+      panel.querySelector(".mwn-time").classList.toggle("off", allDay.checked);
+    };
+    allDay.onchange = syncAllDay;
+    syncAllDay();
+    startSel.onchange = () => {
+      if (!endSel.value || endSel.value <= startSel.value) {
+        const [h, m] = startSel.value.split(":").map(Number);
+        endSel.value = hhmm(Math.min(h * 60 + m + 60, 23 * 60 + 59));
+      }
+    };
+
+    panel.querySelector("#mw-ev-save").onclick = async () => {
+      const evTitle = panel.querySelector("#mw-ev-title").value.trim();
+      const content = panel.querySelector("#mw-ev-text").value.trim() || evTitle;
+      if (!content) { toast("請輸入標題或內容", "error"); return; }
+      if (!allDay.checked && !startSel.value) { toast("請選擇開始時間,或勾選全天", "error"); return; }
+      const eventTime = allDay.checked ? null : startSel.value;
+      const eventEndTime = allDay.checked ? null : endSel.value || null;
+      if (eventTime && eventEndTime && eventEndTime <= eventTime) { toast("結束時間必須晚於開始時間", "error"); return; }
+      const wantNotify = panel.querySelector("#mw-ev-notify").checked;
+      try {
+        if (editing) {
+          await api(`/dashboard/calendar/${cur.id}`, {
+            method: "PATCH",
+            body: {
+              title: evTitle,
+              content,
+              is_important: important,
+              notify: wantNotify,
+              ...(eventTime ? { event_time: eventTime, event_end_time: eventEndTime } : { clear_event_time: true }),
+            },
+          });
+          toast("已更新", "success");
+        } else {
+          const pidRaw = panel.querySelector("#mw-ev-project").value;
+          await api("/dashboard/calendar", {
+            method: "POST",
+            body: {
+              event_date: dateIso,
+              event_time: eventTime,
+              event_end_time: eventEndTime,
+              title: evTitle || null,
+              content,
+              project_id: pidRaw ? Number(pidRaw) : null,
+              is_important: important,
+              notify: wantNotify,
+            },
+          });
+          toast("已新增", "success");
+        }
+        closeModal();
+        await loadMyWork();
+        if (typeof refreshReminderBell === "function") refreshReminderBell();
+      } catch (e) {}
+    };
   };
 
-  document.getElementById("mw-ev-add").onclick = async () => {
-    const evTitle = document.getElementById("mw-ev-title").value.trim();
-    const content = document.getElementById("mw-ev-text").value.trim() || evTitle;
-    if (!content) { toast("請輸入標題或內容", "error"); return; }
-    const pidRaw = document.getElementById("mw-ev-project").value;
-    const isImportant = mwImportant;
-    const wantNotify = document.getElementById("mw-ev-notify").checked;
-    if (!allDay.checked && (!startSel.value || !endSel.value)) { toast("請選擇開始與結束時間,或勾選全天", "error"); return; }
-    const eventTime = allDay.checked ? null : startSel.value;
-    const eventEndTime = allDay.checked ? null : endSel.value;
-    if (eventTime && eventEndTime && eventEndTime <= eventTime) {
-      toast("結束時間必須晚於開始時間", "error");
-      return;
-    }
-    try {
-      await api("/dashboard/calendar", {
-        method: "POST",
-        body: {
-          event_date: dateIso,
-          event_time: eventTime,
-          title: evTitle || null,
-          event_end_time: eventEndTime,
-          content,
-          project_id: pidRaw ? Number(pidRaw) : null,
-          is_important: isImportant,
-          notify: wantNotify,
-        },
-      });
-      toast("已新增", "success");
-      closeModal();
-      await loadMyWork();
-      if (typeof refreshReminderBell === "function") refreshReminderBell();
-    } catch (e) {}
-  };
+  document.getElementById("mw-day-add").onclick = () => openForm(null);
+
+  document.querySelectorAll("[data-mw-edit]").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const cur = events.find((x) => String(x.id) === a.dataset.mwEdit);
+      if (cur) openForm(cur);
+    });
+  });
 
   document.querySelectorAll("[data-mw-del]").forEach((a) => {
     a.addEventListener("click", async (e) => {
@@ -456,41 +498,6 @@ function openMyWorkDay(dateIso, events) {
         await loadMyWork();
         if (typeof refreshReminderBell === "function") refreshReminderBell();
       } catch (err) {}
-    });
-  });
-
-  document.querySelectorAll("[data-mw-edit]").forEach((a) => {
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const wrap = a.closest(".mw-daydetail-ev");
-      const cur = events.find((x) => String(x.id) === a.dataset.mwEdit);
-      const box = wrap.querySelector(".mw-ev-content");
-      box.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input type="time" class="mw-ev-edit-time" value="${fmtEventTime(cur.event_time)}" title="開始時間(選填)"><span>–</span><input type="time" class="mw-ev-edit-end" value="${fmtEventTime(cur.event_end_time)}" title="結束時間(選填)"></div>
-        <textarea rows="3" style="width:100%">${escapeHtml(cur.content)}</textarea>
-        <label class="mw-ev-important-row"><input type="checkbox" class="mw-ev-edit-notify" ${cur.notify ? "checked" : ""}><span>需要 LINE 推播</span></label>
-        <div style="margin-top:6px;display:flex;gap:8px">
-          <button type="button" class="btn-primary btn-sm" data-mw-save="${cur.id}">儲存</button>
-        </div>`;
-      box.querySelector("[data-mw-save]").addEventListener("click", async () => {
-        const val = box.querySelector("textarea").value.trim();
-        if (!val) return;
-        const timeVal = box.querySelector(".mw-ev-edit-time").value;
-        try {
-          await api(`/dashboard/calendar/${cur.id}`, {
-            method: "PATCH",
-            body: {
-              content: val,
-              notify: box.querySelector(".mw-ev-edit-notify").checked,
-              ...(timeVal
-                ? { event_time: timeVal, event_end_time: box.querySelector(".mw-ev-edit-end").value || null }
-                : { clear_event_time: true }),
-            },
-          });
-          toast("已更新", "success");
-          closeModal();
-          await loadMyWork();
-        } catch (err) {}
-      });
     });
   });
 }
