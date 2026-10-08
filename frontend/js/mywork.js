@@ -351,7 +351,6 @@ function openMyWorkDay(dateIso, events) {
       <div class="mwd2-head"><span class="mwd2-date">${dateIso} (${dow})</span><span class="mwd2-count">${events.length} 筆事項</span></div>
       <div class="mwd2-list">${events.length ? events.map(cardHtml).join("") : '<div class="mwd2-empty">這天還沒有待辦</div>'}</div>
       <button type="button" class="mwd2-add" id="mw-day-add"><span>＋</span> 新增行事曆活動</button>
-      <div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">關閉</button></div>
     </div>`,
     { width: "440px" }
   );
