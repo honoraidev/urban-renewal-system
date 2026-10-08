@@ -5902,3 +5902,20 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 }
 #view-dashboard .page-header h2, #view-mywork .page-header h2, #view-users .page-header h2, #view-loginlogs .page-header h2 { display: flex; align-items: center; gap: 10px; }
 #view-mywork .page-header h2::before { height: 34px; }
+/* 工作看板標題不加線條 */
+#view-mywork .page-header h2::before { content: none !important; display: none; }
+/* 案件一覽標題大小同功能區(30px) */
+#view-dashboard .page-header h2 { font-size: 30px; font-weight: 800; letter-spacing: .01em; line-height: 1.2; }
+/* 圖示放在直線條左邊:圖示 → 線條 → 標題 */
+.cd-title-icon, .nw-title-icon, .reg-title-icon, .ws-title-icon, .fq-title-icon, .iv-title-icon, .tl-title-icon { order: -1; }
+.tl-title-icon { font-size: 28px; line-height: 1; }
+
+/* 展開:使用者名稱有足夠寬度(縮小邊距與按鈕);收合:頭像放最下面(鈴鐺、深色鈕在上) */
+.nav-user { padding-left: 14px !important; padding-right: 14px !important; gap: 6px !important; }
+.avatar-menu { gap: 8px; }
+#nav-bell-btn, #theme-toggle-btn { width: 36px !important; height: 36px !important; border-radius: 12px; }
+#nav-bell-btn .nav-bell-icon, #nav-bell-btn .nav-bell-icon svg, #theme-toggle-btn svg { width: 24px !important; height: 24px !important; }
+.sb.collapsed .nav-user { gap: 10px !important; padding-left: 8px !important; padding-right: 8px !important; }
+.sb.collapsed .nav-bell-wrap { order: 1; }
+.sb.collapsed #theme-toggle-btn { order: 2; }
+.sb.collapsed .avatar-menu { order: 3; }
