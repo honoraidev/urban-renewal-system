@@ -5871,3 +5871,26 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
   .manual-body { height: auto !important; min-height: 748px !important; display: block !important; }
   .manual-body > .manual-sec { overflow: visible !important; flex: none; padding-right: 0; margin-right: 0; }
 }
+/* 側欄底部:鈴鐺與深色模式鈕改成白色圓角方塊 + 彩色圖示(依設計稿) */
+#nav-bell-btn, #theme-toggle-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid color-mix(in srgb, var(--border) 85%, #9fb6c6); box-shadow: 0 6px 14px -8px rgba(20, 60, 90, .35);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+#nav-bell-btn:hover, #theme-toggle-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 18px -8px rgba(20, 60, 90, .4); background: var(--surface); }
+#nav-bell-btn .nav-bell-icon { display: inline-flex; width: 26px; height: 26px; font-size: 0; }
+#nav-bell-btn .nav-bell-icon svg, #theme-toggle-btn svg { width: 26px; height: 26px; }
+#theme-toggle-btn svg { width: 26px !important; height: 26px !important; }
+:root[data-theme="dark"] #nav-bell-btn, :root[data-theme="dark"] #theme-toggle-btn { background: var(--surface-2); border-color: color-mix(in srgb, #fff 14%, transparent); box-shadow: 0 6px 14px -8px rgba(0, 0, 0, .6); }
+:root[data-theme="dark"] #theme-toggle-btn svg path[stroke="#2f4357"] { stroke: #cfd8e6; }
+
+.nav-user { gap: 8px; }
+.avatar-menu { min-width: 0; }
+#nav-bell-btn, #theme-toggle-btn { flex: 0 0 auto; width: 38px; height: 38px; }
+.nav-bell-wrap { flex: 0 0 auto; }
+.avatar-btn { flex: 0 0 auto; }
+
+/* 側欄收合(直排)時:頭像/鈴鐺/深色鈕各自保有高度、不互相重疊 */
+.sb.collapsed .nav-user { gap: 10px; }
+.sb.collapsed .avatar-menu { flex: 0 0 auto; min-width: 0; }
+.sb.collapsed .nav-user-name { display: none; }

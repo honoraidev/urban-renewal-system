@@ -1,7 +1,7 @@
 "use strict";
 
-const SUN_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
-const MOON_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+const SUN_ICON = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><defs><linearGradient id="sunG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd34d"/><stop offset="1" stop-color="#ffa62b"/></linearGradient></defs><circle cx="16" cy="16" r="6" fill="url(#sunG)"/><g stroke="#ffb340" stroke-width="2.4" stroke-linecap="round"><path d="M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2.1 2.1M22.4 22.4l2.1 2.1M7.5 24.5l2.1-2.1M22.4 9.6l2.1-2.1"/></g></svg>`;
+const MOON_ICON = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M20.5 5.2A11 11 0 1 0 26.8 19.5 9 9 0 0 1 20.5 5.2z" stroke="#2f4357" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M24 4.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" fill="#7c9be0"/><path d="M28.5 13l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="#9db4ea"/></svg>`;
 
 function getEffectiveTheme() {
   const stored = localStorage.getItem("theme");
