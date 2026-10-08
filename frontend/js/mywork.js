@@ -337,9 +337,8 @@ function openMyWorkDay(dateIso, events) {
         </div>
         <span class="mwd2-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
       </div>
-      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}</div>
+      <div class="mwd2-time"><span class="mwd2-clock">${MWN_ICON.clock}</span>${escapeHtml(range)}${e.notify ? ' <span class="mwd2-push">📲 LINE 推播</span>' : ""}<span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span></div>
       <div class="mwd2-foot">
-        <span class="mwd2-by">${e.created_by_name ? escapeHtml(e.created_by_name) : ""}</span>
         ${e.can_edit ? `<span class="mwd2-act"><a href="#" data-mw-edit="${e.id}">編輯</a><a href="#" class="del" data-mw-del="${e.id}">刪除</a></span>` : ""}
       </div>
     </div>`;
