@@ -1141,7 +1141,7 @@ async function renderSopTab(el) {
               ? `<span class="sop-tag-manager" title="僅管理層級可確認此項目"><i class="sop-tag-icon">👤</i> 需主管確認</span>`
               : "";
         const rejectBtn =
-          item.manual && item.managerOnly && canConfirmThis
+          item.manual && item.managerOnly && canConfirmThis && !done // 主管已確認通過就不能再駁回
             ? `<button type="button" class="btn-secondary btn-sm" data-checklist-reject="${item.key}" data-checklist-reject-label="${escapeHtml(item.label)}" data-checklist-reject-stage="${selected}">駁回</button>`
             : "";
         // 土地/建物謄本是走「掃描謄本匯入」存的,doc_type 是 property_register / building_register

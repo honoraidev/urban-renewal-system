@@ -941,6 +941,11 @@ def reject_checklist_item(
     entry_data = dict(stage_entry.get("data") or {})
     checklist = dict(entry_data.get("checklist") or {})
 
+    # 主管已確認通過的項目不能再駁回(沒有「確認後再翻案」這條路,避免審核結果被反覆推翻)
+    existing = checklist.get(payload.key)
+    if existing and existing.get("confirmed_at"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="主管已確認通過,不能再駁回")
+
     checklist[payload.key] = {
         "rejected_at": datetime.now(timezone.utc).isoformat(),
         "rejected_by": current_user.id,
