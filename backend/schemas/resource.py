@@ -13,6 +13,7 @@ class CompanyDocumentRead(BaseModel):
     uploaded_by_name: str | None = None
     uploaded_at: datetime
     description: str | None = None
+    branch: str | None = "all"
 
     model_config = {"from_attributes": True}
 

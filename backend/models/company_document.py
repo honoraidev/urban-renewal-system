@@ -21,3 +21,5 @@ class CompanyDocument(Base):
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 適用分部:all(兩邊共用,舊文件預設)/ taoyuan(桃園)/ taipei(台北)。NULL 視同 all。
+    branch: Mapped[str | None] = mapped_column(String(10), nullable=True, default="all")

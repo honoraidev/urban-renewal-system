@@ -43,6 +43,38 @@ router = APIRouter(tags=["resources"])
 
 # ================= 公版文件 (company-wide document templates) =================
 
+# ----- 公版文件分部可見度 -----
+# 分部由使用者的「部門」判斷:部門名稱含「桃園」→ 桃園分部;其他任何部門 → 台北分部。同時有兩邊部門的人,
+# 兩邊的文件都看得到。沒有填任何部門的人只能看「共用」文件。只有 L0 系統管理員不受限(看全部)。
+BRANCHES = {"all", "taoyuan", "taipei"}
+
+
+def user_branches(user: User) -> set[str]:
+    out: set[str] = set()
+    for d in user.departments or []:
+        name = str(d or "")
+        if not name.strip():
+            continue
+        out.add("taoyuan" if "桃園" in name else "taipei")
+    return out
+
+
+def _doc_visible(doc: CompanyDocument, user: User) -> bool:
+    if user.role == "sys_admin":
+        return True
+    b = doc.branch or "all"
+    return b == "all" or b in user_branches(user)
+
+
+def _clean_branch(value: str | None) -> str | None:
+    if value is None:
+        return None
+    v = value.strip()
+    if v not in BRANCHES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分部只能是 all / taoyuan / taipei")
+    return v
+
+
 @router.get("/company-documents", response_model=list[CompanyDocumentRead])
 def list_company_documents(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = db.execute(
@@ -52,6 +84,8 @@ def list_company_documents(db: Session = Depends(get_db), current_user: User = D
     ).all()
     results = []
     for doc, uploader_name in rows:
+        if not _doc_visible(doc, current_user):
+            continue
         item = CompanyDocumentRead.model_validate(doc)
         item.uploaded_by_name = uploader_name
         results.append(item)
@@ -63,9 +97,11 @@ def upload_company_document(
     file: UploadFile = File(...),
     category: str | None = Form(None),
     description: str | None = Form(None),
+    branch: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
+    branch = _clean_branch(branch) or "all"
     disk_path, stored_name = build_company_upload_path(file.filename or "upload")
     content = file.file.read()
     with open(disk_path, "wb") as out:
@@ -79,6 +115,7 @@ def upload_company_document(
         mime_type=file.content_type,
         uploaded_by=current_user.id,
         description=description,
+        branch=branch,
     )
     db.add(document)
     db.commit()
@@ -100,6 +137,8 @@ def download_company_document(
     doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     document = _get_company_document_or_404(db, doc_id)
+    if not _doc_visible(document, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     if not os.path.exists(document.file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
     return FileResponse(document.file_path, filename=document.file_name, media_type=document.mime_type)
@@ -110,10 +149,15 @@ def update_company_document(
     doc_id: int,
     category: str | None = Form(None),
     description: str | None = Form(None),
+    branch: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
     document = _get_company_document_or_404(db, doc_id)
+    if not _doc_visible(document, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if branch is not None:
+        document.branch = _clean_branch(branch)
     if category is not None:
         document.category = category.strip() if category.strip() else None
     if description is not None:
@@ -131,6 +175,8 @@ def delete_company_document(
     doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_manager)
 ):
     document = _get_company_document_or_404(db, doc_id)
+    if not _doc_visible(document, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
     db.delete(document)

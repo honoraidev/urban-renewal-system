@@ -5920,4 +5920,9 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .sb.collapsed #theme-toggle-btn { order: 2; }
 .sb.collapsed .avatar-menu { order: 3; }
 .cd-title-icon, .nw-title-icon, .reg-title-icon, .ws-title-icon, .fq-title-icon, .iv-title-icon, .tl-title-icon { display: none !important; }
+/* 公版文件分部標示 */
+.cd-branch-badge { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; vertical-align: middle; }
+.cd-b-taoyuan { color: #b45309; background: #fef3c7; }
+.cd-b-taipei { color: #1d4ed8; background: #dbeafe; }
+.cd-branch-sel { height: 30px; padding: 0 28px 0 10px !important; font-size: 13px !important; width: auto !important; min-width: 0; border-radius: 9px !important; }
 

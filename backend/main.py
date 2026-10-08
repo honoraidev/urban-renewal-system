@@ -109,6 +109,7 @@ def _auto_migrate() -> None:
         ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
         ("websites", "tags", "VARCHAR(255) NULL"),
+        ("company_documents", "branch", "VARCHAR(10) NULL DEFAULT 'all'"),
         ("announcements", "maint_start", "DATETIME NULL"),
         ("announcements", "maint_end", "DATETIME NULL"),
     ):
