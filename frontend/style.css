@@ -5829,3 +5829,19 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .manual-body::after { -webkit-mask-image: linear-gradient(to right, transparent 45%, #000 78%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%);
   mask-image: linear-gradient(to right, transparent 45%, #000 78%), linear-gradient(to bottom, transparent 28%, #000 55%, #000 80%, transparent 100%); }
 @media (min-width: 1120px) { .manual-slogan { top: 20px !important; } }
+/* 左右兩張卡高度固定(切換章節不變):內容太長時,在右側卡片內捲動 */
+@media (min-width: 1120px) {
+  .manual-layout { align-items: start !important; }
+  .manual-side { height: calc(max(842px, 100vh - 130px)); }
+  .manual-body { height: calc(max(842px, 100vh - 130px) - 104px); min-height: 0 !important; display: flex; flex-direction: column; margin-top: 104px; }
+  .manual-body > .manual-sec { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 10px; margin-right: -4px; }
+  .manual-body > .manual-sec::-webkit-scrollbar { width: 8px; }
+  .manual-body > .manual-sec::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 30%, transparent); border-radius: 8px; }
+  .manual-body > .manual-slogan { flex: 0 0 auto; }
+}
+/* 使用手冊標題:比照「新聞」頁的標題格式與大小(34px 粗體 + 灰色副標),不再是卡片 */
+.manual-nwhead { margin: 0 !important; height: 104px; flex-wrap: nowrap; align-items: flex-start; padding: 2px 4px 0; }
+@media (max-width: 1119px) { .manual-nwhead { height: auto; margin-bottom: 14px !important; } }
+
+.manual-nwhead .nw-title { color: var(--text); }
+.manual-nwhead .nw-sub { color: var(--text-muted); }
