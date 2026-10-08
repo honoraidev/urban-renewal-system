@@ -5664,3 +5664,80 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .wkt-col-h span { display: block; text-align: center; white-space: nowrap; font-size: 10px; letter-spacing: -.2px; }
 @media (max-width: 1500px) { .wkt-col-h span { font-size: 9.5px; letter-spacing: -.3px; } }
 
+
+/* ===== 使用手冊改版(依設計稿):左側標題卡 + 目錄卡,右側一次顯示一個章節的大卡片 ===== */
+#view-manual { position: relative; }
+#view-manual .manual-head-card { display: none; }
+.manual-wrap { font-size: 15px; }
+.manual-toc { background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); border-radius: 22px; padding: 18px 16px 150px; position: relative; overflow: hidden; box-shadow: 0 10px 28px -16px rgba(20, 90, 100, .28); }
+.manual-toc::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none; opacity: .5; background: url("skyline.svg") center bottom / cover no-repeat; }
+.manual-toc-slogan { position: absolute; left: 0; right: 0; bottom: 18px; z-index: 1; text-align: center; font-family: "Segoe Script", "Brush Script MT", "KaiTi", "BiauKai", cursive; font-size: 15px; color: var(--text); line-height: 1.7; }
+.manual-toc-slogan small { display: block; font-family: inherit; font-size: 12.5px; color: var(--text-muted); letter-spacing: 1px; }
+.manual-head-card { display: flex !important; align-items: center; gap: 14px; margin-bottom: 14px; padding: 16px 18px; border-radius: 22px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.manual-head-ic { flex: 0 0 auto; font-size: 44px; line-height: 1; filter: drop-shadow(0 4px 6px rgba(20, 90, 100, .25)); }
+.manual-head-t b { display: block; font-size: 24px; font-weight: 900; color: var(--text); line-height: 1.2; }
+.manual-head-t small { font-size: 12.5px; color: var(--text-muted); }
+.manual-toc-title { font-size: 19px; font-weight: 900; margin: 4px 6px 10px; }
+.manual-toc ol { gap: 6px; }
+.manual-toc a { padding: 9px 12px; border-radius: 14px; font-size: 15px; font-weight: 700; background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.manual-toc a::before { flex: 0 0 30px; height: 30px; border-radius: 50%; font-size: 14px; background: color-mix(in srgb, var(--text-muted) 14%, var(--surface)); }
+.manual-toc a::after { content: "›"; margin-left: auto; font-size: 20px; font-weight: 400; color: var(--text-muted); }
+.manual-toc a:hover { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.manual-toc a.active { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--brand-dark); }
+.manual-toc a.active::before { background: linear-gradient(145deg, #2fbfae, #14a39c); color: #fff; }
+.manual-toc a.active::after { color: var(--brand-dark); }
+
+/* 右側內容卡 */
+.manual-body { position: relative; overflow: hidden; border-radius: 26px; padding: 30px 34px 34px; min-height: 560px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 82%, transparent));
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); box-shadow: 0 14px 34px -20px rgba(20, 90, 100, .3); }
+.manual-body::before { content: ""; position: absolute; right: 0; bottom: 0; width: min(46%, 440px); height: 78%; pointer-events: none; opacity: .5;
+  background: url("manual_bg.jpg") right bottom / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to left, #000 25%, transparent 100%); mask-image: linear-gradient(to left, #000 25%, transparent 100%); }
+.manual-body > * { position: relative; z-index: 1; max-width: none; }
+.manual-slogan { position: absolute !important; right: 36px; top: 18px; z-index: 2; text-align: center; font-family: "Segoe Script", "Brush Script MT", "KaiTi", "BiauKai", cursive; font-size: 22px; line-height: 1.5; color: var(--text); transform: rotate(-4deg); pointer-events: none; }
+.manual-slogan svg { display: block; width: 100%; height: 14px; margin-top: 2px; color: var(--brand); }
+.manual-sec[hidden] { display: none; }
+.manual-sec { animation: manualIn .25s ease; }
+@keyframes manualIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 標題:框框透明(無底色、無邊框),下方一小段青綠色底線 */
+.manual-body h3 { background: transparent !important; border: 0 !important; box-shadow: none !important; margin: 0 0 6px !important; padding: 0 0 12px !important; position: relative; font-size: 28px; gap: 14px; }
+.manual-body h3::before { flex: 0 0 52px; height: 52px; border-radius: 16px; font-size: 26px; background: linear-gradient(145deg, #2fbfae, #14a39c); box-shadow: 0 8px 18px -8px rgba(20, 163, 156, .7); }
+.manual-body h3::after { content: ""; position: absolute; left: 0; bottom: 0; width: 26px; height: 3px; border-radius: 3px; background: var(--brand); }
+.manual-sec > p:first-of-type { max-width: 760px; }
+
+/* 列表:一列一個圓角橫條 */
+.manual-sec ul { display: grid; gap: 8px; max-width: 800px; margin: 14px 0; }
+.manual-sec ul li { margin: 0; padding: 10px 16px 10px 62px; border-radius: 14px; min-height: 52px; display: flex; align-items: center; background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--text); position: relative; }
+.manual-sec ul li::before { content: attr(data-ic); position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: color-mix(in srgb, #14b8a6 14%, var(--surface)); border: 1px solid color-mix(in srgb, #14b8a6 25%, transparent); }
+.manual-sec ul li:not([data-ic])::before { content: "✓"; font-size: 16px; font-weight: 900; color: #0f9d93; }
+.manual-sec ul li > * , .manual-sec ul li { line-height: 1.6; }
+
+/* 表格:表頭青綠底、角色欄帶圖示 */
+.manual-tw { border-radius: 16px; background: color-mix(in srgb, var(--surface) 90%, transparent); max-width: 1000px; }
+.manual-table th { background: color-mix(in srgb, #14b8a6 16%, var(--surface)); color: var(--text); font-size: 14.5px; }
+.manual-table td, .manual-table th { padding: 12px 16px; }
+.manual-table td:first-child { font-weight: 800; }
+
+/* 提示框:燈泡 + 淡青底 */
+.manual-note { border-radius: 14px; background: color-mix(in srgb, #14b8a6 8%, var(--surface)); border-color: color-mix(in srgb, #14b8a6 26%, transparent); max-width: 1000px; }
+
+@media (max-width: 1119px) {
+  .manual-head-card { margin-bottom: 12px; }
+  .manual-toc { padding-bottom: 16px; }
+  .manual-toc::after, .manual-toc-slogan { display: none; }
+  .manual-toc ol { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; }
+  .manual-toc li { flex: 0 0 auto; }
+  .manual-toc a::after { display: none; }
+  .manual-toc a { white-space: nowrap; }
+  .manual-body { padding: 22px 18px 26px; min-height: 0; margin-top: 14px; }
+  .manual-slogan { position: static !important; transform: none; margin-bottom: 12px; font-size: 18px; text-align: left; }
+  .manual-body::before { opacity: .22; width: 80%; }
+  .manual-body h3 { font-size: 22px; }
+  .manual-body h3::before { flex-basis: 42px; height: 42px; font-size: 20px; }
+}
+@media (min-width: 1120px) {
+  .manual-layout { grid-template-columns: 330px minmax(0, 1fr); gap: 22px; }
+  .manual-side { position: sticky; top: 16px; }
+}

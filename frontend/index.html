@@ -13,7 +13,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261007_1">
+  <link rel="stylesheet" href="style.css?v=20261008_1">
 </head>
 
 <body>
@@ -730,17 +730,13 @@
           <!-- 使用手冊 -->
           <div id="view-manual" class="hidden">
             <nav class="nw-crumbs"><a href="#" id="manual-crumb-home">首頁</a><span class="nw-crumb-sep">›</span><span>使用手冊</span></nav>
-            <div class="page-header" style="margin-bottom:8px">
-              <div>
-                <h2>使用手冊</h2>
-              </div>
-            </div>
-
             <div class="manual-wrap">
 
               <div class="manual-layout">
 
-                <aside class="manual-toc">
+                <aside class="manual-side">
+                <div class="manual-head-card"><span class="manual-head-ic">📖</span><div class="manual-head-t"><b>使用手冊</b><small>快速上手 · 高效作業 · 專業管理</small></div></div>
+                <div class="manual-toc">
                   <div class="manual-toc-title">目錄</div>
                   <ol>
                     <li><a href="#manual-overview">系統是什麼</a></li>
@@ -753,27 +749,31 @@
                     <li><a href="#manual-glossary">名詞說明</a></li>
                     <li><a href="#manual-faq">常見問題</a></li>
                   </ol>
+                  <div class="manual-toc-slogan">專業 × 效率 × 永續<small>打造更好的建築管理未來</small></div>
+                </div>
                 </aside>
 
                 <div class="manual-body">
 
+                  <div class="manual-slogan">讓建築管理<br>更簡單、更高效<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 11C50 2 120 2 198 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+
                   <h3 id="manual-overview">系統是什麼</h3>
                   <p>本系統把都市更新案件從<strong>籌備立案</strong>到<strong>雙門檻同意達標</strong>的作業集中管理,主要涵蓋:</p>
                   <ul>
-                    <li>謄本檔案匯入 → 土地／建物登記、地主資料的建立與校正</li>
-                    <li>地主聯絡紀錄、聯絡率統計</li>
-                    <li>同意書管理、同意度(人數 + 土地持分雙門檻)試算</li>
-                    <li>SOP進度與檢核清單</li>
-                    <li>案件文件庫、費用登錄(可用OCR掃描)、土地增值稅試算</li>
-                    <li>地主清冊 Excel 匯出</li>
+                    <li data-ic="📄">謄本檔案匯入 → 土地／建物登記、地主資料的建立與校正</li>
+                    <li data-ic="👥">地主聯絡紀錄、聯絡率統計</li>
+                    <li data-ic="🥧">同意書管理、同意度(人數 + 土地持分雙門檻)試算</li>
+                    <li data-ic="📋">SOP進度與檢核清單</li>
+                    <li data-ic="📁">案件文件庫、費用登錄(可用OCR掃描)、土地增值稅試算</li>
+                    <li data-ic="📊">地主清冊 Excel 匯出</li>
                   </ul>
                   <div class="manual-tw">
                     <table class="manual-table">
                       <thead><tr><th>角色</th><th>可做的事</th></tr></thead>
                       <tbody>
-                        <tr><td>管理者 / 主管</td><td>建立／刪除案件、指派案件人員、使用者管理、看登入紀錄,所有資料可編輯</td></tr>
-                        <tr><td>承辦 / 編輯者</td><td>被指派案件的登記資料、聯絡紀錄、文件、費用、SOP 操作</td></tr>
-                        <tr><td>檢視者</td><td>唯讀</td></tr>
+                        <tr><td>👤 管理者 / 主管</td><td>建立／刪除案件、指派案件人員、使用者管理、看登入紀錄,所有資料可編輯</td></tr>
+                        <tr><td>✏️ 承辦 / 編輯者</td><td>被指派案件的登記資料、聯絡紀錄、文件、費用、SOP 操作</td></tr>
+                        <tr><td>👁️ 檢視者</td><td>唯讀</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -970,6 +970,7 @@
   <script src="js/api.js?v=20261005_2"></script>
   <script src="js/modals.js?v=20261005_1"></script>
   <script src="js/auth.js?v=20261005_2"></script>
+  <script src="js/manual_ui.js?v=20261008_1"></script>
   <script src="js/dashboard.js?v=20261005_2"></script>
   <script src="js/weather_hero.js?v=20261005_6"></script>
   <script src="js/announcements.js?v=20261005_18"></script>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".95"/>
+      <stop offset=".7" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="m"><rect width="640" height="280" fill="url(#fade)"/></mask>
+    <linearGradient id="front" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eaf2fb"/>
+      <stop offset="1" stop-color="#dce8f6"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cbdcef"/>
+      <stop offset="1" stop-color="#d8e5f4"/>
+    </linearGradient>
+    <pattern id="win" width="10" height="9" patternUnits="userSpaceOnUse">
+      <rect width="10" height="1.6" fill="#fff" opacity=".7"/>
+    </pattern>
+    <pattern id="grid" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="1.4" fill="#fff" opacity=".65"/>
+      <rect width="1.4" height="12" fill="#fff" opacity=".45"/>
+    </pattern>
+  </defs>
+  <g mask="url(#m)">
+    <!-- back row: low, paler -->
+    <g opacity=".6">
+      <rect x="20" y="170" width="56" height="110" fill="url(#front)"/>
+      <polygon points="76,170 94,178 94,280 76,280" fill="url(#side)"/>
+      <rect x="20" y="170" width="56" height="110" fill="url(#win)"/>
+      <rect x="560" y="150" width="54" height="130" fill="url(#front)"/>
+      <polygon points="614,150 630,158 630,280 614,280" fill="url(#side)"/>
+      <rect x="560" y="150" width="54" height="130" fill="url(#win)"/>
+      <rect x="130" y="130" width="48" height="150" fill="url(#front)"/>
+      <rect x="130" y="130" width="48" height="150" fill="url(#grid)"/>
+    </g>
+    <!-- tower 1 -->
+    <rect x="98" y="118" width="58" height="162" fill="url(#front)"/>
+    <polygon points="156,118 176,128 176,280 156,280" fill="url(#side)"/>
+    <rect x="98" y="118" width="58" height="162" fill="url(#win)"/>
+    <!-- tower 2 -->
+    <rect x="190" y="70" width="62" height="210" fill="url(#front)"/>
+    <polygon points="252,70 274,82 274,280 252,280" fill="url(#side)"/>
+    <polygon points="190,70 204,58 238,58 252,70" fill="#eef4fb"/>
+    <rect x="190" y="70" width="62" height="210" fill="url(#grid)"/>
+    <!-- tower 3 (tallest) -->
+    <rect x="290" y="22" width="70" height="258" fill="url(#front)"/>
+    <polygon points="360,22 386,36 386,280 360,280" fill="url(#side)"/>
+    <rect x="322" y="6" width="6" height="16" fill="#dce8f6"/>
+    <rect x="290" y="22" width="70" height="258" fill="url(#win)"/>
+    <!-- tower 4 -->
+    <rect x="400" y="60" width="60" height="220" fill="url(#front)"/>
+    <polygon points="460,60 482,72 482,280 460,280" fill="url(#side)"/>
+    <rect x="400" y="60" width="60" height="220" fill="url(#grid)"/>
+    <!-- tower 5 -->
+    <rect x="496" y="104" width="54" height="176" fill="url(#front)"/>
+    <polygon points="550,104 568,114 568,280 550,280" fill="url(#side)"/>
+    <rect x="496" y="104" width="54" height="176" fill="url(#win)"/>
+  </g>
+</svg>
