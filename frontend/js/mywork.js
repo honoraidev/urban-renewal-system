@@ -390,8 +390,13 @@ function openMyWorkDay(dateIso, events) {
   const startSel = document.getElementById("mw-ev-start");
   const endSel = document.getElementById("mw-ev-end");
   const allDay = document.getElementById("mw-ev-allday");
-  startSel.value = "09:00";
-  endSel.value = "10:00";
+  // 預設帶入「現在時間」當開始,結束 = 開始 + 1 小時(最晚 23:59)
+  const _now = new Date();
+  const _p2 = (n) => String(n).padStart(2, "0");
+  const _startMin = _now.getHours() * 60 + _now.getMinutes();
+  const _endMin = Math.min(_startMin + 60, 23 * 60 + 59);
+  startSel.value = `${_p2(Math.floor(_startMin / 60))}:${_p2(_startMin % 60)}`;
+  endSel.value = `${_p2(Math.floor(_endMin / 60))}:${_p2(_endMin % 60)}`;
   startSel.onchange = () => {
     // 結束時間跟著往後排(開始 + 1 小時),避免結束早於開始
     if (endSel.value <= startSel.value) {
