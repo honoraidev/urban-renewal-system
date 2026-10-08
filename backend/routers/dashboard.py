@@ -141,7 +141,7 @@ def get_my_work(
         TodayActivityItem(
             kind="calendar",
             id=e.id,
-            action=e.content,
+            action=e.title or e.content,
             event_time=et,
             is_important=e.is_important,
             project_id=e.project_id,
@@ -226,6 +226,7 @@ def get_my_work(
             event_date=e.event_date,
             event_time=normalize_event_time(e.event_time),
             event_end_time=normalize_event_time(e.event_end_time),
+            title=e.title,
             content=e.content,
             is_important=e.is_important,
             notify=e.notify,
@@ -356,6 +357,7 @@ def create_calendar_event(
         event_date=payload.event_date,
         event_time=payload.event_time,
         event_end_time=payload.event_end_time if payload.event_time is not None else None,
+        title=(payload.title or "").strip() or None,
         content=payload.content.strip(),
         is_important=payload.is_important,
         notify=payload.notify,
@@ -382,6 +384,7 @@ def create_calendar_event(
         event_date=ev.event_date,
         event_time=normalize_event_time(ev.event_time),
         event_end_time=normalize_event_time(ev.event_end_time),
+        title=ev.title,
         content=ev.content,
         is_important=ev.is_important,
         notify=ev.notify,
@@ -403,6 +406,8 @@ def update_calendar_event(
     ev = _get_event_or_404(db, event_id)
     if current_user.role not in MANAGE_ROLES and ev.created_by != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能修改自己建立的備註")
+    if payload.title is not None:
+        ev.title = payload.title.strip() or None
     if payload.content is not None:
         ev.content = payload.content.strip()
     if payload.event_date is not None:
@@ -431,6 +436,7 @@ def update_calendar_event(
         event_date=ev.event_date,
         event_time=normalize_event_time(ev.event_time),
         event_end_time=normalize_event_time(ev.event_end_time),
+        title=ev.title,
         content=ev.content,
         is_important=ev.is_important,
         notify=ev.notify,

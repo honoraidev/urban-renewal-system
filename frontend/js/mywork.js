@@ -7,9 +7,10 @@ const MWN_ICON = {
   star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.2 6.1L12 17l-5.5 2.9 1.2-6.1-4.5-4.2 6.1-.8z"/></svg>`,
 };
 const MWN_TIME_OPTS = (() => {
+  // 每 15 分鐘一格(00:00 ~ 23:45)
   let h = "";
-  for (let i = 0; i < 48; i++) {
-    const hh = Math.floor(i / 2), mm = i % 2 ? "30" : "00";
+  for (let i = 0; i < 96; i++) {
+    const hh = Math.floor(i / 4), mm = String((i % 4) * 15).padStart(2, "0");
     const label = `${hh < 12 ? "上午" : "下午"} ${String(hh % 12 === 0 ? 12 : hh % 12).padStart(2, "0")}:${mm}`;
     h += `<option value="${String(hh).padStart(2, "0")}:${mm}">${label}</option>`;
   }
@@ -327,7 +328,7 @@ function openMyWorkDay(dateIso, events) {
     .map(
       (e) => `
     <div class="mw-daydetail-ev" data-ev-id="${e.id}">
-      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}${e.event_end_time ? "–" + fmtEventTime(e.event_end_time) : ""}</span> ` : ""}${e.is_important ? "⭐ " : ""}${e.notify ? "📲 " : ""}${escapeHtml(e.content)}</div>
+      <div class="mw-ev-content" style="white-space:pre-wrap">${fmtEventTime(e.event_time) ? `<span class="mw-ev-time">${fmtEventTime(e.event_time)}${e.event_end_time ? "–" + fmtEventTime(e.event_end_time) : ""}</span> ` : ""}${e.is_important ? "⭐ " : ""}${e.notify ? "📲 " : ""}${e.title ? `<b>${escapeHtml(e.title)}</b>${e.content && e.content !== e.title ? "<br>" + escapeHtml(e.content) : ""}` : escapeHtml(e.content)}</div>
       <div class="meta">
         <div class="mw-ev-tag-group">
           <span class="mw-ev-tag${e.project_name ? " proj" : ""}">${e.project_name ? escapeHtml(e.project_name) : "個人"}</span>
@@ -358,6 +359,8 @@ function openMyWorkDay(dateIso, events) {
           <select id="mw-ev-end" class="mwn-sel">${MWN_TIME_OPTS}</select>
           <label class="mwn-allday"><input type="checkbox" id="mw-ev-allday"> 全天</label>
         </div>
+        <div class="mwn-label">標題</div>
+        <input id="mw-ev-title" class="mwn-title-in" maxlength="120" placeholder="請輸入標題..." autocomplete="off">
         <div class="mwn-label">這天要做什麼</div>
         <textarea id="mw-ev-text" rows="4" placeholder="請輸入內容..."></textarea>
         <div class="mwn-proj"><span class="mwn-ic">${MWN_ICON.person}</span>${projectSelect}</div>
@@ -393,7 +396,7 @@ function openMyWorkDay(dateIso, events) {
     // 結束時間跟著往後排(開始 + 1 小時),避免結束早於開始
     if (endSel.value <= startSel.value) {
       const [h, m] = startSel.value.split(":").map(Number);
-      const t = Math.min(h * 60 + m + 60, 23 * 60 + 30);
+      const t = Math.min(h * 60 + m + 60, 23 * 60 + 45);
       endSel.value = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
     }
   };
@@ -403,8 +406,9 @@ function openMyWorkDay(dateIso, events) {
   };
 
   document.getElementById("mw-ev-add").onclick = async () => {
-    const content = document.getElementById("mw-ev-text").value.trim();
-    if (!content) return;
+    const evTitle = document.getElementById("mw-ev-title").value.trim();
+    const content = document.getElementById("mw-ev-text").value.trim() || evTitle;
+    if (!content) { toast("請輸入標題或內容", "error"); return; }
     const pidRaw = document.getElementById("mw-ev-project").value;
     const isImportant = mwImportant;
     const wantNotify = document.getElementById("mw-ev-notify").checked;
@@ -420,6 +424,7 @@ function openMyWorkDay(dateIso, events) {
         body: {
           event_date: dateIso,
           event_time: eventTime,
+          title: evTitle || null,
           event_end_time: eventEndTime,
           content,
           project_id: pidRaw ? Number(pidRaw) : null,

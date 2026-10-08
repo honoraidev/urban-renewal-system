@@ -109,6 +109,7 @@ def _auto_migrate() -> None:
         ("calendar_events", "event_time", "TIME NULL"),
         ("building_records", "original_address", "VARCHAR(255) NULL"),
         ("websites", "tags", "VARCHAR(255) NULL"),
+        ("calendar_events", "title", "VARCHAR(120) NULL"),
         ("calendar_events", "event_end_time", "TIME NULL"),
         ("calendar_events", "notify", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("company_documents", "version", "INT NOT NULL DEFAULT 1"),
@@ -716,7 +717,7 @@ def _bell_notify_pass(db) -> None:
                 hhmm = e.event_time.strftime("%H:%M") if e.event_time else ""
                 _sso_send({
                     "employee_nos": [owner.username],
-                    "text": f"【待辦提醒】{(hhmm + ' ') if hhmm else ''}{e.content}"[:300],
+                    "text": f"【待辦提醒】{(hhmm + ' ') if hhmm else ''}{e.title or e.content}"[:300],
                     "link": f"{link_base}/projects/{e.project_id}" if link_base and e.project_id else link_base,
                     "dedupe_key": f"urn:{key}",
                     "action_icon": "⏰",
@@ -735,7 +736,7 @@ def _bell_notify_pass(db) -> None:
             owner = db.get(User, uid)
             if owner and owner.username and owner.is_active:
                 evs.sort(key=lambda x: (x.event_time is None, x.event_time or _time.min, x.id))
-                lines = [f"{(x.event_time.strftime('%H:%M') + ' ') if x.event_time else ''}{x.content}" for x in evs]
+                lines = [f"{(x.event_time.strftime('%H:%M') + ' ') if x.event_time else ''}{x.title or x.content}" for x in evs]
                 _sso_send({
                     "employee_nos": [owner.username],
                     "text": ("【今日待辦】共 %d 項\n" % len(lines) + "\n".join(f"• {l}" for l in lines))[:900],

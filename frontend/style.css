@@ -5959,4 +5959,19 @@ button.ann-compact { padding: 7px 14px; gap: 8px; }
 .mwn-notify input { width: 22px; height: 22px; accent-color: #2fb5a8; flex: 0 0 auto; }
 .mwn-notify b { font-weight: 900; }
 .mwn-notify small { font-weight: 400; color: var(--text-muted); font-size: 12.5px; }
+/* 新增待辦視窗字級縮小 */
+.mwn-title { font-size: 17px; gap: 10px; }
+.mwn-title-ic { width: 30px; height: 30px; }
+.mwn-date { font-size: 18px; padding: 10px 14px; margin-bottom: 14px; }
+.mwn-sel { height: 38px; font-size: 13.5px; }
+.mwn-ic { width: 24px; height: 24px; }
+.mwn-allday { font-size: 13.5px; }
+.mwn-allday input, .mwn-notify input { width: 18px; height: 18px; }
+.mwn-label { font-size: 13.5px; margin-bottom: 6px; }
+.mwn-title-in { width: 100%; height: 38px; border-radius: 12px; font-size: 14px; margin-bottom: 12px; }
+.mwn > textarea { font-size: 14px; min-height: 90px; }
+.mwn-proj select { height: 38px; font-size: 13.5px; }
+.mwn-notify { font-size: 13.5px; }
+.mwn-notify small { font-size: 11.5px; }
+.mwn-star { width: 34px; height: 34px; }
 

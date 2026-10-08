@@ -33,6 +33,7 @@ class CalendarEventItem(BaseModel):
     event_date: date
     event_time: time | None = None
     event_end_time: time | None = None
+    title: str | None = None
     content: str
     is_important: bool = False
     notify: bool = False
@@ -62,6 +63,7 @@ class CalendarEventCreate(BaseModel):
     event_date: date
     event_time: time | None = None
     event_end_time: time | None = None
+    title: str | None = Field(default=None, max_length=120)
     content: str = Field(min_length=1, max_length=2000)
     project_id: int | None = None
     is_important: bool = False
@@ -70,6 +72,7 @@ class CalendarEventCreate(BaseModel):
 
 
 class CalendarEventUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
     content: str | None = Field(default=None, min_length=1, max_length=2000)
     event_date: date | None = None
     is_important: bool | None = None
