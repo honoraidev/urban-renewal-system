@@ -66,6 +66,24 @@ def _doc_visible(doc: CompanyDocument, user: User) -> bool:
     return b == "all" or b in user_branches(user)
 
 
+def backfill_company_doc_branches(db: Session) -> int:
+    """舊文件(branch=all)依上傳者的部門自動歸分部:上傳者只屬一個分部才歸;其他維持共用。可重複執行。"""
+    n = 0
+    rows = db.execute(
+        select(CompanyDocument, User).join(User, User.id == CompanyDocument.uploaded_by)
+    ).all()
+    for doc, u in rows:
+        if (doc.branch or "all") != "all":
+            continue
+        mine = user_branches(u)
+        if len(mine) == 1:
+            doc.branch = next(iter(mine))
+            n += 1
+    if n:
+        db.commit()
+    return n
+
+
 def _clean_branch(value: str | None) -> str | None:
     if value is None:
         return None
@@ -97,11 +115,12 @@ def upload_company_document(
     file: UploadFile = File(...),
     category: str | None = Form(None),
     description: str | None = Form(None),
-    branch: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    branch = _clean_branch(branch) or "all"
+    # 分部自動判斷:上傳者只屬於一個分部 → 文件歸那個分部;兩邊都有或沒部門(例如 L0)→ 全部共用
+    mine = user_branches(current_user)
+    branch = next(iter(mine)) if len(mine) == 1 else "all"
     disk_path, stored_name = build_company_upload_path(file.filename or "upload")
     content = file.file.read()
     with open(disk_path, "wb") as out:

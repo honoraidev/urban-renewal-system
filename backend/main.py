@@ -218,6 +218,18 @@ def _auto_migrate() -> None:
     except Exception as exc:
         print(f"[auto_migrate] announcements create skipped: {exc}", flush=True)
 
+    # 公版文件:舊文件依上傳者部門自動歸分部(桃園 / 台北),只動 branch=all 且上傳者只屬一個分部的
+    try:
+        from database import SessionLocal as _SL
+        from routers.resources import backfill_company_doc_branches
+
+        with _SL() as _db:
+            _n = backfill_company_doc_branches(_db)
+            if _n:
+                print(f"[auto_migrate] company_documents branch backfilled: {_n}", flush=True)
+    except Exception as exc:
+        print(f"[auto_migrate] company_documents branch backfill skipped: {exc}", flush=True)
+
     # news_sync_state:記錄「每日新聞抓取」上次執行時間的單列表(給新聞頁面右上角
     # 顯示同步時間用),舊資料庫沒有這張表,補建起來。
     try:

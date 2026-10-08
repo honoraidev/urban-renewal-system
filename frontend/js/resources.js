@@ -85,13 +85,6 @@ function _cdBranchBadge(d) {
   const b = d.branch || "all";
   return b === "all" ? "" : `<span class="cd-branch-badge cd-b-${b}">${CD_BRANCH_LABEL[b]}</span>`;
 }
-function _cdBranchSelect(d) {
-  if (!isManager()) return "";
-  const b = d.branch || "all";
-  return `<select class="cd-branch-sel" data-cd-branch="${d.id}" title="適用分部">${Object.entries(CD_BRANCH_LABEL)
-    .map(([v, t]) => `<option value="${v}" ${v === b ? "selected" : ""}>${t}</option>`)
-    .join("")}</select>`;
-}
 
 function _cdMetaLine(d) {
   return [
@@ -153,7 +146,6 @@ function _cdListHtml(rows) {
             </div>
           </div>
           <div class="actions-cell">
-            ${_cdBranchSelect(d)}
             <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
             ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
           </div>
@@ -175,7 +167,6 @@ function _cdGridHtml(rows) {
         <div class="cd-item-row"><b>更新</b>${_cdMetaLine(d)}</div>
         ${d.description ? `<div class="cd-item-desc">${escapeHtml(d.description)}</div>` : ""}
         <div class="cd-item-actions">
-          ${_cdBranchSelect(d)}
           <button class="btn-secondary btn-sm" data-download-companydoc="${d.id}" data-filename="${escapeHtml(d.file_name)}">↓ 下載</button>
           ${isManager() ? `<button class="btn-danger btn-sm" data-delete-companydoc="${d.id}">刪除</button>` : ""}
         </div>
@@ -199,17 +190,6 @@ function _cdBindRowActions(wrap) {
         a.remove();
         URL.revokeObjectURL(url);
       } catch (err) { }
-    });
-  });
-  wrap.querySelectorAll("[data-cd-branch]").forEach((sel) => {
-    sel.addEventListener("change", async () => {
-      const fd = new FormData();
-      fd.set("branch", sel.value);
-      try {
-        await api(`/company-documents/${sel.dataset.cdBranch}`, { method: "PATCH", body: fd, isForm: true });
-        toast(`已設為「${CD_BRANCH_LABEL[sel.value]}」`, "success");
-        loadCompanyDocs();
-      } catch (err) { loadCompanyDocs(); }
     });
   });
   wrap.querySelectorAll("[data-delete-companydoc]").forEach((btn) => {
@@ -293,13 +273,6 @@ function initCompanyDocs() {
             <label>分類(選填)</label>
             <select id="companydoc-cat-select">${optionsHtml}</select>
             <input type="text" id="companydoc-custom-cat-input" placeholder="請輸入新分類名稱" autocomplete="off" style="display:none;margin-top:6px">
-          </div>
-          <div class="field"><label>適用分部</label>
-            <select name="branch">
-              <option value="all">全部共用(桃園、台北都看得到)</option>
-              <option value="taoyuan">只有桃園分部</option>
-              <option value="taipei">只有台北分部</option>
-            </select>
           </div>
           <div class="field"><label>說明</label><textarea name="description" rows="2"></textarea></div>
           <div class="modal-footer">
