@@ -6102,3 +6102,6 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .np-card-ic { width: 28px; height: 28px; border-radius: 8px; }
 .np-card-ic svg { width: 16px; height: 16px; }
 .np-card-sub { padding-top: 10px; }
+.np-flow-inline { padding: 4px 16px 16px; }
+.np-flow-inline .sop-flow-row { margin-bottom: 6px; }
+

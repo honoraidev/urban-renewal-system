@@ -885,6 +885,14 @@ async function goToNewProject() {
   // 「基地圖資」「SOP 關卡流程」兩塊用往下展開的方式,預設收合
   const open = { img: false, flow: false };
 
+  // 把頁面內流程編輯器的目前內容同步回 closure;跟預設流程完全一樣就視為沒自訂(null)
+  function syncFlow() {
+    if (typeof sopFlowEditorState === "undefined" || !sopFlowEditorState || !sopFlowEditorState.root || !document.getElementById("np-flow-inline")) return;
+    const cur = sopFlowEditorState.stages.map((x) => ({ key: x.key || null, name: (x.name || "").trim(), requirements: x.requirements || null }));
+    const def = SOP_DEFAULT_STAGE_DEFS.map((d) => ({ key: d.key, name: d.name, requirements: null }));
+    customStageFlow = JSON.stringify(cur) === JSON.stringify(def) ? null : cur;
+  }
+
   function flowSummaryText() {
     if (!customStageFlow) return "預設流程(10關)";
     return `已自訂(${customStageFlow.length}關)`;
@@ -943,7 +951,6 @@ async function goToNewProject() {
         <section class="np-card np-card-img${open.img ? " open" : ""}" data-np-sec="img">
           <button type="button" class="np-card-head np-toggle" data-np-toggle="img"><span class="np-card-ic">${NP_ICON.image}</span><b>基地圖資</b><span class="np-opt">選填 · 已上傳 ${NP_IMAGE_SLOTS.filter((sl) => images[sl.key]).length}/${NP_IMAGE_SLOTS.length}</span><span class="np-chev">▾</span></button>
           <div class="np-collapse"${open.img ? "" : " hidden"}>
-            <div class="np-card-sub">基地位置圖與地籍範圍圖可以現在上傳,也可以之後到 SOP 第 0 階段上傳。</div>
             <div class="np-ups">${NP_IMAGE_SLOTS.map(slotHtml).join("")}</div>
           </div>
         </section>
@@ -952,11 +959,8 @@ async function goToNewProject() {
           ? `<section class="np-card${open.flow ? " open" : ""}" data-np-sec="flow">
                <button type="button" class="np-card-head np-toggle" data-np-toggle="flow"><span class="np-card-ic">${NP_ICON.gear}</span><b>SOP 關卡流程</b><span class="np-opt" id="np-flow-summary">${flowSummaryText()}</span><span class="np-chev">▾</span></button>
                <div class="np-collapse"${open.flow ? "" : " hidden"}>
-                 <div class="np-card-sub">選擇案件要套用的標準流程,或建立自訂流程。</div>
-                 <div class="np-flow">
-                   <span>${flowSummaryText()}</span>
-                   <button type="button" class="btn-secondary" id="np-edit-flow-btn">${NP_ICON.gear}自訂關卡流程</button>
-                 </div>
+                 <div class="np-card-sub">選擇案件要套用的標準流程,或直接在下面調整。</div>
+                 <div class="np-flow-inline" id="np-flow-inline"></div>
                </div>
              </section>`
           : ""}
@@ -998,7 +1002,10 @@ async function goToNewProject() {
 
     // ---- 基地圖資上傳 ----
     const form = document.getElementById("project-form");
-    const snapshotValues = () => Object.fromEntries(new FormData(form).entries());
+    const snapshotValues = () => {
+      syncFlow();
+      return Object.fromEntries(new FormData(form).entries());
+    };
     const setImage = (key, file) => {
       if (!file) return;
       if (images[key]) URL.revokeObjectURL(images[key].url);
@@ -1037,15 +1044,13 @@ async function goToNewProject() {
       });
     });
 
-    const editFlowBtn = document.getElementById("np-edit-flow-btn");
-    if (editFlowBtn) {
-      editFlowBtn.addEventListener("click", () => {
-        const snapshot = snapshotValues();
-        const startFrom = customStageFlow || SOP_DEFAULT_STAGE_DEFS;
-        openSopStageFlowEditor(startFrom, async (stages) => {
-          customStageFlow = stages;
-          mountForm(snapshot);
-        });
+    // SOP 關卡流程:展開後直接在頁面內編輯(不用再按按鈕開視窗)
+    const flowBox = document.getElementById("np-flow-inline");
+    if (flowBox) {
+      mountSopFlowEditorInline(flowBox, customStageFlow || SOP_DEFAULT_STAGE_DEFS, () => {
+        syncFlow();
+        const sum = document.getElementById("np-flow-summary");
+        if (sum) sum.textContent = flowSummaryText();
       });
     }
 
@@ -1056,6 +1061,8 @@ async function goToNewProject() {
       if (!payload.city) { toast("請選擇縣市", "error"); return; }
       if (!payload.district) { toast("請選擇行政區", "error"); return; }
       payload.expected_completion_date = payload.expected_completion_date || null;
+      syncFlow();
+      if (customStageFlow && customStageFlow.some((x) => !x.name)) { toast("每一關都要有名稱", "error"); return; }
       try {
         const project = await api("/projects", { method: "POST", body: payload });
         if (customStageFlow) {

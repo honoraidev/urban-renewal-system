@@ -306,17 +306,24 @@ function renderSopFlowEditorBody() {
     </div>`;
 }
 
+function sopFlowTouch() {
+  if (sopFlowEditorState && sopFlowEditorState.onChange) sopFlowEditorState.onChange();
+}
+
 function rerenderSopFlowEditor() {
-  const rowsEl = document.getElementById("sop-flow-rows");
+  const scope = (sopFlowEditorState && sopFlowEditorState.root) || document;
+  const rowsEl = scope.querySelector("#sop-flow-rows");
   if (rowsEl) rowsEl.innerHTML = sopFlowEditorRowsHtml();
   wireSopFlowEditorRows();
+  sopFlowTouch();
 }
 
 function wireSopFlowEditorRows() {
-  const root = document.getElementById("modal-root");
+  const root = (sopFlowEditorState && sopFlowEditorState.root) || document.getElementById("modal-root");
   root.querySelectorAll("[data-flow-name]").forEach((input) => {
     input.oninput = () => {
       sopFlowEditorState.stages[Number(input.dataset.flowName)].name = input.value;
+      sopFlowTouch();
     };
   });
   root.querySelectorAll("[data-flow-type]").forEach((sel) => {
@@ -392,6 +399,7 @@ function wireSopFlowEditorRows() {
   root.querySelectorAll("[data-req-doc-type]").forEach((sel) => {
     sel.onchange = () => {
       ensureReq(Number(sel.dataset.reqDocType)).document_type = sel.value;
+      sopFlowTouch();
     };
   });
   root.querySelectorAll("[data-req-contact]").forEach((cb) => {
@@ -406,6 +414,7 @@ function wireSopFlowEditorRows() {
     input.oninput = () => {
       const v = Math.min(100, Math.max(1, Number(input.value) || 95));
       ensureReq(Number(input.dataset.reqContactThreshold)).contact_rate_threshold = v / 100;
+      sopFlowTouch();
     };
   });
   root.querySelectorAll("[data-req-ratio]").forEach((cb) => {
@@ -420,6 +429,7 @@ function wireSopFlowEditorRows() {
     input.oninput = () => {
       const v = Math.min(100, Math.max(1, Number(input.value) || 80));
       ensureReq(Number(input.dataset.reqRatioThreshold)).ratio_threshold = v / 100;
+      sopFlowTouch();
     };
   });
   root.querySelectorAll("[data-req-manual]").forEach((cb) => {
@@ -433,8 +443,46 @@ function wireSopFlowEditorRows() {
   root.querySelectorAll("[data-req-manual-label]").forEach((input) => {
     input.oninput = () => {
       ensureReq(Number(input.dataset.reqManualLabel)).manual_label = input.value;
+      sopFlowTouch();
     };
   });
+}
+
+// 嵌在頁面裡直接展開的流程編輯器(建立都更案用):不開彈窗、不用按「自訂」按鈕,
+// 改動即時反映在 sopFlowEditorState.stages,並透過 onChange 通知呼叫端。
+function mountSopFlowEditorInline(container, initialStages, onChange) {
+  sopFlowAdvancedOpen = new Set();
+  sopFlowEditorState = {
+    stages: (initialStages && initialStages.length ? initialStages : SOP_DEFAULT_STAGE_DEFS).map((s) => ({
+      key: s.key || null,
+      name: s.name,
+      requirements: s.requirements || null,
+    })),
+    lockedCount: 0,
+    onSave: null,
+    root: container,
+    onChange,
+  };
+  container.innerHTML = `
+    <div class="sop-flow-editor sop-flow-inline">
+      <div class="sop-flow-rows" id="sop-flow-rows">${sopFlowEditorRowsHtml()}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" class="btn-secondary btn-sm" id="sop-flow-add-btn">+ 新增關卡</button>
+        <button type="button" class="btn-secondary btn-sm" id="sop-flow-reset-btn">還原成預設流程</button>
+      </div>
+    </div>`;
+  wireSopFlowEditorRows();
+  container.querySelector("#sop-flow-add-btn").onclick = () => {
+    sopFlowEditorState.stages.push({ key: null, name: "", requirements: null });
+    rerenderSopFlowEditor();
+  };
+  container.querySelector("#sop-flow-reset-btn").onclick = async () => {
+    const ok = await confirmDialog("確定要還原成系統預設的10關流程嗎?目前編輯的內容會被取代。", { title: "還原預設流程?" });
+    if (!ok) return;
+    sopFlowAdvancedOpen = new Set();
+    sopFlowEditorState.stages = SOP_DEFAULT_STAGE_DEFS.map((d) => ({ key: d.key, name: d.name, requirements: null }));
+    rerenderSopFlowEditor();
+  };
 }
 
 function openSopStageFlowEditor(initialStages, onSave, lockedCount = 0) {
