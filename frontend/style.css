@@ -6145,3 +6145,9 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .np-file-act .np-lbl { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0; transition: max-width .2s ease, opacity .2s ease, margin-left .2s ease; }
 .np-file-act button:hover .np-lbl, .np-file-act button:focus-visible .np-lbl { max-width: 3.2em; opacity: 1; margin-left: 5px; }
 
+/* 建立都更案標題列縮小 */
+.modal-header:has(.np-head) { padding-top: 10px !important; padding-bottom: 10px !important; }
+.np-head { gap: 10px; }
+.np-head-ic { width: 36px !important; height: 36px !important; }
+.np-head-t { font-size: 19px !important; }
+.np-head-s { font-size: 12.5px !important; margin-top: 2px !important; }
