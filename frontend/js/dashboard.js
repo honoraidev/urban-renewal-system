@@ -842,6 +842,35 @@ function updateDistrictSelectOptions(city, defaultDistrict = "") {
   }
 }
 
+// 建立都更案:基本資料 + 基地圖資(基地位置圖、地籍範圍圖,必填)+ SOP 關卡流程
+const NP_ICON = {
+  building: '<svg viewBox="0 0 48 48" fill="none"><rect x="9" y="6" width="30" height="36" rx="3" fill="#1fb5a6"/><g fill="#fff"><rect x="15" y="12" width="5" height="5" rx="1"/><rect x="22" y="12" width="5" height="5" rx="1"/><rect x="29" y="12" width="5" height="5" rx="1"/><rect x="15" y="20" width="5" height="5" rx="1"/><rect x="22" y="20" width="5" height="5" rx="1"/><rect x="29" y="20" width="5" height="5" rx="1"/><path d="M20 42V32a4 4 0 0 1 8 0v10z"/></g></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  pin: '<svg viewBox="0 0 48 48" fill="none" stroke="#1fb5a6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M24 4c-7 0-12 5.2-12 12 0 8.5 12 20 12 20s12-11.5 12-20c0-6.8-5-12-12-12z"/><circle cx="24" cy="16" r="4.5"/><path d="M6 36l8-3m28 3l-8-3M14 44h20"/></svg>',
+  map: '<svg viewBox="0 0 48 48" fill="none" stroke="#1fb5a6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l12-5 16 5 12-5v29l-12 5-16-5-12 5z"/><path d="M16 7v29M32 12v29"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-15-6.7L3 8M3 3v5h5M3 12a9 9 0 0 0 15 6.7l3-2.7M21 21v-5h-5"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+};
+
+const NP_IMAGE_SLOTS = [
+  { key: "location", title: "基地位置圖(周邊商圈)", hint: "例如:基地周邊道路、商圈、重要地標等", icon: "pin" },
+  { key: "cadastral", title: "基地地籍範圍圖", hint: "例如:地籍套繪圖、地號範圍、更新單元範圍圖等", icon: "map" },
+];
+const NP_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+function npFmtSize(n) {
+  return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+function npFmtStamp(d) {
+  const p = (x) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 async function goToNewProject() {
   const cityOptions =
     `<option value="">請選擇</option>` + TAIWAN_CITIES.map((c) => `<option value="${c}">${c}</option>`).join("");
@@ -852,41 +881,87 @@ async function goToNewProject() {
   // closure 裡重繪表單(不能整個重呼叫 goToNewProject,不然 customStageFlow 會重置)。
   let customStageFlow = null;
   const canCustomizeFlow = isManager();
+  // 兩張基地圖也只存在 closure:{ file, url, at }(url 是 objectURL 預覽,重繪表單時沿用)
+  const images = { location: null, cadastral: null };
 
   function flowSummaryText() {
     if (!customStageFlow) return "預設流程(10關)";
     return `已自訂(${customStageFlow.length}關)`;
   }
 
+  function slotHtml(slot) {
+    const img = images[slot.key];
+    return `
+      <div class="np-up" data-slot="${slot.key}">
+        <div class="np-up-title">${slot.title} <span class="np-req">*</span></div>
+        <div class="np-up-hint">${slot.hint}</div>
+        <label class="np-drop" data-drop="${slot.key}">
+          <span class="np-drop-ic">${NP_ICON[slot.icon]}</span>
+          <b>點擊上傳或拖曳檔案到這裡</b>
+          <small>支援 JPG、PNG,單檔大小上限 10MB</small>
+          <input type="file" accept="image/png,image/jpeg" hidden data-file="${slot.key}">
+        </label>
+        ${img ? `
+        <div class="np-file">
+          <img src="${img.url}" alt="">
+          <div class="np-file-main">
+            <div class="np-file-name">${escapeHtml(img.file.name)}</div>
+            <div class="np-file-meta">${npFmtSize(img.file.size)} · ${npFmtStamp(img.at)}</div>
+            <div class="np-file-act">
+              <button type="button" data-act="view" data-slot="${slot.key}">${NP_ICON.search}查看</button>
+              <button type="button" data-act="swap" data-slot="${slot.key}">${NP_ICON.swap}更換</button>
+              <button type="button" class="del" data-act="del" data-slot="${slot.key}">${NP_ICON.trash}刪除</button>
+            </div>
+          </div>
+          <button type="button" class="np-file-x" data-act="del" data-slot="${slot.key}" title="移除">&times;</button>
+        </div>` : ""}
+      </div>`;
+  }
+
   function mountForm(prevValues) {
     openModal(
-      "建立都更案",
+      `<span class="np-head"><span class="np-head-ic">${NP_ICON.building}</span><span><span class="np-head-t">建立都更案</span><span class="np-head-s">填寫基本資料並上傳相關圖資,建立新的都市更新案件。</span></span></span>`,
       `
-      <form id="project-form">
-        <div class="field-row">
-          <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
-          <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>案件代碼</label><input name="project_code" id="np-code" required></div>
-          <div class="field"><label>案件名稱</label><input name="name" required></div>
-        </div>
-        <div class="field"><label>備註</label><textarea name="description" rows="3"></textarea></div>
+      <form id="project-form" class="np-form">
+        <section class="np-card">
+          <div class="np-card-head"><span class="np-card-ic">${NP_ICON.doc}</span><b>基本資料</b><span class="np-note">＊為必填欄位</span></div>
+          <div class="np-card-body">
+            <div class="field-row">
+              <div class="field"><label>縣市 <span class="np-req">*</span></label><select name="city" id="np-city">${cityOptions}</select></div>
+              <div class="field"><label>行政區 <span class="np-req">*</span></label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>案件代碼</label>
+                <div class="np-code"><input name="project_code" id="np-code" readonly required><button type="button" id="np-code-copy" title="複製案件代碼">${NP_ICON.copy}</button></div>
+              </div>
+              <div class="field"><label>案件名稱 <span class="np-req">*</span></label><input name="name" required placeholder="請輸入案件名稱..."></div>
+            </div>
+            <div class="field np-desc"><label>備註</label><textarea name="description" rows="3" maxlength="500" placeholder="請輸入備註..." id="np-desc"></textarea><span class="np-count" id="np-count">0 / 500</span></div>
+          </div>
+        </section>
+
+        <section class="np-card np-card-img">
+          <div class="np-card-head"><span class="np-card-ic">${NP_ICON.image}</span><b>基地圖資</b></div>
+          <div class="np-card-sub">請上傳基地周邊位置與地籍範圍資料,支援 JPG、PNG 格式,單檔大小上限 10MB 。</div>
+          <div class="np-ups">${NP_IMAGE_SLOTS.map(slotHtml).join("")}</div>
+        </section>
+
         ${canCustomizeFlow
-          ? `<div class="field">
-               <label>SOP 關卡流程</label>
-               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                 <span class="helper-text" id="np-flow-summary" style="margin:0">${flowSummaryText()}</span>
-                 <button type="button" class="btn-secondary btn-sm" id="np-edit-flow-btn">⚙ 自訂關卡流程</button>
+          ? `<section class="np-card">
+               <div class="np-card-head"><span class="np-card-ic">${NP_ICON.gear}</span><b>SOP 關卡流程</b></div>
+               <div class="np-card-sub">選擇案件要套用的標準流程,或建立自訂流程。</div>
+               <div class="np-flow">
+                 <span id="np-flow-summary">${flowSummaryText()}</span>
+                 <button type="button" class="btn-secondary" id="np-edit-flow-btn">${NP_ICON.gear}自訂關卡流程</button>
                </div>
-             </div>`
+             </section>`
           : ""}
-        <div class="modal-footer">
+        <div class="modal-footer np-foot">
           <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-          <button type="submit" class="btn-primary">建立</button>
+          <button type="submit" class="btn-primary">${NP_ICON.check}建立</button>
         </div>
       </form>`,
-      { width: "560px" }
+      { width: "900px" }
     );
 
     const city = (prevValues && prevValues.city) || "";
@@ -902,16 +977,58 @@ async function goToNewProject() {
         if (field && prevValues[k] != null) field.value = prevValues[k];
       });
     }
+    const descEl = document.getElementById("np-desc");
+    const countEl = document.getElementById("np-count");
+    const syncCount = () => (countEl.textContent = `${descEl.value.length} / 500`);
+    descEl.addEventListener("input", syncCount);
+    syncCount();
+
+    document.getElementById("np-code-copy").addEventListener("click", () => {
+      const v = document.getElementById("np-code").value;
+      try { navigator.clipboard.writeText(v); toast("已複製案件代碼", "success"); } catch (e) { }
+    });
 
     document.getElementById("np-city").addEventListener("change", (e) => {
       updateDistrictSelectOptions(e.target.value);
     });
 
+    // ---- 基地圖資上傳 ----
+    const form = document.getElementById("project-form");
+    const snapshotValues = () => Object.fromEntries(new FormData(form).entries());
+    const setImage = (key, file) => {
+      if (!file) return;
+      if (!/^image\/(png|jpe?g)$/i.test(file.type)) { toast("只支援 JPG、PNG 圖片", "error"); return; }
+      if (file.size > NP_MAX_IMAGE_BYTES) { toast("單檔大小上限 10MB", "error"); return; }
+      if (images[key]) URL.revokeObjectURL(images[key].url);
+      images[key] = { file, url: URL.createObjectURL(file), at: new Date() };
+      mountForm(snapshotValues());
+    };
+    NP_IMAGE_SLOTS.forEach((slot) => {
+      const input = form.querySelector(`input[data-file="${slot.key}"]`);
+      const drop = form.querySelector(`[data-drop="${slot.key}"]`);
+      input.addEventListener("change", () => setImage(slot.key, input.files[0]));
+      ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+      ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+      drop.addEventListener("drop", (e) => setImage(slot.key, e.dataTransfer.files[0]));
+    });
+    form.querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.slot;
+        const img = images[key];
+        if (btn.dataset.act === "view" && img) window.open(img.url, "_blank");
+        else if (btn.dataset.act === "swap") form.querySelector(`input[data-file="${key}"]`).click();
+        else if (btn.dataset.act === "del" && img) {
+          URL.revokeObjectURL(img.url);
+          images[key] = null;
+          mountForm(snapshotValues());
+        }
+      });
+    });
+
     const editFlowBtn = document.getElementById("np-edit-flow-btn");
     if (editFlowBtn) {
       editFlowBtn.addEventListener("click", () => {
-        const form = document.getElementById("project-form");
-        const snapshot = Object.fromEntries(new FormData(form).entries());
+        const snapshot = snapshotValues();
         const startFrom = customStageFlow || SOP_DEFAULT_STAGE_DEFS;
         openSopStageFlowEditor(startFrom, async (stages) => {
           customStageFlow = stages;
@@ -920,10 +1037,16 @@ async function goToNewProject() {
       });
     }
 
-    document.getElementById("project-form").addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const payload = Object.fromEntries(fd.entries());
+      if (!payload.city) { toast("請選擇縣市", "error"); return; }
+      if (!payload.district) { toast("請選擇行政區", "error"); return; }
+      if (!images.location || !images.cadastral) {
+        toast(`請上傳${!images.location ? "基地位置圖(周邊商圈)" : "基地地籍範圍圖"}`, "error");
+        return;
+      }
       payload.expected_completion_date = payload.expected_completion_date || null;
       try {
         const project = await api("/projects", { method: "POST", body: payload });
@@ -932,7 +1055,30 @@ async function goToNewProject() {
             await api(`/projects/${project.id}/sop/stages`, { method: "PUT", body: { stages: customStageFlow } });
           } catch (err) { }
         }
-        toast("案件已建立", "success");
+        // 兩張基地圖:位置圖進「基地調查 › 基本調查」資料夾,地籍範圍圖用 cadastral_map
+        // (同時完成 SOP「上傳地籍圖」項目);任一張傳失敗不影響案件已建立,提示後可到文件分頁補傳。
+        let uploadFailed = false;
+        let basicFolderId = null;
+        try {
+          const folders = await api(`/projects/${project.id}/documents/folders`, { silent: true });
+          basicFolderId = (folders.find((f) => f.code === "site_survey.basic") || {}).id || null;
+        } catch (err) { }
+        const uploads = [
+          { img: images.location, docType: "other", desc: "基地位置圖(周邊商圈)", folderId: basicFolderId },
+          { img: images.cadastral, docType: "cadastral_map", desc: "基地地籍範圍圖", folderId: null },
+        ];
+        for (const u of uploads) {
+          const up = new FormData();
+          up.append("file", u.img.file);
+          up.append("doc_type", u.docType);
+          up.append("description", u.desc);
+          if (u.folderId) up.append("folder_id", String(u.folderId));
+          try {
+            await api(`/projects/${project.id}/documents`, { method: "POST", body: up, isForm: true, silent: true });
+          } catch (err) { uploadFailed = true; }
+        }
+        Object.values(images).forEach((i) => i && URL.revokeObjectURL(i.url));
+        toast(uploadFailed ? "案件已建立,但有基地圖上傳失敗,請到文件分頁補傳" : "案件已建立", uploadFailed ? "error" : "success");
         closeModal();
         await loadDashboard();
         await openProject(project.id);

@@ -6035,3 +6035,55 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .mini-badge-pool { margin-left: 6px; background: #fef3c7; color: #b45309; border: 0; font-weight: 800; }
 .mini-badge-pool { margin: 0 5px 0 0 !important; padding: 0 6px !important; font-size: 10px !important; line-height: 16px; border-radius: 999px; vertical-align: middle; }
 
+/* 建立都更案(新版:卡片區塊 + 基地圖資上傳) */
+.np-head { display: flex; align-items: center; gap: 14px; }
+.np-head-ic { width: 52px; height: 52px; display: inline-flex; flex: 0 0 auto; }
+.np-head-ic svg { width: 100%; height: 100%; }
+.np-head-t { display: block; font-size: 24px; font-weight: 900; line-height: 1.2; }
+.np-head-s { display: block; margin-top: 4px; font-size: 14px; font-weight: 500; color: var(--text-muted); }
+.np-form { display: flex; flex-direction: column; gap: 16px; }
+.np-card { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.np-card-img { background: color-mix(in srgb, #2fbfae 7%, var(--surface)); }
+.np-card-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 18px; background: var(--surface-2); }
+.np-card-img .np-card-head, .np-card-img { background-color: transparent; }
+.np-card-ic { width: 36px; height: 36px; border-radius: 10px; background: #14b8a6; color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.np-card-ic svg { width: 20px; height: 20px; }
+.np-note { margin-left: auto; font-size: 13px; color: var(--text-muted); }
+.np-card-body { padding: 14px 18px 18px; }
+.np-card-sub { padding: 0 18px 12px 66px; margin-top: -6px; font-size: 14px; color: var(--text-muted); }
+.np-req { color: #e5484d; font-weight: 900; }
+.np-code { position: relative; }
+.np-code input { width: 100%; background: var(--surface-2); padding-right: 42px; cursor: default; }
+.np-code button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--text-muted); cursor: pointer; width: 24px; height: 24px; padding: 0; }
+.np-code button svg { width: 18px; height: 18px; }
+.np-desc { position: relative; }
+.np-desc textarea { width: 100%; resize: vertical; }
+.np-count { position: absolute; right: 12px; bottom: 8px; font-size: 12px; color: var(--text-muted); }
+.np-ups { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 18px 18px; }
+.np-up { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 16px; }
+.np-up-title { font-size: 16px; font-weight: 900; }
+.np-up-hint { margin: 2px 0 10px; font-size: 13px; color: var(--text-muted); }
+.np-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 20px 10px; border: 2px dashed #5eb8ef; border-radius: 12px; cursor: pointer; text-align: center; transition: background .15s; }
+.np-drop:hover, .np-drop.over { background: color-mix(in srgb, #5eb8ef 10%, transparent); }
+.np-drop-ic { width: 44px; height: 44px; }
+.np-drop-ic svg { width: 100%; height: 100%; }
+.np-drop b { font-size: 15px; }
+.np-drop small { font-size: 12.5px; color: var(--text-muted); }
+.np-file { position: relative; display: flex; gap: 14px; margin-top: 12px; padding-right: 26px; }
+.np-file img { width: 112px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); flex: 0 0 auto; }
+.np-file-main { min-width: 0; flex: 1; }
+.np-file-name { font-weight: 800; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-file-meta { margin-top: 3px; font-size: 13px; color: var(--text-muted); }
+.np-file-act { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.np-file-act button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #0b72c9; font-weight: 800; font-size: 14px; cursor: pointer; padding: 2px 8px; border-right: 1px solid var(--border); }
+.np-file-act button:last-child { border-right: 0; }
+.np-file-act button.del { color: #e5484d; }
+.np-file-act svg { width: 16px; height: 16px; }
+.np-file-x { position: absolute; right: 0; top: -2px; border: 0; background: transparent; font-size: 22px; color: var(--text-muted); cursor: pointer; line-height: 1; }
+.np-flow { display: flex; align-items: center; gap: 12px; padding: 0 18px 16px; font-weight: 700; flex-wrap: wrap; }
+.np-flow .btn-secondary { display: inline-flex; align-items: center; gap: 6px; }
+.np-flow svg { width: 16px; height: 16px; }
+.np-foot .btn-primary { display: inline-flex; align-items: center; gap: 6px; }
+.np-foot svg { width: 16px; height: 16px; }
+@media (max-width: 720px) { .np-ups { grid-template-columns: 1fr; } .np-head-t { font-size: 20px; } }
+
