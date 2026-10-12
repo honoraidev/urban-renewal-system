@@ -934,11 +934,10 @@ async function goToNewProject() {
         <section class="np-card">
           <div class="np-card-head"><span class="np-card-ic">${NP_ICON.doc}</span><b>基本資料</b><span class="np-note">＊為必填欄位</span></div>
           <div class="np-card-body">
-            <div class="field-row">
+            <div class="field-row np-row4">
               <div class="field"><label>縣市 <span class="np-req">*</span></label><select name="city" id="np-city">${cityOptions}</select></div>
               <div class="field"><label>行政區 <span class="np-req">*</span></label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
-            </div>
-            <div class="field-row">
+
               <div class="field"><label>案件代碼</label>
                 <div class="np-code"><input name="project_code" id="np-code" readonly required><button type="button" id="np-code-copy" title="複製案件代碼">${NP_ICON.copy}</button></div>
               </div>
