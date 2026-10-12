@@ -916,12 +916,11 @@ async function goToNewProject() {
             <div class="np-file-name">${escapeHtml(img.file.name)}</div>
             <div class="np-file-meta">${npFmtSize(img.file.size)} · ${npFmtStamp(img.at)}</div>
             <div class="np-file-act">
-              <button type="button" data-act="view" data-slot="${slot.key}">${NP_ICON.search}查看</button>
-              <button type="button" data-act="swap" data-slot="${slot.key}">${NP_ICON.swap}更換</button>
-              <button type="button" class="del" data-act="del" data-slot="${slot.key}">${NP_ICON.trash}刪除</button>
+              <button type="button" data-act="view" data-slot="${slot.key}">${NP_ICON.search}<span class="np-lbl">查看</span></button>
+              <button type="button" data-act="swap" data-slot="${slot.key}">${NP_ICON.swap}<span class="np-lbl">更換</span></button>
+              <button type="button" class="del" data-act="del" data-slot="${slot.key}">${NP_ICON.trash}<span class="np-lbl">刪除</span></button>
             </div>
           </div>
-          <button type="button" class="np-file-x" data-act="del" data-slot="${slot.key}" title="移除">&times;</button>
         </div>` : ""}
       </div>`;
   }
