@@ -932,7 +932,7 @@ async function goToNewProject() {
       `
       <form id="project-form" class="np-form">
         <section class="np-card">
-          <div class="np-card-head"><span class="np-card-ic">${NP_ICON.doc}</span><b>基本資料</b><span class="np-note">＊為必填欄位</span></div>
+          <div class="np-card-head"><b>基本資料</b><span class="np-note">＊為必填欄位</span></div>
           <div class="np-card-body">
             <div class="field-row np-row4">
               <div class="field"><label>縣市 <span class="np-req">*</span></label><select name="city" id="np-city">${cityOptions}</select></div>
@@ -948,7 +948,7 @@ async function goToNewProject() {
         </section>
 
         <section class="np-card np-card-img${open.img ? " open" : ""}" data-np-sec="img">
-          <button type="button" class="np-card-head np-toggle" data-np-toggle="img"><span class="np-card-ic">${NP_ICON.image}</span><b>基地圖資</b><span class="np-opt">選填 · 已上傳 ${NP_IMAGE_SLOTS.filter((sl) => images[sl.key]).length}/${NP_IMAGE_SLOTS.length}</span><span class="np-chev">▾</span></button>
+          <button type="button" class="np-card-head np-toggle" data-np-toggle="img"><b>基地圖資</b><span class="np-opt">選填 · 已上傳 ${NP_IMAGE_SLOTS.filter((sl) => images[sl.key]).length}/${NP_IMAGE_SLOTS.length}</span><span class="np-chev">▾</span></button>
           <div class="np-collapse"${open.img ? "" : " hidden"}>
             <div class="np-ups">${NP_IMAGE_SLOTS.map(slotHtml).join("")}</div>
           </div>
@@ -956,7 +956,7 @@ async function goToNewProject() {
 
         ${canCustomizeFlow
           ? `<section class="np-card${open.flow ? " open" : ""}" data-np-sec="flow">
-               <button type="button" class="np-card-head np-toggle" data-np-toggle="flow"><span class="np-card-ic">${NP_ICON.gear}</span><b>SOP 關卡流程</b><span class="np-opt" id="np-flow-summary">${flowSummaryText()}</span><span class="np-chev">▾</span></button>
+               <button type="button" class="np-card-head np-toggle" data-np-toggle="flow"><b>SOP 關卡流程</b><span class="np-opt" id="np-flow-summary">${flowSummaryText()}</span><span class="np-chev">▾</span></button>
                <div class="np-collapse"${open.flow ? "" : " hidden"}>
                  <div class="np-card-sub">選擇案件要套用的標準流程,或直接在下面調整。</div>
                  <div class="np-flow-inline" id="np-flow-inline"></div>

@@ -6109,3 +6109,7 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 @media (max-width: 760px) { .np-row4 { grid-template-columns: 1fr 1fr; } }
 
 .np-row4 { margin-bottom: 14px; }
+.np-card-sub { padding-left: 18px !important; }
+.np-card-head { padding-left: 18px !important; }
+
+.np-note { color: #e5484d !important; font-weight: 700; }
