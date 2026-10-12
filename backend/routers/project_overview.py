@@ -32,7 +32,11 @@ router = APIRouter(prefix="/projects/{project_id}/overview", tags=["project-over
 # kind = doc(要有該類型文件)/ land、building(要有匯入的登記資料)/ manual(要在 SOP 頁
 # 手動確認)/ phone(至少一位地主有電話)/ contact_rate、ratio(達門檻,見 sop.py)。
 _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
-    "initial_approval": [{"kind": "doc", "doc_type": "roi_report", "label": "上傳投報表"}],
+    "initial_approval": [
+        {"kind": "doc", "doc_type": "roi_report", "label": "上傳投報表"},
+        {"kind": "doc", "doc_type": "site_location_map", "label": "上傳基地位置圖(周邊商圈)"},
+        {"kind": "doc", "doc_type": "site_cadastral_map", "label": "上傳基地地籍範圍圖"},
+    ],
     "ocr_roster": [
         {"kind": "doc", "doc_type": "cadastral_map", "label": "上傳地籍圖"},
         {"kind": "land", "label": "上傳土地謄本PDF"},

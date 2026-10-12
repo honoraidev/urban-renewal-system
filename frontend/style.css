@@ -6087,3 +6087,18 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .np-foot svg { width: 16px; height: 16px; }
 @media (max-width: 720px) { .np-ups { grid-template-columns: 1fr; } .np-head-t { font-size: 20px; } }
 
+.sop-lock-notice { margin: 10px 0 6px; padding: 10px 14px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-weight: 700; font-size: 14px; }
+.np-card-head.np-toggle { width: 100%; border: 0; text-align: left; cursor: pointer; font-family: inherit; color: inherit; }
+.np-card-head.np-toggle b { font-size: 18px; }
+.np-opt { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.np-chev { font-size: 18px; color: var(--text-muted); transition: transform .2s; }
+.np-card.open .np-chev { transform: rotate(180deg); }
+.np-card-sub { padding-top: 12px; margin-top: 0; }
+.np-collapse[hidden] { display: none; }
+.np-file-ico { width: 112px; height: 90px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; font-size: 34px; flex: 0 0 auto; }
+
+.np-card-head { padding: 8px 16px !important; font-size: 16px; gap: 10px; }
+.np-card-head.np-toggle b, .np-card-head b { font-size: 16px; }
+.np-card-ic { width: 28px; height: 28px; border-radius: 8px; }
+.np-card-ic svg { width: 16px; height: 16px; }
+.np-card-sub { padding-top: 10px; }

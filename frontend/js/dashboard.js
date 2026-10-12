@@ -861,7 +861,6 @@ const NP_IMAGE_SLOTS = [
   { key: "location", title: "基地位置圖(周邊商圈)", hint: "例如:基地周邊道路、商圈、重要地標等", icon: "pin" },
   { key: "cadastral", title: "基地地籍範圍圖", hint: "例如:地籍套繪圖、地號範圍、更新單元範圍圖等", icon: "map" },
 ];
-const NP_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function npFmtSize(n) {
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -883,6 +882,8 @@ async function goToNewProject() {
   const canCustomizeFlow = isManager();
   // 兩張基地圖也只存在 closure:{ file, url, at }(url 是 objectURL 預覽,重繪表單時沿用)
   const images = { location: null, cadastral: null };
+  // 「基地圖資」「SOP 關卡流程」兩塊用往下展開的方式,預設收合
+  const open = { img: false, flow: false };
 
   function flowSummaryText() {
     if (!customStageFlow) return "預設流程(10關)";
@@ -893,17 +894,16 @@ async function goToNewProject() {
     const img = images[slot.key];
     return `
       <div class="np-up" data-slot="${slot.key}">
-        <div class="np-up-title">${slot.title} <span class="np-req">*</span></div>
+        <div class="np-up-title">${slot.title}</div>
         <div class="np-up-hint">${slot.hint}</div>
         <label class="np-drop" data-drop="${slot.key}">
           <span class="np-drop-ic">${NP_ICON[slot.icon]}</span>
           <b>點擊上傳或拖曳檔案到這裡</b>
-          <small>支援 JPG、PNG,單檔大小上限 10MB</small>
-          <input type="file" accept="image/png,image/jpeg" hidden data-file="${slot.key}">
+          <input type="file" hidden data-file="${slot.key}">
         </label>
         ${img ? `
         <div class="np-file">
-          <img src="${img.url}" alt="">
+          ${img.isImage ? `<img src="${img.url}" alt="">` : `<span class="np-file-ico">📄</span>`}
           <div class="np-file-main">
             <div class="np-file-name">${escapeHtml(img.file.name)}</div>
             <div class="np-file-meta">${npFmtSize(img.file.size)} · ${npFmtStamp(img.at)}</div>
@@ -940,19 +940,23 @@ async function goToNewProject() {
           </div>
         </section>
 
-        <section class="np-card np-card-img">
-          <div class="np-card-head"><span class="np-card-ic">${NP_ICON.image}</span><b>基地圖資</b></div>
-          <div class="np-card-sub">請上傳基地周邊位置與地籍範圍資料,支援 JPG、PNG 格式,單檔大小上限 10MB 。</div>
-          <div class="np-ups">${NP_IMAGE_SLOTS.map(slotHtml).join("")}</div>
+        <section class="np-card np-card-img${open.img ? " open" : ""}" data-np-sec="img">
+          <button type="button" class="np-card-head np-toggle" data-np-toggle="img"><span class="np-card-ic">${NP_ICON.image}</span><b>基地圖資</b><span class="np-opt">選填 · 已上傳 ${NP_IMAGE_SLOTS.filter((sl) => images[sl.key]).length}/${NP_IMAGE_SLOTS.length}</span><span class="np-chev">▾</span></button>
+          <div class="np-collapse"${open.img ? "" : " hidden"}>
+            <div class="np-card-sub">基地位置圖與地籍範圍圖可以現在上傳,也可以之後到 SOP 第 0 階段上傳。</div>
+            <div class="np-ups">${NP_IMAGE_SLOTS.map(slotHtml).join("")}</div>
+          </div>
         </section>
 
         ${canCustomizeFlow
-          ? `<section class="np-card">
-               <div class="np-card-head"><span class="np-card-ic">${NP_ICON.gear}</span><b>SOP 關卡流程</b></div>
-               <div class="np-card-sub">選擇案件要套用的標準流程,或建立自訂流程。</div>
-               <div class="np-flow">
-                 <span id="np-flow-summary">${flowSummaryText()}</span>
-                 <button type="button" class="btn-secondary" id="np-edit-flow-btn">${NP_ICON.gear}自訂關卡流程</button>
+          ? `<section class="np-card${open.flow ? " open" : ""}" data-np-sec="flow">
+               <button type="button" class="np-card-head np-toggle" data-np-toggle="flow"><span class="np-card-ic">${NP_ICON.gear}</span><b>SOP 關卡流程</b><span class="np-opt" id="np-flow-summary">${flowSummaryText()}</span><span class="np-chev">▾</span></button>
+               <div class="np-collapse"${open.flow ? "" : " hidden"}>
+                 <div class="np-card-sub">選擇案件要套用的標準流程,或建立自訂流程。</div>
+                 <div class="np-flow">
+                   <span>${flowSummaryText()}</span>
+                   <button type="button" class="btn-secondary" id="np-edit-flow-btn">${NP_ICON.gear}自訂關卡流程</button>
+                 </div>
                </div>
              </section>`
           : ""}
@@ -997,12 +1001,20 @@ async function goToNewProject() {
     const snapshotValues = () => Object.fromEntries(new FormData(form).entries());
     const setImage = (key, file) => {
       if (!file) return;
-      if (!/^image\/(png|jpe?g)$/i.test(file.type)) { toast("只支援 JPG、PNG 圖片", "error"); return; }
-      if (file.size > NP_MAX_IMAGE_BYTES) { toast("單檔大小上限 10MB", "error"); return; }
       if (images[key]) URL.revokeObjectURL(images[key].url);
-      images[key] = { file, url: URL.createObjectURL(file), at: new Date() };
+      images[key] = { file, url: URL.createObjectURL(file), at: new Date(), isImage: /^image\//i.test(file.type) };
+      open.img = true;
       mountForm(snapshotValues());
     };
+    form.querySelectorAll("[data-np-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const k = btn.dataset.npToggle;
+        open[k] = !open[k];
+        const sec = form.querySelector(`[data-np-sec="${k}"]`);
+        sec.classList.toggle("open", open[k]);
+        sec.querySelector(".np-collapse").hidden = !open[k];
+      });
+    });
     NP_IMAGE_SLOTS.forEach((slot) => {
       const input = form.querySelector(`input[data-file="${slot.key}"]`);
       const drop = form.querySelector(`[data-drop="${slot.key}"]`);
@@ -1043,10 +1055,6 @@ async function goToNewProject() {
       const payload = Object.fromEntries(fd.entries());
       if (!payload.city) { toast("請選擇縣市", "error"); return; }
       if (!payload.district) { toast("請選擇行政區", "error"); return; }
-      if (!images.location || !images.cadastral) {
-        toast(`請上傳${!images.location ? "基地位置圖(周邊商圈)" : "基地地籍範圍圖"}`, "error");
-        return;
-      }
       payload.expected_completion_date = payload.expected_completion_date || null;
       try {
         const project = await api("/projects", { method: "POST", body: payload });
@@ -1055,8 +1063,8 @@ async function goToNewProject() {
             await api(`/projects/${project.id}/sop/stages`, { method: "PUT", body: { stages: customStageFlow } });
           } catch (err) { }
         }
-        // 兩張基地圖:位置圖進「基地調查 › 基本調查」資料夾,地籍範圍圖用 cadastral_map
-        // (同時完成 SOP「上傳地籍圖」項目);任一張傳失敗不影響案件已建立,提示後可到文件分頁補傳。
+        // 兩張基地圖(選填)都進「基地調查 › 基本調查」資料夾,並掛在 SOP 第 0 階段,
+        // 直接算完成該階段對應的上傳項目;任一張傳失敗不影響案件已建立,可到 SOP 補傳。
         let uploadFailed = false;
         let basicFolderId = null;
         try {
@@ -1064,21 +1072,23 @@ async function goToNewProject() {
           basicFolderId = (folders.find((f) => f.code === "site_survey.basic") || {}).id || null;
         } catch (err) { }
         const uploads = [
-          { img: images.location, docType: "other", desc: "基地位置圖(周邊商圈)", folderId: basicFolderId },
-          { img: images.cadastral, docType: "cadastral_map", desc: "基地地籍範圍圖", folderId: null },
+          { img: images.location, docType: "site_location_map", desc: "基地位置圖(周邊商圈)", folderId: basicFolderId },
+          { img: images.cadastral, docType: "site_cadastral_map", desc: "基地地籍範圍圖", folderId: basicFolderId },
         ];
         for (const u of uploads) {
+          if (!u.img) continue; // 選填:沒選就跳過,之後到 SOP 第 0 階段補
           const up = new FormData();
           up.append("file", u.img.file);
           up.append("doc_type", u.docType);
           up.append("description", u.desc);
+          up.append("sop_stage", "0"); // 對應 SOP 第 0 階段的「基地位置圖 / 基地地籍範圍圖」項目
           if (u.folderId) up.append("folder_id", String(u.folderId));
           try {
             await api(`/projects/${project.id}/documents`, { method: "POST", body: up, isForm: true, silent: true });
           } catch (err) { uploadFailed = true; }
         }
         Object.values(images).forEach((i) => i && URL.revokeObjectURL(i.url));
-        toast(uploadFailed ? "案件已建立,但有基地圖上傳失敗,請到文件分頁補傳" : "案件已建立", uploadFailed ? "error" : "success");
+        toast(uploadFailed ? "案件已建立,但有基地圖上傳失敗,請到 SOP 第 0 階段補傳" : "案件已建立", uploadFailed ? "error" : "success");
         closeModal();
         await loadDashboard();
         await openProject(project.id);

@@ -73,7 +73,7 @@ MANAGER_ONLY_CHECKLIST_KEYS = {"briefing_reviewed_3", "consultant_reviewed", "br
 # UI shows, instead of any editor being able to click past unfinished items.
 # `checklist_keys` entries must have been confirmed via POST /{stage}/checklist first.
 STAGE_CHECKLIST_REQUIREMENTS: dict[str, dict] = {
-    "initial_approval": {"doc_types": ["roi_report"]},
+    "initial_approval": {"doc_types": ["roi_report", "site_location_map", "site_cadastral_map"]},
     "ocr_roster": {"doc_types": ["cadastral_map"], "checklist_keys": ["landowner_roster_confirmed"], "needs_land": True, "needs_building": True},
     "briefing_1": {"doc_types": ["briefing_material", "invitation_letter"], "checklist_keys": ["briefing_reviewed_3"]},
     "consultant_review": {

@@ -54,6 +54,8 @@ DOC_TYPE_TO_FOLDER_CODE: dict[str, str] = {
     "property_register": "transcripts.land",
     "building_register": "transcripts.building",
     "cadastral_map": "transcripts.cadastral_map",
+    "site_location_map": "site_survey.basic",
+    "site_cadastral_map": "site_survey.basic",
     "consent_form": "consent.business_plan",
     "consent_form_template": "consent.business_plan",
     "briefing_material": "briefing",

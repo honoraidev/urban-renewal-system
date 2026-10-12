@@ -133,6 +133,8 @@ function buildSopChecklistHtml(results, stageNo) {
 const SOP_STAGE_CHECKLISTS = {
   initial_approval: [
     { key: "roi_report", label: "上傳投報表", docType: "roi_report" },
+    { key: "site_location_map", label: "上傳基地位置圖(周邊商圈)", docType: "site_location_map" },
+    { key: "site_cadastral_map", label: "上傳基地地籍範圍圖", docType: "site_cadastral_map" },
   ],
   ocr_roster: [
     { key: "cadastral_map", label: "上傳地籍圖", docType: "cadastral_map" },
@@ -205,7 +207,7 @@ const SOP_STAGE_CHECKLISTS = {
 let sopFlowEditorState = null; // { stages: [{key,name,requirements}], onSave(stages) }
 let sopFlowAdvancedOpen = new Set(); // 展開了「進階需求設定」的 row index
 
-const SOP_REQUIREMENT_DOC_TYPES = ["roi_report", "cadastral_map", "briefing_material", "consultant_document", "consent_form_template", "contract_template", "property_register", "building_register", "consent_form", "contract", "willingness_form", "other"];
+const SOP_REQUIREMENT_DOC_TYPES = ["roi_report", "site_location_map", "site_cadastral_map", "cadastral_map", "briefing_material", "consultant_document", "consent_form_template", "contract_template", "property_register", "building_register", "consent_form", "contract", "willingness_form", "other"];
 
 function emptyStageRequirements() {
   return {
@@ -828,6 +830,9 @@ async function renderSopTab(el) {
   const selectedIsCurrent = Number(selected) === sop.current_stage && !isFinished;
   const selectedIsDone = selectedStage.status === "completed" || selectedStage.status === "force_closed";
   const selectedLabel = sopStageLabel(selected, selectedStage);
+  // 階段鎖:上一階段還沒完成(這關是「未解鎖」)就不能上傳/匯入這一關的文件
+  const stageLocked = !isFinished && !selectedIsDone && !selectedIsCurrent;
+  const LOCK_TIP = "請先完成上一階段,才能進行這一階段的上傳";
   const statusBadgeText = selectedIsDone
     ? selectedStage.status === "force_closed"
       ? "已強制完成"
@@ -1110,7 +1115,9 @@ async function renderSopTab(el) {
 
         const uploadBtn =
           item.docType && canOcr()
-            ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>
+            ? stageLocked
+              ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="${LOCK_TIP}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>`
+              : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>
                <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
             : "";
         const formBtn =
@@ -1120,7 +1127,9 @@ async function renderSopTab(el) {
         const actionLabel = done ? "重新上傳" : "上傳";
         const actionBtn =
           item.action && canOcr()
-            ? rosterLocked
+            ? stageLocked
+              ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="${LOCK_TIP}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
+              : rosterLocked
               ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="已確認地主清冊正確,請先在下面「確認地主清冊正確」項目按取消確認,才能繼續匯入"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
               : item.action === "building" && landCount === 0
                 ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="請先完成「上傳土地謄本PDF」,才能匯入建物登記"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${actionLabel}</button>`
@@ -1305,6 +1314,7 @@ async function renderSopTab(el) {
             ${isManager() && !isFinished && !selectedIsDone ? `<button type="button" class="btn-warning btn-sm" id="force-stage-btn"${selectedIsCurrent ? "" : ` data-force-stage="${selected}"`} title="${selectedIsCurrent ? "不用等任務清單完成,直接強制完成本階段" : "尚未解鎖,主管可直接強制完成這一關"}">主管強制完成</button>` : ""}
             ${checklistTotalCount ? `<span class="sop-todo-count">已完成 <b>${checklistDoneCount}</b>/${checklistTotalCount}</span>` : ""}
           </div>
+          ${stageLocked ? `<div class="sop-lock-notice">🔒 上一階段還沒完成,這一階段的上傳已鎖定。請先完成上一階段。</div>` : ""}
           ${checklistTotalCount ? `<div class="progress-bar-track sop-subcard-progress"><div class="progress-bar-fill" style="width:${stagePct}%"></div></div>` : ""}
           ${checklistHtml || `<div class="empty-state">這一關沒有設定需求,可直接人工完成</div>`}
         </div>

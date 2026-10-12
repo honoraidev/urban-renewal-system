@@ -77,9 +77,13 @@ VALID_DOC_TYPES = {
     "building_transcript_type1",
     "building_transcript_type2",
     "building_transcript_type3",
+    "site_location_map",
+    "site_cadastral_map",
 }
 
 DOC_TYPE_LABELS_MAP = {
+    "site_location_map": "基地位置圖",
+    "site_cadastral_map": "基地地籍範圍圖",
     "willingness_form": "意願書",
     "landowner_roster": "地主清冊",
     "roi_report": "投報表",
@@ -522,6 +526,8 @@ def _resolve_upload_folder_id(
 # (landowner_id,例如一人一份的同意書)保留原檔名。
 STANDARD_UPLOAD_NAME_LABELS = {
     "roi_report": "投報表",
+    "site_location_map": "基地位置圖 (周邊商圈)",
+    "site_cadastral_map": "基地地籍範圍圖",
     "property_register": "土地謄本",
     "building_register": "建物謄本",
     "landowner_roster": "清冊",
@@ -622,6 +628,17 @@ def upload_document(
         )
         if has_form is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請先上傳意願書,才能上傳簽約文件")
+
+    # 階段鎖:上一階段還沒完成,就不能上傳下一階段的文件(sop_stage 超過目前進行中的關卡)
+    if sop_stage is not None:
+        from models.sop import SopStage
+
+        sop_row = db.scalar(select(SopStage).where(SopStage.project_id == project_id))
+        if sop_row is not None and sop_row.stage_data["final"]["status"] == "pending" and sop_stage > sop_row.current_stage:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="上一階段還沒完成,不能上傳這個階段的文件",
+            )
 
     folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 

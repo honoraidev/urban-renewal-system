@@ -62,6 +62,7 @@ const DOC_TYPE_LABEL = {
   roi_report: "投報表",
   consent_form_template: "意願書", contract_template: "合約",
   cadastral_map: "地籍圖", consultant_document: "顧問文件",
+  site_location_map: "基地位置圖", site_cadastral_map: "基地地籍範圍圖",
   willingness_form: "意願書",
   landowner_roster: "地主清冊",
   architecture_drawing: "建築圖面", appraisal_result: "估價結果",
