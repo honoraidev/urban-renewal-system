@@ -6178,3 +6178,10 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .sv-open svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .sv-grid { grid-template-columns: 1fr; } }
 
+/* 案件卡片標題列:勾選框 / 名稱 / 縣市標籤 / 眼睛 / ⋮ 垂直置中對齊同一條線 */
+.project-card-top { align-items: center !important; }
+.project-card-top > * { margin-top: 0 !important; margin-bottom: 0 !important; align-self: center; }
+.project-card-top h3 { line-height: 28px; }
+.project-card-top .mini-badge { display: inline-flex; align-items: center; height: 24px; line-height: 1; padding-top: 0; padding-bottom: 0; }
+.project-card-top .project-card-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; line-height: 1; }
+.project-card-top .project-select-checkbox { margin: 0; flex: 0 0 auto; }
