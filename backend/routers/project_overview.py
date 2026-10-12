@@ -100,9 +100,11 @@ _BUILTIN_STAGE_TASKS: dict[str, list[dict]] = {
 def _generic_stage_tasks(requirements: dict) -> list[dict]:
     """自訂關卡流程的 requirements(見 sop.py _assert_generic_requirements)轉成同樣格式。"""
     tasks: list[dict] = []
-    if requirements.get("document_required"):
-        doc_type = requirements.get("document_type")
-        tasks.append({"kind": "doc", "doc_type": doc_type, "label": f"上傳{DOC_TYPE_LABELS_MAP.get(doc_type, doc_type or '文件')}"})
+    from routers.sop import required_documents
+
+    for d in required_documents(requirements):
+        label = d.get("name") or DOC_TYPE_LABELS_MAP.get(d.get("type"), d.get("type") or "文件")
+        tasks.append({"kind": "doc", "doc_type": d.get("type"), "slot_key": None if d.get("type") else d.get("key"), "label": f"上傳{label}"})
     if requirements.get("contact_rate_required"):
         threshold = requirements.get("contact_rate_threshold") or 0.95
         tasks.append({"kind": "contact_rate", "threshold": threshold, "label": f"達到聯絡率門檻({round(threshold * 100)}%)"})
@@ -140,9 +142,15 @@ def _stage_tasks(db: Session, project_id: int, idx_str: str, entry: dict) -> lis
     for t in templates:
         kind = t["kind"]
         if kind == "doc":
-            done = bool(t.get("doc_type")) and db.scalar(
+            if t.get("slot_key"):
+                cond = Document.slot_key == t["slot_key"]
+            elif t.get("doc_type"):
+                cond = Document.doc_type == t["doc_type"]
+            else:
+                cond = None
+            done = cond is not None and db.scalar(
                 select(Document.id)
-                .where(Document.project_id == project_id, Document.doc_type == t["doc_type"], Document.sop_stage == stage_index)
+                .where(Document.project_id == project_id, Document.sop_stage == stage_index, cond)
                 .limit(1)
             ) is not None
         elif kind == "land":

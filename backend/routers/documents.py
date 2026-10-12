@@ -590,6 +590,8 @@ def upload_document(
     sop_stage: int | None = Form(None),
     dev_stage: int | None = Form(None),
     description: str | None = Form(None),
+    slot_key: str | None = Form(None),
+    slot_label: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     project: Project = Depends(require_project_ocr_editor),
@@ -643,6 +645,13 @@ def upload_document(
     folder_id = _resolve_upload_folder_id(db, project_id, folder_id, doc_type)
 
     upload_filename = _standard_upload_name(project.name, doc_type, landowner_id, file.filename or "upload")
+    # 自訂關卡「自訂名稱的上傳項目」:自動命名成「案件名稱-項目名稱.副檔名」
+    if slot_key and slot_label and not landowner_id:
+        safe_project = _UNSAFE_FILENAME_CHARS.sub("", project.name or "").strip()
+        safe_label = _UNSAFE_FILENAME_CHARS.sub("", slot_label).strip()
+        if safe_project and safe_label:
+            ext = os.path.splitext(file.filename or "")[1].lower()
+            upload_filename = f"{safe_project}-{safe_label}{ext}"
     # 地主的意願書 / 簽約文件一律自動命名:「案件名稱地主姓名-意願書」「案件名稱地主姓名-合約書」
     if landowner_id and doc_type in ("willingness_form", "contract"):
         owner = db.get(Landowner, landowner_id)
@@ -676,6 +685,7 @@ def upload_document(
         mime_type=file.content_type,
         uploaded_by=current_user.id,
         description=description,
+        slot_key=(slot_key or None),
     )
     db.add(document)
     db.commit()

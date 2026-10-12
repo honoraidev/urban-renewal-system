@@ -17,6 +17,7 @@ class DocumentRead(BaseModel):
     uploaded_by: int | None = None
     uploaded_at: datetime
     description: str | None = None
+    slot_key: str | None = None
 
     model_config = {"from_attributes": True}
 

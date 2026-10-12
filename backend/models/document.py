@@ -29,3 +29,5 @@ class Document(Base):
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 自訂關卡「自訂名稱的上傳項目」用:對應 StageRequirements.documents[].key(doc_type 一律 other)
+    slot_key: Mapped[str | None] = mapped_column(String(80), nullable=True)

@@ -12,11 +12,22 @@ class SopStatusResponse(BaseModel):
     updated_at: datetime
 
 
+class RequiredDocument(BaseModel):
+    """一關要求上傳的一份文件。type 有值 = 系統內建文件類型(以 doc_type 比對);
+    type 為 None = 使用者自訂名稱的文件(以 documents.slot_key == key 比對)。"""
+    key: str
+    type: str | None = None
+    name: str
+
+
 class StageRequirements(BaseModel):
     """任何一關(不管是內建關卡還是自訂關卡)都能自己勾選/設定要求,取代原本綁死在
     key 上的固定邏輯 - 有給這個欄位,gate 檢查就完全以這裡為準,不再看 key。"""
     document_required: bool = False
     document_type: str | None = None  # models.document.Document.doc_type 的既有分類值
+    # 一關可以要求多份文件(含自訂名稱);有給的話以這份為準,document_required/document_type
+    # 只是舊資料與其他地方相容用。
+    documents: list[RequiredDocument] = []
     ratio_required: bool = False  # 同意度雙門檻(人數 + 面積同時達標)
     ratio_threshold: float = 0.8
     contact_rate_required: bool = False

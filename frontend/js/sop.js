@@ -218,17 +218,48 @@ function emptyStageRequirements() {
   };
 }
 
+// 一關要求上傳的文件清單:新格式 requirements.documents = [{key, type, name}];
+// 舊資料只有 document_required + document_type,這裡讀取時自動轉成一筆。
+function sopReqDocuments(req) {
+  if (Array.isArray(req.documents) && req.documents.length) return req.documents;
+  if (req.document_required && req.document_type) {
+    return [{ key: req.document_type, type: req.document_type, name: DOC_TYPE_LABEL[req.document_type] || req.document_type }];
+  }
+  return [];
+}
+
+function sopFlowDocsHtml(req, i) {
+  const docs = sopReqDocuments(req);
+  const usedTypes = new Set(docs.map((d) => d.type).filter(Boolean));
+  const rows = docs
+    .map((d, j) => {
+      const opts = SOP_REQUIREMENT_DOC_TYPES.filter((t) => t === d.type || !usedTypes.has(t))
+        .map((t) => `<option value="${t}" ${d.type === t ? "selected" : ""}>${DOC_TYPE_LABEL[t] || t}</option>`)
+        .join("");
+      return `
+      <div class="sop-flow-doc-row">
+        <select data-doc-type="${i}:${j}">
+          ${opts}
+          <option value="__custom" ${d.type ? "" : "selected"}>自訂名稱…</option>
+        </select>
+        ${d.type ? "" : `<input type="text" data-doc-name="${i}:${j}" value="${escapeHtml(d.name || "")}" placeholder="文件名稱,例如:都審核定函" maxlength="60">`}
+        <button type="button" class="btn-secondary btn-sm" data-doc-remove="${i}:${j}" title="移除這份文件">✕</button>
+      </div>`;
+    })
+    .join("");
+  return `
+    <div class="sop-flow-docs">
+      <div class="sop-flow-docs-title">需上傳的文件(可多份,每份都要上傳才算完成)</div>
+      ${rows || '<div class="sop-flow-docs-empty">尚未設定,不用上傳文件</div>'}
+      <button type="button" class="btn-secondary btn-sm" data-doc-add="${i}">+ 新增文件</button>
+    </div>`;
+}
+
 function sopFlowRowAdvancedHtml(row, i) {
   const req = row.requirements || emptyStageRequirements();
   return `
     <div class="sop-flow-advanced">
-      <label class="sop-flow-req-check">
-        <input type="checkbox" data-req-doc="${i}" ${req.document_required ? "checked" : ""}>
-        需上傳文件
-        <select data-req-doc-type="${i}" ${req.document_required ? "" : "disabled"}>
-          ${SOP_REQUIREMENT_DOC_TYPES.map((t) => `<option value="${t}" ${req.document_type === t ? "selected" : ""}>${DOC_TYPE_LABEL[t] || t}</option>`).join("")}
-        </select>
-      </label>
+      ${sopFlowDocsHtml(req, i)}
       <label class="sop-flow-req-check">
         <input type="checkbox" data-req-contact="${i}" ${req.contact_rate_required ? "checked" : ""}>
         需達到聯絡率門檻
@@ -385,20 +416,59 @@ function wireSopFlowEditorRows() {
     }
     return sopFlowEditorState.stages[i].requirements;
   };
-  root.querySelectorAll("[data-req-doc]").forEach((cb) => {
-    cb.onchange = () => {
-      const i = Number(cb.dataset.reqDoc);
-      ensureReq(i).document_required = cb.checked;
-      if (cb.checked && !sopFlowEditorState.stages[i].requirements.document_type) {
-        sopFlowEditorState.stages[i].requirements.document_type = SOP_REQUIREMENT_DOC_TYPES[0];
-      }
-      rerenderSopFlowEditor();
-      sopFlowAdvancedOpen.add(i);
+  // 文件清單:一律以 requirements.documents 為準,並同步 document_required / document_type(舊欄位相容)
+  const docsOf = (i) => {
+    const req = ensureReq(i);
+    if (!Array.isArray(req.documents) || !req.documents.length) req.documents = sopReqDocuments(req).map((d) => ({ ...d }));
+    return req;
+  };
+  const syncDocFields = (req) => {
+    req.document_required = req.documents.length > 0;
+    req.document_type = (req.documents.find((d) => d.type) || {}).type || null;
+  };
+  const rerenderKeepOpen = (i) => {
+    rerenderSopFlowEditor();
+    sopFlowAdvancedOpen.add(i);
+    rerenderSopFlowEditor();
+  };
+  root.querySelectorAll("[data-doc-add]").forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.docAdd);
+      const req = docsOf(i);
+      const used = new Set(req.documents.map((d) => d.type).filter(Boolean));
+      const t = SOP_REQUIREMENT_DOC_TYPES.find((x) => !used.has(x));
+      req.documents.push(t ? { key: t, type: t, name: DOC_TYPE_LABEL[t] || t } : { key: `c${Date.now().toString(36)}`, type: null, name: "" });
+      syncDocFields(req);
+      rerenderKeepOpen(i);
     };
   });
-  root.querySelectorAll("[data-req-doc-type]").forEach((sel) => {
+  root.querySelectorAll("[data-doc-remove]").forEach((btn) => {
+    btn.onclick = () => {
+      const [i, j] = btn.dataset.docRemove.split(":").map(Number);
+      const req = docsOf(i);
+      req.documents.splice(j, 1);
+      syncDocFields(req);
+      rerenderKeepOpen(i);
+    };
+  });
+  root.querySelectorAll("[data-doc-type]").forEach((sel) => {
     sel.onchange = () => {
-      ensureReq(Number(sel.dataset.reqDocType)).document_type = sel.value;
+      const [i, j] = sel.dataset.docType.split(":").map(Number);
+      const req = docsOf(i);
+      if (sel.value === "__custom") {
+        req.documents[j] = { key: `c${Date.now().toString(36)}`, type: null, name: "" };
+      } else {
+        req.documents[j] = { key: sel.value, type: sel.value, name: DOC_TYPE_LABEL[sel.value] || sel.value };
+      }
+      syncDocFields(req);
+      rerenderKeepOpen(i);
+    };
+  });
+  root.querySelectorAll("[data-doc-name]").forEach((input) => {
+    input.oninput = () => {
+      const [i, j] = input.dataset.docName.split(":").map(Number);
+      const req = docsOf(i);
+      req.documents[j].name = input.value;
       sopFlowTouch();
     };
   });
@@ -537,10 +607,14 @@ function openSopStageFlowEditor(initialStages, onSave, lockedCount = 0) {
 // 同一套渲染/判斷邏輯(見 renderSopTab 的 itemsHtml),不用另外寫一份 UI。
 function buildGenericChecklistConfig(requirements) {
   const items = [];
-  if (requirements.document_required) {
-    const label = DOC_TYPE_LABEL[requirements.document_type] || requirements.document_type || "文件";
-    items.push({ key: "generic_document", label: `上傳${label}`, docType: requirements.document_type });
-  }
+  sopReqDocuments(requirements).forEach((d) => {
+    const label = d.name || DOC_TYPE_LABEL[d.type] || d.type || "文件";
+    items.push(
+      d.type
+        ? { key: `generic_doc_${d.key}`, label: `上傳${label}`, docType: d.type }
+        : { key: `generic_doc_${d.key}`, label: `上傳${label}`, docType: "other", slotKey: d.key }
+    );
+  });
   if (requirements.contact_rate_required) {
     const threshold = requirements.contact_rate_threshold || 0.95;
     items.push({ key: "generic_contact_rate", label: `達到聯絡率門檻(${Math.round(threshold * 100)}%)`, contactRate: true, threshold });
@@ -920,6 +994,14 @@ async function renderSopTab(el) {
     // 各關卡分開認定:同一個 doc_type(例如 briefing_material)在第1/2/3輪說明會都會用到,
     // 只看「這一關自己上傳的」,不能被其他關卡上傳過同類型文件就誤判成這關也完成了。
     const latestByType = {};
+    const latestBySlot = {};
+    allDocs
+      .filter((d) => d.sop_stage === selected && d.slot_key)
+      .forEach((d) => {
+        if (!latestBySlot[d.slot_key] || new Date(d.uploaded_at) > new Date(latestBySlot[d.slot_key].uploaded_at)) {
+          latestBySlot[d.slot_key] = d;
+        }
+      });
     allDocs
       .filter((d) => d.sop_stage === selected)
       .forEach((d) => {
@@ -951,7 +1033,7 @@ async function renderSopTab(el) {
         let sub = item.sub || "";
         let rejected = false;
         if (item.docType) {
-          const doc = latestByType[item.docType];
+          const doc = item.slotKey ? latestBySlot[item.slotKey] : latestByType[item.docType];
           const formEntry = item.form ? stageForms[item.docType] : null;
           done = !!doc || !!formEntry;
           if (formEntry) {
@@ -1165,8 +1247,8 @@ async function renderSopTab(el) {
           item.docType && canOcr()
             ? stageLocked
               ? `<button type="button" class="btn-secondary btn-sm sop-btn-upload" disabled title="${LOCK_TIP}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>`
-              : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.docType}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>
-               <input type="file" data-checklist-upload-input="${item.docType}" style="display:none">`
+              : `<button type="button" class="btn-secondary btn-sm sop-btn-upload" data-checklist-upload="${item.slotKey ? `slot:${item.slotKey}` : item.docType}"><span class="sop-btn-icon">${SOP_UPLOAD_ICON}</span> ${done ? "重新上傳" : "上傳"}</button>
+               <input type="file" data-checklist-upload-input="${item.slotKey ? `slot:${item.slotKey}` : item.docType}" data-slot-label="${escapeHtml(item.slotKey ? item.label.replace(/^上傳/, "") : "")}" style="display:none">`
             : "";
         const formBtn =
           item.form && isEditor()
@@ -1221,7 +1303,7 @@ async function renderSopTab(el) {
                 ...landowners.flatMap((o) => (item.action === "land" ? o.land_records : o.building_records) || []).map((r) => r.source_ocr_job_id || 0)
               ) || null
             : null;
-        const previewDoc = item.docType ? latestByType[item.docType] : deedType && done && !deedJobId ? latestDeed(deedType) : null;
+        const previewDoc = item.docType ? (item.slotKey ? latestBySlot[item.slotKey] : latestByType[item.docType]) : deedType && done && !deedJobId ? latestDeed(deedType) : null;
         const previewBtn = deedJobId
           ? `<button type="button" class="btn-secondary btn-sm doc-icon-btn" data-sop-deed-job="${deedJobId}" title="預覽匯入的謄本" aria-label="預覽">${SOP_EYE_ICON}</button>`
           : previewDoc
@@ -1504,7 +1586,10 @@ async function renderSopTab(el) {
     input.addEventListener("change", async () => {
       const file = input.files[0];
       if (!file) return;
-      const docType = input.dataset.checklistUploadInput;
+      const uploadKey = input.dataset.checklistUploadInput;
+      const isSlot = uploadKey.startsWith("slot:");
+      const docType = isSlot ? "other" : uploadKey;
+      const slotLabel = input.dataset.slotLabel || "";
 
       const confirmed = await inspectAndConfirmDocumentUpload(file, docType);
       if (!confirmed) {
@@ -1516,9 +1601,13 @@ async function renderSopTab(el) {
       fd.append("file", file);
       fd.append("doc_type", docType);
       fd.append("sop_stage", String(selected));
+      if (isSlot) {
+        fd.append("slot_key", uploadKey.slice(5));
+        fd.append("slot_label", slotLabel);
+      }
       try {
         await api(`/projects/${pid}/documents`, { method: "POST", body: fd, isForm: true });
-        const label = DOC_TYPE_LABEL[docType] || docType;
+        const label = isSlot ? slotLabel : DOC_TYPE_LABEL[docType] || docType;
         toast(`【${label}】已成功上傳`, "success");
         renderSopTab(el);
         refreshReminderBell();

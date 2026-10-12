@@ -420,23 +420,35 @@ def _assert_checklist_passed(db: Session, project_id: int, stage: int, sop: SopS
             )
 
 
+def required_documents(requirements: dict) -> list[dict]:
+    """自訂關卡要求上傳的文件清單 [{key, type, name}];舊資料(只有 document_type)自動轉成一份。"""
+    docs = requirements.get("documents") or []
+    if docs:
+        return docs
+    if requirements.get("document_required") and requirements.get("document_type"):
+        t = requirements["document_type"]
+        return [{"key": t, "type": t, "name": t}]
+    return []
+
+
 def _assert_generic_requirements(db: Session, project_id: int, stage: int, sop: SopStage, requirements: dict) -> None:
     """任何一關只要在客製化流程編輯器裡設定了 requirements,就完全以這裡為準,不再
     看 key 的固定邏輯 - 見 schemas/sop.py 的 StageRequirements。"""
     entry = sop.stage_data["stages"].get(str(stage)) or {}
     checklist = (entry.get("data") or {}).get("checklist") or {}
 
-    if requirements.get("document_required"):
-        doc_type = requirements.get("document_type")
-        exists = doc_type and db.scalar(
-            select(Document.id).where(
-                Document.project_id == project_id, Document.doc_type == doc_type, Document.sop_stage == stage
-            )
+    for d in required_documents(requirements):
+        if d.get("type"):
+            cond = Document.doc_type == d["type"]
+        else:
+            cond = Document.slot_key == d.get("key")
+        exists = db.scalar(
+            select(Document.id).where(Document.project_id == project_id, Document.sop_stage == stage, cond).limit(1)
         )
         if not exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Stage {stage} requires a '{doc_type}' document to be uploaded first",
+                detail=f"第 {stage} 關還沒上傳「{d.get('name') or d.get('type')}」",
             )
 
     if requirements.get("manual_required"):
