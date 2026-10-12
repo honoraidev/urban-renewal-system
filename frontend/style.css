@@ -6113,3 +6113,10 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .np-card-head { padding-left: 18px !important; }
 
 .np-note { color: #e5484d !important; font-weight: 700; }
+.np-ups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+.np-up { min-width: 0; overflow: hidden; }
+.np-file { min-width: 0; }
+.np-file-main { min-width: 0; overflow: hidden; }
+.np-file-name { max-width: 100%; }
+.np-file-act { flex-wrap: wrap; }
+.np-file-main { padding-right: 14px; }
