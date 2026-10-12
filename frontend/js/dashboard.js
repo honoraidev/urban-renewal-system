@@ -654,6 +654,7 @@ async function loadDashboard() {
               }
               <h3 style="flex:1">${escapeHtml(p.name)}</h3>
               ${p.city ? `<span class="mini-badge">${escapeHtml(p.city)}</span>` : ""}
+              <button type="button" class="project-card-menu-btn project-card-eye-btn" data-project-site="${p.id}" title="檢視基地圖資" aria-label="檢視基地圖資">${NP_ICON.eye}</button>
               ${isEditor() ? `<button type="button" class="project-card-menu-btn" data-project-menu="${p.id}" title="案件選項">⋮</button>` : ""}
             </div>
             <div class="project-card-stage">
@@ -680,6 +681,14 @@ async function loadDashboard() {
       card.addEventListener("click", () => goToProjectOverviewPage(Number(card.dataset.projectId)));
     });
     document.getElementById("add-project-tile")?.addEventListener("click", goToNewProject);
+
+    grid.querySelectorAll("[data-project-site]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const target = summary.projects.find((x) => x.id === Number(btn.dataset.projectSite));
+        if (target) openSiteMapsViewer(target);
+      });
+    });
 
     grid.querySelectorAll("[data-project-menu]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -855,6 +864,9 @@ const NP_ICON = {
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
 };
 
 const NP_IMAGE_SLOTS = [
@@ -868,6 +880,69 @@ function npFmtSize(n) {
 function npFmtStamp(d) {
   const p = (x) => String(x).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// 案件卡片右上角眼睛:檢視這個案件的基地圖資(基地位置圖 + 基地地籍範圍圖),唯讀。
+async function openSiteMapsViewer(project) {
+  let docs = [];
+  try {
+    docs = await api(`/projects/${project.id}/documents`, { silent: true });
+  } catch (e) { }
+  const latest = (type) =>
+    (docs || [])
+      .filter((d) => d.doc_type === type)
+      .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))[0] || null;
+  const panels = [
+    { type: "site_location_map", title: "基地位置圖(周邊商圈)", desc: "基地周邊道路、商圈、重要地標等", icon: "pin" },
+    { type: "site_cadastral_map", title: "基地地籍範圍圖", desc: "地籍套繪圖、地號範圍、更新單元範圍圖等", icon: "map" },
+  ].map((x) => ({ ...x, doc: latest(x.type) }));
+
+  const metaRow = (ico, k, v) => `<div class="sv-meta-row"><span class="sv-meta-ic">${NP_ICON[ico]}</span><span class="sv-meta-k">${k}</span><span class="sv-meta-v">${escapeHtml(v)}</span></div>`;
+  const panelHtml = (x, i) => `
+    <section class="sv-panel">
+      <div class="sv-panel-head">
+        <span class="sv-panel-ic">${NP_ICON[x.icon]}</span>
+        <div><div class="sv-panel-t">${x.title}</div><div class="sv-panel-d">${x.desc}</div></div>
+      </div>
+      <div class="sv-img" data-sv-img="${i}">${x.doc ? '<span class="sv-img-loading">載入中…</span>' : '<span class="sv-img-empty">尚未上傳</span>'}</div>
+      ${x.doc
+        ? `<div class="sv-meta">
+             <div class="sv-meta-list">
+               ${metaRow("file", "檔案名稱", x.doc.file_name)}
+               ${metaRow("clock", "上傳時間", fmtDateTime(x.doc.uploaded_at))}
+               ${metaRow("file", "檔案大小", npFmtSize(x.doc.file_size_bytes || 0))}
+             </div>
+             <button type="button" class="sv-open" data-sv-open="${i}">${NP_ICON.eye}檢視大圖</button>
+           </div>`
+        : `<div class="sv-meta"><div class="sv-meta-list sv-none">還沒有上傳,請到 SOP 第 0 階段上傳</div></div>`}
+    </section>`;
+
+  openModal(
+    `<span class="np-head"><span class="np-head-ic sv-head-ic">${NP_ICON.map}</span><span><span class="np-head-t">基地圖資檢視</span><span class="np-head-s">檢視本案件之基地圖資,僅供查閱,圖片不可變更或重新上傳。</span></span></span>`,
+    `<div class="sv-grid">${panels.map(panelHtml).join("")}</div>
+     <div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">關閉</button></div>`,
+    { width: "1000px" }
+  );
+
+  panels.forEach(async (x, i) => {
+    if (!x.doc) return;
+    const box = document.querySelector(`[data-sv-img="${i}"]`);
+    try {
+      const res = await api(`/projects/${project.id}/documents/${x.doc.id}/preview`, { silent: true });
+      const blob = await res.blob();
+      x.url = URL.createObjectURL(blob);
+      const isImg = /^image\//i.test(blob.type) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(x.doc.file_name);
+      if (box) box.innerHTML = isImg ? `<img src="${x.url}" alt="${escapeHtml(x.title)}">` : `<span class="sv-img-empty">${NP_ICON.file}<br>${escapeHtml(x.doc.file_name)}</span>`;
+    } catch (e) {
+      if (box) box.innerHTML = '<span class="sv-img-empty">無法載入預覽</span>';
+    }
+  });
+  document.querySelectorAll("[data-sv-open]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const x = panels[Number(btn.dataset.svOpen)];
+      if (x && x.url) window.open(x.url, "_blank");
+    });
+  });
 }
 
 async function goToNewProject() {
