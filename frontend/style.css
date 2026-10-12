@@ -6135,3 +6135,7 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .np-file-main { padding-right: 0 !important; width: 100%; }
 .np-file-x { top: 6px !important; right: 8px !important; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.9); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .np-file-act button { padding-left: 0; }
+/* 查看/更換/刪除 移到圖片右上角、叉叉左邊 */
+.np-file-act { position: absolute !important; top: 6px; right: 42px; margin: 0 !important; background: rgba(255,255,255,.94); border-radius: 999px; padding: 2px 8px !important; box-shadow: 0 1px 4px rgba(0,0,0,.2); flex-wrap: nowrap !important; gap: 0 !important; z-index: 2; }
+.np-file-act button { font-size: 13px; padding: 2px 8px; }
+.np-file-x { z-index: 2; }
