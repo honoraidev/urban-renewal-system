@@ -1247,37 +1247,151 @@ async function openProjectEditModal(projectId) {
   const cityOptions =
     `<option value="">請選擇</option>` +
     TAIWAN_CITIES.map((c) => `<option value="${c}" ${c === (p.city || "") ? "selected" : ""}>${c}</option>`).join("");
+  const PEI = {
+    pin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
+    building: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5h2a2 2 0 0 1 2 2v9h-4v-4h-2v4H4zm4-14v2h2V7H8zm0 4v2h2v-2H8zm0 4v2h2v-2H8z"/></svg>',
+    hash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 10 5-10 5L2 7l10-5zm0 12.2 7.4-3.7L22 12l-10 5-10-5 2.6-1.5L12 14.2zm0 5 7.4-3.7L22 17l-10 5-10-5 2.6-1.5L12 19.2z"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 4V5a2 2 0 0 1 2-2zm3 5v2h10V8H7zm0 4v2h7v-2H7z"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>',
+    img: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/><path d="M9 9h5M9 13h3"/><path d="m18 4 2 2-6 6-3 1 1-3z"/></svg>',
+  };
+  const lbl = (ico, text) => `<label class="pe-label"><span class="pe-label-ic">${PEI[ico]}</span>${text}</label>`;
   openModal(
-    "編輯案件資料",
+    `<span class="np-head"><span class="np-head-ic pe-head-ic">${PEI.edit}</span><span><span class="np-head-t">編輯案件資料</span></span></span>`,
     `
-    <form id="project-edit-form">
+    <form id="project-edit-form" class="pe-form">
       <div class="field-row">
-        <div class="field"><label>縣市</label><select name="city" id="np-city">${cityOptions}</select></div>
-        <div class="field"><label>行政區</label><select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
+        <div class="field">${lbl("pin", "縣市")}<select name="city" id="np-city">${cityOptions}</select></div>
+        <div class="field">${lbl("building", "行政區")}<select name="district" id="np-district" disabled><option value="">請先選擇縣市</option></select></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>案件代碼</label><input name="project_code" value="${escapeHtml(p.project_code || "")}" required></div>
-        <div class="field"><label>案件名稱</label><input name="name" value="${escapeHtml(p.name || "")}" required></div>
+        <div class="field">${lbl("hash", "案件代碼")}<input name="project_code" value="${escapeHtml(p.project_code || "")}" required></div>
+        <div class="field">${lbl("doc", "案件名稱")}<input name="name" value="${escapeHtml(p.name || "")}" required></div>
       </div>
-      <div class="field"><label>案件地址</label><input name="address" value="${escapeHtml(p.address || "")}"></div>
-      <div class="field"><label>案件類型</label><input name="case_type" value="${escapeHtml(p.case_type || "")}" placeholder="例:都市更新(權利變換)"></div>
-      <div class="field"><label>備註</label>${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
-      <div class="field"><label>案件簡介</label><textarea name="summary" rows="4" placeholder="案件總覽頁顯示的簡介段落,例如基地面積、預計興建規模等">${escapeHtml(p.summary || "")}</textarea></div>
+      <div class="field">${lbl("pin", "案件地址")}<input name="address" value="${escapeHtml(p.address || "")}"></div>
+      <div class="field">${lbl("layers", "案件類型")}<input name="case_type" value="${escapeHtml(p.case_type || "")}" placeholder="例:都市更新(權利變換)"></div>
+      <div class="field">${lbl("chat", "備註")}${noteFillHtml}<textarea name="description" id="pe-note" rows="3">${escapeHtml(p.description || "")}</textarea></div>
+      <div class="field">${lbl("info", "案件簡介")}<textarea name="summary" rows="4" placeholder="案件總覽頁顯示的簡介段落,例如基地面積、預計興建規模等">${escapeHtml(p.summary || "")}</textarea></div>
       <div class="field">
-        <label>封面圖(案件總覽頁用)</label>
+        ${lbl("img", "封面圖(案件總覽頁用)")}
         <div id="pe-cover-preview" style="margin-bottom:8px">
           ${p.has_cover_image ? `<img id="pe-cover-img" style="max-width:220px;max-height:140px;border-radius:8px;display:block;object-fit:cover">` : `<span class="helper-text">尚未上傳封面圖</span>`}
         </div>
         <input type="file" id="pe-cover-file" accept="image/*">
         ${p.has_cover_image ? `<button type="button" class="btn-link btn-sm" id="pe-cover-remove-btn" style="margin-top:4px">移除封面圖</button>` : ""}
       </div>
+      <div class="field">
+        ${lbl("img", "基地圖資")}
+        <div class="np-ups pe-ups" id="pe-site-ups"></div>
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
-        <button type="submit" class="btn-primary">儲存</button>
+        <button type="submit" class="btn-primary">儲存變更</button>
       </div>
     </form>`,
-    { width: "560px" }
+    { width: "780px" }
   );
+
+  // ---- 基地圖資(基地位置圖 / 基地地籍範圍圖):先暫存,按「儲存變更」才實際上傳 / 刪除 ----
+  const siteDocsOf = (type) =>
+    (docs || [])
+      .filter((d) => d.doc_type === type)
+      .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+  const siteState = {};
+  NP_IMAGE_SLOTS.forEach((slot) => {
+    const type = slot.key === "location" ? "site_location_map" : "site_cadastral_map";
+    const cur = siteDocsOf(type)[0] || null;
+    siteState[slot.key] = {
+      type,
+      docs: siteDocsOf(type),
+      cur: cur
+        ? { name: cur.file_name, size: cur.file_size_bytes || 0, at: new Date(cur.uploaded_at), docId: cur.id, url: null, isImage: true }
+        : null,
+      file: null, // 新選的檔案(尚未上傳)
+      removed: false,
+    };
+  });
+  const renderSiteSlots = () => {
+    const box = document.getElementById("pe-site-ups");
+    if (!box) return;
+    box.innerHTML = NP_IMAGE_SLOTS.map((slot) => {
+      const st = siteState[slot.key];
+      const img = st.cur;
+      return `
+      <div class="np-up" data-slot="${slot.key}">
+        <div class="np-up-title">${slot.title}</div>
+        <div class="np-up-hint">${slot.hint}</div>
+        <label class="np-drop" data-drop="${slot.key}">
+          <span class="np-drop-ic">${NP_ICON[slot.icon]}</span>
+          <b>點擊上傳或拖曳檔案到這裡</b>
+          <input type="file" hidden data-file="${slot.key}">
+        </label>
+        ${img
+          ? `<div class="np-file">
+               ${img.isImage ? (img.url ? `<img src="${img.url}" alt="">` : `<span class="np-file-ico">…</span>`) : `<span class="np-file-ico">📄</span>`}
+               <div class="np-file-main">
+                 <div class="np-file-name">${escapeHtml(img.name)}${st.file ? ' <span class="pe-pending">待儲存</span>' : ""}</div>
+                 <div class="np-file-meta">${npFmtSize(img.size)} · ${npFmtStamp(img.at)}</div>
+                 <div class="np-file-act">
+                   <button type="button" data-act="view" data-slot="${slot.key}">${NP_ICON.search}<span class="np-lbl">查看</span></button>
+                   <button type="button" data-act="swap" data-slot="${slot.key}">${NP_ICON.swap}<span class="np-lbl">更換</span></button>
+                   <button type="button" class="del" data-act="del" data-slot="${slot.key}">${NP_ICON.trash}<span class="np-lbl">刪除</span></button>
+                 </div>
+               </div>
+             </div>`
+          : st.removed ? '<div class="pe-pending-del">已標記刪除,按「儲存變更」後生效</div>' : ""}
+      </div>`;
+    }).join("");
+    NP_IMAGE_SLOTS.forEach((slot) => {
+      const st = siteState[slot.key];
+      const input = box.querySelector(`input[data-file="${slot.key}"]`);
+      const drop = box.querySelector(`[data-drop="${slot.key}"]`);
+      const pick = (file) => {
+        if (!file) return;
+        if (st.cur && st.cur.url && st.file) URL.revokeObjectURL(st.cur.url);
+        st.file = file;
+        st.removed = false;
+        st.cur = { name: file.name, size: file.size, at: new Date(), url: URL.createObjectURL(file), isImage: /^image\//i.test(file.type), docId: null };
+        renderSiteSlots();
+      };
+      input.addEventListener("change", () => pick(input.files[0]));
+      ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+      ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+      drop.addEventListener("drop", (e) => pick(e.dataTransfer.files[0]));
+    });
+    box.querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.slot;
+        const st = siteState[key];
+        if (btn.dataset.act === "view" && st.cur && st.cur.url) window.open(st.cur.url, "_blank");
+        else if (btn.dataset.act === "swap") box.querySelector(`input[data-file="${key}"]`).click();
+        else if (btn.dataset.act === "del") {
+          st.file = null;
+          st.cur = null;
+          st.removed = st.docs.length > 0;
+          renderSiteSlots();
+        }
+      });
+    });
+  };
+  renderSiteSlots();
+  // 已存在的圖片:非同步載入縮圖
+  NP_IMAGE_SLOTS.forEach(async (slot) => {
+    const st = siteState[slot.key];
+    if (!st.cur || !st.cur.docId) return;
+    try {
+      const res = await api(`/projects/${projectId}/documents/${st.cur.docId}/preview`, { silent: true });
+      const blob = await res.blob();
+      if (st.cur && st.cur.docId) {
+        st.cur.url = URL.createObjectURL(blob);
+        st.cur.isImage = /^image\//i.test(blob.type) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(st.cur.name);
+        renderSiteSlots();
+      }
+    } catch (e) { }
+  });
 
   updateDistrictSelectOptions(p.city || "", p.district || "");
   document.getElementById("np-city").addEventListener("change", (e) => {
@@ -1337,7 +1451,24 @@ async function openProjectEditModal(projectId) {
     const payload = Object.fromEntries(new FormData(e.target).entries());
     try {
       const updated = await api(`/projects/${projectId}`, { method: "PATCH", body: payload });
-      toast("案件資料已更新", "success");
+      // 基地圖資:有選新檔案 → 上傳(掛 SOP 第 0 階段、自動命名);按了刪除 → 刪掉原檔
+      let siteFailed = false;
+      for (const slot of NP_IMAGE_SLOTS) {
+        const st = siteState[slot.key];
+        try {
+          if (st.file) {
+            const up = new FormData();
+            up.append("file", st.file);
+            up.append("doc_type", st.type);
+            up.append("description", slot.title);
+            up.append("sop_stage", "0");
+            await api(`/projects/${projectId}/documents`, { method: "POST", body: up, isForm: true, silent: true });
+          } else if (st.removed) {
+            for (const d of st.docs) await api(`/projects/${projectId}/documents/${d.id}`, { method: "DELETE", silent: true });
+          }
+        } catch (err) { siteFailed = true; }
+      }
+      toast(siteFailed ? "案件資料已更新,但基地圖資有項目處理失敗,請重試" : "案件資料已更新", siteFailed ? "error" : "success");
       closeModal();
       if (state.currentProjectId === projectId) {
         state.currentProject = updated;

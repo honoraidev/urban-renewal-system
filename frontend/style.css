@@ -6185,3 +6185,15 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 .project-card-top .mini-badge { display: inline-flex; align-items: center; height: 24px; line-height: 1; padding-top: 0; padding-bottom: 0; }
 .project-card-top .project-card-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; line-height: 1; }
 .project-card-top .project-select-checkbox { margin: 0; flex: 0 0 auto; }
+/* 編輯案件資料 */
+.pe-head-ic { color: #1f6f82; background: transparent; }
+.pe-head-ic svg { width: 100%; height: 100%; }
+.pe-form .field { margin-bottom: 14px; }
+.pe-label { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; font-size: 15px; }
+.pe-label-ic { width: 20px; height: 20px; color: #2b6f86; display: inline-flex; flex: 0 0 auto; }
+.pe-label-ic svg { width: 100%; height: 100%; }
+.pe-form input[type=text], .pe-form input:not([type]), .pe-form select, .pe-form textarea { width: 100%; }
+.pe-ups { padding: 0 !important; }
+.pe-pending { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; color: #b45309; background: #fef3c7; border-radius: 999px; padding: 0 7px; }
+.pe-pending-del { margin-top: 10px; font-size: 13px; color: #b45309; font-weight: 700; }
+
