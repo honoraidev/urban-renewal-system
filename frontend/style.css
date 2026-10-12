@@ -6129,3 +6129,9 @@ input.mwn-sel[type="time"] { padding: 0 12px; font-family: inherit; }
 
 .sop-flow-doc-row select { flex: 0 0 220px; min-width: 0; width: 220px; }
 .sop-flow-doc-row input { flex: 1 1 auto; min-width: 0; }
+/* 基地圖:縮圖在上,檔名/大小/操作移到圖片下方 */
+.np-file { flex-direction: column !important; gap: 10px !important; padding-right: 0 !important; }
+.np-file img, .np-file .np-file-ico { width: 100% !important; height: 160px !important; object-fit: cover; }
+.np-file-main { padding-right: 0 !important; width: 100%; }
+.np-file-x { top: 6px !important; right: 8px !important; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.9); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.np-file-act button { padding-left: 0; }
